@@ -19,9 +19,11 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from apps.delivery_teams.api_views import DeliveryTeamViewSet
+from apps.skills.api_views import SkillViewSet
 
 router = DefaultRouter()
 router.register(r'delivery-teams', DeliveryTeamViewSet, basename='delivery-team')
+router.register(r'skills', SkillViewSet, basename='skill')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -31,6 +33,9 @@ urlpatterns = [
 
     # Manage
     path('delivery-teams/', include('apps.delivery_teams.urls')),
+
+    # Settings
+    path('skills/', include('apps.skills.urls')),
 
     path('', include('apps.delivery_teams.urls')),
 ]

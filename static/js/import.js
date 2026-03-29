@@ -212,7 +212,9 @@ async function submitImport(url, file, options = {}) {
 /*   tabSucceeded   (default: 'tab-succeeded')                                */
 /* =========================================================================== */
 
-function renderImportResults(data, ids = {}) {
+function renderImportResults(data, ids = {}, options = {}) {
+  const nameKey = options.nameKey || 'name';
+
   const el = {
     resultsPanel:   document.getElementById(ids.resultsPanel   || 'import-results'),
     resultsBanner:  document.getElementById(ids.resultsBanner  || 'results-banner'),
@@ -259,7 +261,7 @@ function renderImportResults(data, ids = {}) {
       const tr        = document.createElement('tr');
       tr.innerHTML = `
         <td class="text-center text-secondary">${r.row}</td>
-        <td class="fw-500">${escHtml(r.name || '&mdash;')}</td>
+        <td class="fw-500">${escHtml(r[nameKey] || '&mdash;')}</td>
         <td class="text-danger small">${escHtml(errorText)}</td>`;
       el.failedTbody.appendChild(tr);
     });
@@ -279,7 +281,7 @@ function renderImportResults(data, ids = {}) {
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td class="text-center text-secondary">${r.row}</td>
-        <td class="fw-500">${escHtml(r.name)}</td>`;
+        <td class="fw-500">${escHtml(r[nameKey])}</td>`;
       el.succeededTbody.appendChild(tr);
     });
   } else {

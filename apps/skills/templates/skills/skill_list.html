@@ -1,22 +1,22 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Teams - Resource Planner{% endblock %}
+{% block title %}Skills - Resource Planner{% endblock %}
 
 {% block page_header %}
 <div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
     <!-- Page Title -->
     <div>
-        <h1 class="rp-page-title">Teams</h1>
+        <h1 class="rp-page-title">Skills</h1>
         <p class="rp-page-subtitle">
-            Manage all teams in your business unit.
+            Configure skill codes used across engineers and demands
         </p>
     </div>
 
     <!-- Features -->
     <div class="d-flex gap-2 flex-wrap">
         <!-- Import -->
-        <a href="{% url 'delivery_teams:import' %}"
+        <a href="{% url 'skills:import' %}"
            class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
@@ -47,10 +47,10 @@
             </ul>
         </div>
 
-        <!-- New Delivery Team -->
-        <a href="{% url 'delivery_teams:create' %}"
+        <!-- New Skill -->
+        <a href="{% url 'skills:create' %}"
            class="btn btn-primary btn-sm">
-            <i class="bi bi-plus-lg me-1"></i>New Team
+            <i class="bi bi-plus-lg me-1"></i>New Skill
         </a>
     </div>
 </div>
@@ -59,35 +59,35 @@
 {% block content %}
 <!-- Statistics -->
 <div class="row g-3 mb-4">
-    <!-- Total Teams -->
+    <!-- Total Skills -->
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
-            <span class="rp-stat-label">Total Teams</span>
-            <span class="rp-stat-value">{{ total_teams }}</span>
+            <span class="rp-stat-label">Total Skills</span>
+            <span class="rp-stat-value">{{ total_skills }}</span>
         </div>
     </div>
 
-    <!-- Active Teams -->
+    <!-- Active Skills -->
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
-            <span class="rp-stat-label">Active Teams</span>
-            <span class="rp-stat-value">{{ active_teams }}</span>
+            <span class="rp-stat-label">Active Skills</span>
+            <span class="rp-stat-value">{{ active_skills }}</span>
         </div>
     </div>
 
-    <!-- Total Team Members -->
+    <!-- Inactive Skills -->
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
-            <span class="rp-stat-label">Total Team Members</span>
-            <span class="rp-stat-value">{{ total_members }}</span>
+            <span class="rp-stat-label">Inactive Skills</span>
+            <span class="rp-stat-value">{{ inactive_skills }}</span>
         </div>
     </div>
 
-    <!-- Unassigned Team Members -->
+    <!-- Unassigned Skills -->
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
-            <span class="rp-stat-label">Unassigned Team Members</span>
-            <span class="rp-stat-value">{{ unassigned_members }}</span>
+            <span class="rp-stat-label">Unassigned Skills</span>
+            <span class="rp-stat-value">{{ unassigned_skills }}</span>
         </div>
     </div>
 </div>
@@ -100,7 +100,7 @@
         <input type="text"
                id="team-search"
                class="form-control rp-search-input"
-               placeholder="Search teams by name or description..." />
+               placeholder="Search teams by skill code or description..." />
     </div>
 
     <!-- Filters -->
@@ -114,54 +114,46 @@
     </select>
 </div>
 
-<!-- Delivery Teams Table -->
+<!-- Skills Table -->
 <div class="rp-table-wrap">
     <table class="table rp-table"
-           id="delivery-teams-table">
+           id="skills-table">
         <thead>
             <tr>
                 <th class="sortable"
                     data-col="0"
                     onclick="sortTable(0)">
-                    Name <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                    Skill Code <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
                 <th>Description</th>
                 <th class="text-center sortable"
                     onclick="sortTable(2)">
-                    Total Team Members <i class="bi bi-chevron-expand rp-sort-icon"></i>
-                </th>
-                <th class="text-center sortable"
-                    onclick="sortTable(3)">
                     Status <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
                 <th class="text-center">Actions</th>
             </tr>
         </thead>
         <tbody>
-            {% for team in delivery_teams %}
-            <tr data-team-id="{{ team.id }}"
-                data-name="{{ team.name|lower }}"
-                data-desc="{{ team.description|lower }}"
-                data-status="{% if team.is_active %}active{% else %}inactive{% endif %}">
-                <!-- Name -->
+            {% for skill in skills %}
+            <tr data-skill-id="{{ skill.id }}"
+                data-code="{{ skill.skill|lower }}"
+                data-desc="{{ skill.description|lower }}"
+                data-status="{% if skill.is_active %}active{% else %}inactive{% endif %}">
+                <!-- Code -->
                 <td>
-                    <a href="{% url 'delivery_teams:detail' team.pk %}"
-                       class="rp-link fw-500">
-                        {{ team.name }}
+                    <a href="{% url 'skills:detail' skill.pk %}"
+                       class="rp-link">
+                        <span class="rp-code">{{ skill.skill }}</span>
                     </a>
                 </td>
                 <!-- Description -->
                 <td class="text-secondary"
                     style="max-width: 260px;">
-                    <span class="rp-truncate">{{ team.description }}</span>
-                </td>
-                <!-- Total Team Members -->
-                <td class="text-center">
-                    <span class="fw-500">0</span>
+                    <span class="rp-truncate">{{ skill.description }}</span>
                 </td>
                 <!-- Status -->
                 <td class="text-center">
-                    {% if team.is_active%}
+                    {% if skill.is_active%}
                     <span class="rp-badge rp-badge--success">Active</span>
                     {% else %}
                     <span class="rp-badge rp-badge--muted">Inactive</span>
@@ -170,19 +162,19 @@
                 <!-- Actions -->
                 <td class="text-center">
                     <div class="d-flex justify-content-center gap-1">
-                        <a href="{% url 'delivery_teams:detail' team.pk %}"
+                        <a href="{% url 'skills:detail' skill.pk %}"
                            class="btn btn-ghost-icon"
-                           title="View team">
+                           title="View skill">
                             <i class="bi bi-eye"></i>
                         </a>
-                        <a href="{% url 'delivery_teams:edit' team.pk %}"
+                        <a href="{% url 'skills:edit' skill.pk %}"
                            class="btn btn-ghost-icon"
-                           title="Edit team">
+                           title="Edit skill">
                             <i class="bi bi-pencil"></i>
                         </a>
                         <button class="btn btn-ghost-icon btn-ghost-icon--danger"
-                                title="Delete team"
-                                onclick="confirmDelete({{ team.id }}, '{{ team.name|escapejs }}')">
+                                title="Delete skill"
+                                onclick="confirmDelete({{ skill.id }}, '{{ skill.skill|escapejs }}')">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
@@ -193,7 +185,7 @@
                 <td colspan="6"
                     class="text-center py-5 text-secondary">
                     <i class="bi bi=people display-6 d-block mb-2 opacity-25"></i>
-                    No teams found. <a href="{% url 'delivery_teams:create' %}">Create the first one</a>.
+                    No skills found. <a href="{% url 'skills:create' %}">Create the first one</a>.
                 </td>
             </tr>
             {% endfor %}
@@ -209,7 +201,7 @@
         <div class="modal-content rp-modal">
             <!-- Modal Header -->
             <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title">Delete team?</h5>
+                <h5 class="modal-title">Delete skill?</h5>
                 <button type="button"
                         class="btn-close"
                         data-bs-dismiss="modal">
@@ -219,7 +211,7 @@
             <!-- Modal Body -->
             <div class="modal-body">
                 <p class="text-secondary mb-0">
-                    <strong id="delete-team-name"></strong> will be permanently removed.
+                    <strong id="delete-skill-code"></strong> will be permanently removed.
                     This cannot be undone.
                 </p>
             </div>
@@ -246,5 +238,5 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script src="{% static 'js/export.js' %}"></script>
-<script src="{% static 'js/delivery_teams.js' %}"></script>
+<script src="{% static 'js/skills.js' %}"></script>
 {% endblock %}

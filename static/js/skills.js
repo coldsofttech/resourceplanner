@@ -1,13 +1,13 @@
 'use strict';
 
 /*******************************************************************************/
-/* delivery_team_list.html                                                     */
+/* skill_list.html                                                             */
 /*******************************************************************************/
 
 /* Search & Filtering Functionality */
 const searchInput  = document.getElementById('team-search');
 const statusFilter = document.getElementById('status-filter');
-const tbody = document.querySelector('#delivery-teams-table tbody');
+const tbody = document.querySelector('#skills-table tbody');
 
 if (searchInput) {
   searchInput.addEventListener('input', filterTable);
@@ -22,11 +22,11 @@ function filterTable() {
 
   const query      = (searchInput?.value  || '').toLowerCase().trim();
   const status     = (statusFilter?.value || '').toLowerCase().trim();
-  const rows       = tbody.querySelectorAll('tr[data-team-id]');
+  const rows       = tbody.querySelectorAll('tr[data-skill-id]');
   let   visible    = 0;
 
   rows.forEach(row => {
-    const name    = (row.dataset.name   || '').toLowerCase();
+    const name    = (row.dataset.code   || '').toLowerCase();
     const desc    = (row.dataset.desc   || '').toLowerCase();
     const rowStat = (row.dataset.status || '').toLowerCase();
 
@@ -46,7 +46,7 @@ function filterTable() {
       emptyRow.id = 'empty-filter-row';
       emptyRow.innerHTML = `
         <td colspan="6" class="text-center py-4 text-secondary">
-          <i class="bi bi-search me-2"></i>No teams match your filters.
+          <i class="bi bi-search me-2"></i>No skills match your filters.
         </td>`;
       tbody.appendChild(emptyRow);
     }
@@ -60,7 +60,7 @@ function filterTable() {
 let sortState = { col: -1, asc: true };
 
 function sortTable(colIndex) {
-  const tbody = document.querySelector('#delivery-teams-table tbody');
+  const tbody = document.querySelector('#skills-table tbody');
   if (!tbody) return;
 
   // Toggle direction if same column
@@ -72,7 +72,7 @@ function sortTable(colIndex) {
   }
 
   // Update header icons
-  document.querySelectorAll('#delivery-teams-table thead th .rp-sort-icon').forEach((icon, i) => {
+  document.querySelectorAll('#skills-table thead th .rp-sort-icon').forEach((icon, i) => {
     icon.className = 'bi rp-sort-icon ' + (
       i === colIndex
         ? (sortState.asc ? 'bi-chevron-up' : 'bi-chevron-down')
@@ -80,7 +80,7 @@ function sortTable(colIndex) {
     );
   });
 
-  const rows = Array.from(tbody.querySelectorAll('tr[data-team-id]'));
+  const rows = Array.from(tbody.querySelectorAll('tr[data-skill-id]'));
 
   rows.sort((a, b) => {
     const aCell = a.cells[colIndex];
@@ -107,12 +107,12 @@ function sortTable(colIndex) {
 /* Export Functionality */
 const LIST_EXPORT_COLUMNS = [
   { key: 'id',          label: 'ID'           },
-  { key: 'name',        label: 'Name'         },
+  { key: 'skill',       label: 'Skill'        },
   { key: 'description', label: 'Description'  },
   { key: 'is_active',   label: 'Active'       },
 ];
 
-const LIST_EXPORT_URL = '/api/v1/delivery-teams/export/';
+const LIST_EXPORT_URL = '/api/v1/skills/export/';
 
 async function runListExport(format) {
   const btn = document.getElementById('export-dropdown-btn');
@@ -128,12 +128,12 @@ async function runListExport(format) {
   try {
     const res  = await apiFetch(LIST_EXPORT_URL);
     const date = new Date().toISOString().slice(0, 10);
-    const filename = `delivery_teams-${date}`;
+    const filename = `skills-${date}`;
 
     if (format === 'csv') {
       exportToCsv(res.results, LIST_EXPORT_COLUMNS, filename);
     } else {
-      exportToPdf(res.results, LIST_EXPORT_COLUMNS, 'Delivery Teams', filename);
+      exportToPdf(res.results, LIST_EXPORT_COLUMNS, 'Skills', filename);
     }
   } catch (_err) {
     showFlash('Export failed. Please try again.', 'error');
@@ -146,7 +146,7 @@ async function runListExport(format) {
 }
 
 /*******************************************************************************/
-/* delivery_team_import.html                                                   */
+/* skill_import.html                                                           */
 /*******************************************************************************/
 
 /* Bulk Import Functionality */
@@ -156,7 +156,7 @@ const importAnotherBtn = document.getElementById('import-another-btn');
 
 let importFile = null;
 
-loadSpecs('/api/v1/delivery-teams/import/specifications/'); // all element IDs match import.js defaults
+loadSpecs('/api/v1/skills/import/specifications/'); // all element IDs match import.js defaults
 
 const dropZoneEl = document.getElementById('drop-zone'); // all element IDs, delivery-team-specific callbacks
 
@@ -186,7 +186,7 @@ if (dropZoneEl) {
     /* All element IDS match import.js defaults */
     submitImport(window.location.pathname, importFile, {
       submitBtn: importBtn,
-      onSuccess: data => renderImportResults(data),
+      onSuccess: data => renderImportResults(data, {}, { nameKey: 'skill' }),
       onError:   msg  => dropZoneApi.showError(msg),
     });
   });
@@ -201,13 +201,13 @@ if (importAnotherBtn) {
 }
 
 /*******************************************************************************/
-/* delivery_team_list.html & delivery_team_form.html                           */
+/* skill_list.html & skill_form.html                                           */
 /*******************************************************************************/
 
-/* Delete Team Functionality */
+/* Delete Skill Functionality */
 function confirmDelete(id, name, deleteUrl, redirectUrl) {
   const modal   = document.getElementById('deleteModal');
-  const nameEl  = document.getElementById('delete-team-name');
+  const nameEl  = document.getElementById('delete-skill-code');
   const btn     = document.getElementById('confirm-delete-btn');
 
   if (!modal || !btn) return;
@@ -219,8 +219,8 @@ function confirmDelete(id, name, deleteUrl, redirectUrl) {
   btn.parentNode.replaceChild(newBtn, newBtn.previousSibling || btn);
 
   // Use passed URL or derive from current path
-  const resolvedUrl  = deleteUrl || `/delivery-teams/${id}/delete/`;
-  const resolvedRedir = redirectUrl || '/delivery-teams/';
+  const resolvedUrl  = deleteUrl || `/skills/${id}/delete/`;
+  const resolvedRedir = redirectUrl || '/skills/';
 
   newBtn.addEventListener('click', async () => {
     try {
@@ -228,14 +228,14 @@ function confirmDelete(id, name, deleteUrl, redirectUrl) {
       newBtn.textContent = 'Deleting...';
       await apiFetch(resolvedUrl, { method: 'POST' });
       bootstrap.Modal.getInstance(modal)?.hide();
-      showFlash(`Team "${name}" was deleted successfully.`, 'success');
+      showFlash(`Skill "${name}" was deleted successfully.`, 'success');
       setTimeout(() => { window.location.href = resolvedRedir; }, 800);
     } catch (err) {
       newBtn.disabled = false;
       newBtn.textContent = 'Delete';
       bootstrap.Modal.getInstance(modal)?.hide();
       showFlash(
-        err?.data?.detail || `Failed to delete team "${name}". Please try again.`,
+        err?.data?.detail || `Failed to delete skill "${name}". Please try again.`,
         'error'
       );
     }
