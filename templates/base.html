@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport"
+              content="width=device-width, initial-scale=1.0" />
+        
+        <title>{% block title %}Resource Planner{% endblock %}</title>
+
+        <!-- Bootstrap 5 -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+              rel="stylesheet" />
+        <!-- Bootstrap Icons -->
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+              rel="stylesheet" />
+        <!-- Google Fonts -->
+        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap"
+              rel="stylesheet" />
+        <!-- App CSS -->
+        {% load static %}
+        <link href="{% static 'css/main.css' %}"
+              rel="stylesheet" />
+        
+        {% block extra_css %}{% endblock %}
+    </head>
+    <body>
+        <!-- Top Navigation Bar -->
+        <nav class="rp-navbar navbar navbar-expand-lg">
+            <div class="container-fluid px-4">
+                <!-- Application Title -->
+                <a class="rp-brand navbar-brand d-flex align-items-center gap-2"
+                   href="/">
+                    <span class="rp-brand-icon">
+                        <i class="bi bi-diagram-3-fill"></i>
+                    </span>
+                    <span>Resource<strong>Planner</strong></span>
+                </a>
+
+                <button class="navbar-toggler"
+                        type="button"
+                        data-bs-toggle="collapse"
+                        data-bs-target="#mainNav">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <!-- Top Navigation Bar Menu Items -->
+                <div class="collapse navbar-collapse"
+                     id="mainNav">
+                    <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}"
+                               href="/">
+                                <i class="bi bi-speedometer2 me-1"></i>Dashboard
+                            </a>
+                        </li>
+
+                        <!-- Financial Years Dropdown -->
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle d-flex align-items-center gap-1 {% if request.resolver_match.app_name == 'financial_years' %}active{% endif %}"
+                               href="#"
+                               role="button"
+                               data-bs-toggle="dropdown">
+                                <i class="bi bi-calendar3 me-1"></i>
+                                {% if active_fy %}
+                                    {{ active_fy.short_fy }}
+                                {% else %}
+                                    Financial Years
+                                {% endif %}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end"
+                                style="min-width: 220px;">
+                                <!-- Active Financial Year Indicator -->
+                                {% if active_fy %}
+                                <li>
+                                    <div class="px-3 py-2 d-flex align-items-center gap-2">
+                                        <span class="rp-badge rp-badge--success"
+                                              style="font-size: 10.5px">
+                                            Active
+                                        </span>
+                                        <span class="fw-500"
+                                              style="font-size: 13px;">
+                                            {{ active_fy.long_fy }}
+                                        </span>
+                                    </div>
+                                </li>
+                                <li>
+                                    <hr class="dropdown-divider my-1">
+                                </li>
+                                {% endif %}
+
+                                <!-- All Financial Years -->
+                                {% for fy in all_financial_years %}
+                                <li>
+                                    <a class="dropdown-item d-flex align-items-center justify-content-between {% if fy.is_active %}fw-500{% endif %}"
+                                       href="{% url 'financial_years:detail' fy.pk %}">
+                                        <span>{{ fy.long_fy }}</span>
+                                        <span class="text-secondary"
+                                              style="font-size: 11.5px;">
+                                            {{ fy.short_fy }}
+                                        </span>
+                                    </a>
+                                </li>
+                                {% empty %}
+                                <li>
+                                    <span class="dropdown-item text-secondary"
+                                          style="font-size: 13px;">
+                                        No financial years yet
+                                    </span>
+                                </li>
+                                {% endfor %}
+
+                                <li>
+                                    <hr class="dropdown-divider my-1">
+                                </li>
+                                <li>
+                                    <a class="dropdown-item"
+                                       href="#">
+                                        <i class="bi bi-list-ul me-2"></i>All financial years
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item"
+                                       href="#">
+                                        <i class="bi bi-plus me-2"></i>New financial year
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Page Wrapper -->
+        <div class="rp-layout d-flex">
+            <!-- Sidebar -->
+            <aside class="rp-sidebar d-none d-lg-flex flex-column">
+                <div class="rp-sidebar-section">
+                    <!-- Manage Section -->
+                    <p class="rp-sidebar-label">Manage</p>
+                    <!-- Teams -->
+                    <a href="{% url 'delivery_teams:list' %}"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'teams' %}active{% endif %}">
+                        <i class="bi bi-people"></i> Teams
+                    </a>
+                    <!-- Team Members -->
+                    <a href="#"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'team_members' %}active{% endif %}">
+                        <i class="bi bi-person-badge"></i> Team Members
+                    </a>
+                    <!-- Projects -->
+                    <a href="#"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'projects' %}active{% endif %}">
+                        <i class="bi bi-kanban"></i> Projects
+                    </a>
+                    <!-- Financial Years -->
+                    <a href="#"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'financial_years' %}active{% endif %}">
+                        <i class="bi bi-calendar3"></i> Financial Years
+                    </a>
+                    <!-- Holidays -->
+                    <a href="#"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'holidays' %}active{% endif %}">
+                        <i class="bi bi-calendar-heart"></i> Holidays
+                    </a>
+                    <!-- Budgets -->
+                    <a href="#"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'budgets' %}active{% endif %}">
+                        <i class="bi bi-wallet2"></i> Budgets
+                    </a>
+                </div>
+                <div class="rp-sidebar-section">
+                    <!-- Plan Section -->
+                    <p class="rp-sidebar-label">Plan</p>
+                    <!-- Leaves -->
+                    <a href="#"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'leaves' %}active{% endif %}">
+                        <i class="bi bi-calendar2-minus"></i> Leaves
+                    </a>
+                    <!-- Sprints -->
+                    <a href="#"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'sprints' %}active{% endif %}">
+                        <i class="bi bi-calendar3-range"></i> Sprints
+                    </a>
+                    <!-- Resource Plans -->
+                    <a href="#"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'resource_plans' %}active{% endif %}">
+                        <i class="bi bi-bar-chart-steps"></i> Resource Plans
+                    </a>
+                </div>
+                <div class="rp-sidebar-section mt-auto">
+                    <!-- Settings Section -->
+                    <p class="rp-sidebar-label">Settings</p>
+                    <a href="#"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'skills' %}active{% endif %}">
+                        <i class="bi bi-puzzle"></i> Skills
+                    </a>
+                    <a href="#"
+                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'configurations' %}active{% endif %}">
+                        <i class="bi bi-sliders"></i> Configurations
+                    </a>
+                </div>
+            </aside>
+
+            <!-- Main Content -->
+            <main class="rp-main flex-fill">
+                <!-- Flash Messages -->
+                {% if messages %}
+                <div class="rp-messages px-4 pt-3">
+                    {% for msg in messages %}
+                    <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissable fade show"
+                         role="alert">
+                        {{ msg }}
+                        <button type="button"
+                                class="btn-close"
+                                data-bs-dismiss="alert">
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Page Header (Optional) -->
+                {% block page_header %}{% endblock %}
+
+                <!-- Content -->
+                <div class="rp-content px-4 pb-5">
+                    {% block content %}{% endblock %}
+                </div>
+            </main>
+        </div>
+
+        <!-- Scripts -->
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+        <!-- App JS Script -->
+        {% load static %}
+        <script src="{% static 'js/main.js' %}"></script>
+
+        {% block extra_js %}{% endblock %}
+    </body>
+</html>
