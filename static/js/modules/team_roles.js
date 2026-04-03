@@ -178,7 +178,7 @@ function renderRoleRow(role) {
                    ${escHtml(role.role)}
                 </a>
                 ${role.is_default
-                    ? '<span class="rp-badge rp-badge--success">Default</span>'
+                    ? '<span class="rp-badge rp-badge--info">Default</span>'
                     : ''
                 }
             </td>

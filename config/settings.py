@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'apps.configurations',
     'apps.office_locations',
     'apps.team_roles',
+    'apps.employment_types',
     'apps.import',
 ]
 

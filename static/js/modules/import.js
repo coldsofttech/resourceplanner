@@ -9,6 +9,7 @@ const LABELS = {
     skills: "skills",
     locations: "locations",
     roles: "roles",
+    employment_types: "employment types",
 };
 
 const importBtn         = document.getElementById('import-btn');

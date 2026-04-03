@@ -154,7 +154,7 @@ function renderLocationRow(location) {
                     ${escHtml(location.city)}
                 </a>
                 ${location.is_default
-                    ? '<span class="rp-badge rp-badge--success">Default</span>'
+                    ? '<span class="rp-badge rp-badge--info">Default</span>'
                     : ''
                 }
             </td>

@@ -20,6 +20,7 @@ from rest_framework.routers import DefaultRouter
 
 from apps.configurations.api_views import ConfigurationViewSet
 from apps.delivery_teams.api_views import DeliveryTeamViewSet
+from apps.employment_types.api_views import EmploymentTypeViewSet
 from apps.office_locations.api_views import OfficeLocationViewSet
 from apps.skills.api_views import SkillViewSet
 from apps.team_roles.api_views import TeamRoleViewSet
@@ -30,6 +31,7 @@ router.register(r'skills', SkillViewSet, basename='skill')
 router.register(r'configurations', ConfigurationViewSet, basename='configuration')
 router.register(r'locations', OfficeLocationViewSet, basename='location')
 router.register(r'roles', TeamRoleViewSet, basename='role')
+router.register(r'employment-types', EmploymentTypeViewSet, basename='employment-type')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -44,6 +46,7 @@ urlpatterns = [
     path('skills/', include('apps.skills.urls')),
     path('locations/', include('apps.office_locations.urls')),
     path('roles/', include('apps.team_roles.urls')),
+    path('employment-types/', include('apps.employment_types.urls')),
     path('configurations/', include('apps.configurations.urls')),
 
     # Generic Modules

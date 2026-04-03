@@ -262,6 +262,13 @@
                             <span class="rp-sidebar-link-label">Locations</span>
                         </a>
 
+                        <a href="/employment-types/"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'employment-types' %}active{% endif %}"
+                           data-rp-tooltip="Employment Types">
+                            <i class="bi bi-briefcase"></i>
+                            <span class="rp-sidebar-link-label">Employment Types</span>
+                        </a>
+
                         <a href="#"
                            class="rp-sidebar-link {% if request.resolver_match.app_name == 'holidays' %}active{% endif %}"
                            data-rp-tooltip="Holidays">
