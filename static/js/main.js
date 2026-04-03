@@ -197,7 +197,7 @@ export function applyErrors(data, fields, bannerId = 'form-error-banner') {
     if (details && typeof details === 'object' && !Array.isArray(details)) {
         for (const field of fields) {
             if (field in details) {
-                const msg = _extractFieldMessage(details[field]);
+                const msg = extractFieldMessage(details[field]);
                 document.getElementById(`id_${field}`)?.classList.add('is-invalid');
                 const errEl = document.getElementById(`${field}-error`);
                 if (errEl) errEl.textContent = msg;
@@ -208,9 +208,9 @@ export function applyErrors(data, fields, bannerId = 'form-error-banner') {
         if (!hasFieldError) {
             const unhandledMsgs = Object.entries(details)
                 .filter(([key]) => !fields.includes(key))
-                .map(([, value]) => _extractFieldMessage(value));
+                .map(([, value]) => extractFieldMessage(value));
             if (unhandledMsgs.length) {
-                _showBanner(unhandledMsgs.join(' '), bannerId);
+                showBanner(unhandledMsgs.join(' '), bannerId);
                 return;
             }
         }
@@ -222,12 +222,12 @@ export function applyErrors(data, fields, bannerId = 'form-error-banner') {
         const msg = Array.isArray(details)
             ? details.map(v => String(v)).join(' ')
             : String(details);
-        _showBanner(msg, bannerId);
+        showBanner(msg, bannerId);
         return;
     }
 
     if (data.error) {
-        _showBanner(String(data.error), bannerId);
+        showBanner(String(data.error), bannerId);
     }
 }
 

@@ -7,6 +7,7 @@ import { loadSpecs, initImportDropZone, submitImport, renderImportResults } from
 const LABELS = {
     delivery_teams: "teams",
     skills: "skills",
+    locations: "locations",
 };
 
 const importBtn         = document.getElementById('import-btn');

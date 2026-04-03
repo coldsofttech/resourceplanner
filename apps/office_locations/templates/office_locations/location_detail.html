@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <!-- Back Button -->
+        <a href="/locations/"
+           class="btn btn-ghost-icon"
+           title="Back to Locations">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span id="location-city"></span>
+                <span id="location-status"
+                      class="rp-badge"></span>
+            </h1>
+        </div>
+    </div>
+
+    <!-- Edit -->
+    <div class="d-flex gap-2">
+        <a href="#"
+           id="edit-location-btn"
+           class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i>Edit location
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="detail-root"
+     class="row g-4">
+    <!-- Left Panel -->
+    <div class="col-lg-4">
+        <!-- Location Details -->
+        <div class="rp-card mb-3">
+            <h6 class="rp-card-heading">Location Details</h6>
+            <dl class="rp-meta-list">
+                <dt>Country</dt>
+                <dd id="location-country"></dd>
+            </dl>
+        </div>
+        <!-- Metadata Details -->
+        <div class="rp-card rp-card--muted mb-3">
+            <h6 class="rp-card-heading">
+                <i class="bi bi-clock-history me-2"></i>Metadata
+            </h6>
+            <dl class="rp-meta-list">
+                <dt>Created</dt>
+                <dd id="meta-created"></dd>
+                <dt>Last updated</dt>
+                <dd id="meta-updated"></dd>
+            </dl>
+        </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="col-lg-8">
+        <div class="rp-card">
+            <!-- Team Members -->
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                <h6 class="rp-card-heading mb-0">
+                    Team members associated with the location
+                </h6>
+                <a href="#"
+                   class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-plus me-1"></i>Add member
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/office_locations.js' %}"></script>
+{% endblock %}

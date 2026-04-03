@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'apps.delivery_teams',
     'apps.skills',
     'apps.configurations',
+    'apps.office_locations',
     'apps.import',
 ]
 

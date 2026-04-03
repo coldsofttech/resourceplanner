@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center gap-3">
+    <!-- Back Button -->
+    <a href="/locations/"
+       class="btn btn-ghost-icon"
+       title="Back to Locations">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+
+    <!-- Page Title -->
+    <div>
+        <h1 class="rp-page-title"
+            id="page-title"></h1>
+        <p class="rp-page-subtitle"
+           id="page-subtitle"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-7">
+        <div class="rp-card">
+            <form id="location-form"
+                  novalidate
+                  data-location-id="{{ location.pk|default: '' }">
+                {% csrf_token %}
+                <!-- City -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label"
+                           for="id_city">
+                        City <span class="rp-required">*</span>
+                    </label>
+                    <input type="text"
+                           id="id_city"
+                           name="city"
+                           value="{{ location.city|default:'' }}"
+                           class="form-control rp-input"
+                           autocomplete="off"
+                           maxlength="100"
+                           placeholder="e.g. London"
+                           required
+                           autofocus />
+                    <div class="invalid-feedback"
+                         id="city-error"></div>
+                </div>
+
+                <!-- Country -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label"
+                           for="id_country">
+                        Country <span class="rp-required">*</span>
+                    </label>
+                    <input type="text"
+                           id="id_country"
+                           name="country"
+                           value="{{ location.country|default:'' }}"
+                           class="form-control rp-input"
+                           autocomplete="off"
+                           maxlength="100"
+                           placeholder="e.g. United Kingdom"
+                           required
+                           autofocus />
+                    <div class="invalid-feedback"
+                         id="country-error"></div>
+                </div>
+
+                <!-- Active Toggle -->
+                <div class="rp-field mb-5">
+                    <div class="form-check form-switch rp-switch">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               id="id_is_active"
+                               name="is_active"
+                               checked />
+                        <label class="form-check-label rp-label"
+                               for="id_is_active">
+                            Active location
+                        </label>
+                    </div>
+                    <p class="rp-hint mt-1">
+                        Inactive locations are hidden from team member views.
+                    </p>
+                </div>
+
+                <!-- Form Errors (non-field) -->
+                <div class="alert alert-danger mb-4 d-none"
+                     id="form-error-banner"></div>
+
+                <!-- Actions -->
+                <div class="d-flex gap-2">
+                    <button type="submit"
+                            id="submit-btn"
+                            class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i>
+                        <span id="submit-label">Create location</span>
+                    </button>
+                    <a href="/locations/"
+                       class="btn btn-outline-secondary">
+                        Cancel
+                    </a>
+
+                    <!-- Delete Button - only in Edit mode -->
+                    <span id="delete-btn-slot"
+                          class="ms-auto"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="col-lg-4 offset-lg-1 mt-4 mt-lg-0">
+        <!-- Tips -->
+        <div class="rp-card rp-card--muted">
+            <h6 class="fw-600 mb-3">
+                <i class="bi bi-info-circle me-2"></i>Tips
+            </h6>
+            <ul class="rp-tip-list">
+                <li>Use the city name as it appears on your team's contracts or HR system for consistency.</li>
+                <li>Each city–country combination must be unique — add a suffix like "London (Remote)" if you need to distinguish offices in the same city.</li>
+                <li>Inactive locations are hidden from team member assignment but remain on historical records.</li>
+                <li>Public holidays are linked to locations — make sure each location has its holidays configured before sprint planning.</li>
+            </ul>
+        </div>
+
+        <!-- Metadata - only in Edit mode -->
+        <div id="metadata-card"
+             class="rp-card rp-card--muted mt-3 d-none">
+            <h6 class="fw-600 mb-2">
+                <i class="bi bi-clock-history me-2"></i>Metadata
+            </h6>
+            <dl class="rp-meta-list">
+                <dt>Created</dt>
+                <dd id="meta-created"></dd>
+                <dt>Last updated</dt>
+                <dd id="meta-updated"></dd>
+            </dl>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade"
+     id="deleteModal"
+     tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <!-- Modal Header -->
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Delete location?</h5>
+                <button type="button"
+                        class="btn-close"
+                        data-bs-dismiss="modal">
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    <strong id="delete-location"></strong> will be permanently removed.
+                    This cannot be undone.
+                </p>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="modal-footer border-0 pt-0">
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary"
+                        data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-danger"
+                        id="confirm-delete-btn">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/office_locations.js' %}"></script>
+{% endblock %}
