@@ -8,6 +8,7 @@ const LABELS = {
     delivery_teams: "teams",
     skills: "skills",
     locations: "locations",
+    roles: "roles",
 };
 
 const importBtn         = document.getElementById('import-btn');

@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'apps.skills',
     'apps.configurations',
     'apps.office_locations',
+    'apps.team_roles',
     'apps.import',
 ]
 
