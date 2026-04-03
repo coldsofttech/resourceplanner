@@ -37,4 +37,4 @@ class OfficeLocationExportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OfficeLocation
-        fields = ['id', 'city', 'country', 'is_active']
+        fields = ['id', 'city', 'country', 'is_active', 'is_default']

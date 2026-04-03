@@ -17,6 +17,14 @@ class TeamRole(models.Model):
     is_active = models.BooleanField(
         default=True
     )
+    is_default = models.BooleanField(
+        default=False,
+        help_text='Only one role may be the default at a time. Used to pre-select in UI dropdowns.',
+    )
+    is_assignable = models.BooleanField(
+        default=False,
+        help_text='Marks this role as eligible for automatic work assignment in the resource planning engine.',
+    )
     created_at = models.DateTimeField(
         auto_now_add=True
     )

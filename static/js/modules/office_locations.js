@@ -153,6 +153,10 @@ function renderLocationRow(location) {
                    class="rp-link fw-500">
                     ${escHtml(location.city)}
                 </a>
+                ${location.is_default
+                    ? '<span class="rp-badge rp-badge--success">Default</span>'
+                    : ''
+                }
             </td>
             <td class="text-secondary">
                 ${escHtml(location.country)}
@@ -323,6 +327,7 @@ async function handleCreateEditSubmit(e) {
         city:       cityInput.value.trim(),
         country:    countryInput.value.trim(),
         is_active:   document.getElementById('id_is_active').checked,
+        is_default:    document.getElementById('id_is_default').checked,
     };
 
     const method = isEdit
@@ -369,6 +374,7 @@ function populateForm(location) {
     document.getElementById('id_city').value        = location.city        ?? '';
     document.getElementById('id_country').value = location.country ?? '';
     document.getElementById('id_is_active').checked = location.is_active   ?? true;
+    document.getElementById('id_is_default').checked   = location.is_default   ?? false;
 
     pageTitle.textContent    = 'Edit Location';
     pageSubtitle.innerHTML   = `Updating <strong>${escHtml(location.city)}</strong>`;
@@ -429,6 +435,7 @@ function renderDetailTitle(location) {
 
 function renderLocationDetails(location) {
     document.getElementById('location-country').textContent = location.country ?? "-";
+    document.getElementById('location-is-default').textContent   = location.is_default   ? 'Yes' : 'No';
     document.getElementById('meta-created').textContent = formatDateTime(location.created_at);
     document.getElementById('meta-updated').textContent = formatDateTime(location.updated_at);
 }
@@ -488,6 +495,7 @@ const LIST_EXPORT_COLUMNS = [
     { key: 'city', label: 'City' },
     { key: 'country', label: 'Country' },
     { key: 'is_active', label: 'Active' },
+    { key: 'is_default', label: 'Default' },
 ];
 
 async function runListExport(format) {

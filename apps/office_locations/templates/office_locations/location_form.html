@@ -69,7 +69,7 @@
                 </div>
 
                 <!-- Active Toggle -->
-                <div class="rp-field mb-5">
+                <div class="rp-field mb-3">
                     <div class="form-check form-switch rp-switch">
                         <input class="form-check-input"
                                type="checkbox"
@@ -83,6 +83,19 @@
                     </div>
                     <p class="rp-hint mt-1">
                         Inactive locations are hidden from team member views.
+                    </p>
+                </div>
+
+                <!-- Default Toggle -->
+                <div class="rp-field mb-3">
+                    <div class="form-check form-switch rp-switch">
+                        <input class="form-check-input" type="checkbox" id="id_is_default" name="is_default" />
+                        <label class="form-check-label rp-label" for="id_is_default">
+                            Default role
+                        </label>
+                    </div>
+                    <p class="rp-hint mt-1">
+                        Pre-selected in UI dropdowns. Only one role can be the default at a time — enabling this will unset the current default.
                     </p>
                 </div>
 

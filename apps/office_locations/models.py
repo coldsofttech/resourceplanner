@@ -19,6 +19,10 @@ class OfficeLocation(models.Model):
     is_active = models.BooleanField(
         default=True
     )
+    is_default = models.BooleanField(
+        default=False,
+        help_text='Only one location may be the default at a time. Used to pre-select in UI dropdowns.',
+    )
     created_at = models.DateTimeField(
         auto_now_add=True
     )

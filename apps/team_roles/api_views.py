@@ -336,6 +336,10 @@ class TeamRoleViewSet(viewsets.ViewSet):
                     "name": "is_active", "required": False, "type": "boolean",
                     "allowed_values": ["true", "false"], "default": "true"
                 },
+                {
+                    "name": "is_assignable", "required": False, "type": "boolean",
+                    "allowed_values": ["true", "false"], "default": "false"
+                },
             ],
             "notes": [
                 "First row must be the header.",
@@ -353,8 +357,8 @@ class TeamRoleViewSet(viewsets.ViewSet):
         """
         buffer = io.StringIO()
         writer = csv.writer(buffer)
-        writer.writerow(["role", "is_active"])  # header
-        writer.writerow(["Senior Engineer", "true"])  # sample row
+        writer.writerow(["role", "is_active", "is_assignable"]) # header
+        writer.writerow(["Senior Engineer", "true", "true"]) # sample row
 
         buffer.seek(0)
         response = HttpResponse(buffer, content_type="text/csv")

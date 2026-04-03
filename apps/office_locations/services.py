@@ -107,12 +107,18 @@ class OfficeLocationService:
             "is_active": [
                 {"value": True, "label": "Active"},
                 {"value": False, "label": "Inactive"},
-            ]
+            ],
+            "is_default": [
+                {"value": True, "label": "Default"},
+                {"value": False, "label": "Not default"},
+            ],
         }
         result = {}
 
         if wants("is_active"):
             result["is_active"] = ds["is_active"]
+        if wants("is_default"):
+            result["is_default"] = ds["is_default"]
 
         return result
 
@@ -149,10 +155,14 @@ class OfficeLocationService:
 
         # Create the location
         try:
+            if data.get('is_default', False):
+                OfficeLocation.objects.filter(is_default=True).update(is_default=False)
+
             location = OfficeLocation(
                 city=city,
                 country=country,
                 is_active=data.get('is_active', True),
+                is_default=data.get('is_default', False),
             )
             location.full_clean()
             location.save()
@@ -198,6 +208,10 @@ class OfficeLocationService:
             location.country = new_country
         if 'is_active' in data:
             location.is_active = data['is_active']
+        if 'is_default' in data:
+            if data['is_default']:
+                OfficeLocation.objects.exclude(pk=location_id).filter(is_default=True).update(is_default=False)
+            location.is_default = data['is_default']
 
         try:
             location.full_clean()

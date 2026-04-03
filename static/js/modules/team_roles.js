@@ -54,10 +54,11 @@ function initListView() {
     setPageTitle("Roles");
     renderStatistics();
     renderStatusFilterOptions();
+    renderAssignableFilterOptions();
 
     const renderer = initRenderer({
         tbodyId: 'roles-tbody',
-        colspan: 3,
+        colspan: 4,
         itemLabel: 'roles',
         rowTemplate: renderRoleRow,
         emptyState: {
@@ -88,6 +89,10 @@ function initListView() {
             {
                 id: 'status-filter',
                 param: 'is_active',
+            },
+            {
+                id: 'assignable-filter',
+                param: 'is_assignable'
             },
         ],
         onLoadStart: () => renderer.renderLoading('Loading roles...'),
@@ -146,6 +151,24 @@ async function renderStatusFilterOptions() {
     }
 }
 
+async function renderAssignableFilterOptions() {
+    try {
+        const { method, href } = API_URLS.roles.options;
+        const options = await apiFetch(href, { method });
+        const statuses = options?.is_assignable ?? [];
+
+        const select = document.getElementById('assignable-filter');
+        statuses.forEach(({ value, label }) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error('[renderAssignableFilterOptions] Failed to load assignable filter options: ', err);
+    }
+}
+
 function renderRoleRow(role) {
     return `
         <tr data-role-id="${role.id}">
@@ -154,11 +177,21 @@ function renderRoleRow(role) {
                    class="rp-link">
                    ${escHtml(role.role)}
                 </a>
+                ${role.is_default
+                    ? '<span class="rp-badge rp-badge--success">Default</span>'
+                    : ''
+                }
             </td>
             <td class="text-center">
                 ${role.is_active
                     ? '<span class="rp-badge rp-badge--success">Active</span>'
                     : '<span class="rp-badge rp-badge--muted">Inactive</span>'
+                }
+            </td>
+            <td class="text-center">
+                ${role.is_assignable
+                    ? '<span class="rp-badge rp-badge--info">Assignable</span>'
+                    : ''
                 }
             </td>
             <td class="text-center">
@@ -312,6 +345,8 @@ async function handleCreateEditSubmit(e) {
     const payload = {
         role:      roleInput.value.trim(),
         is_active: document.getElementById('id_is_active').checked,
+        is_default:    document.getElementById('id_is_default').checked,
+        is_assignable: document.getElementById('id_is_assignable').checked,
     };
 
     const method = isEdit
@@ -357,6 +392,8 @@ function populateForm(role) {
 
     document.getElementById('id_role').value       = role.role      ?? '';
     document.getElementById('id_is_active').checked = role.is_active ?? true;
+    document.getElementById('id_is_default').checked   = role.is_default   ?? false;
+    document.getElementById('id_is_assignable').checked = role.is_assignable ?? false;
 
     pageTitle.textContent    = 'Edit Role';
     pageSubtitle.innerHTML   = `Updating <strong>${escHtml(role.role)}</strong>`;
@@ -417,6 +454,8 @@ function renderDetailTitle(role) {
 
 function renderRoleDetails(role) {
     document.getElementById('role-name-detail').textContent = role.role ?? '-';
+    document.getElementById('role-is-default').textContent   = role.is_default   ? 'Yes' : 'No';
+    document.getElementById('role-is-assignable').textContent = role.is_assignable ? 'Yes' : 'No';
     document.getElementById('meta-created').textContent = formatDateTime(role.created_at);
     document.getElementById('meta-updated').textContent = formatDateTime(role.updated_at);
 }
@@ -475,6 +514,8 @@ const LIST_EXPORT_COLUMNS = [
     { key: 'id', label: 'ID' },
     { key: 'role', label: 'Role' },
     { key: 'is_active', label: 'Active' },
+    { key: 'is_default', label: 'Default' },
+    { key: 'is_assignable', label: 'Assignable' },
 ];
 
 async function runListExport(format) {

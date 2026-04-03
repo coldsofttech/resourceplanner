@@ -27,7 +27,7 @@ class TeamRoleService:
         List the team roles.
         Supports filters: search, is_active
         """
-        VALID_ORDER_FIELDS = {'role', 'is_active'}
+        VALID_ORDER_FIELDS = {'role', 'is_active', 'is_assignable'}
         qs = TeamRole.objects.all()
 
         if filters:
@@ -39,6 +39,11 @@ class TeamRoleService:
                 is_active_raw = filters['is_active']
                 is_active = TeamRoleService._parse_bool(is_active_raw)
                 qs = qs.filter(is_active=is_active)
+
+            if filters.get('is_assignable') is not None:
+                is_assignable_raw = filters['is_assignable']
+                is_assignable = TeamRoleService._parse_bool(is_assignable_raw)
+                qs = qs.filter(is_assignable=is_assignable)
 
         order_by = filters.get('order_by') if filters else None
         order_dir = filters.get('order_dir') if filters else None
@@ -92,6 +97,8 @@ class TeamRoleService:
             result["inactive_roles"] = qs.filter(is_active=False).count()
         if wants("unassigned_roles"):
             result["unassigned_roles"] = 0  # TODO: Total no of roles unassigned to team members
+        if wants("assignable_roles"):
+            result["assignable_roles"] = qs.filter(is_assignable=True).count()
 
         return result
 
@@ -109,12 +116,24 @@ class TeamRoleService:
             "is_active": [
                 {"value": True, "label": "Active"},
                 {"value": False, "label": "Inactive"},
-            ]
+            ],
+            "is_assignable": [
+                {"value": True, "label": "Assignable"},
+                {"value": False, "label": "Not assignable"},
+            ],
+            "is_default": [
+                {"value": True, "label": "Default"},
+                {"value": False, "label": "Not default"},
+            ],
         }
         result = {}
 
         if wants("is_active"):
             result["is_active"] = ds["is_active"]
+        if wants("is_assignable"):
+            result["is_assignable"] = ds["is_assignable"]
+        if wants("is_default"):
+            result["is_default"] = ds["is_default"]
 
         return result
 
@@ -147,9 +166,14 @@ class TeamRoleService:
 
         # Create the role
         try:
+            if data.get('is_default', False):
+                TeamRole.objects.filter(is_default=True).update(is_default=False)
+
             role = TeamRole(
                 role=role_name,
                 is_active=data.get('is_active', True),
+                is_default=data.get('is_default', False),
+                is_assignable=data.get('is_assignable', False),
             )
             role.full_clean()
             role.save()
@@ -188,6 +212,12 @@ class TeamRoleService:
             role.role = new_name
         if 'is_active' in data:
             role.is_active = data['is_active']
+        if 'is_default' in data:
+            if data['is_default']:
+                TeamRole.objects.exclude(pk=role_id).filter(is_default=True).update(is_default=False)
+            role.is_default = data['is_default']
+        if 'is_assignable' in data:
+            role.is_assignable = data['is_assignable']
 
         try:
             role.full_clean()
@@ -278,6 +308,7 @@ class TeamRoleService:
                 data = {
                     "role": role_name,
                     "is_active": (row.get('is_active') or 'true').strip().lower() == "true",
+                    "is_assignable": (row.get('is_assignable') or 'false').strip().lower() == "true",
                 }
 
                 if dry_run:
