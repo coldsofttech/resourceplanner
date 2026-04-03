@@ -133,74 +133,164 @@
 
         <!-- Page Wrapper -->
         <div class="rp-layout d-flex">
-            <!-- Sidebar -->
-            <aside class="rp-sidebar d-none d-lg-flex flex-column">
-                <div class="rp-sidebar-section">
-                    <!-- Manage Section -->
-                    <p class="rp-sidebar-label">Manage</p>
-                    <!-- Teams -->
-                    <a href="{% url 'delivery_teams:list' %}"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'teams' %}active{% endif %}">
-                        <i class="bi bi-people"></i> Teams
-                    </a>
-                    <!-- Team Members -->
-                    <a href="#"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'team_members' %}active{% endif %}">
-                        <i class="bi bi-person-badge"></i> Team Members
-                    </a>
-                    <!-- Projects -->
-                    <a href="#"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'projects' %}active{% endif %}">
-                        <i class="bi bi-kanban"></i> Projects
-                    </a>
-                    <!-- Financial Years -->
-                    <a href="#"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'financial_years' %}active{% endif %}">
-                        <i class="bi bi-calendar3"></i> Financial Years
-                    </a>
-                    <!-- Holidays -->
-                    <a href="#"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'holidays' %}active{% endif %}">
-                        <i class="bi bi-calendar-heart"></i> Holidays
-                    </a>
-                    <!-- Budgets -->
-                    <a href="#"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'budgets' %}active{% endif %}">
-                        <i class="bi bi-wallet2"></i> Budgets
-                    </a>
-                </div>
-                <div class="rp-sidebar-section">
-                    <!-- Plan Section -->
-                    <p class="rp-sidebar-label">Plan</p>
-                    <!-- Leaves -->
-                    <a href="#"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'leaves' %}active{% endif %}">
-                        <i class="bi bi-calendar2-minus"></i> Leaves
-                    </a>
-                    <!-- Sprints -->
-                    <a href="#"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'sprints' %}active{% endif %}">
-                        <i class="bi bi-calendar3-range"></i> Sprints
-                    </a>
-                    <!-- Resource Plans -->
-                    <a href="#"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'resource_plans' %}active{% endif %}">
-                        <i class="bi bi-bar-chart-steps"></i> Resource Plans
-                    </a>
-                </div>
-                <div class="rp-sidebar-section mt-auto">
-                    <!-- Settings Section -->
-                    <p class="rp-sidebar-label">Settings</p>
-                    <a href="{% url 'skills:list' %}"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'skills' %}active{% endif %}">
-                        <i class="bi bi-puzzle"></i> Skills
-                    </a>
-                    <a href="#"
-                       class="rp-sidebar-link {% if request.resolver_match.app_name == 'configurations' %}active{% endif %}">
-                        <i class="bi bi-sliders"></i> Configurations
-                    </a>
-                </div>
-            </aside>
+            <!-- Main Sidebar -->
+            <div class="rp-sidebar-outer d-none d-lg-block"
+                 id="rpMainOuter">
+                <aside class="rp-sidebar d-flex flex-column"
+                       id="rpMainSidebar">
+                    <div class="rp-sidebar-section">
+                        <!-- Manage Section -->
+                        <p class="rp-sidebar-label">Manage</p>
+                        <!-- Teams -->
+                        <a href="/delivery-teams/"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'delivery_teams' %}active{% endif %}"
+                           data-rp-tooltip="Teams">
+                            <i class="bi bi-people"></i>
+                            <span class="rp-sidebar-link-label">Teams</span>
+                        </a>
+                        <!-- Team Members -->
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'team_members' %}active{% endif %}"
+                           data-rp-tooltip="Team Members">
+                            <i class="bi bi-person-badge"></i>
+                            <span class="rp-sidebar-link-label">Team Members</span>
+                        </a>
+                        <!-- Projects -->
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'projects' %}active{% endif %}"
+                           data-rp-tooltip="Projects">
+                            <i class="bi bi-kanban"></i>
+                            <span class="rp-sidebar-link-label">Projects</span>
+                        </a>
+                        <!-- Financial Years -->
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'financial_years' %}active{% endif %}"
+                           data-rp-tooltip="Financial Years">
+                            <i class="bi bi-calendar3"></i>
+                            <span class="rp-sidebar-link-label">Financial Years</span>
+                        </a>
+                        <!-- Holidays -->
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'holidays' %}active{% endif %}"
+                           data-rp-tooltip="Holidays">
+                            <i class="bi bi-calendar-heart"></i>
+                            <span class="rp-sidebar-link-label">Holidays</span>
+                        </a>
+                        <!-- Budgets -->
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'budgets' %}active{% endif %}"
+                           data-rp-tooltip="Budgets">
+                            <i class="bi bi-wallet2"></i>
+                            <span class="rp-sidebar-link-label">Budgets</span>
+                        </a>
+                    </div>
+                    <div class="rp-sidebar-section">
+                        <!-- Plan Section -->
+                        <p class="rp-sidebar-label">Plan</p>
+                        <!-- Leaves -->
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'leaves' %}active{% endif %}"
+                           data-rp-tooltip="Leaves">
+                            <i class="bi bi-calendar2-minus"></i>
+                            <span class="rp-sidebar-link-label">Leaves</span>
+                        </a>
+                        <!-- Sprints -->
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'sprints' %}active{% endif %}"
+                            data-rp-tooltip="Sprints">
+                            <i class="bi bi-calendar3-range"></i>
+                            <span class="rp-sidebar-link-label">Sprints</span>
+                        </a>
+                        <!-- Resource Plans -->
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'resource_plans' %}active{% endif %}"
+                            data-rp-tooltip="Resources">
+                            <i class="bi bi-bar-chart-steps"></i>
+                            <span class="rp-sidebar-link-label">Resource Plans</span>
+                        </a>
+                    </div>
+                    <div class="rp-sidebar-section mt-auto">
+                        <!-- Settings Section -->
+                        <p class="rp-sidebar-label">Settings</p>
+                        <a href="#"
+                           class="rp-sidebar-link rp-sidebar-link--settings {% if request.resolver_match.app_name == 'settings' %}active{% endif %}"
+                           id="rpSettingsLink"
+                           data-rp-tooltip="Settings"
+                           onclick="rpOpenSettings(event)">
+                            <i class="bi bi-gear"></i>
+                            <span class="rp-sidebar-link-label">Settings</span>
+                        </a>
+                    </div>
+                </aside>
+
+                <button class="rp-sidebar-toggle"
+                        id="rpMainToggle"
+                        onclick="rpToggleMain()"
+                        title="Collapse sidebar"
+                        aria-label="Toggle main sidebar">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            </div>
+
+            <div class="rp-sub-sidebar-outer d-none d-lg-block rp-sub-sidebar--hidden"
+                 id="rpSubOuter">
+                <!-- Sub Sidebar -->
+                <aside class="rp-sub-sidebar d-flex flex-column"
+                       id="rpSubSidebar">
+                    <!-- Reference Data -->
+                    <div class="rp-sidebar-section">
+                        <p class="rp-sidebar-label">Reference data</p>
+
+                        <a href="/skills/"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'skills' %}active{% endif %}"
+                           data-rp-tooltip="Skills">
+                            <i class="bi bi-puzzle"></i>
+                            <span class="rp-sidebar-link-label">Skills</span>
+                        </a>
+
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'roles' %}active{% endif %}"
+                           data-rp-tooltip="Roles">
+                            <i class="bi bi-person-gear"></i>
+                            <span class="rp-sidebar-link-label">Roles</span>
+                        </a>
+
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'locations' %}active{% endif %}"
+                           data-rp-tooltip="Locations">
+                            <i class="bi bi-geo-alt"></i>
+                            <span class="rp-sidebar-link-label">Locations</span>
+                        </a>
+
+                        <a href="#"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'holidays' %}active{% endif %}"
+                           data-rp-tooltip="Holidays">
+                            <i class="bi bi-calendar-heart"></i>
+                            <span class="rp-sidebar-link-label">Holidays</span>
+                        </a>
+                    </div>
+
+                    <!-- Configuration -->
+                    <div class="rp-sidebar-section">
+                        <p class="rp-sidebar-label">Configuration</p>
+
+                        <a href="/configurations/"
+                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'configurations' %}active{% endif %}"
+                           data-rp-tooltip="Configurations">
+                            <i class="bi bi-toggles"></i>
+                            <span class="rp-sidebar-link-label">Configurations</span>
+                        </a>
+                    </div>
+                </aside>
+
+                <button class="rp-sub-sidebar-toggle"
+                        id="rpSubToggle"
+                        onclick="rpToggleSub()"
+                        title="Collapse settings panel"
+                        aria-label="Toggle settings sidebar">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            </div>
 
             <!-- Main Content -->
             <main class="rp-main flex-fill">
@@ -230,6 +320,8 @@
             </main>
         </div>
 
+        <div id="rpTooltip" class="rp-floating-tooltip" role="tooltip" aria-hidden="true"></div>
+
         <!-- Scripts -->
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
@@ -237,7 +329,147 @@
 
         <!-- App JS Script -->
         {% load static %}
-        <script src="{% static 'js/main.js' %}"></script>
+        <script type="module" src="{% static 'js/urls.js' %}"></script>
+        <script type="module" src="{% static 'js/main.js' %}"></script>
+        <script>
+            (function () {
+                var MAIN_KEY     = 'rp_main_collapsed';
+                var SUB_KEY      = 'rp_sub_collapsed';
+                var SUB_OPEN_KEY = 'rp_sub_open';
+
+                var mainOuter   = document.getElementById('rpMainOuter');
+                var mainSidebar = document.getElementById('rpMainSidebar');
+                var subOuter    = document.getElementById('rpSubOuter');
+                var subSidebar  = document.getElementById('rpSubSidebar');
+                var mainToggleIcon = document.querySelector('#rpMainToggle i');
+                var subToggleIcon  = document.querySelector('#rpSubToggle i');
+
+                var isSettingsPage = (
+                    document.getElementById('rpSettingsLink').classList.contains('active') ||
+                    subSidebar.querySelectorAll('.rp-sidebar-link.active').length > 0
+                );
+
+                if (localStorage.getItem(MAIN_KEY) === '1') {
+                    _applyCollapseMain();
+                }
+                if (isSettingsPage) {
+                    subOuter.classList.remove('rp-sub-sidebar--hidden');
+                    if (localStorage.getItem(SUB_KEY) === '1') {
+                        _applyCollapseSub();
+                    }
+                } else {
+                    localStorage.removeItem(SUB_OPEN_KEY);
+                }
+
+                window.rpToggleMain = function () {
+                    if (mainSidebar.classList.contains('rp-sidebar--collapsed')) {
+                        _expandMain();
+                    } else {
+                        _collapseMain();
+                    }
+                };
+
+                window.rpToggleSub = function () {
+                    if (subSidebar.classList.contains('rp-sub-sidebar--collapsed')) {
+                        _expandSub();
+                    } else {
+                        _collapseSub();
+                    }
+                };
+
+                window.rpOpenSettings = function (e) {
+                    e.preventDefault();
+                    _collapseMain();
+                    subOuter.classList.remove('rp-sub-sidebar--hidden');
+                    _expandSub();
+                    localStorage.setItem(SUB_OPEN_KEY, '1');
+                    document.querySelectorAll('.rp-sidebar-link').forEach(function (l) {
+                        l.classList.remove('active');
+                    });
+                    document.getElementById('rpSettingsLink').classList.add('active');
+                };
+
+                function _collapseMain() {
+                    mainSidebar.classList.add('rp-sidebar--collapsed');
+                    mainOuter.classList.add('rp-sidebar-outer--collapsed');
+                    if (mainToggleIcon) mainToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
+                    document.getElementById('rpMainToggle').title = 'Expand sidebar';
+                    localStorage.setItem(MAIN_KEY, '1');
+                }
+                function _applyCollapseMain() {
+                    mainSidebar.classList.add('rp-sidebar--collapsed');
+                    mainOuter.classList.add('rp-sidebar-outer--collapsed');
+                    if (mainToggleIcon) mainToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
+                    document.getElementById('rpMainToggle').title = 'Expand sidebar';
+                }
+                function _expandMain() {
+                    mainSidebar.classList.remove('rp-sidebar--collapsed');
+                    mainOuter.classList.remove('rp-sidebar-outer--collapsed');
+                    if (mainToggleIcon) mainToggleIcon.classList.replace('bi-chevron-right', 'bi-chevron-left');
+                    document.getElementById('rpMainToggle').title = 'Collapse sidebar';
+                    localStorage.setItem(MAIN_KEY, '0');
+                }
+
+                function _collapseSub() {
+                    subSidebar.classList.add('rp-sub-sidebar--collapsed');
+                    subOuter.classList.add('rp-sub-sidebar-outer--collapsed');
+                    if (subToggleIcon) subToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
+                    document.getElementById('rpSubToggle').title = 'Expand settings panel';
+                    localStorage.setItem(SUB_KEY, '1');
+                }
+                function _applyCollapseSub() {
+                    subSidebar.classList.add('rp-sub-sidebar--collapsed');
+                    subOuter.classList.add('rp-sub-sidebar-outer--collapsed');
+                    if (subToggleIcon) subToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
+                    document.getElementById('rpSubToggle').title = 'Expand settings panel';
+                }
+                function _expandSub() {
+                    subSidebar.classList.remove('rp-sub-sidebar--collapsed');
+                    subOuter.classList.remove('rp-sub-sidebar-outer--collapsed');
+                    if (subToggleIcon) subToggleIcon.classList.replace('bi-chevron-right', 'bi-chevron-left');
+                    document.getElementById('rpSubToggle').title = 'Collapse settings panel';
+                    localStorage.setItem(SUB_KEY, '0');
+                }
+
+                var tipEl = document.getElementById('rpTooltip');
+                var tipTimer;
+
+                function _showTip(text, anchor) {
+                    clearTimeout(tipTimer);
+                    tipEl.textContent = text;
+                    _moveTip(anchor);
+                    tipEl.classList.add('rp-floating-tooltip--visible');
+                }
+                function _hideTip() {
+                    tipTimer = setTimeout(function () {
+                        tipEl.classList.remove('rp-floating-tooltip--visible');
+                    }, 80);
+                }
+                function _moveTip(anchor) {
+                    var r = anchor.getBoundingClientRect();
+                    tipEl.style.top  = Math.round(r.top + r.height / 2 + window.scrollY) + 'px';
+                    tipEl.style.left = Math.round(r.right + 10) + 'px';
+                }
+
+                document.querySelectorAll('.rp-sidebar-link[data-rp-tooltip]').forEach(function (link) {
+                    link.addEventListener('mouseenter', function () {
+                        var inMain = mainSidebar.contains(link);
+                        var inSub  = subSidebar.contains(link);
+                        var mainCollapsed = mainSidebar.classList.contains('rp-sidebar--collapsed');
+                        var subCollapsed  = subSidebar.classList.contains('rp-sub-sidebar--collapsed');
+                        if ((inMain && mainCollapsed) || (inSub && subCollapsed)) {
+                            _showTip(link.dataset.rpTooltip, link);
+                        }
+                    });
+                    link.addEventListener('mousemove', function () {
+                        if (tipEl.classList.contains('rp-floating-tooltip--visible')) {
+                            _moveTip(link);
+                        }
+                    });
+                    link.addEventListener('mouseleave', _hideTip);
+                });
+            })();
+        </script>
 
         {% block extra_js %}{% endblock %}
     </body>

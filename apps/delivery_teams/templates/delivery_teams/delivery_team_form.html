@@ -1,14 +1,10 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}
-{% if form.instance.pk %}Edit Team{% else %}New Team{% endif %} - Resource Planner
-{% endblock %}
-
 {% block page_header %}
 <div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center gap-3">
     <!-- Back Button -->
-    <a href="{% url 'delivery_teams:list' %}"
+    <a href="/delivery-teams/"
        class="btn btn-ghost-icon"
        title="Back to Teams">
         <i class="bi bi-arrow-left"></i>
@@ -16,16 +12,10 @@
 
     <!-- Page Title -->
     <div>
-        <h1 class="rp-page-title">
-            {% if form.instance.pk %}Edit Team{% else %}New Team{% endif %}
-        </h1>
-        <p class="rp-page-subtitle">
-            {% if form.instance.pk %}
-            Updating <strong>{{ form.instance.name }}</strong>
-            {% else %}
-            Add a new team to the business unit
-            {% endif %}
-        </p>
+        <h1 class="rp-page-title"
+            id="page-title"></h1>
+        <p class="rp-page-subtitle"
+           id="page-subtitle"></p>
     </div>
 </div>
 {% endblock %}
@@ -34,43 +24,43 @@
 <div class="row">
     <div class="col-lg-7">
         <div class="rp-card">
-            <form method="post"
-                  id="team-form"
-                  novalidate>
+            <form id="team-form"
+                  novalidate
+                  data-team-id="{{ delivery_team.pk|default: '' }">
                 {% csrf_token %}
                 <!-- Name -->
                 <div class="rp-field mb-4">
                     <label class="rp-label"
-                           for="{{ form.name.id_for_label }}">
+                           for="id_name">
                         Team name <span class="rp-required">*</span>
                     </label>
                     <input type="text"
-                           id="{{ form.name.id_for_label }}"
-                           name="{{ form.name.html_name }}"
-                           value="{{ form.name.value|default:'' }}"
-                           class="form-control rp-input {% if form.name.errors %}is-invalid{% endif %}"
+                           id="id_name"
+                           name="name"
+                           value="{{ delivery_team.name|default:'' }}"
+                           class="form-control rp-input"
+                           autocomplete="off"
+                           maxlength="120"
                            placeholder="e.g. Platform Engineering"
                            required
                            autofocus />
-                    {% if form.name.errors %}
-                    <div class="invalid-feedback">{{ form.name.errors.0 }}</div>
-                    {% endif %}
+                    <div class="invalid-feedback"
+                         id="name-error"></div>
                 </div>
 
                 <!-- Description -->
                 <div class="rp-field mb-4">
                     <label class="rp-label"
-                           for="{{ form.description.id_for_label }}">
+                           for="id_description">
                         Description
                     </label>
-                    <textarea id="{{ form.description.id_for_label }}"
-                              name="{{ form.description.html_name }}"
-                              class="form-control rp-input {% if form.description.errors %}is-invalid{% endif %}"
+                    <textarea id="id_description"
+                              name="description"
+                              class="form-control rp-input"
                               rows="3"
-                              placeholder="What does this team own or focus on?">{{ form.description.value|default:'' }}</textarea>
-                    {% if form.description.errors %}
-                    <div class="invalid-feedback">{{ form.description.errors.0 }}</div>
-                    {% endif %}
+                              placeholder="What does this team own or focus on?"></textarea>
+                    <div class="invalid-feedback"
+                         id="description-error"></div>
                 </div>
 
                 <!-- Active Toggle -->
@@ -78,11 +68,11 @@
                     <div class="form-check form-switch rp-switch">
                         <input class="form-check-input"
                                type="checkbox"
-                               id="{{ form.is_active.id_for_label }}"
-                               name="{{ form.is_active.html_name }}"
-                               {% if form.is_active.value %}checked{% endif %} />
+                               id="id_is_active"
+                               name="is_active"
+                               checked />
                         <label class="form-check-label rp-label"
-                               for="{{ form.is_active.id_for_label }}">
+                               for="id_is_active">
                             Active team
                         </label>
                     </div>
@@ -92,34 +82,25 @@
                 </div>
 
                 <!-- Form Errors (non-field) -->
-                {% if form.non_field_errors %}
-                <div class="alert alert-danger mb-4">
-                    {% for err in form.non_field_errors %}
-                    <div>{{ err }}</div>
-                    {% endfor %}
-                </div>
-                {% endif %}
+                <div class="alert alert-danger mb-4 d-none"
+                     id="form-error-banner"></div>
 
                 <!-- Actions -->
                 <div class="d-flex gap-2">
                     <button type="submit"
+                            id="submit-btn"
                             class="btn btn-primary">
                         <i class="bi bi-check-lg me-1"></i>
-                        {% if form.instance.pk %}Save changes{% else %}Create team{% endif %}
+                        <span id="submit-label">Create team</span>
                     </button>
-                    <a href="{% url 'delivery_teams:list' %}"
+                    <a href="/delivery-teams/"
                        class="btn btn-outline-secondary">
                         Cancel
                     </a>
 
                     <!-- Delete Button - only in Edit mode -->
-                    {% if form.instance.pk %}
-                    <button type="button"
-                            class="btn btn-outline-danger ms-auto"
-                            onclick="confirmDelete({{ form.instance.pk }}, '{{ form.instance.name|escapejs }}')">
-                        <i class="bi bi-trash me-1"></i> Delete
-                    </button>
-                    {% endif %}
+                    <span id="delete-btn-slot"
+                          class="ms-auto"></span>
                 </div>
             </form>
         </div>
@@ -139,19 +120,18 @@
         </div>
 
         <!-- Metadata - only in Edit mode -->
-        {% if form.instance.pk %}
-        <div class="rp-card rp-card--muted mt-3">
+        <div id="metadata-card"
+             class="rp-card rp-card--muted mt-3 d-none">
             <h6 class="fw-600 mb-2">
                 <i class="bi bi-clock-history me-2"></i>Metadata
             </h6>
             <dl class="rp-meta-list">
                 <dt>Created</dt>
-                <dd>{{ form.instance.created_at|date:"d M Y, H:i" }}</dd>
+                <dd id="meta-created"></dd>
                 <dt>Last updated</dt>
-                <dd>{{ form.instance.updated_at|date:"d M Y, H:i" }}</dd>
+                <dd id="meta-updated"></dd>
             </dl>
         </div>
-        {% endif %}
     </div>
 </div>
 
@@ -197,5 +177,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'js/delivery_teams.js' %}"></script>
+<script type="module" src="{% static 'js/modules/delivery_teams.js' %}"></script>
 {% endblock %}

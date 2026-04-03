@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <!-- Back Button -->
+        <a href="/configurations/"
+           class="btn btn-ghost-icon"
+           title="Back to Configurations">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span class="rp-code rp-code--lg"
+                      id="config-code"></span>
+                <span id="config-overridden"
+                      class="rp-badge"></span>
+            </h1>
+            <p class="rp-page-subtitle"
+               id="config-label"></p>
+        </div>
+    </div>
+
+    <!-- Edit -->
+    <div class="d-flex gap-2">
+        <a href="#"
+           id="edit-config-btn"
+           class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i>Edit config
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="detail-root"
+     class="row g-4">
+    <!-- Left Panel -->
+    <div class="col-lg-12">
+        <!-- Team Details -->
+        <div class="rp-card mb-3">
+            <h6 class="rp-card-heading">Configuration Details</h6>
+            <dl class="rp-meta-list">
+                <dt>Current Value</dt>
+                <dd>
+                    <span class="rp-value-pill rp-value-pill--lg"
+                          id="current-value"></span>
+                </dd>
+                <dt>System default</dt>
+                <dd>
+                    <span class="rp-value-fill"
+                          id="factory-default"></span>
+                </dd>
+                <dt>Description</dt>
+                <dd id="config-description"></dd>
+            </dl>
+        </div>
+        <!-- Metadata Details -->
+        <div class="rp-card rp-card--muted mb-3">
+            <h6 class="rp-card-heading">
+                <i class="bi bi-clock-history me-2"></i>Metadata
+            </h6>
+            <dl class="rp-meta-list">
+                <dt>Created</dt>
+                <dd id="meta-created"></dd>
+                <dt>Last updated</dt>
+                <dd id="meta-updated"></dd>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/configurations.js' %}"></script>
+{% endblock %}

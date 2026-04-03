@@ -2,17 +2,28 @@ import csv
 import io
 import logging
 
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import DatabaseError
 from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError as DRFValidationError
 
+from .models import Skill
 from .serializers import SkillSerializer, SkillExportSerializer
 from .services import SkillService
 
 logger = logging.getLogger(__name__)
+
+def _validation_details(e):
+    if isinstance(e, DRFValidationError):
+        return e.detail
+
+    try:
+        return e.message_dict
+    except AttributeError:
+        return e.messages
 
 
 class SkillViewSet(viewsets.ViewSet):
@@ -22,14 +33,34 @@ class SkillViewSet(viewsets.ViewSet):
         List all skills.
         """
         try:
-            skills = SkillService.list_skills(filters=request.query_params)
-            serializer = SkillSerializer(skills, many=True)
+            page = int(request.query_params.get('page', 1))
+            page_size = min(int(request.query_params.get('page_size', 20)), 100)
+        except (ValueError, TypeError):
+            page, page_size = 1, 20
+
+        try:
+            result = SkillService.list_skills(
+                filters=request.query_params,
+                page=page,
+                page_size=page_size,
+            )
+            serializer = SkillSerializer(result["results"], many=True)
             return Response(
-                serializer.data,
+                {
+                    "results": serializer.data,
+                    "pagination": {
+                        "total_count": result["total_count"],
+                        "total_pages": result["total_pages"],
+                        "current_page": result["current_page"],
+                        "page_size": result["page_size"],
+                        "has_next": result["has_next"],
+                        "has_previous": result["has_previous"],
+                    },
+                },
                 status=status.HTTP_200_OK,
             )
         except DatabaseError as e:
-            logging.exception("Database error in list_skills: %s", e)
+            logging.exception("Database error in list: %s", e)
             return Response(
                 {
                     "error": "A database error occurred. Please try again later.",
@@ -37,7 +68,63 @@ class SkillViewSet(viewsets.ViewSet):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except Exception as e:
-            logger.exception("Unexpected error in list_skills: %s", e)
+            logger.exception("Unexpected error in list: %s", e)
+            return Response(
+                {
+                    "error": "An unexpected error occurred. Please try again later.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /skills/stats/
+    @action(detail=False, methods=['get'], url_path='stats')
+    def statistics(self, request):
+        """
+        List all statistics associated with skills.
+        """
+        try:
+            fields_param = request.query_params.get('fields')
+            fields = fields_param.split(",") if fields_param else None
+            result = SkillService.list_stats(fields=fields)
+            return Response(result, status=status.HTTP_200_OK)
+        except DatabaseError as e:
+            logging.exception("Database error in stats: %s", e)
+            return Response(
+                {
+                    "error": "A database error occurred. Please try again later.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in stats: %s", e)
+            return Response(
+                {
+                    "error": "An unexpected error occurred. Please try again later.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /skills/options/
+    @action(detail=False, methods=['get'], url_path='options')
+    def option_choices(self, request):
+        """
+        List all options associated with delivery teams.
+        """
+        try:
+            fields_param = request.query_params.get('fields')
+            fields = fields_param.split(",") if fields_param else None
+            result = SkillService.list_options(fields=fields)
+            return Response(result, status=status.HTTP_200_OK)
+        except DatabaseError as e:
+            logging.exception("Database error in option_choices: %s", e)
+            return Response(
+                {
+                    "error": "A database error occurred. Please try again later.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in option_choices: %s", e)
             return Response(
                 {
                     "error": "An unexpected error occurred. Please try again later.",
@@ -57,17 +144,25 @@ class SkillViewSet(viewsets.ViewSet):
                 serializer.data,
                 status=status.HTTP_200_OK,
             )
-        except (ValidationError, ValueError) as e:
-            logging.warning("Validation error in get_skill: %s", e)
+        except Skill.DoesNotExist:
+            logging.warning("Skill %s does not exist", pk)
+            return Response(
+                {
+                    "error": "Skill not found."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            logging.warning("Validation error in retrieve: %s", e)
             return Response(
                 {
                     "error": "Invalid parameters/values.",
-                    "details": e.message_dict if hasattr(e, 'message_dict') else e.messages,
+                    "details": _validation_details(e)
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except DatabaseError as e:
-            logging.exception("Database error in get_skill: %s", e)
+            logging.exception("Database error in retrieve: %s", e)
             return Response(
                 {
                     "error": "A database error occurred. Please try again later.",
@@ -75,7 +170,7 @@ class SkillViewSet(viewsets.ViewSet):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except Exception as e:
-            logger.exception("Unexpected error in get_skill: %s", e)
+            logger.exception("Unexpected error in retrieve: %s", e)
             return Response(
                 {
                     "error": "An unexpected error occurred. Please try again later.",
@@ -96,17 +191,17 @@ class SkillViewSet(viewsets.ViewSet):
                 SkillSerializer(skill).data,
                 status=status.HTTP_201_CREATED,
             )
-        except (ValidationError, ValueError) as e:
-            logging.warning("Validation error in create_skill: %s", e)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            logging.warning("Validation error in create: %s", e)
             return Response(
                 {
                     "error": "Invalid parameters/values.",
-                    "details": e.message_dict if hasattr(e, 'message_dict') else e.messages,
+                    "details": _validation_details(e),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except DatabaseError as e:
-            logging.exception("Database error in create_skill: %s", e)
+            logging.exception("Database error in create: %s", e)
             return Response(
                 {
                     "error": "A database error occurred. Please try again later.",
@@ -114,7 +209,7 @@ class SkillViewSet(viewsets.ViewSet):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except Exception as e:
-            logger.exception("Unexpected error in create_skill: %s", e)
+            logger.exception("Unexpected error in create: %s", e)
             return Response(
                 {
                     "error": "An unexpected error occurred. Please try again later.",
@@ -124,27 +219,38 @@ class SkillViewSet(viewsets.ViewSet):
 
     def _perform_update(self, request, pk, partial: bool):
         """
-        Update a skill by specified skill id.
+        Update a skill by specified skill id. Shared logic for PUT and PATCH.
         """
         try:
-            serializer = SkillSerializer(data=request.data, partial=partial)
+            try:
+                instance = Skill.objects.get(pk=pk)
+            except Skill.DoesNotExist:
+                logging.warning("Skill %s does not exist", pk)
+                return Response(
+                    {
+                        "error": "Skill not found."
+                    },
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            serializer = SkillSerializer(instance, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
             skill = SkillService.update_skill(pk, serializer.validated_data)
             return Response(
                 SkillSerializer(skill).data,
                 status=status.HTTP_200_OK,
             )
-        except (ValidationError, ValueError) as e:
-            logging.warning("Validation error in update_skill: %s", e)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            logging.warning("Validation error in _perform_update: %s", e)
             return Response(
                 {
                     "error": "Invalid parameters/values.",
-                    "details": e.message_dict if hasattr(e, 'message_dict') else e.messages,
+                    "details": _validation_details(e),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except DatabaseError as e:
-            logging.exception("Database error in update_skill: %s", e)
+            logging.exception("Database error in _perform_update: %s", e)
             return Response(
                 {
                     "error": "A database error occurred. Please try again later.",
@@ -152,7 +258,7 @@ class SkillViewSet(viewsets.ViewSet):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except Exception as e:
-            logger.exception("Unexpected error in update_skill: %s", e)
+            logger.exception("Unexpected error in _perform_update: %s", e)
             return Response(
                 {
                     "error": "An unexpected error occurred. Please try again later.",
@@ -182,17 +288,25 @@ class SkillViewSet(viewsets.ViewSet):
         try:
             SkillService.delete_skill(pk)
             return Response(status=status.HTTP_204_NO_CONTENT)
-        except (ValidationError, ValueError) as e:
-            logging.warning("Validation error in delete_skill: %s", e)
+        except Skill.DoesNotExist:
+            logging.warning("Skill %s does not exist", pk)
+            return Response(
+                {
+                    "error": "Skill not found."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            logging.warning("Validation error in destroy: %s", e)
             return Response(
                 {
                     "error": "Invalid parameters/values.",
-                    "details": e.message_dict if hasattr(e, 'message_dict') else e.messages,
+                    "details": _validation_details(e),
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except DatabaseError as e:
-            logging.exception("Database error in delete_skill: %s", e)
+            logging.exception("Database error in destroy: %s", e)
             return Response(
                 {
                     "error": "A database error occurred. Please try again later.",
@@ -200,7 +314,7 @@ class SkillViewSet(viewsets.ViewSet):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except Exception as e:
-            logger.exception("Unexpected error in delete_skill: %s", e)
+            logger.exception("Unexpected error in destroy: %s", e)
             return Response(
                 {
                     "error": "An unexpected error occurred. Please try again later.",
@@ -253,12 +367,15 @@ class SkillViewSet(viewsets.ViewSet):
         """
         Bulk import for skills.
         """
+        dry_run = request.query_params.get('validate', 'false').lower() == 'true'
         try:
-            results = SkillService.bulk_import(request)
+            results = SkillService.bulk_import(request, dry_run=dry_run)
             return Response(results, status=status.HTTP_207_MULTI_STATUS)
         except ValidationError as e:
+            logging.warning("Validation error in bulk_import: %s", e)
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
+            logger.exception("Unexpected error in bulk_import: %s", e)
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     # GET /skills/export/
@@ -268,8 +385,8 @@ class SkillViewSet(viewsets.ViewSet):
         Export of skills. Returns JSON. UI to handle CSV or PDF formats.
         """
         try:
-            skills = SkillService.list_skills(filters=request.query_params)
-            data = SkillExportSerializer(skills, many=True).data
+            qs = Skill.objects.all()
+            data = SkillExportSerializer(qs, many=True).data
             return Response(
                 {
                     "count": len(data),

@@ -1,8 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
 
-{% block title %}Skills - Resource Planner{% endblock %}
-
 {% block page_header %}
 <div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
     <!-- Page Title -->
@@ -16,7 +14,7 @@
     <!-- Features -->
     <div class="d-flex gap-2 flex-wrap">
         <!-- Import -->
-        <a href="{% url 'skills:import' %}"
+        <a href="/import/?module=skills"
            class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
@@ -33,14 +31,14 @@
                 <li>
                     <a class="dropdown-item"
                        href="#"
-                       onclick="runListExport('csv'); return false;">
+                       id="export-csv">
                         <i class="bi bi-filetype-csv me-2"></i>CSV
                     </a>
                 </li>
                 <li>
                     <a class="dropdown-item"
                        href="#"
-                       onclick="runListExport('pdf'); return false;">
+                       id="export-pdf">
                         <i class="bi bi-filetype-pdf me-2"></i>PDF
                     </a>
                 </li>
@@ -48,7 +46,7 @@
         </div>
 
         <!-- New Skill -->
-        <a href="{% url 'skills:create' %}"
+        <a href="/skills/new"
            class="btn btn-primary btn-sm">
             <i class="bi bi-plus-lg me-1"></i>New Skill
         </a>
@@ -59,11 +57,13 @@
 {% block content %}
 <!-- Statistics -->
 <div class="row g-3 mb-4">
+    <!-- Populated by JS -->
     <!-- Total Skills -->
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
             <span class="rp-stat-label">Total Skills</span>
-            <span class="rp-stat-value">{{ total_skills }}</span>
+            <span class="rp-stat-value"
+                  id="stat-total-skills">0</span>
         </div>
     </div>
 
@@ -71,7 +71,8 @@
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
             <span class="rp-stat-label">Active Skills</span>
-            <span class="rp-stat-value">{{ active_skills }}</span>
+            <span class="rp-stat-value"
+                  id="stat-active-skills">0</span>
         </div>
     </div>
 
@@ -79,7 +80,8 @@
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
             <span class="rp-stat-label">Inactive Skills</span>
-            <span class="rp-stat-value">{{ inactive_skills }}</span>
+            <span class="rp-stat-value"
+                  id="stat-inactive-skills">0</span>
         </div>
     </div>
 
@@ -87,7 +89,8 @@
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
             <span class="rp-stat-label">Unassigned Skills</span>
-            <span class="rp-stat-value">{{ unassigned_skills }}</span>
+            <span class="rp-stat-value"
+                  id="stat-unassigned-skills">0</span>
         </div>
     </div>
 </div>
@@ -98,7 +101,7 @@
     <div class="rp-search flex-grow-1">
         <i class="bi bi-search rp-search-icon"></i>
         <input type="text"
-               id="team-search"
+               id="skill-search"
                class="form-control rp-search-input"
                placeholder="Search teams by skill code or description..." />
     </div>
@@ -106,11 +109,9 @@
     <!-- Filters -->
     <select id="status-filter"
             class="form-select rp-select"
-            style="max-width: 160px;"
-            onchange="filterTable()">
+            style="max-width: 160px;">
         <option value="">All statuses</option>
-        <option value="active">Active</option>
-        <option value="inactive">Inactive</option>
+        <!-- Populated by JS -->
     </select>
 </div>
 
@@ -121,76 +122,31 @@
         <thead>
             <tr>
                 <th class="sortable"
-                    data-col="0"
-                    onclick="sortTable(0)">
+                    data-field="skill">
                     Skill Code <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
                 <th>Description</th>
                 <th class="text-center sortable"
-                    onclick="sortTable(2)">
+                    data-field="is_active">
                     Status <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
                 <th class="text-center">Actions</th>
             </tr>
         </thead>
-        <tbody>
-            {% for skill in skills %}
-            <tr data-skill-id="{{ skill.id }}"
-                data-code="{{ skill.skill|lower }}"
-                data-desc="{{ skill.description|lower }}"
-                data-status="{% if skill.is_active %}active{% else %}inactive{% endif %}">
-                <!-- Code -->
-                <td>
-                    <a href="{% url 'skills:detail' skill.pk %}"
-                       class="rp-link">
-                        <span class="rp-code">{{ skill.skill }}</span>
-                    </a>
-                </td>
-                <!-- Description -->
-                <td class="text-secondary"
-                    style="max-width: 260px;">
-                    <span class="rp-truncate">{{ skill.description }}</span>
-                </td>
-                <!-- Status -->
-                <td class="text-center">
-                    {% if skill.is_active%}
-                    <span class="rp-badge rp-badge--success">Active</span>
-                    {% else %}
-                    <span class="rp-badge rp-badge--muted">Inactive</span>
-                    {% endif %}
-                </td>
-                <!-- Actions -->
-                <td class="text-center">
-                    <div class="d-flex justify-content-center gap-1">
-                        <a href="{% url 'skills:detail' skill.pk %}"
-                           class="btn btn-ghost-icon"
-                           title="View skill">
-                            <i class="bi bi-eye"></i>
-                        </a>
-                        <a href="{% url 'skills:edit' skill.pk %}"
-                           class="btn btn-ghost-icon"
-                           title="Edit skill">
-                            <i class="bi bi-pencil"></i>
-                        </a>
-                        <button class="btn btn-ghost-icon btn-ghost-icon--danger"
-                                title="Delete skill"
-                                onclick="confirmDelete({{ skill.id }}, '{{ skill.skill|escapejs }}')">
-                            <i class="bi bi-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6"
-                    class="text-center py-5 text-secondary">
-                    <i class="bi bi=people display-6 d-block mb-2 opacity-25"></i>
-                    No skills found. <a href="{% url 'skills:create' %}">Create the first one</a>.
-                </td>
-            </tr>
-            {% endfor %}
+        <tbody id="skills-tbody">
+            <!-- Populated by JS -->
         </tbody>
     </table>
+
+    <!-- Pagination -->
+    <div class="d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2"
+         id="pagination-bar"
+         style="display:none;">
+        <span class="text-secondary small" id="pagination-info"></span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="pagination-controls"></ul>
+        </nav>
+    </div>
 </div>
 
 <!-- Delete Confirmation Modal -->
@@ -211,7 +167,7 @@
             <!-- Modal Body -->
             <div class="modal-body">
                 <p class="text-secondary mb-0">
-                    <strong id="delete-skill-code"></strong> will be permanently removed.
+                    <strong id="delete-skill-skill"></strong> will be permanently removed.
                     This cannot be undone.
                 </p>
             </div>
@@ -237,6 +193,9 @@
 {% block extra_js %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
-<script src="{% static 'js/export.js' %}"></script>
-<script src="{% static 'js/skills.js' %}"></script>
+<script type="module" src="{% static 'js/list/fetch.js' %}"></script>
+<script type="module" src="{% static 'js/list/sort.js' %}"></script>
+<script type="module" src="{% static 'js/list/render.js' %}"></script>
+<script type="module" src="{% static 'js/export.js' %}"></script>
+<script type="module" src="{% static 'js/modules/skills.js' %}"></script>
 {% endblock %}

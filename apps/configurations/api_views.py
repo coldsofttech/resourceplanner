@@ -1,18 +1,15 @@
-import csv
-import io
 import logging
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import DatabaseError
-from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
 from rest_framework.response import Response
 
-from .models import DeliveryTeam
-from .serializers import DeliveryTeamSerializer, DeliveryTeamExportSerializer
-from .services import DeliveryTeamService
+from .models import Configuration
+from .serializers import ConfigurationSerializer, ConfigurationExportSerializer
+from .services import ConfigurationService
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +24,11 @@ def _validation_details(e):
         return e.messages
 
 
-class DeliveryTeamViewSet(viewsets.ViewSet):
-    # GET /delivery-teams/
+class ConfigurationViewSet(viewsets.ViewSet):
+    # GET /configurations/
     def list(self, request):
         """
-        List all delivery teams.
+        List all configurations.
         """
         try:
             page = int(request.query_params.get('page', 1))
@@ -40,12 +37,12 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
             page, page_size = 1, 20
 
         try:
-            result = DeliveryTeamService.list_teams(
+            result = ConfigurationService.list_configurations(
                 filters=request.query_params,
                 page=page,
                 page_size=page_size,
             )
-            serializer = DeliveryTeamSerializer(result["results"], many=True)
+            serializer = ConfigurationSerializer(result["results"], many=True)
             return Response(
                 {
                     "results": serializer.data,
@@ -77,16 +74,16 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    # GET /delivery-teams/stats/
+    # GET /configurations/stats/
     @action(detail=False, methods=['get'], url_path='stats')
     def statistics(self, request):
         """
-        List all statistics associated with delivery teams.
+        List all statistics associated with configurations.
         """
         try:
             fields_param = request.query_params.get('fields')
             fields = fields_param.split(",") if fields_param else None
-            result = DeliveryTeamService.list_stats(fields=fields)
+            result = ConfigurationService.list_stats(fields=fields)
             return Response(result, status=status.HTTP_200_OK)
         except DatabaseError as e:
             logging.exception("Database error in stats: %s", e)
@@ -105,51 +102,23 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    # GET /delivery-teams/options/
-    @action(detail=False, methods=['get'], url_path='options')
-    def option_choices(self, request):
-        """
-        List all options associated with delivery teams.
-        """
-        try:
-            fields_param = request.query_params.get('fields')
-            fields = fields_param.split(",") if fields_param else None
-            result = DeliveryTeamService.list_options(fields=fields)
-            return Response(result, status=status.HTTP_200_OK)
-        except DatabaseError as e:
-            logging.exception("Database error in option_choices: %s", e)
-            return Response(
-                {
-                    "error": "A database error occurred. Please try again later.",
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        except Exception as e:
-            logger.exception("Unexpected error in option_choices: %s", e)
-            return Response(
-                {
-                    "error": "An unexpected error occurred. Please try again later.",
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    # GET /delivery-teams/<id>/
+    # GET /configurations/<id>/
     def retrieve(self, request, pk=None):
         """
-        Retrieve a single delivery team by specified team id.
+        Retrieve a single configuration by specified config id.
         """
         try:
-            team = DeliveryTeamService.get_team(pk)
-            serializer = DeliveryTeamSerializer(team)
+            config = ConfigurationService.get_configuration(pk)
+            serializer = ConfigurationSerializer(config)
             return Response(
                 serializer.data,
                 status=status.HTTP_200_OK,
             )
-        except DeliveryTeam.DoesNotExist:
-            logging.warning("Delivery team %s does not exist", pk)
+        except Configuration.DoesNotExist:
+            logging.warning("Configuration %s does not exist", pk)
             return Response(
                 {
-                    "error": "Team not found."
+                    "error": "Configuration not found."
                 },
                 status=status.HTTP_404_NOT_FOUND,
             )
@@ -179,21 +148,38 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    # POST /delivery-teams/
-    def create(self, request):
+    # GET /configurations/by_code/<code>
+    @action(detail=False, methods=['get'], url_path='by_code')
+    def by_code(self, request):
         """
-        Create a new delivery team.
+        Retrieve a single configuration by specified config code.
         """
-        try:
-            serializer = DeliveryTeamSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            team = DeliveryTeamService.create_team(serializer.validated_data)
+        code = request.query_params.get('code', '').strip().upper()
+        if not code:
             return Response(
-                DeliveryTeamSerializer(team).data,
-                status=status.HTTP_201_CREATED,
+                {
+                    "error": "Provide ?code=CONFIG_CODE in the query string.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            config = ConfigurationService.get_configuration_by_code(code)
+            serializer = ConfigurationSerializer(config)
+            return Response(
+                serializer.data,
+                status=status.HTTP_200_OK,
+            )
+        except Configuration.DoesNotExist:
+            logging.warning("Configuration %s does not exist", code)
+            return Response(
+                {
+                    "error": "Configuration not found."
+                },
+                status=status.HTTP_404_NOT_FOUND,
             )
         except (DjangoValidationError, DRFValidationError, ValueError) as e:
-            logging.warning("Validation error in create: %s", e)
+            logging.warning("Validation error in by_code: %s", e)
             return Response(
                 {
                     "error": "Invalid parameters/values.",
@@ -202,7 +188,7 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except DatabaseError as e:
-            logging.exception("Database error in create: %s", e)
+            logging.exception("Database error in by_code: %s", e)
             return Response(
                 {
                     "error": "A database error occurred. Please try again later.",
@@ -210,7 +196,72 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except Exception as e:
-            logger.exception("Unexpected error in create: %s", e)
+            logger.exception("Unexpected error in by_code: %s", e)
+            return Response(
+                {
+                    "error": "An unexpected error occurred. Please try again later.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /configurations/factory_default/<code>
+    @action(detail=False, methods=['get'], url_path='system_default')
+    def factory_default(self, request):
+        """
+        Retrieve a factory default configuration by specified config code.
+        """
+        code = request.query_params.get('code', '').strip().upper()
+        if not code:
+            return Response(
+                {
+                    "error": "Provide ?code=CONFIG_CODE in the query string.",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            default_value = ConfigurationService.get_default_configuration_value(code)
+            if default_value is None:
+                return Response(
+                    {
+                        "error": "No system default registered for this code."
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+            return Response(
+                {
+                    "code": code,
+                    "default_value": default_value
+                },
+                status=status.HTTP_200_OK
+            )
+        except Configuration.DoesNotExist:
+            logging.warning("Configuration %s does not exist", code)
+            return Response(
+                {
+                    "error": "Configuration not found."
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            logging.warning("Validation error in factory_default: %s", e)
+            return Response(
+                {
+                    "error": "Invalid parameters/values.",
+                    "details": _validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logging.exception("Database error in factory_default: %s", e)
+            return Response(
+                {
+                    "error": "A database error occurred. Please try again later.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in factory_default: %s", e)
             return Response(
                 {
                     "error": "An unexpected error occurred. Please try again later.",
@@ -220,25 +271,34 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
 
     def _perform_update(self, request, pk, partial: bool):
         """
-        Update a delivery team by specified team id. Shared logic for PUT and PATCH.
+        Update a configuration by specified config id. Shared logic for PUT and PATCH.
         """
+        value = request.data.get('value')
+        if value is None:
+            return Response(
+                {
+                    "error": "Only the 'value' field can be updated."
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
             try:
-                instance = DeliveryTeam.objects.get(pk=pk)
-            except DeliveryTeam.DoesNotExist:
-                logging.warning("Delivery team %s does not exist", pk)
+                instance = Configuration.objects.get(pk=pk)
+            except Configuration.DoesNotExist:
+                logging.warning("Configuration %s does not exist", pk)
                 return Response(
                     {
-                        "error": "Team not found."
+                        "error": "Configuration not found."
                     },
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            serializer = DeliveryTeamSerializer(instance, data=request.data, partial=partial)
+            serializer = ConfigurationSerializer(instance, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
-            team = DeliveryTeamService.update_team(pk, serializer.validated_data)
+            config = ConfigurationService.update_configuration(pk, serializer.validated_data.get('value'))
             return Response(
-                DeliveryTeamSerializer(team).data,
+                ConfigurationSerializer(config).data,
                 status=status.HTTP_200_OK,
             )
         except (DjangoValidationError, DRFValidationError, ValueError) as e:
@@ -267,127 +327,22 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    # PUT /delivery-teams/<id>/
-    def update(self, request, pk=None):
-        """
-        Update a delivery team by specified team id.
-        """
-        return self._perform_update(request, pk, partial=False)
-
-    # PATCH /delivery-teams/<id>/
+    # PATCH /configurations/<id>/
     def partial_update(self, request, pk=None):
         """
-        Update a delivery team by specified team id for the specified fields.
+        Update a configuration by specified config id for the specified fields.
         """
         return self._perform_update(request, pk, partial=True)
 
-    # DELETE /delivery-teams/<id>/
-    def destroy(self, request, pk=None):
-        """
-        Delete a delivery team by specified team id.
-        """
-        try:
-            DeliveryTeamService.delete_team(pk)
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except DeliveryTeam.DoesNotExist:
-            logging.warning("Delivery team %s does not exist", pk)
-            return Response(
-                {
-                    "error": "Team not found."
-                },
-                status=status.HTTP_404_NOT_FOUND,
-            )
-        except (DjangoValidationError, DRFValidationError, ValueError) as e:
-            logging.warning("Validation error in destroy: %s", e)
-            return Response(
-                {
-                    "error": "Invalid parameters/values.",
-                    "details": _validation_details(e),
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except DatabaseError as e:
-            logging.exception("Database error in destroy: %s", e)
-            return Response(
-                {
-                    "error": "A database error occurred. Please try again later.",
-                },
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        except Exception as e:
-            logger.exception("Unexpected error in destroy: %s", e)
-            return Response(
-                {
-                    "error": "An unexpected error occurred. Please try again later.",
-                },
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-    # GET /delivery-teams/import/specifications/
-    @action(detail=False, methods=['get'], url_path='import/specifications')
-    def import_specifications(self, request):
-        """
-        Import specifications for delivery teams.
-        """
-        specs = {
-            "fields": [
-                {"name": "name", "required": True, "type": "string", "max_length": 120},
-                {"name": "description", "required": False, "type": "string"},
-                {
-                    "name": "is_active", "required": False, "type": "boolean",
-                    "allowed_values": ["true", "false"], "default": "true"
-                },
-            ],
-            "notes": [
-                "First row must be the header.",
-                "Boolean fields accept: true / false (case-insensitive).",
-                "Maximum 500 rows per import.",
-            ]
-        }
-        return Response(specs, status=status.HTTP_200_OK)
-
-    # GET /delivery-teams/import/sample/
-    @action(detail=False, methods=['get'], url_path='import/sample')
-    def import_sample(self, request):
-        """
-        A sample template for importing delivery teams.
-        """
-        buffer = io.StringIO()
-        writer = csv.writer(buffer)
-        writer.writerow(["name", "description", "is_active"])  # header
-        writer.writerow(["Team Alpha", "Example description", "true"])  # sample row
-
-        buffer.seek(0)
-        response = HttpResponse(buffer, content_type="text/csv")
-        response["Content-Disposition"] = 'attachment; filename="delivery_teams_import_template.csv"'
-        return response
-
-    # POST /delivery-teams/import/
-    @action(detail=False, methods=['post'], url_path='import')
-    def bulk_import(self, request):
-        """
-        Bulk import for delivery teams.
-        """
-        dry_run = request.query_params.get('validate', 'false').lower() == 'true'
-        try:
-            results = DeliveryTeamService.bulk_import(request, dry_run=dry_run)
-            return Response(results, status=status.HTTP_207_MULTI_STATUS)
-        except (DjangoValidationError, DRFValidationError) as e:
-            logging.warning("Validation error in bulk_import: %s", e)
-            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        except Exception as e:
-            logger.exception("Unexpected error in bulk_import: %s", e)
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    # GET /delivery-teams/export/
+    # GET /configurations/export/
     @action(detail=False, methods=['get'], url_path='export')
     def export(self, request):
         """
-        Export of delivery teams. Returns JSON. UI handles CSV or PDF formats.
+        Export of configurations. Returns JSON. UI handles CSV or PDF formats.
         """
         try:
-            qs = DeliveryTeam.objects.all()
-            data = DeliveryTeamExportSerializer(qs, many=True).data
+            qs = Configuration.objects.all()
+            data = ConfigurationExportSerializer(qs, many=True).data
             return Response(
                 {
                     "count": len(data),
@@ -405,6 +360,55 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
             )
         except Exception as e:
             logger.exception("Unexpected error in export: %s", e)
+            return Response(
+                {
+                    "error": "An unexpected error occurred. Please try again later.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # POST /configurations/<id>/reset/
+    @action(detail=True, methods=['post'], url_path='reset')
+    def reset(self, request, pk=None):
+        """
+        Reset to default configuration.
+        """
+        try:
+            try:
+                instance = Configuration.objects.get(pk=pk)
+            except Configuration.DoesNotExist:
+                logging.warning("Configuration %s does not exist", pk)
+                return Response(
+                    {
+                        "error": "Configuration not found."
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            config = ConfigurationService.reset_to_default(pk)
+            return Response(
+                ConfigurationSerializer(config).data,
+                status=status.HTTP_200_OK,
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            logging.warning("Validation error in reset: %s", e)
+            return Response(
+                {
+                    "error": "Invalid parameters/values.",
+                    "details": _validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logging.exception("Database error in reset: %s", e)
+            return Response(
+                {
+                    "error": "A database error occurred. Please try again later.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in reset: %s", e)
             return Response(
                 {
                     "error": "An unexpected error occurred. Please try again later.",

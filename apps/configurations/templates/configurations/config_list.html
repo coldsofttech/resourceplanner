@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <!-- Page Title -->
+    <div>
+        <h1 class="rp-page-title">Configurations</h1>
+        <p class="rp-page-subtitle">
+            Built-in system settings — only values can be overridden
+        </p>
+    </div>
+
+    <!-- Features -->
+    <div class="d-flex gap-2 flex-wrap">
+        <!-- Export -->
+        <div class="dropdown">
+            <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
+                    id="export-dropdown-btn"
+                    data-bs-toggle="dropdown"
+                    aria-expanded="false">
+                <i class="bi bi-download me-1"></i>Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <a class="dropdown-item"
+                       href="#"
+                       id="export-csv">
+                        <i class="bi bi-filetype-csv me-2"></i>CSV
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item"
+                       href="#"
+                       id="export-pdf">
+                        <i class="bi bi-filetype-pdf me-2"></i>PDF
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Info Banner -->
+<div class="alert rp-info-banner d-flex align-items-start gap-3 mb-4"
+     role="alert">
+    <i class="bi bi-shield-lock-fill mt-1"
+       style="font-size:16px;flex-shrink:0"></i>
+    <div>
+        <strong>System-managed configurations.</strong>
+        These are built-in settings required for the application to function correctly.
+        You can override the value of any configuration and reset it back to its
+        system default at any time.
+    </div>
+</div>
+
+<!-- Search & Filters -->
+<div class="rp-toolbar d-flex gap-3 mb-3 flex-wrap">
+    <!-- Search -->
+    <div class="rp-search flex-grow-1">
+        <i class="bi bi-search rp-search-icon"></i>
+        <input type="text"
+               id="config-search"
+               class="form-control rp-search-input"
+               placeholder="Search by code, label, or description..." />
+    </div>
+</div>
+
+<!-- Configurations Table -->
+<div class="rp-table-wrap">
+    <table class="table rp-table"
+           id="configs-table">
+        <thead>
+            <tr>
+                <th class="sortable"
+                    data-field="code">
+                    Code <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                </th>
+                <th>Label</th>
+                <th>Value</th>
+                <th>Description</th>
+                <th class="text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="configs-tbody">
+            <!-- Populated by JS -->
+        </tbody>
+    </table>
+
+    <!-- Pagination -->
+    <div class="d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2"
+         id="pagination-bar"
+         style="display:none;">
+        <span class="text-secondary small" id="pagination-info"></span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="pagination-controls"></ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script type="module" src="{% static 'js/list/fetch.js' %}"></script>
+<script type="module" src="{% static 'js/list/sort.js' %}"></script>
+<script type="module" src="{% static 'js/list/render.js' %}"></script>
+<script type="module" src="{% static 'js/export.js' %}"></script>
+<script type="module" src="{% static 'js/modules/configurations.js' %}"></script>
+{% endblock %}

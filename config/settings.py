@@ -40,6 +40,8 @@ INSTALLED_APPS = [
     'rest_framework',
     'apps.delivery_teams',
     'apps.skills',
+    'apps.configurations',
+    'apps.import',
 ]
 
 MIDDLEWARE = [

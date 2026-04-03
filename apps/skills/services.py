@@ -3,6 +3,7 @@ import io
 import logging
 
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db import DatabaseError, IntegrityError, transaction
 
 from .models import Skill
@@ -12,24 +13,110 @@ logger = logging.getLogger(__name__)
 
 class SkillService:
     @staticmethod
-    def list_skills(filters=None):
+    def _parse_bool(val):
+        """
+        Normalise 'true'/'True'/'false'/'False' to Python bool, or None if absent.
+        """
+        if val is None:
+            return None
+        return val.lower() == 'true'
+
+    @staticmethod
+    def list_skills(filters=None, page=1, page_size=20):
         """
         List the skills.
         Supports filters: search, is_active
         """
+        VALID_ORDER_FIELDS = {'skill', 'is_active'}
         qs = Skill.objects.all()
 
-        if not filters:
-            return qs
+        if filters:
+            if filters.get('search'):
+                s_term = filters['search']
+                qs = qs.filter(skill__icontains=s_term) | qs.filter(description__icontains=s_term)
 
-        if filters.get('search'):
-            s_term = filters['search']
-            qs = qs.filter(skill__icontains=s_term) | qs.filter(description__icontains=s_term)
+            if filters.get('is_active') is not None:
+                is_active_raw = filters['is_active']
+                is_active = SkillService._parse_bool(is_active_raw)
+                qs = qs.filter(is_active=is_active)
 
-        if filters.get('is_active') is not None:
-            qs = qs.filter(is_active=filters['is_active'])
+        order_by = filters.get('order_by') if filters else None
+        order_dir = filters.get('order_dir') if filters else None
+        order_field = order_by if order_by in VALID_ORDER_FIELDS else 'skill'
+        if order_dir == 'desc':
+            order_field = f'-{order_field}'
+        qs = qs.order_by(order_field)
 
-        return qs
+        paginator = Paginator(qs, page_size)
+
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
+
+    @staticmethod
+    def list_stats(fields=None):
+        """
+        List the statistics of the skills.
+        Supports filters: fields
+        """
+        if fields is not None:
+            if isinstance(fields, str):
+                fields = {fields}
+            else:
+                fields = set(fields)
+
+        def wants(field):
+            return fields is None or field in fields
+
+        qs = Skill.objects.all()
+        result = {}
+
+        if wants("total_skills"):
+            result["total_skills"] = qs.count()
+        if wants("active_skills"):
+            result["active_skills"] = qs.filter(is_active=True).count()
+        if wants("inactive_skills"):
+            result["inactive_skills"] = qs.filter(is_active=False).count()
+        if wants("unassigned_skills"):
+            result["unassigned_skills"] = 0  # TODO: Total no of skills unassigned to team members
+
+        return result
+
+    @staticmethod
+    def list_options(fields=None):
+        """
+        List the options available for fields of skills.
+        Supports filters: fields
+        """
+
+        def wants(field):
+            return fields is None or field in fields
+
+        ds = {
+            "is_active": [
+                {"value": True, "label": "Active"},
+                {"value": False, "label": "Inactive"},
+            ]
+        }
+        result = {}
+
+        if wants("is_active"):
+            result["is_active"] = ds["is_active"]
+
+        return result
 
     @staticmethod
     def get_skill(skill_id: int):
@@ -142,7 +229,22 @@ class SkillService:
             raise
 
     @staticmethod
-    def bulk_import(request):
+    def _validate_row(data: dict) -> None:
+        """
+        Validate a single import row without writing to the database.
+        Raises ValidationError with a user-facing message on any failure.
+        Used by both the dry-run path and the real import path.
+        """
+        skill = data.get('skill', '').strip().upper()
+        if not skill:
+            raise ValidationError("'skill' is required and cannot be blank.")
+        if len(skill) > 20:
+            raise ValidationError("'skill' must be 20 characters or fewer.")
+        if Skill.objects.filter(skill=skill).exists():
+            raise ValidationError(f"Skill '{skill}' already exists.")
+
+    @staticmethod
+    def bulk_import(request, dry_run=False):
         file = request.FILES.get("file")
         if not file:
             raise ValidationError("No file provided.")
@@ -169,26 +271,42 @@ class SkillService:
             "succeeded": [],
             "failed": [],
             "total": len(rows),
+            "dry_run": dry_run,
             "summary": "",
         }
 
         for index, row in enumerate(rows, start=2):  # start=2 to account for header row
+            skill = row.get('skill', '').strip().upper()
             try:
-                skill = SkillService.create_skill({
-                    "skill": row.get('skill', '').strip(),
+                data = {
+                    "skill": skill,
                     "description": row.get('description', '').strip(),
                     "is_active": (row.get('is_active') or 'true').strip().lower() == "true",
-                })
-                results["succeeded"].append({
-                    "row": index,
-                    "skill": skill.skill
-                })
+                }
+
+                if dry_run:
+                    # Validate only — no DB writes.
+                    SkillService._validate_row(data)
+                    results["succeeded"].append({"row": index, "name": skill})
+                else:
+                    # Full import — _validate_row is also called inside create_team.
+                    skill = SkillService.create_skill(data)
+                    results["succeeded"].append({"row": index, "name": skill.skill})
             except (ValidationError, ValueError, IntegrityError, DatabaseError, Exception) as e:
                 results["failed"].append({
                     "row": index,
-                    "skill": row.get('skill'),
+                    "name": row.get('skill'),
                     "error": e.messages if hasattr(e, 'messages') else str(e),
                 })
 
-        results["summary"] = f"{len(results['succeeded'])} imported, {len(results['failed'])} failed."
+        if dry_run:
+            results["summary"] = (
+                f"Validation complete: {len(results['succeeded'])} rows valid, "
+                f"{len(results['failed'])} rows have errors."
+            )
+        else:
+            results["summary"] = (
+                f"{len(results['succeeded'])} imported, {len(results['failed'])} failed."
+            )
+
         return results
