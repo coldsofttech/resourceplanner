@@ -22,6 +22,7 @@ from apps.configurations.api_views import ConfigurationViewSet
 from apps.delivery_teams.api_views import DeliveryTeamViewSet
 from apps.employment_types.api_views import EmploymentTypeViewSet
 from apps.office_locations.api_views import OfficeLocationViewSet
+from apps.public_holidays.api_views import PublicHolidayViewSet
 from apps.skills.api_views import SkillViewSet
 from apps.team_members.api_views import TeamMemberViewSet
 from apps.team_roles.api_views import TeamRoleViewSet
@@ -34,6 +35,7 @@ router.register(r'locations', OfficeLocationViewSet, basename='location')
 router.register(r'roles', TeamRoleViewSet, basename='role')
 router.register(r'employment-types', EmploymentTypeViewSet, basename='employment-type')
 router.register(r'team-members', TeamMemberViewSet, basename='team-member')
+router.register(r'holidays', PublicHolidayViewSet, basename='holiday')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -46,6 +48,7 @@ urlpatterns = [
     path('team-members/', include('apps.team_members.urls')),
 
     # Settings
+    path('holidays/', include('apps.public_holidays.urls')),
     path('skills/', include('apps.skills.urls')),
     path('locations/', include('apps.office_locations.urls')),
     path('roles/', include('apps.team_roles.urls')),

@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'apps.team_roles',
     'apps.employment_types',
     'apps.team_members',
+    'apps.public_holidays',
     'apps.import',
 ]
 

@@ -11,6 +11,7 @@ const LABELS = {
     roles: "roles",
     employment_types: "employment types",
     team_members: "team members",
+    holidays: "holidays",
 };
 
 const importBtn         = document.getElementById('import-btn');
