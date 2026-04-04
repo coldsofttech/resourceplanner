@@ -17,6 +17,15 @@ CONFIGURATION_DEFAULTS = {
             "Used as the baseline when calculating available capacity in sprint planning."
         )
     },
+    "FY_EXPIRY_WARNING_DAYS": {
+        "label": "FY Expiry Warning (days)",
+        "value": "30",
+        "description": (
+            "When the active financial year has fewer than this many days remaining, "
+            "a warning banner is displayed at the top of every page and the remaining "
+            "days cell is highlighted in the Financial Years list."
+        ),
+    },
     # Add future built-in configs as below
     # "CODE": {
     #   "label": "Human readable label for the config.",

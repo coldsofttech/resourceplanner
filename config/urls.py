@@ -21,6 +21,7 @@ from rest_framework.routers import DefaultRouter
 from apps.configurations.api_views import ConfigurationViewSet
 from apps.delivery_teams.api_views import DeliveryTeamViewSet
 from apps.employment_types.api_views import EmploymentTypeViewSet
+from apps.financial_years.api_views import FinancialYearViewSet
 from apps.member_leaves.api_views import MemberLeaveViewSet
 from apps.office_locations.api_views import OfficeLocationViewSet
 from apps.public_holidays.api_views import PublicHolidayViewSet
@@ -38,6 +39,7 @@ router.register(r'employment-types', EmploymentTypeViewSet, basename='employment
 router.register(r'team-members', TeamMemberViewSet, basename='team-member')
 router.register(r'holidays', PublicHolidayViewSet, basename='holiday')
 router.register(r'leaves', MemberLeaveViewSet, basename='leave')
+router.register(r'fy', FinancialYearViewSet, basename='fy')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -49,6 +51,7 @@ urlpatterns = [
     path('delivery-teams/', include('apps.delivery_teams.urls')),
     path('team-members/', include('apps.team_members.urls')),
     path('leaves/', include('apps.member_leaves.urls')),
+    path('fy/', include('apps.financial_years.urls')),
 
     # Settings
     path('holidays/', include('apps.public_holidays.urls')),

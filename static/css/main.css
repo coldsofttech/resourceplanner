@@ -1232,6 +1232,58 @@ a:hover {
     border-color: var(--color-warning-border);
 }
 
+/* FY Expiry Banner */
+.rp-fy-warning-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.55rem 1.25rem;
+    background-color: #fef3c7;
+    border-bottom: 1px solid #f59e0b;
+    color: #92400e;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.4;
+    position: relative;
+    z-index: 1050;
+}
+
+.rp-fy-warning-banner .bi-exclamation-triangle-fill {
+    color: #d97706;
+    flex-shrink: 0;
+}
+
+.rp-fy-warning-link {
+    color: #92400e;
+    text-decoration: underline;
+    white-space: nowrap;
+}
+
+.rp-fy-warning-link:hover {
+    color: #78350f;
+}
+
+.rp-fy-warning-close {
+    background: none;
+    border: none;
+    padding: 0 0.25rem;
+    color: #92400e;
+    opacity: 0.7;
+    cursor: pointer;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.rp-fy-warning-close:hover {
+    opacity: 1;
+}
+
+.rp-badge--warning {
+    background-color: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+}
+
 @media (max-width: 480px) {
     #pagination-bar,
     #failed-pagination-bar,

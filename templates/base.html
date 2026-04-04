@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport"
               content="width=device-width, initial-scale=1.0" />
-        
+
         <title>{% block title %}Resource Planner{% endblock %}</title>
 
         <!-- Bootstrap 5 -->
@@ -20,10 +20,25 @@
         {% load static %}
         <link href="{% static 'css/main.css' %}"
               rel="stylesheet" />
-        
+
         {% block extra_css %}{% endblock %}
     </head>
     <body>
+        <!-- Financial Year Ending Warning Banner -->
+        <div id="rp-fy-warning-banner"
+             class="rp-fy-warning-banner d-none"
+             role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <span id="rp-fy-warning-text"></span>
+            <a href="/fy/" class="rp-fy-warning-link ms-2">View Financial Years</a>
+            <button type="button"
+                    class="rp-fy-warning-close ms-auto"
+                    id="rp-fy-warning-close"
+                    aria-label="Dismiss">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+
         <!-- Top Navigation Bar -->
         <nav class="rp-navbar navbar navbar-expand-lg">
             <div class="container-fluid px-4">
@@ -47,82 +62,35 @@
                 <div class="collapse navbar-collapse"
                      id="mainNav">
                     <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
+                        <!-- Dashboard -->
                         <li class="nav-item">
-                            <a class="nav-link {% if request.resolver_match.app_name == 'dashboard' %}active{% endif %}"
-                               href="/">
+                            <a class="nav-link"
+                               href="/"
+                               data-nav-match="/"
+                               data-nav-exact="true">
                                 <i class="bi bi-speedometer2 me-1"></i>Dashboard
                             </a>
                         </li>
 
-                        <!-- Financial Years Dropdown -->
+                        <!-- Financial Years dropdown — populated by JS -->
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle d-flex align-items-center gap-1 {% if request.resolver_match.app_name == 'financial_years' %}active{% endif %}"
+                            <a class="nav-link dropdown-toggle d-flex align-items-center gap-1"
+                               id="fy-nav-toggle"
                                href="#"
                                role="button"
+                               data-nav-match="/fy/"
                                data-bs-toggle="dropdown">
                                 <i class="bi bi-calendar3 me-1"></i>
-                                {% if active_fy %}
-                                    {{ active_fy.short_fy }}
-                                {% else %}
-                                    Financial Years
-                                {% endif %}
+                                <span id="fy-nav-toggle-label">Financial Years</span>
                             </a>
                             <ul class="dropdown-menu dropdown-menu-end"
+                                id="fy-dropdown-menu"
                                 style="min-width: 220px;">
-                                <!-- Active Financial Year Indicator -->
-                                {% if active_fy %}
-                                <li>
-                                    <div class="px-3 py-2 d-flex align-items-center gap-2">
-                                        <span class="rp-badge rp-badge--success"
-                                              style="font-size: 10.5px">
-                                            Active
-                                        </span>
-                                        <span class="fw-500"
-                                              style="font-size: 13px;">
-                                            {{ active_fy.long_fy }}
-                                        </span>
-                                    </div>
-                                </li>
-                                <li>
-                                    <hr class="dropdown-divider my-1">
-                                </li>
-                                {% endif %}
-
-                                <!-- All Financial Years -->
-                                {% for fy in all_financial_years %}
-                                <li>
-                                    <a class="dropdown-item d-flex align-items-center justify-content-between {% if fy.is_active %}fw-500{% endif %}"
-                                       href="{% url 'financial_years:detail' fy.pk %}">
-                                        <span>{{ fy.long_fy }}</span>
-                                        <span class="text-secondary"
-                                              style="font-size: 11.5px;">
-                                            {{ fy.short_fy }}
-                                        </span>
-                                    </a>
-                                </li>
-                                {% empty %}
                                 <li>
                                     <span class="dropdown-item text-secondary"
-                                          style="font-size: 13px;">
-                                        No financial years yet
+                                          style="font-size:13px">
+                                        Loading…
                                     </span>
-                                </li>
-                                {% endfor %}
-
-                                <li>
-                                    <hr class="dropdown-divider my-1">
-                                </li>
-                                <li>
-                                    <a class="dropdown-item"
-                                       href="#">
-                                        <i class="bi bi-list-ul me-2"></i>All financial years
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item"
-                                       href="#">
-                                        <i class="bi bi-plus me-2"></i>New financial year
-                                    </a>
                                 </li>
                             </ul>
                         </li>
@@ -143,42 +111,48 @@
                         <p class="rp-sidebar-label">Manage</p>
                         <!-- Teams -->
                         <a href="/delivery-teams/"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'delivery_teams' %}active{% endif %}"
+                           class="rp-sidebar-link"
+                           data-nav-match="/delivery-teams/"
                            data-rp-tooltip="Teams">
                             <i class="bi bi-people"></i>
                             <span class="rp-sidebar-link-label">Teams</span>
                         </a>
                         <!-- Team Members -->
                         <a href="/team-members/"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'team_members' %}active{% endif %}"
+                           class="rp-sidebar-link"
+                           data-nav-match="/team-members/"
                            data-rp-tooltip="Team Members">
                             <i class="bi bi-person-badge"></i>
                             <span class="rp-sidebar-link-label">Team Members</span>
                         </a>
                         <!-- Leaves -->
                         <a href="/leaves/"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'leaves' %}active{% endif %}"
+                           class="rp-sidebar-link"
+                           data-nav-match="/leaves/"
                            data-rp-tooltip="Leaves">
                             <i class="bi bi-calendar2-minus"></i>
                             <span class="rp-sidebar-link-label">Leaves</span>
                         </a>
                         <!-- Projects -->
-                        <a href="#"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'projects' %}active{% endif %}"
+                        <a href="/projects/"
+                           class="rp-sidebar-link"
+                           data-nav-match="/projects/"
                            data-rp-tooltip="Projects">
                             <i class="bi bi-kanban"></i>
                             <span class="rp-sidebar-link-label">Projects</span>
                         </a>
                         <!-- Financial Years -->
-                        <a href="#"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'financial_years' %}active{% endif %}"
+                        <a href="/fy/"
+                           class="rp-sidebar-link"
+                           data-nav-match="/fy/"
                            data-rp-tooltip="Financial Years">
                             <i class="bi bi-calendar3"></i>
                             <span class="rp-sidebar-link-label">Financial Years</span>
                         </a>
                         <!-- Budgets -->
-                        <a href="#"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'budgets' %}active{% endif %}"
+                        <a href="/budgets/"
+                           class="rp-sidebar-link"
+                           data-nav-match="/budgets/"
                            data-rp-tooltip="Budgets">
                             <i class="bi bi-wallet2"></i>
                             <span class="rp-sidebar-link-label">Budgets</span>
@@ -188,16 +162,18 @@
                         <!-- Plan Section -->
                         <p class="rp-sidebar-label">Plan</p>
                         <!-- Sprints -->
-                        <a href="#"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'sprints' %}active{% endif %}"
-                            data-rp-tooltip="Sprints">
+                        <a href="/sprints/"
+                           class="rp-sidebar-link"
+                           data-nav-match="/sprints/"
+                           data-rp-tooltip="Sprints">
                             <i class="bi bi-calendar3-range"></i>
                             <span class="rp-sidebar-link-label">Sprints</span>
                         </a>
                         <!-- Resource Plans -->
-                        <a href="#"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'resource_plans' %}active{% endif %}"
-                            data-rp-tooltip="Resources">
+                        <a href="/resource-plan/"
+                           class="rp-sidebar-link"
+                           data-nav-match="/resource-plan/"
+                           data-rp-tooltip="Resources">
                             <i class="bi bi-bar-chart-steps"></i>
                             <span class="rp-sidebar-link-label">Resource Plans</span>
                         </a>
@@ -206,7 +182,7 @@
                         <!-- Settings Section -->
                         <p class="rp-sidebar-label">Settings</p>
                         <a href="#"
-                           class="rp-sidebar-link rp-sidebar-link--settings {% if request.resolver_match.app_name == 'settings' %}active{% endif %}"
+                           class="rp-sidebar-link rp-sidebar-link--settings"
                            id="rpSettingsLink"
                            data-rp-tooltip="Settings"
                            onclick="rpOpenSettings(event)">
@@ -233,37 +209,42 @@
                     <!-- Reference Data -->
                     <div class="rp-sidebar-section">
                         <p class="rp-sidebar-label">Reference data</p>
-
+                        <!-- Holidays -->
                         <a href="/holidays/"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'holidays' %}active{% endif %}"
+                           class="rp-sidebar-link"
+                           data-nav-match="/holidays/"
                            data-rp-tooltip="Holidays">
                             <i class="bi bi-calendar-heart"></i>
                             <span class="rp-sidebar-link-label">Holidays</span>
                         </a>
-
+                        <!-- Skills -->
                         <a href="/skills/"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'skills' %}active{% endif %}"
+                           class="rp-sidebar-link"
+                           data-nav-match="/skills/"
                            data-rp-tooltip="Skills">
                             <i class="bi bi-puzzle"></i>
                             <span class="rp-sidebar-link-label">Skills</span>
                         </a>
-
+                        <!-- Roles -->
                         <a href="/roles/"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'roles' %}active{% endif %}"
+                           class="rp-sidebar-link"
+                           data-nav-match="/roles/"
                            data-rp-tooltip="Roles">
                             <i class="bi bi-person-gear"></i>
                             <span class="rp-sidebar-link-label">Roles</span>
                         </a>
-
+                        <!-- Locations -->
                         <a href="/locations/"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'locations' %}active{% endif %}"
+                           class="rp-sidebar-link"
+                           data-nav-match="/locations/"
                            data-rp-tooltip="Locations">
                             <i class="bi bi-geo-alt"></i>
                             <span class="rp-sidebar-link-label">Locations</span>
                         </a>
-
+                        <!-- Employment Types -->
                         <a href="/employment-types/"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'employment-types' %}active{% endif %}"
+                           class="rp-sidebar-link"
+                           data-nav-match="/employment-types/"
                            data-rp-tooltip="Employment Types">
                             <i class="bi bi-briefcase"></i>
                             <span class="rp-sidebar-link-label">Employment Types</span>
@@ -273,9 +254,10 @@
                     <!-- Configuration -->
                     <div class="rp-sidebar-section">
                         <p class="rp-sidebar-label">Configuration</p>
-
+                        <!-- Configurations -->
                         <a href="/configurations/"
-                           class="rp-sidebar-link {% if request.resolver_match.app_name == 'configurations' %}active{% endif %}"
+                           class="rp-sidebar-link"
+                           data-nav-match="/configurations/"
                            data-rp-tooltip="Configurations">
                             <i class="bi bi-toggles"></i>
                             <span class="rp-sidebar-link-label">Configurations</span>
@@ -294,22 +276,6 @@
 
             <!-- Main Content -->
             <main class="rp-main flex-fill">
-                <!-- Flash Messages -->
-                {% if messages %}
-                <div class="rp-messages px-4 pt-3">
-                    {% for msg in messages %}
-                    <div class="alert alert-{{ msg.tags|default:'info' }} alert-dismissable fade show"
-                         role="alert">
-                        {{ msg }}
-                        <button type="button"
-                                class="btn-close"
-                                data-bs-dismiss="alert">
-                        </button>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endif %}
-
                 <!-- Page Header (Optional) -->
                 {% block page_header %}{% endblock %}
 
@@ -333,25 +299,38 @@
         <script type="module" src="{% static 'js/main.js' %}"></script>
         <script>
             (function () {
+                'use strict';
+
+                // ── localStorage keys ──────────────────────────────────────
                 var MAIN_KEY     = 'rp_main_collapsed';
                 var SUB_KEY      = 'rp_sub_collapsed';
                 var SUB_OPEN_KEY = 'rp_sub_open';
 
-                var mainOuter   = document.getElementById('rpMainOuter');
-                var mainSidebar = document.getElementById('rpMainSidebar');
-                var subOuter    = document.getElementById('rpSubOuter');
-                var subSidebar  = document.getElementById('rpSubSidebar');
+                // ── Element refs ───────────────────────────────────────────
+                var mainOuter      = document.getElementById('rpMainOuter');
+                var mainSidebar    = document.getElementById('rpMainSidebar');
+                var subOuter       = document.getElementById('rpSubOuter');
+                var subSidebar     = document.getElementById('rpSubSidebar');
                 var mainToggleIcon = document.querySelector('#rpMainToggle i');
                 var subToggleIcon  = document.querySelector('#rpSubToggle i');
+                var settingsLink   = document.getElementById('rpSettingsLink');
 
-                var isSettingsPage = (
-                    document.getElementById('rpSettingsLink').classList.contains('active') ||
-                    subSidebar.querySelectorAll('.rp-sidebar-link.active').length > 0
-                );
+                // ── Active nav state (JS path matching) ───────────────────
+                _applyActiveStates();
 
+                // ── Sidebar collapse restore ───────────────────────────────
                 if (localStorage.getItem(MAIN_KEY) === '1') {
                     _applyCollapseMain();
                 }
+
+                // The sub-sidebar opens when the current path lives under a
+                // settings route.  We detect this by checking whether any
+                // sub-sidebar link is marked active after _applyActiveStates().
+                var isSettingsPage = (
+                    settingsLink.classList.contains('active') ||
+                    subSidebar.querySelectorAll('.rp-sidebar-link.active').length > 0
+                );
+
                 if (isSettingsPage) {
                     subOuter.classList.remove('rp-sub-sidebar--hidden');
                     if (localStorage.getItem(SUB_KEY) === '1') {
@@ -361,20 +340,79 @@
                     localStorage.removeItem(SUB_OPEN_KEY);
                 }
 
+                // ── FY expiry warning banner ───────────────────────────
+                _checkFyWarning();
+
+                // Re-check whenever a set-active operation completes
+                // (financial_years.js dispatches this event).
+                window.addEventListener('rp:fy-changed', function () {
+                    _checkFyWarning();
+                });
+
+                // Dismiss button
+                var closeBtn = document.getElementById('rp-fy-warning-close');
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function () {
+                        document.getElementById('rp-fy-warning-banner').classList.add('d-none');
+                    });
+                }
+
+                function _checkFyWarning() {
+                    // Fetch active FY and warning threshold in parallel
+                    Promise.all([
+                        fetch('/api/v1/fy/active/', { method: 'GET' })
+                            .then(function (r) { return r.ok ? r.json() : null; }),
+                        fetch('/api/v1/configurations/by_code/?code=FY_EXPIRY_WARNING_DAYS', { method: 'GET' })
+                            .then(function (r) { return r.ok ? r.json() : { value: '30' }; })
+                            .catch(function () { return { value: '30' }; }),
+                    ])
+                    .then(function (results) {
+                        var fy        = results[0];
+                        var cfgResult = results[1];
+                        var banner    = document.getElementById('rp-fy-warning-banner');
+                        var textEl    = document.getElementById('rp-fy-warning-text');
+                        if (!banner || !textEl) return;
+
+                        if (!fy || !fy.remaining_days) {
+                            banner.classList.add('d-none');
+                            return;
+                        }
+
+                        var threshold = parseInt(cfgResult && cfgResult.value ? cfgResult.value : '30', 10);
+                        if (isNaN(threshold)) threshold = 30;
+
+                        if (fy.remaining_days > 0 && fy.remaining_days <= threshold) {
+                            textEl.textContent = (
+                                'Active financial year ' + _esc(fy.long_fy) +
+                                ' ends in ' + fy.remaining_days +
+                                (fy.remaining_days === 1 ? ' day' : ' days') +
+                                ' (' + _esc(fy.end_date) + ').'
+                            );
+                            banner.classList.remove('d-none');
+                        } else {
+                            banner.classList.add('d-none');
+                        }
+                    })
+                    .catch(function () { /* silently ignore */ });
+                }
+
+                // ── FY dropdown bootstrap ──────────────────────────────────
+                // Seed the dropdown from the cookie immediately (zero-latency),
+                // then fire an async refresh so it stays fresh.
+                _seedFyDropdownFromCookie();
+                _asyncRefreshFyDropdown();
+
+                // ── Public API on window ────────────────────────────────────
                 window.rpToggleMain = function () {
-                    if (mainSidebar.classList.contains('rp-sidebar--collapsed')) {
-                        _expandMain();
-                    } else {
-                        _collapseMain();
-                    }
+                    mainSidebar.classList.contains('rp-sidebar--collapsed')
+                        ? _expandMain()
+                        : _collapseMain();
                 };
 
                 window.rpToggleSub = function () {
-                    if (subSidebar.classList.contains('rp-sub-sidebar--collapsed')) {
-                        _expandSub();
-                    } else {
-                        _collapseSub();
-                    }
+                    subSidebar.classList.contains('rp-sub-sidebar--collapsed')
+                        ? _expandSub()
+                        : _collapseSub();
                 };
 
                 window.rpOpenSettings = function (e) {
@@ -386,9 +424,131 @@
                     document.querySelectorAll('.rp-sidebar-link').forEach(function (l) {
                         l.classList.remove('active');
                     });
-                    document.getElementById('rpSettingsLink').classList.add('active');
+                    settingsLink.classList.add('active');
                 };
 
+                // ── Active state helper ────────────────────────────────────
+                function _applyActiveStates() {
+                    var path = window.location.pathname;
+
+                    // All nav links in the navbar and both sidebars that carry
+                    // a data-nav-match attribute are candidates.
+                    var links = document.querySelectorAll('[data-nav-match]');
+
+                    links.forEach(function (link) {
+                        var match = link.dataset.navMatch;
+                        var exact = link.dataset.navExact === 'true';
+                        var isActive = exact
+                            ? path === match
+                            : path.startsWith(match);
+                        if (isActive) {
+                            link.classList.add('active');
+                        }
+                    });
+                }
+
+                // ── FY dropdown: seed from cookie (instant, no fetch) ──────
+                function _seedFyDropdownFromCookie() {
+                    var raw = _readCookie('rp_active_fy');
+                    if (!raw) return;
+                    try {
+                        var fy = JSON.parse(decodeURIComponent(raw));
+                        if (fy && fy.short_fy) {
+                            var label = document.getElementById('fy-nav-toggle-label');
+                            if (label) label.textContent = fy.short_fy;
+                        }
+                    } catch (_) {}
+                }
+
+                // ── FY dropdown: async refresh from API ────────────────────
+                // We cannot import ES modules from a plain <script>, so we use
+                // a simple fetch() directly.  The full renderNavbarDropdown()
+                // from financial_years.js will run when that module loads; this
+                // is just the eager bootstrap so the dropdown isn't empty on
+                // the first frame.
+                function _asyncRefreshFyDropdown() {
+                    fetch('/api/v1/fy/summary/', {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                    })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (fys) {
+                        if (!fys || !Array.isArray(fys)) return;
+                        _renderDropdown(fys);
+                        _writeCookie(fys);
+                    })
+                    .catch(function () { /* silently ignore — stale cookie is fine */ });
+                }
+
+                function _renderDropdown(fys) {
+                    var container = document.getElementById('fy-dropdown-menu');
+                    var toggleLabel = document.getElementById('fy-nav-toggle-label');
+                    if (!container) return;
+
+                    var active = null;
+                    for (var i = 0; i < fys.length; i++) {
+                        if (fys[i].is_active) { active = fys[i]; break; }
+                    }
+
+                    var html = '';
+
+                    if (active) {
+                        html += '<li><div class="px-3 py-2 d-flex align-items-center gap-2">'
+                            + '<span class="rp-badge rp-badge--success" style="font-size:10.5px">Active</span>'
+                            + '<span class="fw-500" style="font-size:13px">' + _esc(active.long_fy) + '</span>'
+                            + '</div></li>'
+                            + '<li><hr class="dropdown-divider my-1"></li>';
+                        if (toggleLabel) toggleLabel.textContent = active.short_fy;
+                    } else {
+                        if (toggleLabel) toggleLabel.textContent = 'Financial Years';
+                    }
+
+                    if (fys.length === 0) {
+                        html += '<li><span class="dropdown-item text-secondary" style="font-size:13px">No financial years yet</span></li>';
+                    } else {
+                        for (var j = 0; j < fys.length; j++) {
+                            var fy = fys[j];
+                            html += '<li><a class="dropdown-item d-flex align-items-center justify-content-between'
+                                + (fy.is_active ? ' fw-500' : '') + '"'
+                                + ' href="/fy/' + fy.id + '/">'
+                                + '<span>' + _esc(fy.long_fy) + '</span>'
+                                + '<span class="text-secondary" style="font-size:11.5px">' + _esc(fy.short_fy) + '</span>'
+                                + '</a></li>';
+                        }
+                    }
+
+                    html += '<li><hr class="dropdown-divider my-1"></li>'
+                        + '<li><a class="dropdown-item" href="/fy/"><i class="bi bi-list-ul me-2"></i>All financial years</a></li>'
+                        + '<li><a class="dropdown-item" href="/fy/new/"><i class="bi bi-plus me-2"></i>New financial year</a></li>';
+
+                    container.innerHTML = html;
+                }
+
+                function _writeCookie(fys) {
+                    var active = null;
+                    for (var i = 0; i < fys.length; i++) {
+                        if (fys[i].is_active) { active = fys[i]; break; }
+                    }
+                    var val = active
+                        ? JSON.stringify({ id: active.id, long_fy: active.long_fy, short_fy: active.short_fy })
+                        : '';
+                    document.cookie = 'rp_active_fy=' + encodeURIComponent(val) + '; path=/; SameSite=Strict';
+                }
+
+                function _readCookie(name) {
+                    var m = document.cookie.match('(?:^|;)\\s*' + name + '=([^;]*)');
+                    return m ? m[1] : null;
+                }
+
+                function _esc(str) {
+                    return String(str || '')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')
+                        .replace(/"/g, '&quot;');
+                }
+
+                // ── Sidebar collapse helpers ───────────────────────────────
                 function _collapseMain() {
                     mainSidebar.classList.add('rp-sidebar--collapsed');
                     mainOuter.classList.add('rp-sidebar-outer--collapsed');
@@ -409,7 +569,6 @@
                     document.getElementById('rpMainToggle').title = 'Collapse sidebar';
                     localStorage.setItem(MAIN_KEY, '0');
                 }
-
                 function _collapseSub() {
                     subSidebar.classList.add('rp-sub-sidebar--collapsed');
                     subOuter.classList.add('rp-sub-sidebar-outer--collapsed');
@@ -431,7 +590,8 @@
                     localStorage.setItem(SUB_KEY, '0');
                 }
 
-                var tipEl = document.getElementById('rpTooltip');
+                // ── Floating tooltip ───────────────────────────────────────
+                var tipEl    = document.getElementById('rpTooltip');
                 var tipTimer;
 
                 function _showTip(text, anchor) {
@@ -468,6 +628,7 @@
                     });
                     link.addEventListener('mouseleave', _hideTip);
                 });
+
             })();
         </script>
 

@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     'apps.team_members',
     'apps.public_holidays',
     'apps.member_leaves',
+    'apps.financial_years',
     'apps.import',
 ]
 

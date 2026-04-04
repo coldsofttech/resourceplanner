@@ -13,6 +13,7 @@ const LABELS = {
     team_members: "team members",
     holidays: "holidays",
     leaves: "leaves",
+    financial_years: "financial years",
 };
 
 const importBtn         = document.getElementById('import-btn');

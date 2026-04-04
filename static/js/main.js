@@ -69,6 +69,18 @@ export function showFlash(message, type = 'success') {
     }, 4000);
 }
 
+/* Format Date Helper */
+export function formatDate(isoString) {
+    if (!isoString) return '—';
+    try {
+        return new Date(isoString).toLocaleString('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric',
+        });
+    } catch {
+        return isoString;
+    }
+}
+
 /* Format Date Time Helper */
 export function formatDateTime(isoString) {
     if (!isoString) return '—';
