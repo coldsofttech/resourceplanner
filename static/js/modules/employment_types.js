@@ -10,6 +10,7 @@ import { initFetch } from './../list/fetch.js';
 import { initSorting } from './../list/sort.js';
 import { initRenderer } from './../list/render.js';
 import { exportToCsv, exportToPdf } from './../export.js';
+import { initMembersPanel } from './../member_panel.js';
 
 let fetcher = null;
 
@@ -300,6 +301,19 @@ async function initDetailView() {
         }
         showFlash(err?.data?.error || 'Could not load employment type details. Please refresh.', 'danger');
     }
+
+    initMembersPanel({
+        containerSelector:      '#members-panel',
+        tbodyId:                'members-tbody',
+        paginationBarId:        'members-pagination-bar',
+        paginationInfoId:       'members-pagination-info',
+        paginationControlsId:   'members-pagination-controls',
+        includeInactiveToggleId: 'include-inactive-toggle',
+        filterParam:            'employment_type_id',
+        filterValue:            typePk,
+        columns:                'other',
+        newMemberHref:          URLS.team_members.new,
+    });
 }
 
 function renderDetailTitle(type) {
@@ -317,6 +331,9 @@ function renderDetailTitle(type) {
 function renderTypeDetails(type) {
     document.getElementById('type-name-detail').textContent = type.name       ?? '-';
     document.getElementById('type-is-default').textContent  = type.is_default ? 'Yes' : 'No';
+    document.getElementById('total_members').textContent = type.total_members ?? 0;
+    document.getElementById('active_members').textContent = type.active_members ?? 0;
+    document.getElementById('inactive_members').textContent = type.inactive_members ?? 0;
     document.getElementById('meta-created').textContent     = formatDateTime(type.created_at);
     document.getElementById('meta-updated').textContent     = formatDateTime(type.updated_at);
 }

@@ -6,6 +6,7 @@ class DeliveryTeam(models.Model):
     Structure:
     * name: TEXT NOT NULL UNIQUE 120 CHARS
     * description: TEXT
+    * member_count: INT DEFAULT 0 (maintained by post_save/post_delete signals on TeamMember)
     * is_active: BOOLEAN DEFAULT (TRUE)
     * created_at: DATETIME
     * updated_at: DATETIME
@@ -16,6 +17,11 @@ class DeliveryTeam(models.Model):
     )
     description = models.CharField(
         blank=True
+    )
+    member_count = models.PositiveIntegerField(
+        default=0,
+        editable=False,
+        help_text="Cached count of active members. Maintained automatically via signals.",
     )
     is_active = models.BooleanField(
         default=True

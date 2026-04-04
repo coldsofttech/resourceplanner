@@ -7,11 +7,23 @@ class EmploymentTypeSerializer(serializers.ModelSerializer):
     """
     Serializer for employment types.
     """
+    total_members = serializers.SerializerMethodField()
+    active_members = serializers.SerializerMethodField()
+    inactive_members = serializers.SerializerMethodField()
 
     class Meta:
         model = EmploymentType
         fields = '__all__'
         read_only_fields = ['created_at', 'updated_at']
+
+    def get_total_members(self, obj):
+        return getattr(obj, 'total_members', None)
+
+    def get_active_members(self, obj):
+        return getattr(obj, 'active_members', None)
+
+    def get_inactive_members(self, obj):
+        return getattr(obj, 'inactive_members', None)
 
     def validate_name(self, value):
         name = value.strip()

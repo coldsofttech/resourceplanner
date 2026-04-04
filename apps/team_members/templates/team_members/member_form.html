@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center gap-3">
+    <a href="/team-members/" class="btn btn-ghost-icon" title="Back to Team Members">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+        <h1 class="rp-page-title" id="page-title"></h1>
+        <p class="rp-page-subtitle" id="page-subtitle"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="rp-card">
+            <form id="member-form" novalidate>
+                {% csrf_token %}
+
+                <!-- Name Row -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="id_first_name">
+                                First Name <span class="rp-required">*</span>
+                            </label>
+                            <input type="text"
+                                   id="id_first_name"
+                                   name="first_name"
+                                   class="form-control rp-input"
+                                   maxlength="80"
+                                   autocomplete="off"
+                                   required
+                                   autofocus />
+                            <div class="invalid-feedback" id="first_name-error"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="id_last_name">
+                                Last Name <span class="rp-required">*</span>
+                            </label>
+                            <input type="text"
+                                   id="id_last_name"
+                                   name="last_name"
+                                   class="form-control rp-input"
+                                   maxlength="80"
+                                   autocomplete="off"
+                                   required />
+                            <div class="invalid-feedback" id="last_name-error"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Display Name -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_display_name">Display Name</label>
+                    <div class="rp-input-with-action">
+                        <input type="text"
+                            id="id_display_name"
+                            name="display_name"
+                            class="form-control rp-input"
+                            maxlength="165"
+                            autocomplete="off" />
+                        <button type="button"
+                                id="reset-display-name"
+                                class="rp-input-action-btn"
+                                title="Reset to Last Name, First Name">
+                            <i class="bi bi-arrow-clockwise"></i>
+                        </button>
+                    </div>
+                    <p class="rp-hint mt-1">Auto-generated as "Last Name, First Name" if left blank.</p>
+                    <div class="invalid-feedback" id="display_name-error"></div>
+                </div>
+
+                <!-- Email -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_email_address">
+                        Email Address <span class="rp-required">*</span>
+                    </label>
+                    <input type="email"
+                           id="id_email_address"
+                           name="email_address"
+                           class="form-control rp-input"
+                           maxlength="254"
+                           autocomplete="off"
+                           required />
+                    <div class="invalid-feedback" id="email_address-error"></div>
+                </div>
+
+                <!-- Role & Employment Type -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="id_role">
+                                Role <span class="rp-required">*</span>
+                            </label>
+                            <select id="id_role" name="role" class="form-select rp-select" required>
+                                <option value="">— Select a role —</option>
+                            </select>
+                            <div class="invalid-feedback" id="role-error"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="id_employment_type">
+                                Employment Type <span class="rp-required">*</span>
+                            </label>
+                            <select id="id_employment_type" name="employment_type"
+                                    class="form-select rp-select" required>
+                                <option value="">— Select a type —</option>
+                            </select>
+                            <div class="invalid-feedback" id="employment_type-error"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Location & Team -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="id_location">
+                                Office Location <span class="rp-required">*</span>
+                            </label>
+                            <select id="id_location" name="location" class="form-select rp-select" required>
+                                <option value="">— Select a location —</option>
+                            </select>
+                            <div class="invalid-feedback" id="location-error"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="id_team">Team</label>
+                            <select id="id_team" name="team" class="form-select rp-select">
+                                <option value="">— No team assigned —</option>
+                            </select>
+                            <p class="rp-hint mt-1">Team can be changed later via Move Team.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Start & End Date -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="id_start_date">
+                                Start Date <span class="rp-required">*</span>
+                            </label>
+                            <input type="date"
+                                   id="id_start_date"
+                                   name="start_date"
+                                   class="form-control rp-input"
+                                   required />
+                            <div class="invalid-feedback" id="start_date-error"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="id_end_date">End Date</label>
+                            <input type="date"
+                                   id="id_end_date"
+                                   name="end_date"
+                                   class="form-control rp-input" />
+                            <p class="rp-hint mt-1">Leave blank if the member is currently active.</p>
+                            <div class="invalid-feedback" id="end_date-error"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Default Holidays -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_default_holidays">
+                        Default Holidays <span class="rp-required">*</span>
+                    </label>
+                    <input type="number"
+                           id="id_default_holidays"
+                           name="default_holidays"
+                           class="form-control rp-input"
+                           min="0"
+                           max="365"
+                           style="max-width: 160px;" />
+                    <p class="rp-hint mt-1">Public holiday days per financial year. Defaults from system configuration.</p>
+                    <div class="invalid-feedback" id="default_holidays-error"></div>
+                </div>
+
+                <!-- Skills -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label">Skills</label>
+                    <div id="skills-select-container"
+                         class="rp-checkboxlist border rounded p-3"
+                         style="max-height: 200px; overflow-y: auto;">
+                        <p class="text-secondary small mb-0" id="skills-loading">Loading skills…</p>
+                    </div>
+                    <p class="rp-hint mt-1">Select all applicable skills for this member.</p>
+                </div>
+
+                <!-- Active Toggle -->
+                <div class="rp-field mb-5">
+                    <div class="form-check form-switch rp-switch">
+                        <input class="form-check-input"
+                               type="checkbox"
+                               id="id_is_active"
+                               name="is_active"
+                               checked />
+                        <label class="form-check-label rp-label" for="id_is_active">Active member</label>
+                    </div>
+                    <p class="rp-hint mt-1">Inactive members are excluded from resource planning runs.</p>
+                </div>
+
+                <!-- Form Errors -->
+                <div class="alert alert-danger mb-4 d-none" id="form-error-banner"></div>
+
+                <!-- Actions -->
+                <div class="d-flex gap-2">
+                    <button type="submit" id="submit-btn" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i>
+                        <span id="submit-label">Create member</span>
+                    </button>
+                    <a href="/team-members/" class="btn btn-outline-secondary">Cancel</a>
+                    <span id="delete-btn-slot" class="ms-auto"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="col-lg-4 mt-4 mt-lg-0">
+        <div class="rp-card rp-card--muted">
+            <h6 class="fw-600 mb-3"><i class="bi bi-info-circle me-2"></i>Tips</h6>
+            <ul class="rp-tip-list">
+                <li>Display name is auto-generated as "Last Name, First Name" if left blank.</li>
+                <li>Team assignment can be changed later using the Move Team action — a history record is created automatically.</li>
+                <li>Skills and role determine auto-assignment eligibility in resource planning runs.</li>
+                <li>Default holidays can differ per member; it is pre-filled from the system configuration.</li>
+            </ul>
+        </div>
+
+        <div id="metadata-card" class="rp-card rp-card--muted mt-3 d-none">
+            <h6 class="fw-600 mb-2"><i class="bi bi-clock-history me-2"></i>Metadata</h6>
+            <dl class="rp-meta-list">
+                <dt>Created</dt>
+                <dd id="meta-created"></dd>
+                <dt>Last updated</dt>
+                <dd id="meta-updated"></dd>
+            </dl>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Delete team member?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    <strong id="delete-member-name"></strong> will be permanently removed.
+                    This cannot be undone.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const firstInput   = document.getElementById('id_first_name');
+    const lastInput    = document.getElementById('id_last_name');
+    const displayInput = document.getElementById('id_display_name');
+    const resetBtn      = document.getElementById('reset-display-name');
+
+    function updateDisplayHint() {
+        if (displayInput.value.trim()) return;
+        const f = firstInput.value.trim();
+        const l = lastInput.value.trim();
+        displayInput.placeholder = (l && f) ? `${l}, ${f}` : '';
+    }
+
+    function autoValue() {
+        const first = firstInput.value.trim();
+        const last  = lastInput.value.trim();
+        if (!first && !last) return '';
+        if (!first) return last;
+        if (!last)  return first;
+        return `${last}, ${first}`;
+    }
+
+    function syncDirty() {
+        const generated = autoValue();
+        const current   = displayInput.value.trim();
+        const isDirty = current !== '' && current !== generated;
+        resetBtn.classList.toggle('rp-input-action-btn--dirty', isDirty);
+        resetBtn.title = isDirty
+            ? `Reset to "${generated}"`
+            : 'Reset to Last Name, First Name';
+    }
+
+    function onNameInput() {
+        updateDisplayHint();
+        syncDirty();
+    }
+
+    resetBtn.addEventListener('click', function () {
+        displayInput.value = autoValue();
+        syncDirty();
+        displayInput.focus();
+    });
+
+    firstInput.addEventListener('input', onNameInput);
+    lastInput.addEventListener('input', onNameInput);
+    displayInput.addEventListener('input', syncDirty);
+
+    syncDirty();
+</script>
+<script type="module" src="{% static 'js/modules/team_members.js' %}"></script>
+{% endblock %}

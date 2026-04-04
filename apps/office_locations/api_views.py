@@ -323,6 +323,59 @@ class OfficeLocationViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    # GET /locations/<id>/members/
+    @action(detail=True, methods=['get'], url_path='members')
+    def list_members(self, request, pk=None):
+        """
+        List all members associated with the location
+        """
+        try:
+            page = int(request.query_params.get('page', 1))
+            page_size = min(int(request.query_params.get('page_size', 20)), 100)
+            include = request.query_params.get('include', '')
+        except (ValueError, TypeError):
+            page, page_size, include = 1, 20, ''
+
+        try:
+            result = OfficeLocationService.list_members(
+                location_id=pk,
+                page=page,
+                page_size=page_size,
+                include_inactive=include == "inactive",
+            )
+            from apps.team_members.serializers import TeamMemberSerializer
+            serializer = TeamMemberSerializer(result["results"], many=True)
+            return Response(
+                {
+                    "results": serializer.data,
+                    "pagination": {
+                        "total_count": result["total_count"],
+                        "total_pages": result["total_pages"],
+                        "current_page": result["current_page"],
+                        "page_size": result["page_size"],
+                        "has_next": result["has_next"],
+                        "has_previous": result["has_previous"],
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+        except DatabaseError as e:
+            logging.exception("Database error in list_members: %s", e)
+            return Response(
+                {
+                    "error": "A database error occurred. Please try again later.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in list_members: %s", e)
+            return Response(
+                {
+                    "error": "An unexpected error occurred. Please try again later.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
     # GET /locations/import/specifications/
     @action(detail=False, methods=['get'], url_path='import/specifications')
     def import_specifications(self, request):

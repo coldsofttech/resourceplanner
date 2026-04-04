@@ -27,7 +27,7 @@ class DeliveryTeamService:
         List the delivery teams. 
         Supports filters: search, is_active
         """
-        VALID_ORDER_FIELDS = {'name', 'is_active'}
+        VALID_ORDER_FIELDS = {'name', 'member_count', 'is_active'}
         qs = DeliveryTeam.objects.all()
 
         if filters:
@@ -72,6 +72,7 @@ class DeliveryTeamService:
         List the statistics of the delivery teams.
         Supports filters: fields
         """
+        from apps.team_members.models import TeamMember
         if fields is not None:
             if isinstance(fields, str):
                 fields = {fields}
@@ -91,9 +92,9 @@ class DeliveryTeamService:
         if wants("inactive_teams"):
             result["inactive_teams"] = qs.filter(is_active=False).count()
         if wants("total_members"):
-            result["total_members"] = 0  # TODO: Total no of members associated with the team
+            result["total_members"] = TeamMember.objects.filter(is_active=True).count()
         if wants("unassigned_members"):
-            result["unassigned_members"] = 0  # TODO: Total no of members unassigned to any of the team
+            result["unassigned_members"] = TeamMember.objects.filter(is_active=True, team__isnull=True).count()
 
         return result
 
@@ -229,6 +230,47 @@ class DeliveryTeamService:
         except Exception as e:
             logger.exception("Unexpected error when deleting team '%s': %s", team_id, e)
             raise
+
+    @staticmethod
+    def list_members(team_id: int, page=1, page_size=20, include_inactive=False):
+        """
+        List all members associated with specified team.
+        """
+        if not team_id:
+            raise ValidationError("Invalid: team_id must be an integer and greater than 0.")
+
+        team = DeliveryTeam.objects.get(pk=team_id)
+        if not team:
+            raise ValidationError(f"Team '{team_id}' does not exist.")
+
+        from apps.team_members.models import TeamMember
+        if include_inactive:
+            qs = TeamMember.objects.filter(
+                team=team
+            ).order_by('last_name', 'first_name')
+        else:
+            qs = TeamMember.objects.filter(
+                is_active=True, team=team
+            ).order_by('last_name', 'first_name')
+
+        paginator = Paginator(qs, page_size)
+
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
 
     @staticmethod
     def _validate_row(data: dict) -> None:

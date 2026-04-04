@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/team-members/"
+           class="btn btn-ghost-icon"
+           title="Back to Team Members">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span id="member-name"></span>
+                <span id="member-status"
+                      class="rp-badge"></span>
+            </h1>
+            <p class="rp-page-subtitle mb-0"
+               id="member-role-location"></p>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="move-team-btn">
+            <i class="bi bi-arrow-left-right me-1"></i>Move Team
+        </button>
+        <a href="#" id="edit-member-btn" class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i>Edit member
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="detail-root" class="row g-4">
+
+    <!-- Left Panel -->
+    <div class="col-lg-4">
+
+        <!-- Member Details -->
+        <div class="rp-card mb-3">
+            <h6 class="rp-card-heading">Member Details</h6>
+            <dl class="rp-meta-list">
+                <dt>First Name</dt>
+                <dd id="member-first-name"></dd>
+                <dt>Last Name</dt>
+                <dd id="member-last-name"></dd>
+                <dt>Email</dt>
+                <dd id="member-email"></dd>
+                <dt>Role</dt>
+                <dd id="member-role"></dd>
+                <dt>Location</dt>
+                <dd id="member-location"></dd>
+                <dt>Employment Type</dt>
+                <dd id="member-employment-type"></dd>
+                <dt>Team</dt>
+                <dd id="member-team"></dd>
+                <dt>Start Date</dt>
+                <dd id="member-start-date"></dd>
+                <dt>End Date</dt>
+                <dd id="member-end-date"></dd>
+                <dt>Default Holidays</dt>
+                <dd id="member-holidays"></dd>
+            </dl>
+        </div>
+
+        <!-- Skills -->
+        <div class="rp-card mb-3">
+            <h6 class="rp-card-heading">Skills</h6>
+            <div id="member-skills-badges">
+                <span class="text-secondary small">No skills assigned.</span>
+            </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="rp-card rp-card--muted mb-3">
+            <h6 class="rp-card-heading"><i class="bi bi-clock-history me-2"></i>Metadata</h6>
+            <dl class="rp-meta-list">
+                <dt>Created</dt>
+                <dd id="meta-created"></dd>
+                <dt>Last updated</dt>
+                <dd id="meta-updated"></dd>
+            </dl>
+        </div>
+
+        <div id="delete-btn-slot"></div>
+    </div>
+
+    <!-- Right Panel - Team History Timeline -->
+    <div class="col-lg-8">
+        <div class="rp-card">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h6 class="rp-card-heading mb-0">Team History</h6>
+                <span class="text-secondary small" id="history-count"></span>
+            </div>
+            <div id="history-timeline"
+                 class="rp-timeline">
+                <p class="text-secondary small mb-0">Loading history…</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Move Team Modal -->
+<div class="modal fade" id="moveTeamModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-arrows-move me-2"></i>Move to Team</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary small mb-3">
+                    Moving <strong id="move-member-name"></strong>.
+                    Current team: <strong id="move-current-team">—</strong>
+                </p>
+                <div class="mb-3">
+                    <label class="rp-label" for="move-to-team">New Team</label>
+                    <select id="move-to-team" class="form-select rp-select">
+                        <option value="">— Unassign from team —</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="rp-label" for="move-note">Note</label>
+                    <textarea id="move-note" class="form-control rp-input" rows="2"
+                              placeholder="Optional reason for the move"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="confirm-move-btn">
+                    <i class="bi bi-arrow-left-right me-1"></i>Move
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Delete team member?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    <strong id="delete-member-name"></strong> will be permanently removed.
+                    This cannot be undone.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/team_members.js' %}"></script>
+{% endblock %}

@@ -91,7 +91,18 @@ class SkillService:
         if wants("inactive_skills"):
             result["inactive_skills"] = qs.filter(is_active=False).count()
         if wants("unassigned_skills"):
-            result["unassigned_skills"] = 0  # TODO: Total no of skills unassigned to team members
+            from apps.team_members.models import TeamMember
+            assigned_skill_ids = (
+                TeamMember.objects
+                .filter(is_active=True, skills__isnull=False)
+                .values_list('skills', flat=True)
+                .distinct()
+            )
+            result["unassigned_skills"] = (
+                qs.filter(is_active=True)
+                .exclude(pk__in=assigned_skill_ids)
+                .count()
+            )
 
         return result
 
@@ -126,7 +137,15 @@ class SkillService:
         if not skill_id:
             raise ValidationError("Invalid: skill_id must be an integer and greater than 0.")
 
-        return Skill.objects.get(pk=skill_id)
+        skill = Skill.objects.get(pk=skill_id)
+
+        from apps.team_members.models import TeamMember
+        members = TeamMember.objects.filter(skills=skill)
+        skill.total_members = members.count()
+        skill.active_members = members.filter(is_active=True).count()
+        skill.inactive_members = members.filter(is_active=False).count()
+
+        return skill
 
     @staticmethod
     @transaction.atomic
@@ -227,6 +246,47 @@ class SkillService:
         except Exception as e:
             logger.exception("Unexpected error when deleting skill '%s': %s", skill_id, e)
             raise
+
+    @staticmethod
+    def list_members(skill_id: int, page=1, page_size=20, include_inactive=False):
+        """
+        List all members associated with specified skill.
+        """
+        if not skill_id:
+            raise ValidationError("Invalid: skill_id must be an integer and greater than 0.")
+
+        skill = Skill.objects.get(pk=skill_id)
+        if not skill:
+            raise ValidationError(f"Skill '{skill_id}' does not exist.")
+
+        from apps.team_members.models import TeamMember
+        if include_inactive:
+            qs = TeamMember.objects.filter(
+                skills=skill
+            ).order_by('last_name', 'first_name')
+        else:
+            qs = TeamMember.objects.filter(
+                is_active=True, skills=skill
+            ).order_by('last_name', 'first_name')
+
+        paginator = Paginator(qs, page_size)
+
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
 
     @staticmethod
     def _validate_row(data: dict) -> None:

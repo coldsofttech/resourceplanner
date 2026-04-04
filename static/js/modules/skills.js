@@ -11,6 +11,7 @@ import { initSorting } from './../list/sort.js';
 import { initRenderer } from './../list/render.js';
 import { loadSpecs, initImportDropZone } from './../import.js';
 import { exportToCsv, exportToPdf } from './../export.js';
+import { initMembersPanel } from './../member_panel.js';
 
 let fetcher = null;
 
@@ -412,6 +413,19 @@ async function initDetailView() {
         }
         showFlash(err?.data?.error || 'Could not load skill details. Please refresh.', 'danger');
     }
+
+    initMembersPanel({
+        containerSelector:      '#members-panel',
+        tbodyId:                'members-tbody',
+        paginationBarId:        'members-pagination-bar',
+        paginationInfoId:       'members-pagination-info',
+        paginationControlsId:   'members-pagination-controls',
+        includeInactiveToggleId: 'include-inactive-toggle',
+        filterParam:            'skill_id',
+        filterValue:            skillPk,
+        columns:                'other',
+        newMemberHref:          URLS.team_members.new,
+    });
 }
 
 function renderDetailTitle(skill) {
@@ -425,6 +439,9 @@ function renderDetailTitle(skill) {
 
 function renderSkillDetails(skill) {
     document.getElementById('skill-description').textContent = skill.description ?? "-";
+    document.getElementById('total_members').textContent = skill.total_members ?? 0;
+    document.getElementById('active_members').textContent = skill.active_members ?? 0;
+    document.getElementById('inactive_members').textContent = skill.inactive_members ?? 0;
     document.getElementById('meta-created').textContent = formatDateTime(skill.created_at);
     document.getElementById('meta-updated').textContent = formatDateTime(skill.updated_at);
 }

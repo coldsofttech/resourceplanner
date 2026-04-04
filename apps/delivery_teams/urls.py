@@ -3,7 +3,7 @@ from django.urls import path
 from .api_views import DeliveryTeamViewSet
 from .views import DeliveryTeamListView, DeliveryTeamCreateView, DeliveryTeamDetailView, DeliveryTeamUpdateView
 
-app_name = 'delivery_teams'
+app_name = 'delivery-teams'
 
 urlpatterns = [
     path('', DeliveryTeamListView.as_view(), name='list'),  # list all delivery teams

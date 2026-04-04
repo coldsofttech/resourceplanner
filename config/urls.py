@@ -23,6 +23,7 @@ from apps.delivery_teams.api_views import DeliveryTeamViewSet
 from apps.employment_types.api_views import EmploymentTypeViewSet
 from apps.office_locations.api_views import OfficeLocationViewSet
 from apps.skills.api_views import SkillViewSet
+from apps.team_members.api_views import TeamMemberViewSet
 from apps.team_roles.api_views import TeamRoleViewSet
 
 router = DefaultRouter()
@@ -32,6 +33,7 @@ router.register(r'configurations', ConfigurationViewSet, basename='configuration
 router.register(r'locations', OfficeLocationViewSet, basename='location')
 router.register(r'roles', TeamRoleViewSet, basename='role')
 router.register(r'employment-types', EmploymentTypeViewSet, basename='employment-type')
+router.register(r'team-members', TeamMemberViewSet, basename='team-member')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -41,6 +43,7 @@ urlpatterns = [
 
     # Manage
     path('delivery-teams/', include('apps.delivery_teams.urls')),
+    path('team-members/', include('apps.team_members.urls')),
 
     # Settings
     path('skills/', include('apps.skills.urls')),

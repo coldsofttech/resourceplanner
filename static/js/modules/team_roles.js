@@ -11,6 +11,7 @@ import { initSorting } from './../list/sort.js';
 import { initRenderer } from './../list/render.js';
 import { loadSpecs, initImportDropZone } from './../import.js';
 import { exportToCsv, exportToPdf } from './../export.js';
+import { initMembersPanel } from './../member_panel.js';
 
 let fetcher = null;
 
@@ -441,6 +442,19 @@ async function initDetailView() {
         }
         showFlash(err?.data?.error || 'Could not load role details. Please refresh.', 'danger');
     }
+
+    initMembersPanel({
+        containerSelector:      '#members-panel',
+        tbodyId:                'members-tbody',
+        paginationBarId:        'members-pagination-bar',
+        paginationInfoId:       'members-pagination-info',
+        paginationControlsId:   'members-pagination-controls',
+        includeInactiveToggleId: 'include-inactive-toggle',
+        filterParam:            'role_id',
+        filterValue:            rolePk,
+        columns:                'other',
+        newMemberHref:          URLS.team_members.new,
+    });
 }
 
 function renderDetailTitle(role) {
@@ -456,6 +470,9 @@ function renderRoleDetails(role) {
     document.getElementById('role-name-detail').textContent = role.role ?? '-';
     document.getElementById('role-is-default').textContent   = role.is_default   ? 'Yes' : 'No';
     document.getElementById('role-is-assignable').textContent = role.is_assignable ? 'Yes' : 'No';
+    document.getElementById('total_members').textContent = role.total_members ?? 0;
+    document.getElementById('active_members').textContent = role.active_members ?? 0;
+    document.getElementById('inactive_members').textContent = role.inactive_members ?? 0;
     document.getElementById('meta-created').textContent = formatDateTime(role.created_at);
     document.getElementById('meta-updated').textContent = formatDateTime(role.updated_at);
 }

@@ -250,6 +250,47 @@ class OfficeLocationService:
             raise
 
     @staticmethod
+    def list_members(location_id: int, page=1, page_size=20, include_inactive=False):
+        """
+        List all members associated with specified location
+        """
+        if not location_id:
+            raise ValidationError("Invalid: location_id must be an integer and greater than 0.")
+
+        location = OfficeLocation.objects.get(pk=location_id)
+        if not location:
+            raise ValidationError(f"Location '{location_id}' does not exist.")
+
+        from apps.team_members.models import TeamMember
+        if include_inactive:
+            qs = TeamMember.objects.filter(
+                location=location
+            ).order_by('last_name', 'first_name')
+        else:
+            qs = TeamMember.objects.filter(
+                is_active=True, location=location
+            ).order_by('last_name', 'first_name')
+
+        paginator = Paginator(qs, page_size)
+
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
+
+    @staticmethod
     def _validate_row(data: dict) -> None:
         """
         Validate a single import row without writing to the database.

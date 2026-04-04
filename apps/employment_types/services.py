@@ -130,7 +130,15 @@ class EmploymentTypeService:
         if not type_id:
             raise ValidationError("Invalid: type_id must be an integer and greater than 0.")
 
-        return EmploymentType.objects.get(pk=type_id)
+        _type = EmploymentType.objects.get(id=type_id)
+
+        from apps.team_members.models import TeamMember
+        members = TeamMember.objects.filter(employment_type=_type)
+        _type.total_members = members.count()
+        _type.active_members = members.filter(is_active=True).count()
+        _type.inactive_members = members.filter(is_active=False).count()
+
+        return _type
 
     @staticmethod
     @transaction.atomic
@@ -234,6 +242,47 @@ class EmploymentTypeService:
         except Exception as e:
             logger.exception("Unexpected error when deleting employment type '%s': %s", type_id, e)
             raise
+
+    @staticmethod
+    def list_members(_type_id: int, page=1, page_size=20, include_inactive=False):
+        """
+        List all members associated with specified employment type
+        """
+        if not _type_id:
+            raise ValidationError("Invalid: type_id must be an integer and greater than 0.")
+
+        _type = EmploymentType.objects.get(pk=_type_id)
+        if not _type:
+            raise ValidationError(f"Employment type '{_type_id}' does not exist.")
+
+        from apps.team_members.models import TeamMember
+        if include_inactive:
+            qs = TeamMember.objects.filter(
+                employment_type=_type
+            ).order_by('last_name', 'first_name')
+        else:
+            qs = TeamMember.objects.filter(
+                is_active=True, employment_type=_type
+            ).order_by('last_name', 'first_name')
+
+        paginator = Paginator(qs, page_size)
+
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
 
     @staticmethod
     def _validate_row(data: dict) -> None:

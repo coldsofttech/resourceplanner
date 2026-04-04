@@ -11,6 +11,7 @@ import { initSorting } from './../list/sort.js';
 import { initRenderer } from './../list/render.js';
 import { loadSpecs, initImportDropZone } from './../import.js';
 import { exportToCsv, exportToPdf } from './../export.js';
+import { initMembersPanel } from './../member_panel.js';
 
 let fetcher = null;
 
@@ -163,7 +164,7 @@ function renderTeamRow(team) {
             </td>
             <td class="text-center">
                 <span class="fw-500">
-                    ${team.member_count ?? 0}
+                    ${escHtml(team.member_count ?? 0)}
                 </span>
             </td>
             <td class="text-center">
@@ -417,6 +418,19 @@ async function initDetailView() {
         }
         showFlash(err?.data?.error || 'Could not load team details. Please refresh.', 'danger');
     }
+
+    initMembersPanel({
+        containerSelector:      '#members-panel',
+        tbodyId:                'members-tbody',
+        paginationBarId:        'members-pagination-bar',
+        paginationInfoId:       'members-pagination-info',
+        paginationControlsId:   'members-pagination-controls',
+        includeInactiveToggleId: 'include-inactive-toggle',
+        filterParam:            'team_id',
+        filterValue:            teamPk,
+        columns:                'delivery_teams',
+        newMemberHref:          URLS.team_members.new,
+    });
 }
 
 function renderDetailTitle(team) {
@@ -429,7 +443,7 @@ function renderDetailTitle(team) {
 }
 
 function renderTeamDetails(team) {
-    document.getElementById('total-team-members').textContent = 0;
+    document.getElementById('total-team-members').textContent = team.member_count ?? 0;
     document.getElementById('team-description').textContent = team.description ?? "-";
     document.getElementById('meta-created').textContent = formatDateTime(team.created_at);
     document.getElementById('meta-updated').textContent = formatDateTime(team.updated_at);
@@ -489,6 +503,7 @@ const LIST_EXPORT_COLUMNS = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Name' },
     { key: 'description', label: 'Description' },
+    { key: 'member_count', label: 'Total Members' },
     { key: 'is_active', label: 'Active' },
 ];
 
