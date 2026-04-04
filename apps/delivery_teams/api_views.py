@@ -376,6 +376,60 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    # GET /delivery-teams/<id>/leaves
+    @action(detail=True, methods=['get'], url_path='leaves')
+    def list_leaves(self, request, pk=None):
+        """
+        List all leaves for active members within the specified team.
+        """
+        try:
+            page = int(request.query_params.get('page', 1))
+            page_size = min(int(request.query_params.get('page_size', 20)), 100)
+            include = request.query_params.get('include', '')
+        except (ValueError, TypeError):
+            page, page_size, include = 1, 20, ''
+
+        try:
+            result = DeliveryTeamService.list_leaves(
+                team_id=pk,
+                page=page,
+                page_size=page_size,
+                include_past=include == 'past',
+            )
+            from apps.member_leaves.serializers import MemberLeaveSerializer
+            serializer = MemberLeaveSerializer(result['results'], many=True)
+            return Response(
+                {
+                    'results': serializer.data,
+                    'pagination': {
+                        'total_count': result['total_count'],
+                        'total_pages': result['total_pages'],
+                        'current_page': result['current_page'],
+                        'page_size': result['page_size'],
+                        'has_next': result['has_next'],
+                        'has_previous': result['has_previous'],
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+        except DeliveryTeam.DoesNotExist:
+            return Response(
+                {'error': 'Delivery team not found.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+        except DatabaseError as e:
+            logger.exception('Database error in list_leaves: %s', e)
+            return Response(
+                {'error': 'A database error occurred. Please try again later.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception('Unexpected error in list_leaves: %s', e)
+            return Response(
+                {'error': 'An unexpected error occurred. Please try again later.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
     # GET /delivery-teams/import/specifications/
     @action(detail=False, methods=['get'], url_path='import/specifications')
     def import_specifications(self, request):

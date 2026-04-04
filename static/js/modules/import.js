@@ -12,6 +12,7 @@ const LABELS = {
     employment_types: "employment types",
     team_members: "team members",
     holidays: "holidays",
+    leaves: "leaves",
 };
 
 const importBtn         = document.getElementById('import-btn');

@@ -85,16 +85,81 @@
         <div id="delete-btn-slot"></div>
     </div>
 
-    <!-- Right Panel - Team History Timeline -->
     <div class="col-lg-8">
-        <div class="rp-card">
+        <!-- Right Panel - Team History Timeline -->
+        <div class="rp-card mb-3">
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <h6 class="rp-card-heading mb-0">Team History</h6>
-                <span class="text-secondary small" id="history-count"></span>
+                <button type="button"
+                        class="btn btn-link btn-sm p-0 text-secondary text-decoration-none"
+                        id="history-count"
+                        style="display:none;"
+                        title="View all history">
+                </button>
             </div>
             <div id="history-timeline"
                  class="rp-timeline">
                 <p class="text-secondary small mb-0">Loading history…</p>
+            </div>
+        </div>
+
+        <!-- Member Leaves Panel -->
+        <div class="rp-card" id="member-leaves-panel">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h6 class="rp-card-heading mb-0">Leave Records</h6>
+                <div class="d-flex gap-2 align-items-center">
+                    <div class="form-check form-switch rp-switch me-2 mb-0">
+                        <input class="form-check-input" type="checkbox"
+                               id="member-leaves-include-past" />
+                        <label class="form-check-label rp-label mb-0"
+                               for="member-leaves-include-past">Include past</label>
+                    </div>
+                    <a href="/leaves/new/" class="btn btn-sm btn-outline-primary"
+                       id="add-leave-btn">
+                        <i class="bi bi-plus me-1"></i>Add leave
+                    </a>
+                </div>
+            </div>
+            <div class="rp-table-wrap">
+                <table class="table rp-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th>Days</th>
+                            <th>Type</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="member-leaves-tbody"></tbody>
+                </table>
+            </div>
+            <div class="d-flex align-items-center justify-content-between px-1 pt-2 flex-wrap gap-2"
+                 id="member-leaves-pagination-bar">
+                <span class="text-secondary small" id="member-leaves-pagination-info"></span>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0"
+                        id="member-leaves-pagination-controls"></ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Full History Modal -->
+<div class="modal fade" id="historyModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">
+                    <i class="bi bi-clock-history me-2"></i>Full Team History
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="history-modal-body">
+                    <p class="text-secondary small">Loading…</p>
+                </div>
             </div>
         </div>
     </div>

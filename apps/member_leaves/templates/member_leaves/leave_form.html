@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center gap-3">
+    <a href="/leaves/" class="btn btn-ghost-icon" title="Back to Leaves">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+        <h1 class="rp-page-title" id="page-title">Leave</h1>
+        <p class="rp-page-subtitle" id="page-subtitle"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-7">
+        <div class="rp-card">
+            <form id="leave-form" novalidate>
+                {% csrf_token %}
+
+                <!-- Team Member -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_member">
+                        Team Member <span class="rp-required">*</span>
+                    </label>
+                    <select id="id_member" name="member" class="form-select rp-select" required>
+                        <option value="">— Select a team member —</option>
+                    </select>
+                    <div class="invalid-feedback" id="member-error"></div>
+                </div>
+
+                <!-- Date row -->
+                <div class="row g-3 mb-4">
+                    <div class="col-sm-6">
+                        <label class="rp-label" for="id_start_date">
+                            Start Date <span class="rp-required">*</span>
+                        </label>
+                        <input type="date" id="id_start_date" name="start_date"
+                               class="form-control rp-input" required />
+                        <div class="invalid-feedback" id="start-date-error"></div>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="rp-label" for="id_end_date">
+                            End Date <span class="rp-required">*</span>
+                        </label>
+                        <input type="date" id="id_end_date" name="end_date"
+                               class="form-control rp-input" required />
+                        <div class="invalid-feedback" id="end-date-error"></div>
+                    </div>
+                </div>
+
+                <!-- Half-day toggle -->
+                <div class="rp-field mb-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox"
+                               id="id_is_half_day" name="is_half_day" />
+                        <label class="form-check-label rp-label mb-0" for="id_is_half_day">
+                            Half-day leave
+                        </label>
+                    </div>
+                    <p class="rp-hint mt-1">Half-day leaves must start and end on the same date.</p>
+                </div>
+
+                <!-- Half-day period (shown only when is_half_day is checked) -->
+                <div class="rp-field mb-4 d-none" id="half-day-period-row">
+                    <label class="rp-label" for="id_half_day_period">
+                        Period <span class="rp-required">*</span>
+                    </label>
+                    <select id="id_half_day_period" name="half_day_period" class="form-select rp-select" style="max-width: 200px;">
+                        <option value="">— Select —</option>
+                        <option value="AM">Morning (AM)</option>
+                        <option value="PM">Afternoon (PM)</option>
+                    </select>
+                    <div class="invalid-feedback" id="half-day-period-error"></div>
+                </div>
+
+                <!-- Note -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_note">Note</label>
+                    <textarea id="id_note" name="note"
+                              class="form-control rp-input"
+                              rows="3"
+                              placeholder="Optional reason or context…"></textarea>
+                    <div class="invalid-feedback" id="note-error"></div>
+                </div>
+
+                <!-- Form-level error banner -->
+                <div class="alert alert-danger mb-4 d-none" id="form-error-banner"></div>
+
+                <!-- Actions -->
+                <div class="d-flex gap-2">
+                    <button type="submit" id="submit-btn" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i>
+                        <span id="submit-label">Create leave</span>
+                    </button>
+                    <a href="/leaves/" class="btn btn-outline-secondary">Cancel</a>
+                    <span id="delete-btn-slot" class="ms-auto"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Side panel -->
+    <div class="col-lg-5 mt-4 mt-lg-0">
+        <div class="rp-card rp-card--muted">
+            <h6 class="fw-600 mb-3"><i class="bi bi-info-circle me-2"></i>Tips</h6>
+            <ul class="rp-tip-list">
+                <li>Days are auto-calculated on save, excluding weekends and the member's location public holidays.</li>
+                <li>Half-day leaves must span a single date; choose AM or PM.</li>
+                <li>Overlapping leave periods for the same member are not permitted.</li>
+                <li>Deleting or changing a public holiday automatically recalculates affected leave day counts.</li>
+            </ul>
+        </div>
+
+        <div id="metadata-card" class="rp-card rp-card--muted mt-3 d-none">
+            <h6 class="fw-600 mb-2"><i class="bi bi-clock-history me-2"></i>Metadata</h6>
+            <dl class="rp-meta-list">
+                <dt>Created</dt>
+                <dd id="meta-created"></dd>
+                <dt>Last updated</dt>
+                <dd id="meta-updated"></dd>
+            </dl>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Delete leave?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    Leave record for <strong id="delete-leave-name"></strong> will be permanently removed.
+                    This cannot be undone.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/member_leaves.js' %}"></script>
+{% endblock %}

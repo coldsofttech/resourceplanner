@@ -6,6 +6,7 @@ import logging
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db import DatabaseError, IntegrityError, transaction
+from django.utils import timezone
 
 from .models import TeamMember, TeamMemberHistory, get_default_holidays
 
@@ -332,6 +333,43 @@ class TeamMemberService:
         except Exception as e:
             logger.exception("Unexpected error when deleting member '%s': %s", member_id, e)
             raise
+
+    @staticmethod
+    def list_leaves(member_id: int, page=1, page_size=20, include_past=False):
+        """
+        List all leaves associated with member
+        """
+        if not member_id:
+            raise ValidationError("Invalid: member_id must be an integer and greater than 0.")
+
+        member = TeamMember.objects.select_related('location').get(pk=member_id)
+        if not member:
+            raise ValidationError(f"Member '{member_id}' does not exist.")
+
+        from apps.member_leaves.models import MemberLeave
+        qs = MemberLeave.objects.filter(member=member).order_by('start_date')
+
+        if not include_past:
+            qs = qs.filter(end_date__gte=timezone.localdate())
+
+        paginator = Paginator(qs, page_size)
+
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
 
     @staticmethod
     @transaction.atomic

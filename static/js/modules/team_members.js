@@ -10,6 +10,7 @@ import { initFetch } from './../list/fetch.js';
 import { initSorting } from './../list/sort.js';
 import { initRenderer } from './../list/render.js';
 import { exportToCsv, exportToPdf } from './../export.js';
+import { initLeavesPanel } from './../leave_panel.js';
 
 let fetcher       = null;
 let _teamOptions  = [];   // cached for move-team modal
@@ -511,6 +512,7 @@ async function initDetailView() {
     }
 
     loadHistoryTimeline();
+    _initMemberLeavesPanel();
 }
 
 function renderDetailTitle(member) {
@@ -580,6 +582,19 @@ async function onMoveFromDetail(id, toTeamName) {
     setTimeout(() => window.location.reload(), 800);
 }
 
+function _initMemberLeavesPanel() {
+    if (!memberPk) return;
+    initLeavesPanel({
+        apiUrl:               API_URLS.team_members.leaves(memberPk).href,
+        tbodyId:              'member-leaves-tbody',
+        paginationBarId:      'member-leaves-pagination-bar',
+        paginationInfoId:     'member-leaves-pagination-info',
+        paginationControlsId: 'member-leaves-pagination-controls',
+        includePastToggleId:  'member-leaves-include-past',
+        showMemberColumn:     false,
+    });
+}
+
 /* =========================================================
  * History Timeline
  * ========================================================= */
@@ -589,15 +604,22 @@ async function loadHistoryTimeline() {
         const { method, href } = API_URLS.team_members.history(memberPk);
         const data = await apiFetch(href, { method });
         const entries = data.results ?? [];
-        document.getElementById('history-count').textContent =
-            entries.length ? `${entries.length} record${entries.length !== 1 ? 's' : ''}` : '';
-        renderHistoryTimeline(entries);
+        const countBtn = document.getElementById('history-count');
+        if (countBtn && entries.length) {
+            const n = entries.length;
+            countBtn.textContent = `${n} record${n !== 1 ? 's' : ''}`;
+            countBtn.style.display = '';
+            countBtn.addEventListener('click', () => _openHistoryModal(entries));
+        }
+
+        // Show at most 3 in the inline panel
+        renderHistoryTimeline(entries.slice(0, 3), entries.length > 3);
     } catch (_err) {
         el.innerHTML = '<p class="text-secondary small">Could not load history.</p>';
     }
 }
 
-function renderHistoryTimeline(entries) {
+function renderHistoryTimeline(entries, hasMore = false) {
     const el = document.getElementById('history-timeline');
     if (!entries.length) {
         el.innerHTML = `
@@ -608,6 +630,10 @@ function renderHistoryTimeline(entries) {
         return;
     }
 
+    el.innerHTML = `<div class="rp-timeline d-flex flex-column">${_buildTimelineItems(entries, hasMore)}</div>`;
+}
+
+function _buildTimelineItems(entries, addEllipsis = false) {
     const items = entries.map((entry, i) => {
         const fromName = entry.from_team
             ? `<strong>${escHtml(entry.from_team.name)}</strong>`
@@ -625,7 +651,7 @@ function renderHistoryTimeline(entries) {
             <div class="rp-timeline-item">
                 <div class="rp-timeline-marker">
                     <div class="rp-timeline-dot ${dotClass}"></div>
-                    ${i < entries.length - 1 ? '<div class="rp-timeline-line"></div>' : ''}
+                    ${i < entries.length - 1 || addEllipsis ? '<div class="rp-timeline-line"></div>' : ''}
                 </div>
                 <div class="rp-timeline-body pb-4">
                     <div class="rp-timeline-meta">
@@ -641,9 +667,31 @@ function renderHistoryTimeline(entries) {
                 </div>
             </div>
         `;
-    }).join('');
+    });
 
-    el.innerHTML = `<div class="rp-timeline d-flex flex-column">${items}</div>`;
+    if (addEllipsis) {
+        items.push(`
+            <div class="rp-timeline-item">
+                <div class="rp-timeline-marker">
+                    <div class="rp-timeline-dot rp-timeline-dot--muted"></div>
+                </div>
+                <div class="rp-timeline-body pb-2">
+                    <span class="text-secondary small fst-italic">
+                        Older records — click the record count above to view all.
+                    </span>
+                </div>
+            </div>`);
+    }
+
+    return items.join('');
+}
+
+function _openHistoryModal(entries) {
+    const body  = document.getElementById('history-modal-body');
+    if (body) {
+        body.innerHTML = `<div class="rp-timeline d-flex flex-column">${_buildTimelineItems(entries)}</div>`;
+    }
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('historyModal')).show();
 }
 
 /* =========================================================

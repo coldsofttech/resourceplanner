@@ -12,6 +12,7 @@ import { initRenderer } from './../list/render.js';
 import { loadSpecs, initImportDropZone } from './../import.js';
 import { exportToCsv, exportToPdf } from './../export.js';
 import { initMembersPanel } from './../member_panel.js';
+import { initLeavesPanel } from './../leave_panel.js';
 
 let fetcher = null;
 
@@ -430,6 +431,16 @@ async function initDetailView() {
         filterValue:            teamPk,
         columns:                'delivery_teams',
         newMemberHref:          URLS.team_members.new,
+    });
+
+    initLeavesPanel({
+        apiUrl:               API_URLS.delivery_teams.leaves(teamPk).href,
+        tbodyId:              'team-leaves-tbody',
+        paginationBarId:      'team-leaves-pagination-bar',
+        paginationInfoId:     'team-leaves-pagination-info',
+        paginationControlsId: 'team-leaves-pagination-controls',
+        includePastToggleId:  'team-leaves-include-past',
+        showMemberColumn:     true,
     });
 }
 
