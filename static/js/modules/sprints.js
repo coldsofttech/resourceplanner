@@ -724,6 +724,7 @@ async function handleSetActive(id, name) {
 // ── Sprint Countdown Timer ─────────────────────────────────────────────────
 
 function renderSprintTimer(sprint) {
+    console.log(sprint);
     const card    = document.getElementById('sprint-timer-card');
     const display = document.getElementById('timer-display');
     const label   = document.getElementById('timer-label');
@@ -740,8 +741,9 @@ function renderSprintTimer(sprint) {
 
         const totalMs    = end - start;
         const elapsedMs  = today - start;
-        const remainMs   = end - today;
-        const remainDays = Math.ceil(remainMs / 86400000);
+        const remainDays = sprint.remaining_days;
+//        const remainMs   = end - today;
+//        const remainDays = Math.ceil(remainMs / 86400000);
 
         if (today < start) {
             const startsIn = Math.ceil((start - today) / 86400000);
@@ -761,6 +763,11 @@ function renderSprintTimer(sprint) {
             progress.style.width = pct + '%';
             // Colour: green→amber→red as sprint runs out
             progress.style.background = pct < 50
+                ? '#22c55e'
+                : pct < 80
+                    ? '#f59e0b'
+                    : '#ef4444';
+            display.style.color = pct < 50
                 ? '#22c55e'
                 : pct < 80
                     ? '#f59e0b'

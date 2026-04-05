@@ -1284,6 +1284,70 @@ a:hover {
     border: 1px solid #f59e0b;
 }
 
+/* Active Sprint Navbar Pill */
+.rp-sprint-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px 4px 8px !important;
+    border-radius: 20px !important;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    font-size: 12.5px !important;
+    font-weight: 500;
+    color: var(--color-text-2) !important;
+    white-space: nowrap;
+    transition: border-color var(--transition), background var(--transition);
+    text-decoration: none !important;
+}
+.rp-sprint-pill:hover {
+    background: var(--color-bg) !important;
+    text-decoration: none !important;
+}
+
+.rp-sprint-pill-icon {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    flex-shrink: 0;
+    transition: background var(--transition), color var(--transition);
+}
+
+.rp-sprint-pill-badge {
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 1px 7px;
+    border-radius: 10px;
+    letter-spacing: 0.01em;
+    transition: background var(--transition), color var(--transition);
+}
+
+.rp-sprint-pill-icon--green { background: rgba(34,197,94,0.15);  color: #15803d; }
+.rp-sprint-pill-icon--amber { background: rgba(245,158,11,0.18); color: #92400e; }
+.rp-sprint-pill-icon--red   { background: rgba(239,68,68,0.15);  color: #b91c1c; }
+
+.rp-sprint-pill-badge--green { background: rgba(34,197,94,0.12);  color: #15803d; }
+.rp-sprint-pill-badge--amber { background: rgba(245,158,11,0.15); color: #92400e; }
+.rp-sprint-pill-badge--red   { background: rgba(239,68,68,0.12);  color: #b91c1c; }
+
+#sprint-pill-nav-item:has(.rp-sprint-pill-icon--amber) .rp-sprint-pill {
+    border-color: rgba(245,158,11,0.35);
+}
+#sprint-pill-nav-item:has(.rp-sprint-pill-icon--red) .rp-sprint-pill {
+    border-color: rgba(239,68,68,0.35);
+}
+
+.rp-sprint-pill-name {
+    max-width: 90px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 @media (max-width: 480px) {
     #pagination-bar,
     #failed-pagination-bar,

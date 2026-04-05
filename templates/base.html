@@ -94,6 +94,21 @@
                                 </li>
                             </ul>
                         </li>
+
+                        <!-- Active Sprint Timer -->
+                        <li class="nav-item d-none" id="sprint-pill-nav-item">
+                            <a class="rp-sprint-pill nav-link d-flex align-items-center gap-2"
+                               href="/sprints/"
+                               id="sprint-pill-link"
+                               title="Active sprint">
+                                <!-- Speedometer icon — colour set by JS via class swap -->
+                                <span class="rp-sprint-pill-icon" id="sprint-pill-icon">
+                                    <i class="bi bi-speedometer2"></i>
+                                </span>
+                                <span class="rp-sprint-pill-name" id="sprint-pill-name"></span>
+                                <span class="rp-sprint-pill-badge" id="sprint-pill-badge"></span>
+                            </a>
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -249,6 +264,14 @@
                             <i class="bi bi-briefcase"></i>
                             <span class="rp-sidebar-link-label">Employment Types</span>
                         </a>
+                        <!-- Project Types -->
+                        <a href="/project-types/"
+                           class="rp-sidebar-link"
+                           data-nav-match="/project-types/"
+                           data-rp-tooltip="Project Types">
+                            <i class="bi bi-collection"></i>
+                            <span class="rp-sidebar-link-label">Project Types</span>
+                        </a>
                     </div>
 
                     <!-- Configuration -->
@@ -401,6 +424,17 @@
                 // then fire an async refresh so it stays fresh.
                 _seedFyDropdownFromCookie();
                 _asyncRefreshFyDropdown();
+
+                // ── Active sprint pill bootstrap ───────────────────────────
+                // Same pattern as the FY dropdown: seed from cookie instantly,
+                // then async-refresh from the API so it's always current.
+                _seedSprintPillFromCookie();
+                _asyncRefreshSprintPill();
+
+                // Re-render pill when sprints.js dispatches a set-active event.
+                window.addEventListener('rp:sprint-changed', function () {
+                    _asyncRefreshSprintPill();
+                });
 
                 // ── Public API on window ────────────────────────────────────
                 window.rpToggleMain = function () {
@@ -629,6 +663,111 @@
                     link.addEventListener('mouseleave', _hideTip);
                 });
 
+                // ── Sprint pill helpers ────────────────────────────────────
+
+                // Percentage of sprint elapsed: 0 = just started, 100 = ended.
+                // Used to pick the speedometer colour class.
+                function _sprintElapsedPct(startDate, endDate) {
+                    var today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    var s = new Date(startDate + 'T00:00:00');
+                    var e = new Date(endDate   + 'T00:00:00');
+                    var total   = e - s;
+                    var elapsed = today - s;
+                    if (elapsed <= 0) return 0;
+                    if (elapsed >= total) return 100;
+                    return Math.round((elapsed / total) * 100);
+                }
+
+                // Apply colour class to the icon and badge based on elapsed %.
+                // > 50 % elapsed → green, > 80 % → amber, else → red.
+                // (Mirrors renderSprintTimer in sprints.js.)
+                function _applySprintPillColour(pct) {
+                    var iconEl  = document.getElementById('sprint-pill-icon');
+                    var badgeEl = document.getElementById('sprint-pill-badge');
+                    if (!iconEl || !badgeEl) return;
+
+                    iconEl.className  = 'rp-sprint-pill-icon';
+                    badgeEl.className = 'rp-sprint-pill-badge';
+
+                    if (pct < 50) {
+                        iconEl.classList.add('rp-sprint-pill-icon--green');
+                        badgeEl.classList.add('rp-sprint-pill-badge--green');
+                    } else if (pct < 80) {
+                        iconEl.classList.add('rp-sprint-pill-icon--amber');
+                        badgeEl.classList.add('rp-sprint-pill-badge--amber');
+                    } else {
+                        iconEl.classList.add('rp-sprint-pill-icon--red');
+                        badgeEl.classList.add('rp-sprint-pill-badge--red');
+                    }
+                }
+
+                // Render all three pill elements from a sprint data object.
+                function _renderSprintPill(sprint) {
+                    var navItem = document.getElementById('sprint-pill-nav-item');
+                    var nameEl  = document.getElementById('sprint-pill-name');
+                    var badgeEl = document.getElementById('sprint-pill-badge');
+                    if (!navItem || !nameEl || !badgeEl) return;
+
+                    if (!sprint || !sprint.sprint_name) {
+                        navItem.classList.add('d-none');
+                        return;
+                    }
+
+                    nameEl.textContent  = _esc(sprint.sprint_name);
+                    var remaining       = sprint.remaining_days != null ? sprint.remaining_days : '—';
+                    badgeEl.textContent = remaining + (remaining === 1 ? 'd' : 'd');
+
+                    var linkEl = document.getElementById('sprint-pill-link');
+                    if (linkEl && sprint.id) {
+                        linkEl.href = '/sprints/' + sprint.id + '/';
+                    }
+
+                    var pct = _sprintElapsedPct(sprint.start_date, sprint.end_date);
+                    _applySprintPillColour(pct);
+
+                    navItem.classList.remove('d-none');
+                }
+
+                // Seed the pill instantly from cookie — zero extra fetch latency.
+                function _seedSprintPillFromCookie() {
+                    var raw = _readCookie('rp_active_sprint');
+                    if (!raw) return;
+                    try {
+                        var sprint = JSON.parse(decodeURIComponent(raw));
+                        if (sprint && sprint.sprint_name) {
+                            _renderSprintPill(sprint);
+                        }
+                    } catch (_) {}
+                }
+
+                // Async refresh from the API; also writes the cookie for next page load.
+                function _asyncRefreshSprintPill() {
+                    fetch('/api/v1/sprints/active/', {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                    })
+                    .then(function (r) { return r.ok ? r.json() : null; })
+                    .then(function (sprint) {
+                        _renderSprintPill(sprint);
+                        _writeSprintCookie(sprint);
+                    })
+                    .catch(function () { /* silently ignore — stale cookie is fine */ });
+                }
+
+                // Persist active sprint to cookie so next page load can seed instantly.
+                function _writeSprintCookie(sprint) {
+                    var val = sprint
+                        ? JSON.stringify({
+                            id:           sprint.id,
+                            sprint_name:  sprint.sprint_name,
+                            start_date:   sprint.start_date,
+                            end_date:     sprint.end_date,
+                            remaining_days: sprint.remaining_days,
+                          })
+                        : '';
+                    document.cookie = 'rp_active_sprint=' + encodeURIComponent(val) + '; path=/; SameSite=Strict';
+                }
             })();
         </script>
 

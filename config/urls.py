@@ -24,6 +24,7 @@ from apps.employment_types.api_views import EmploymentTypeViewSet
 from apps.financial_years.api_views import FinancialYearViewSet
 from apps.member_leaves.api_views import MemberLeaveViewSet
 from apps.office_locations.api_views import OfficeLocationViewSet
+from apps.project_types.api_views import ProjectTypeViewSet
 from apps.public_holidays.api_views import PublicHolidayViewSet
 from apps.skills.api_views import SkillViewSet
 from apps.sprint_capacity.api_views import SprintCapacityViewSet
@@ -44,6 +45,7 @@ router.register(r'leaves', MemberLeaveViewSet, basename='leave')
 router.register(r'fy', FinancialYearViewSet, basename='fy')
 router.register(r'sprints', SprintViewSet, basename='sprint')
 router.register(r'sprint-capacity', SprintCapacityViewSet, basename='sprint-capacity')
+router.register(r'project-types', ProjectTypeViewSet, basename='project-type')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -64,6 +66,7 @@ urlpatterns = [
     path('locations/', include('apps.office_locations.urls')),
     path('roles/', include('apps.team_roles.urls')),
     path('employment-types/', include('apps.employment_types.urls')),
+    path('project-types/', include('apps.project_types.urls')),
     path('configurations/', include('apps.configurations.urls')),
 
     # Generic Modules

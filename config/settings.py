@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'apps.financial_years',
     'apps.sprints',
     'apps.sprint_capacity',
+    'apps.project_types',
     'apps.import',
 ]
 
