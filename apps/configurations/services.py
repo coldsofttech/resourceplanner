@@ -9,6 +9,7 @@ from .models import Configuration
 logger = logging.getLogger(__name__)
 
 CONFIGURATION_DEFAULTS = {
+    # Holidays
     "DEFAULT_HOLIDAYS": {
         "label": "Default holidays per financial year.",
         "value": "20",
@@ -17,6 +18,7 @@ CONFIGURATION_DEFAULTS = {
             "Used as the baseline when calculating available capacity in sprint planning."
         )
     },
+    # Financial Years
     "FY_EXPIRY_WARNING_DAYS": {
         "label": "FY Expiry Warning (days)",
         "value": "30",
@@ -24,6 +26,38 @@ CONFIGURATION_DEFAULTS = {
             "When the active financial year has fewer than this many days remaining, "
             "a warning banner is displayed at the top of every page and the remaining "
             "days cell is highlighted in the Financial Years list."
+        ),
+    },
+    # Sprints
+    "SPRINT_NAME_PREFIX": {
+        "label": "Sprint Name Prefix",
+        "value": "Sprint",
+        "description": (
+            "Prefix used when auto-generating sprint names. "
+            "For example, 'Sprint', 'SP', etc."
+        ),
+    },
+    "SPRINT_START_NUMBER": {
+        "label": "Sprint Start Number",
+        "value": "1",
+        "description": (
+            "The starting number used when generating the first sprint of a financial year "
+            "if no existing sprints are found."
+        ),
+    },
+    "SPRINT_DURATION_DAYS": {
+        "label": "Sprint Duration (days)",
+        "value": "14",
+        "description": (
+            "Number of calendar days in a sprint. "
+            "Typically set to 14 days (2 weeks)."
+        ),
+    },
+    "SPRINT_POINT_PRICE": {
+        "label": "Sprint Point Price (£)",
+        "value": "1150",
+        "description": (
+            "Day rate in GBP (£) used for calculating sprint cost based on story points. "
         ),
     },
     # Add future built-in configs as below

@@ -48,6 +48,8 @@ INSTALLED_APPS = [
     'apps.public_holidays',
     'apps.member_leaves',
     'apps.financial_years',
+    'apps.sprints',
+    'apps.sprint_capacity',
     'apps.import',
 ]
 

@@ -26,6 +26,8 @@ from apps.member_leaves.api_views import MemberLeaveViewSet
 from apps.office_locations.api_views import OfficeLocationViewSet
 from apps.public_holidays.api_views import PublicHolidayViewSet
 from apps.skills.api_views import SkillViewSet
+from apps.sprint_capacity.api_views import SprintCapacityViewSet
+from apps.sprints.api_views import SprintViewSet
 from apps.team_members.api_views import TeamMemberViewSet
 from apps.team_roles.api_views import TeamRoleViewSet
 
@@ -40,6 +42,8 @@ router.register(r'team-members', TeamMemberViewSet, basename='team-member')
 router.register(r'holidays', PublicHolidayViewSet, basename='holiday')
 router.register(r'leaves', MemberLeaveViewSet, basename='leave')
 router.register(r'fy', FinancialYearViewSet, basename='fy')
+router.register(r'sprints', SprintViewSet, basename='sprint')
+router.register(r'sprint-capacity', SprintCapacityViewSet, basename='sprint-capacity')
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -52,6 +56,7 @@ urlpatterns = [
     path('team-members/', include('apps.team_members.urls')),
     path('leaves/', include('apps.member_leaves.urls')),
     path('fy/', include('apps.financial_years.urls')),
+    path('sprints/', include('apps.sprints.urls')),
 
     # Settings
     path('holidays/', include('apps.public_holidays.urls')),

@@ -112,7 +112,7 @@ class FinancialYearViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    # GET /fy/<pk>/
+    # GET /fy/<id>/
     def retrieve(self, request, pk=None):
         try:
             fy = FinancialYearService.get_financial_year(pk)
@@ -250,8 +250,6 @@ class FinancialYearViewSet(viewsets.ViewSet):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            # serializer = FinancialYearSerializer(data=request.data)
-            # serializer.is_valid(raise_exception=True)
             fy = FinancialYearService.set_active(pk)
             return Response(FinancialYearSerializer(fy).data, status=status.HTTP_200_OK)
         except (DjangoValidationError, DRFValidationError, ValueError) as e:

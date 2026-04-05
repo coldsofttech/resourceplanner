@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/sprints/" class="btn btn-ghost-icon" title="Back to Sprints">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span id="sprint-name" class="rp-code"></span>
+                <span id="sprint-status" class="rp-badge"></span>
+                <span id="sprint-overridden" class="rp-badge rp-badge--warning d-none">Overridden</span>
+            </h1>
+            <p class="rp-page-subtitle" id="sprint-subtitle"></p>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-success btn-sm d-none"
+                id="set-active-btn"
+                data-bs-toggle="modal"
+                data-bs-target="#setActiveModal">
+            <i class="bi bi-check-circle me-1"></i>Set as Active
+        </button>
+        <a href="#" id="edit-sprint-btn" class="btn btn-primary btn-sm">
+            <i class="bi bi-pencil me-1"></i>Edit sprint
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="detail-root" class="row g-4">
+
+    <!-- Left: Sprint details + timer -->
+    <div class="col-lg-4">
+        <!-- Sprint Details -->
+        <div class="rp-card mb-3">
+            <h6 class="rp-card-heading">Sprint Details</h6>
+            <dl class="rp-meta-list">
+                <dt>Financial Year</dt>
+                <dd id="sprint-fy">—</dd>
+                <dt>Sprint Number</dt>
+                <dd id="sprint-number">—</dd>
+                <dt>Start Date</dt>
+                <dd id="sprint-start">—</dd>
+                <dt>End Date</dt>
+                <dd id="sprint-end">—</dd>
+                <dt>Month</dt>
+                <dd id="sprint-month">—</dd>
+                <dt>Duration</dt>
+                <dd id="sprint-duration">—</dd>
+                <dt>Notes</dt>
+                <dd id="sprint-notes" class="text-secondary">—</dd>
+            </dl>
+        </div>
+
+        <!-- Active Sprint Countdown Timer -->
+        <div class="rp-card rp-card--muted mb-3" id="sprint-timer-card">
+            <h6 class="rp-card-heading">
+                <i class="bi bi-hourglass-split me-2"></i>Sprint Timer
+            </h6>
+            <div id="sprint-timer-body" class="text-center py-2">
+                <div id="timer-display" class="mb-2" style="font-size: 2rem; font-weight: 700; font-family: var(--font-mono); color: var(--color-primary);">
+                    —
+                </div>
+                <p class="text-secondary mb-2" id="timer-label" style="font-size: 13px;"></p>
+                <!-- Progress bar -->
+                <div class="progress" style="height: 8px; border-radius: 4px;">
+                    <div id="timer-progress"
+                         class="progress-bar"
+                         role="progressbar"
+                         style="width: 0%; background: var(--color-primary);"
+                         aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                    </div>
+                </div>
+                <p class="text-secondary mt-2 mb-0" id="timer-dates" style="font-size: 12px;"></p>
+            </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="rp-card rp-card--muted">
+            <h6 class="rp-card-heading"><i class="bi bi-clock-history me-2"></i>Metadata</h6>
+            <dl class="rp-meta-list">
+                <dt>Created</dt>
+                <dd id="meta-created">—</dd>
+                <dt>Last updated</dt>
+                <dd id="meta-updated">—</dd>
+            </dl>
+        </div>
+    </div>
+
+    <!-- Right: Capacity table -->
+    <div class="col-lg-8">
+        <div class="rp-card" id="capacity-panel">
+            <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+                <h6 class="rp-card-heading mb-0">Member Capacity</h6>
+                <div class="d-flex gap-2 align-items-center">
+                    <select id="team-filter" class="form-select rp-select" style="max-width: 200px;">
+                        <option value="">All teams</option>
+                        <!-- Populated by JS -->
+                    </select>
+                    <button class="btn btn-warning text-nowrap" id="rebuild-capacity-btn" title="Recalculate capacity for this sprint">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Recalculate
+                    </button>
+                </div>
+            </div>
+            <div class="rp-table-wrap">
+                <table class="table rp-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Member</th>
+                            <th>Team</th>
+                            <th>Location</th>
+                            <th class="text-center">Working Days</th>
+                            <th class="text-center">Holidays</th>
+                            <th class="text-center">Leave</th>
+                            <th class="text-center">Net Capacity</th>
+                        </tr>
+                    </thead>
+                    <tbody id="capacity-tbody"></tbody>
+                </table>
+            </div>
+            <div class="d-flex align-items-center justify-content-between px-1 pt-2 flex-wrap gap-2"
+                 id="capacity-pagination-bar">
+                <span class="text-secondary small" id="capacity-pagination-info"></span>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0" id="capacity-pagination-controls"></ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Rebuild Capacity Confirmation Modal -->
+<div class="modal fade" id="rebuildConfirmModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Recalculate capacity?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    This will recalculate capacity for all members in this sprint,
+                    reflecting the latest leave and holiday data.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary"
+                        data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning"
+                        id="confirm-rebuild-btn">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Recalculate
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Set Active Confirmation Modal — same structure as financial_years detail -->
+<div class="modal fade" id="setActiveModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Set as active?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    <strong id="set-active-sprint-label"></strong> will become the active sprint.
+                    Any currently active sprint will be deactivated.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-success" id="confirm-set-active-btn">
+                    <i class="bi bi-check-circle me-1"></i>Set as Active
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/sprints.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center gap-3">
+    <a href="/sprints/" class="btn btn-ghost-icon" title="Back to Sprints">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+        <h1 class="rp-page-title" id="page-title"></h1>
+        <p class="rp-page-subtitle" id="page-subtitle"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-7">
+        <div class="rp-card">
+            <form id="sprint-form" novalidate>
+                {% csrf_token %}
+
+                <!-- Financial Year -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_financial_year">
+                        Financial Year <span class="rp-required">*</span>
+                    </label>
+                    <select id="id_financial_year"
+                            name="financial_year"
+                            class="form-select rp-select"
+                            required>
+                        <option value="">Select a financial year…</option>
+                        <!-- Populated by JS -->
+                    </select>
+                    <div class="invalid-feedback" id="financial_year-error"></div>
+                </div>
+
+                <!-- Sprint Number -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_sprint_number">
+                        Sprint Number <span class="rp-required">*</span>
+                    </label>
+                    <input type="number"
+                           id="id_sprint_number"
+                           name="sprint_number"
+                           class="form-control rp-input"
+                           min="1"
+                           placeholder="e.g. 1"
+                           required />
+                    <div class="invalid-feedback" id="sprint_number-error"></div>
+                </div>
+
+                <!-- Sprint Name -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_sprint_name">
+                        Sprint Name
+                    </label>
+                    <input type="text"
+                           id="id_sprint_name"
+                           name="sprint_name"
+                           class="form-control rp-input"
+                           maxlength="60"
+                           placeholder="Auto-generated from prefix + number" />
+                    <p class="rp-hint mt-1">
+                        Leave blank to use the auto-generated name from
+                        <strong>SPRINT_NAME_PREFIX</strong> + sprint number.
+                        Customising the name marks this sprint as overridden.
+                    </p>
+                    <div class="invalid-feedback" id="sprint_name-error"></div>
+                </div>
+
+                <!-- Dates row -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="id_start_date">
+                                Start Date <span class="rp-required">*</span>
+                            </label>
+                            <input type="date"
+                                   id="id_start_date"
+                                   name="start_date"
+                                   class="form-control rp-input"
+                                   required />
+                            <div class="invalid-feedback" id="start_date-error"></div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="id_end_date">
+                                End Date <span class="rp-required">*</span>
+                            </label>
+                            <input type="date"
+                                   id="id_end_date"
+                                   name="end_date"
+                                   class="form-control rp-input"
+                                   required />
+                            <p class="rp-hint mt-1" id="month-hint"></p>
+                            <div class="invalid-feedback" id="end_date-error"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_notes">Notes</label>
+                    <textarea id="id_notes"
+                              name="notes"
+                              class="form-control rp-input"
+                              rows="3"
+                              placeholder="Any sprint-level annotations…"></textarea>
+                </div>
+
+                <!-- Active Toggle -->
+                <div class="rp-field mb-5">
+                    <div class="form-check form-switch rp-switch">
+                        <input class="form-check-input" type="checkbox" id="id_is_active" name="is_active" />
+                        <label class="form-check-label rp-label" for="id_is_active">Active sprint</label>
+                    </div>
+                    <p class="rp-hint mt-1">
+                        Setting this sprint as active will deactivate all other sprints.
+                    </p>
+                </div>
+
+                <!-- Error Banner -->
+                <div class="alert alert-danger mb-4 d-none" id="form-error-banner"></div>
+
+                <!-- Actions -->
+                <div class="d-flex gap-2">
+                    <button type="submit" id="submit-btn" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i>
+                        <span id="submit-label">Create sprint</span>
+                    </button>
+                    <a href="/sprints/" class="btn btn-outline-secondary">Cancel</a>
+                    <span id="delete-btn-slot" class="ms-auto"></span>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Side Panel -->
+    <div class="col-lg-4 offset-lg-1 mt-4 mt-lg-0">
+        <div class="rp-card rp-card--muted">
+            <h6 class="fw-600 mb-3"><i class="bi bi-info-circle me-2"></i>Tips</h6>
+            <ul class="rp-tip-list">
+                <li>Both start and end dates must fall within the selected financial year.</li>
+                <li>Sprint dates cannot overlap with another sprint in the same financial year.</li>
+                <li>The <strong>month</strong> field is automatically derived from the end date.</li>
+                <li>Marking a sprint as <strong>active</strong> will deactivate all others.</li>
+                <li>Manually editing a sprint generated by the Run Engine marks it as <strong>overridden</strong>,
+                    protecting it from future engine runs.</li>
+            </ul>
+        </div>
+
+        <!-- Metadata card — edit mode only -->
+        <div id="metadata-card" class="rp-card rp-card--muted mt-3 d-none">
+            <h6 class="fw-600 mb-2"><i class="bi bi-clock-history me-2"></i>Metadata</h6>
+            <dl class="rp-meta-list">
+                <dt>Sprint month</dt>
+                <dd id="meta-month">—</dd>
+                <dt>Overridden</dt>
+                <dd id="meta-overridden">—</dd>
+                <dt>Created</dt>
+                <dd id="meta-created">—</dd>
+                <dt>Last updated</dt>
+                <dd id="meta-updated">—</dd>
+            </dl>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Delete sprint?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    <strong id="delete-sprint-name"></strong> will be permanently removed.
+                    This cannot be undone.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/sprints.js' %}"></script>
+{% endblock %}

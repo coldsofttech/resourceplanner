@@ -98,6 +98,68 @@ def _rebuild_leave_days(leave: MemberLeave, holiday_dates: set | None = None):
 
     LeaveDay.objects.bulk_create(rows, ignore_conflicts=True)
 
+def _trigger_sprint_capacity_rebuild(leave: MemberLeave,
+                                     old_start: datetime.date | None = None,
+                                     old_end:   datetime.date | None = None):
+    """
+    Schedule a sprint capacity rebuild for this leave's member after the
+    current transaction commits.
+
+    Why on_commit and not a signal:
+      - create_leave and update_leave are @transaction.atomic.
+      - post_save fires mid-transaction, before _rebuild_leave_days() runs,
+        so LeaveDay rows don't exist yet when the sprint signal fires.
+      - bulk_create (used by _rebuild_leave_days) never fires post_save per row.
+      - on_commit guarantees the rebuild runs only after both MemberLeave.save()
+        and LeaveDay bulk_create have committed successfully, so the capacity
+        calculation reads the correct, finalised LeaveDay rows.
+
+    Why not a signal at all for MemberLeave:
+      - delete_leave calls leave.delete() which cascade-deletes LeaveDay rows
+        first, then fires post_delete — LeaveDay rows are already gone by then,
+        so a signal-based rebuild would also read zero leave days.
+      - Calling _trigger_sprint_capacity_rebuild explicitly from every write
+        path (create, update, delete) keeps the trigger co-located with the
+        data change and makes the flow easy to trace.
+    """
+    try:
+        from apps.sprint_capacity.services import SprintCapacityService
+
+        # Capture the values needed for the rebuild before the lambda closes
+        # over the leave instance (which may be mutated or GC'd by commit time).
+        member = leave.member
+        start  = leave.start_date
+        end    = leave.end_date
+
+        def _rebuild():
+            try:
+                # Build a minimal leave-like object so regenerate_for_leave can
+                # find overlapping sprints without needing the DB row to exist.
+                class _LeaveProxy:
+                    pass
+
+                proxy = _LeaveProxy()
+                proxy.member     = member
+                proxy.start_date = start
+                proxy.end_date   = end
+
+                SprintCapacityService.regenerate_for_leave(
+                    proxy,
+                    old_start=old_start,
+                    old_end=old_end,
+                )
+            except Exception:
+                logger.exception(
+                    "SprintCapacity rebuild failed in on_commit for member pk=%s", member.pk
+                )
+
+        transaction.on_commit(_rebuild)
+
+    except ImportError:
+        # sprints app not installed — skip silently.
+        pass
+
+
 
 class MemberLeaveService:
 
@@ -115,9 +177,11 @@ class MemberLeaveService:
         if filters:
             if filters.get('search'):
                 term = filters['search']
-                qs = qs.filter(member__first_name__icontains=term) | \
-                     qs.filter(member__last_name__icontains=term) | \
-                     qs.filter(note__icontains=term)
+                qs = (
+                    qs.filter(member__first_name__icontains=term) |
+                    qs.filter(member__last_name__icontains=term)  |
+                    qs.filter(note__icontains=term)
+                )
 
             if filters.get('member_id'):
                 qs = qs.filter(member_id=filters['member_id'])
@@ -233,8 +297,9 @@ class MemberLeaveService:
         note = (data.get('note') or '').strip()
 
         # Overlap check — same member, overlapping date range
-        overlap_qs = MemberLeave.objects.filter(member=member, start_date__lte=end_date, end_date__gte=start_date)
-        if overlap_qs.exists():
+        if MemberLeave.objects.filter(
+                member=member, start_date__lte=end_date, end_date__gte=start_date
+        ).exists():
             raise ValidationError(
                 "This member already has a leave record that overlaps with the selected dates."
             )
@@ -255,6 +320,7 @@ class MemberLeaveService:
             leave.days = _calculate_days(leave, public_holidays)
             leave.save()
             _rebuild_leave_days(leave, public_holidays)
+            _trigger_sprint_capacity_rebuild(leave)
             return leave
         except IntegrityError as e:
             logger.error("Database error when creating leave '%s, %s, %s': %s", member.pk, start_date, end_date, e)
@@ -280,6 +346,9 @@ class MemberLeaveService:
         if not leave:
             raise ValidationError(f"Leave '{leave_id}' does not exist.")
 
+        old_start = leave.start_date
+        old_end = leave.end_date
+
         if 'member' in data:
             leave.member = data['member']
         if 'start_date' in data:
@@ -294,12 +363,11 @@ class MemberLeaveService:
             leave.note = (data['note'] or '').strip()
 
         # Overlap check (exclude self)
-        overlap_qs = MemberLeave.objects.filter(
-            member=leave.member,
-            start_date__lte=leave.end_date,
-            end_date__gte=leave.start_date,
-        ).exclude(pk=leave_id)
-        if overlap_qs.exists():
+        if MemberLeave.objects.filter(
+                member=leave.member,
+                start_date__lte=leave.end_date,
+                end_date__gte=leave.start_date,
+        ).exclude(pk=leave_id).exists():
             raise ValidationError(
                 "This member already has a leave record that overlaps with the selected dates."
             )
@@ -310,6 +378,7 @@ class MemberLeaveService:
             leave.days = _calculate_days(leave, public_holidays)
             leave.save()
             _rebuild_leave_days(leave, public_holidays)
+            _trigger_sprint_capacity_rebuild(leave, old_start=old_start, old_end=old_end)
             return leave
         except IntegrityError as e:
             logger.error("Database error when updating leave '%s': %s", leave_id, e)
@@ -327,12 +396,13 @@ class MemberLeaveService:
         if not leave_id:
             raise ValidationError("leave_id must be a positive integer.")
 
-        leave = MemberLeave.objects.get(pk=leave_id)
+        leave = MemberLeave.objects.select_related('member', 'member__location').get(pk=leave_id)
         if not leave:
             raise ValidationError(f"Leave '{leave_id}' does not exist.")
 
         try:
             # LeaveDay rows are cascade-deleted by FK
+            _trigger_sprint_capacity_rebuild(leave)
             leave.delete()
         except DatabaseError as e:
             logger.exception("Database error when deleting leave '%s': %s", leave_id, e)
@@ -364,9 +434,12 @@ class MemberLeaveService:
         for leave in leaves:
             new_days = _calculate_days(leave, holiday_dates)
             with transaction.atomic():
+                old_start = leave.start_date
+                old_end = leave.end_date
                 leave.days = new_days
                 leave.save(update_fields=['days', 'updated_at'])
                 _rebuild_leave_days(leave, holiday_dates)
+                _trigger_sprint_capacity_rebuild(leave, old_start=old_start, old_end=old_end)
             updated += 1
 
         return updated
