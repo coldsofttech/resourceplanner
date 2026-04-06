@@ -5,28 +5,29 @@ import { API_URLS, URLS } from './../urls.js';
 import { loadSpecs, initImportDropZone, submitImport, renderImportResults } from './../import.js';
 
 const LABELS = {
-    delivery_teams: "teams",
-    skills: "skills",
-    locations: "locations",
-    roles: "roles",
-    employment_types: "employment types",
-    team_members: "team members",
-    holidays: "holidays",
-    leaves: "leaves",
-    financial_years: "financial years",
-    project_sub_statuses: "project sub-statuses",
+    delivery_teams: 'teams',
+    skills: 'skills',
+    locations: 'locations',
+    roles: 'roles',
+    employment_types: 'employment types',
+    team_members: 'team members',
+    holidays: 'holidays',
+    leaves: 'leaves',
+    financial_years: 'financial years',
+    project_sub_statuses: 'project sub-statuses',
+    programmes: 'programmes',
 };
 
-const importBtn         = document.getElementById('import-btn');
-const validateBtn       = document.getElementById('import-validate-btn');
-const importResults     = document.getElementById('import-results');
-const importAnotherBtn  = document.getElementById('import-another-btn');
-const dropZoneEl        = document.getElementById('drop-zone');
+const importBtn = document.getElementById('import-btn');
+const validateBtn = document.getElementById('import-validate-btn');
+const importResults = document.getElementById('import-results');
+const importAnotherBtn = document.getElementById('import-another-btn');
+const dropZoneEl = document.getElementById('drop-zone');
 
-let module      = null;
-let importFile  = null;
+let module = null;
+let importFile = null;
 let dropZoneApi = null;
-let validated   = false;
+let validated = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     const params = new URLSearchParams(window.location.search);
@@ -50,7 +51,8 @@ function renderView() {
     const label = LABELS[module] ?? module.replace(/_/g, ' ');
 
     document.getElementById('module-title').textContent = `Import ${label}`;
-    document.getElementById('module-subtitle').textContent = `Bulk import ${label} from a CSV file.`;
+    document.getElementById('module-subtitle').textContent =
+        `Bulk import ${label} from a CSV file.`;
     document.getElementById('back-btn').href = URLS[module].list;
     document.getElementById('cancel-btn').href = URLS[module].list;
     document.getElementById('import-sample-btn').href = URLS[module].import_sample;
@@ -61,29 +63,29 @@ function renderView() {
     if (dropZoneEl) {
         dropZoneApi = initImportDropZone(
             {
-                dropZone:   dropZoneEl,
-                fileInput:  document.getElementById('csv-file-input'),
-                fileInfo:   document.getElementById('file-info'),
+                dropZone: dropZoneEl,
+                fileInput: document.getElementById('csv-file-input'),
+                fileInfo: document.getElementById('file-info'),
                 fileNameEl: document.getElementById('file-name'),
                 fileSizeEl: document.getElementById('file-size'),
-                removeBtn:  document.getElementById('remove-file-btn'),
-                submitBtn:  [validateBtn, importBtn],
-                errorEl:    document.getElementById('file-error'),
+                removeBtn: document.getElementById('remove-file-btn'),
+                submitBtn: [validateBtn, importBtn],
+                errorEl: document.getElementById('file-error'),
                 errorMsgEl: document.getElementById('file-error-msg'),
             },
             {
-                accept:  '.csv',
-                onFile:  file => {
+                accept: '.csv',
+                onFile: (file) => {
                     importFile = file;
-                    validated  = false;
+                    validated = false;
                     _setImportBtnStyle('default');
                 },
-                onReset: ()   => {
+                onReset: () => {
                     importFile = null;
-                    validated  = false;
+                    validated = false;
                     _setImportBtnStyle('default');
                 },
-            }
+            },
         );
     }
 
@@ -91,9 +93,9 @@ function renderView() {
         if (!importFile) return;
 
         submitImport(API_URLS[module].import.href, importFile, {
-            submitBtn:    validateBtn,
-            extraParams:  { validate: 'true' },
-            onSuccess: data => {
+            submitBtn: validateBtn,
+            extraParams: { validate: 'true' },
+            onSuccess: (data) => {
                 const errorCount = (data.failed ?? []).length;
                 if (errorCount === 0) {
                     validated = true;
@@ -105,7 +107,7 @@ function renderView() {
                     renderImportResults(data, { mode: 'validate' });
                 }
             },
-            onError: msg => dropZoneApi?.showError(msg),
+            onError: (msg) => dropZoneApi?.showError(msg),
         });
     });
 
@@ -114,16 +116,14 @@ function renderView() {
 
         submitImport(API_URLS[module].import.href, importFile, {
             submitBtn: importBtn,
-            onSuccess: data => renderImportResults(data, { mode: 'import' }),
-            onError:   msg  => dropZoneApi?.showError(msg),
+            onSuccess: (data) => renderImportResults(data, { mode: 'import' }),
+            onError: (msg) => dropZoneApi?.showError(msg),
         });
     });
 }
 
 function _setImportBtnStyle(state) {
-    importBtn.classList.remove(
-        'btn-primary', 'btn-success', 'btn-warning'
-    );
+    importBtn.classList.remove('btn-primary', 'btn-success', 'btn-warning');
 
     switch (state) {
         case 'clean':

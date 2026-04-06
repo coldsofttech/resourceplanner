@@ -52,6 +52,7 @@ INSTALLED_APPS = [
     'apps.sprint_capacity',
     'apps.project_types',
     'apps.project_sub_statuses',
+    'apps.programmes',
     'apps.import',
 ]
 

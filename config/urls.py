@@ -14,6 +14,7 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -24,6 +25,7 @@ from apps.employment_types.api_views import EmploymentTypeViewSet
 from apps.financial_years.api_views import FinancialYearViewSet
 from apps.member_leaves.api_views import MemberLeaveViewSet
 from apps.office_locations.api_views import OfficeLocationViewSet
+from apps.programmes.api_views import ProgrammeViewSet
 from apps.project_sub_statuses.api_views import ProjectSubStatusViewSet
 from apps.project_types.api_views import ProjectTypeViewSet
 from apps.public_holidays.api_views import PublicHolidayViewSet
@@ -34,46 +36,46 @@ from apps.team_members.api_views import TeamMemberViewSet
 from apps.team_roles.api_views import TeamRoleViewSet
 
 router = DefaultRouter()
-router.register(r'delivery-teams', DeliveryTeamViewSet, basename='delivery-team')
-router.register(r'skills', SkillViewSet, basename='skill')
-router.register(r'configurations', ConfigurationViewSet, basename='configuration')
-router.register(r'locations', OfficeLocationViewSet, basename='location')
-router.register(r'roles', TeamRoleViewSet, basename='role')
-router.register(r'employment-types', EmploymentTypeViewSet, basename='employment-type')
-router.register(r'team-members', TeamMemberViewSet, basename='team-member')
-router.register(r'holidays', PublicHolidayViewSet, basename='holiday')
-router.register(r'leaves', MemberLeaveViewSet, basename='leave')
-router.register(r'fy', FinancialYearViewSet, basename='fy')
-router.register(r'sprints', SprintViewSet, basename='sprint')
-router.register(r'sprint-capacity', SprintCapacityViewSet, basename='sprint-capacity')
-router.register(r'project-types', ProjectTypeViewSet, basename='project-type')
-router.register(r'project-sub-statuses', ProjectSubStatusViewSet, basename='project-sub-status')
+router.register(r"delivery-teams", DeliveryTeamViewSet, basename="delivery-team")
+router.register(r"skills", SkillViewSet, basename="skill")
+router.register(r"configurations", ConfigurationViewSet, basename="configuration")
+router.register(r"locations", OfficeLocationViewSet, basename="location")
+router.register(r"roles", TeamRoleViewSet, basename="role")
+router.register(r"employment-types", EmploymentTypeViewSet, basename="employment-type")
+router.register(r"team-members", TeamMemberViewSet, basename="team-member")
+router.register(r"holidays", PublicHolidayViewSet, basename="holiday")
+router.register(r"leaves", MemberLeaveViewSet, basename="leave")
+router.register(r"fy", FinancialYearViewSet, basename="fy")
+router.register(r"sprints", SprintViewSet, basename="sprint")
+router.register(r"sprint-capacity", SprintCapacityViewSet, basename="sprint-capacity")
+router.register(r"project-types", ProjectTypeViewSet, basename="project-type")
+router.register(
+    r"project-sub-statuses", ProjectSubStatusViewSet, basename="project-sub-status"
+)
+router.register(r"programmes", ProgrammeViewSet, basename="programme")
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-
+    path("admin/", admin.site.urls),
     # REST API
-    path('api/v1/', include(router.urls)),
-
+    path("api/v1/", include(router.urls)),
     # Manage
-    path('delivery-teams/', include('apps.delivery_teams.urls')),
-    path('team-members/', include('apps.team_members.urls')),
-    path('leaves/', include('apps.member_leaves.urls')),
-    path('fy/', include('apps.financial_years.urls')),
-    path('sprints/', include('apps.sprints.urls')),
-
+    path("delivery-teams/", include("apps.delivery_teams.urls")),
+    path("team-members/", include("apps.team_members.urls")),
+    path("leaves/", include("apps.member_leaves.urls")),
+    path("fy/", include("apps.financial_years.urls")),
+    path("sprints/", include("apps.sprints.urls")),
+    # Projects
+    path("programmes/", include("apps.programmes.urls")),
     # Settings
-    path('holidays/', include('apps.public_holidays.urls')),
-    path('skills/', include('apps.skills.urls')),
-    path('locations/', include('apps.office_locations.urls')),
-    path('roles/', include('apps.team_roles.urls')),
-    path('employment-types/', include('apps.employment_types.urls')),
-    path('project-types/', include('apps.project_types.urls')),
-    path('project-sub-statuses/', include('apps.project_sub_statuses.urls')),
-    path('configurations/', include('apps.configurations.urls')),
-
+    path("holidays/", include("apps.public_holidays.urls")),
+    path("skills/", include("apps.skills.urls")),
+    path("locations/", include("apps.office_locations.urls")),
+    path("roles/", include("apps.team_roles.urls")),
+    path("employment-types/", include("apps.employment_types.urls")),
+    path("project-types/", include("apps.project_types.urls")),
+    path("project-sub-statuses/", include("apps.project_sub_statuses.urls")),
+    path("configurations/", include("apps.configurations.urls")),
     # Generic Modules
-    path('import/', include('apps.import.urls')),
-
-    path('', include('apps.delivery_teams.urls')),
+    path("import/", include("apps.import.urls")),
+    path("", include("apps.delivery_teams.urls")),
 ]

@@ -1,40 +1,44 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
     <head>
         <meta charset="UTF-8" />
-        <meta name="viewport"
-              content="width=device-width, initial-scale=1.0" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
         <title>{% block title %}Resource Planner{% endblock %}</title>
 
         <!-- Bootstrap 5 -->
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
-              rel="stylesheet" />
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+            rel="stylesheet"
+        />
         <!-- Bootstrap Icons -->
-        <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
-              rel="stylesheet" />
+        <link
+            href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css"
+            rel="stylesheet"
+        />
         <!-- Google Fonts -->
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap"
-              rel="stylesheet" />
+        <link
+            href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
         <!-- App CSS -->
         {% load static %}
-        <link href="{% static 'css/main.css' %}"
-              rel="stylesheet" />
+        <link href="{% static 'css/main.css' %}" rel="stylesheet" />
 
         {% block extra_css %}{% endblock %}
     </head>
     <body>
         <!-- Financial Year Ending Warning Banner -->
-        <div id="rp-fy-warning-banner"
-             class="rp-fy-warning-banner d-none"
-             role="alert">
+        <div id="rp-fy-warning-banner" class="rp-fy-warning-banner d-none" role="alert">
             <i class="bi bi-exclamation-triangle-fill me-2"></i>
             <span id="rp-fy-warning-text"></span>
             <a href="/fy/" class="rp-fy-warning-link ms-2">View Financial Years</a>
-            <button type="button"
-                    class="rp-fy-warning-close ms-auto"
-                    id="rp-fy-warning-close"
-                    aria-label="Dismiss">
+            <button
+                type="button"
+                class="rp-fy-warning-close ms-auto"
+                id="rp-fy-warning-close"
+                aria-label="Dismiss"
+            >
                 <i class="bi bi-x-lg"></i>
             </button>
         </div>
@@ -43,52 +47,55 @@
         <nav class="rp-navbar navbar navbar-expand-lg">
             <div class="container-fluid px-4">
                 <!-- Application Title -->
-                <a class="rp-brand navbar-brand d-flex align-items-center gap-2"
-                   href="/">
+                <a class="rp-brand navbar-brand d-flex align-items-center gap-2" href="/">
                     <span class="rp-brand-icon">
                         <i class="bi bi-diagram-3-fill"></i>
                     </span>
                     <span>Resource<strong>Planner</strong></span>
                 </a>
 
-                <button class="navbar-toggler"
-                        type="button"
-                        data-bs-toggle="collapse"
-                        data-bs-target="#mainNav">
+                <button
+                    class="navbar-toggler"
+                    type="button"
+                    data-bs-toggle="collapse"
+                    data-bs-target="#mainNav"
+                >
                     <span class="navbar-toggler-icon"></span>
                 </button>
 
                 <!-- Top Navigation Bar Menu Items -->
-                <div class="collapse navbar-collapse"
-                     id="mainNav">
+                <div class="collapse navbar-collapse" id="mainNav">
                     <ul class="navbar-nav ms-auto align-items-lg-center gap-1">
                         <!-- Dashboard -->
                         <li class="nav-item">
-                            <a class="nav-link"
-                               href="/"
-                               data-nav-match="/"
-                               data-nav-exact="true">
+                            <a class="nav-link" href="/" data-nav-match="/" data-nav-exact="true">
                                 <i class="bi bi-speedometer2 me-1"></i>Dashboard
                             </a>
                         </li>
 
                         <!-- Financial Years dropdown — populated by JS -->
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle d-flex align-items-center gap-1"
-                               id="fy-nav-toggle"
-                               href="#"
-                               role="button"
-                               data-nav-match="/fy/"
-                               data-bs-toggle="dropdown">
+                            <a
+                                class="nav-link dropdown-toggle d-flex align-items-center gap-1"
+                                id="fy-nav-toggle"
+                                href="#"
+                                role="button"
+                                data-nav-match="/fy/"
+                                data-bs-toggle="dropdown"
+                            >
                                 <i class="bi bi-calendar3 me-1"></i>
                                 <span id="fy-nav-toggle-label">Financial Years</span>
                             </a>
-                            <ul class="dropdown-menu dropdown-menu-end"
+                            <ul
+                                class="dropdown-menu dropdown-menu-end"
                                 id="fy-dropdown-menu"
-                                style="min-width: 220px;">
+                                style="min-width: 220px"
+                            >
                                 <li>
-                                    <span class="dropdown-item text-secondary"
-                                          style="font-size:13px">
+                                    <span
+                                        class="dropdown-item text-secondary"
+                                        style="font-size: 13px"
+                                    >
                                         Loading…
                                     </span>
                                 </li>
@@ -97,10 +104,12 @@
 
                         <!-- Active Sprint Timer -->
                         <li class="nav-item d-none" id="sprint-pill-nav-item">
-                            <a class="rp-sprint-pill nav-link d-flex align-items-center gap-2"
-                               href="/sprints/"
-                               id="sprint-pill-link"
-                               title="Active sprint">
+                            <a
+                                class="rp-sprint-pill nav-link d-flex align-items-center gap-2"
+                                href="/sprints/"
+                                id="sprint-pill-link"
+                                title="Active sprint"
+                            >
                                 <!-- Speedometer icon — colour set by JS via class swap -->
                                 <span class="rp-sprint-pill-icon" id="sprint-pill-icon">
                                     <i class="bi bi-speedometer2"></i>
@@ -117,58 +126,69 @@
         <!-- Page Wrapper -->
         <div class="rp-layout d-flex">
             <!-- Main Sidebar -->
-            <div class="rp-sidebar-outer d-none d-lg-block"
-                 id="rpMainOuter">
-                <aside class="rp-sidebar d-flex flex-column"
-                       id="rpMainSidebar">
+            <div class="rp-sidebar-outer d-none d-lg-block" id="rpMainOuter">
+                <aside class="rp-sidebar d-flex flex-column" id="rpMainSidebar">
                     <div class="rp-sidebar-section">
                         <!-- Manage Section -->
                         <p class="rp-sidebar-label">Manage</p>
                         <!-- Teams -->
-                        <a href="/delivery-teams/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/delivery-teams/"
-                           data-rp-tooltip="Teams">
+                        <a
+                            href="/delivery-teams/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/delivery-teams/"
+                            data-rp-tooltip="Teams"
+                        >
                             <i class="bi bi-people"></i>
                             <span class="rp-sidebar-link-label">Teams</span>
                         </a>
                         <!-- Team Members -->
-                        <a href="/team-members/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/team-members/"
-                           data-rp-tooltip="Team Members">
+                        <a
+                            href="/team-members/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/team-members/"
+                            data-rp-tooltip="Team Members"
+                        >
                             <i class="bi bi-person-badge"></i>
                             <span class="rp-sidebar-link-label">Team Members</span>
                         </a>
                         <!-- Leaves -->
-                        <a href="/leaves/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/leaves/"
-                           data-rp-tooltip="Leaves">
+                        <a
+                            href="/leaves/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/leaves/"
+                            data-rp-tooltip="Leaves"
+                        >
                             <i class="bi bi-calendar2-minus"></i>
                             <span class="rp-sidebar-link-label">Leaves</span>
                         </a>
                         <!-- Projects -->
-                        <a href="/projects/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/projects/"
-                           data-rp-tooltip="Projects">
+                        <a
+                            href="#"
+                            class="rp-sidebar-link rp-sidebar-link--projects"
+                            id="rpProjectsLink"
+                            data-rp-tooltip="Projects"
+                            onclick="rpOpenProjects(event)"
+                        >
                             <i class="bi bi-kanban"></i>
                             <span class="rp-sidebar-link-label">Projects</span>
                         </a>
                         <!-- Financial Years -->
-                        <a href="/fy/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/fy/"
-                           data-rp-tooltip="Financial Years">
+                        <a
+                            href="/fy/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/fy/"
+                            data-rp-tooltip="Financial Years"
+                        >
                             <i class="bi bi-calendar3"></i>
                             <span class="rp-sidebar-link-label">Financial Years</span>
                         </a>
                         <!-- Budgets -->
-                        <a href="/budgets/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/budgets/"
-                           data-rp-tooltip="Budgets">
+                        <a
+                            href="/budgets/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/budgets/"
+                            data-rp-tooltip="Budgets"
+                        >
                             <i class="bi bi-wallet2"></i>
                             <span class="rp-sidebar-link-label">Budgets</span>
                         </a>
@@ -177,18 +197,22 @@
                         <!-- Plan Section -->
                         <p class="rp-sidebar-label">Plan</p>
                         <!-- Sprints -->
-                        <a href="/sprints/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/sprints/"
-                           data-rp-tooltip="Sprints">
+                        <a
+                            href="/sprints/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/sprints/"
+                            data-rp-tooltip="Sprints"
+                        >
                             <i class="bi bi-calendar3-range"></i>
                             <span class="rp-sidebar-link-label">Sprints</span>
                         </a>
                         <!-- Resource Plans -->
-                        <a href="/resource-plan/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/resource-plan/"
-                           data-rp-tooltip="Resources">
+                        <a
+                            href="/resource-plan/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/resource-plan/"
+                            data-rp-tooltip="Resources"
+                        >
                             <i class="bi bi-bar-chart-steps"></i>
                             <span class="rp-sidebar-link-label">Resource Plans</span>
                         </a>
@@ -196,88 +220,149 @@
                     <div class="rp-sidebar-section mt-auto">
                         <!-- Settings Section -->
                         <p class="rp-sidebar-label">Settings</p>
-                        <a href="#"
-                           class="rp-sidebar-link rp-sidebar-link--settings"
-                           id="rpSettingsLink"
-                           data-rp-tooltip="Settings"
-                           onclick="rpOpenSettings(event)">
+                        <a
+                            href="#"
+                            class="rp-sidebar-link rp-sidebar-link--settings"
+                            id="rpSettingsLink"
+                            data-rp-tooltip="Settings"
+                            onclick="rpOpenSettings(event)"
+                        >
                             <i class="bi bi-gear"></i>
                             <span class="rp-sidebar-link-label">Settings</span>
                         </a>
                     </div>
                 </aside>
 
-                <button class="rp-sidebar-toggle"
-                        id="rpMainToggle"
-                        onclick="rpToggleMain()"
-                        title="Collapse sidebar"
-                        aria-label="Toggle main sidebar">
+                <button
+                    class="rp-sidebar-toggle"
+                    id="rpMainToggle"
+                    onclick="rpToggleMain()"
+                    title="Collapse sidebar"
+                    aria-label="Toggle main sidebar"
+                >
                     <i class="bi bi-chevron-left"></i>
                 </button>
             </div>
 
-            <div class="rp-sub-sidebar-outer d-none d-lg-block rp-sub-sidebar--hidden"
-                 id="rpSubOuter">
+            <div
+                class="rp-sub-sidebar-outer d-none d-lg-block rp-sub-sidebar--hidden"
+                id="rpProjectsSubOuter"
+            >
+                <aside class="rp-sub-sidebar d-flex flex-column" id="rpProjectsSubSidebar">
+                    <!-- Header -->
+                    <div class="rp-sidebar-section">
+                        <p class="rp-sidebar-label">Projects</p>
+                        <!-- Programmes -->
+                        <a
+                            href="/programmes/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/programmes/"
+                            data-rp-tooltip="Programmes"
+                        >
+                            <i class="bi bi-collection"></i>
+                            <span class="rp-sidebar-link-label">Programmes</span>
+                        </a>
+                        <!-- Projects -->
+                        <a
+                            href="/projects/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/projects/"
+                            data-rp-tooltip="Projects"
+                        >
+                            <i class="bi bi-kanban"></i>
+                            <span class="rp-sidebar-link-label">Projects</span>
+                        </a>
+                    </div>
+                </aside>
+
+                <button
+                    class="rp-sub-sidebar-toggle"
+                    id="rpProjectsSubToggle"
+                    onclick="rpToggleProjectsSub()"
+                    title="Collapse projects panel"
+                    aria-label="Toggle projects sidebar"
+                >
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            </div>
+
+            <div
+                class="rp-sub-sidebar-outer d-none d-lg-block rp-sub-sidebar--hidden"
+                id="rpSubOuter"
+            >
                 <!-- Sub Sidebar -->
-                <aside class="rp-sub-sidebar d-flex flex-column"
-                       id="rpSubSidebar">
+                <aside class="rp-sub-sidebar d-flex flex-column" id="rpSubSidebar">
                     <!-- Reference Data -->
                     <div class="rp-sidebar-section">
                         <p class="rp-sidebar-label">Reference data</p>
                         <!-- Holidays -->
-                        <a href="/holidays/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/holidays/"
-                           data-rp-tooltip="Holidays">
+                        <a
+                            href="/holidays/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/holidays/"
+                            data-rp-tooltip="Holidays"
+                        >
                             <i class="bi bi-calendar-heart"></i>
                             <span class="rp-sidebar-link-label">Holidays</span>
                         </a>
                         <!-- Skills -->
-                        <a href="/skills/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/skills/"
-                           data-rp-tooltip="Skills">
+                        <a
+                            href="/skills/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/skills/"
+                            data-rp-tooltip="Skills"
+                        >
                             <i class="bi bi-puzzle"></i>
                             <span class="rp-sidebar-link-label">Skills</span>
                         </a>
                         <!-- Roles -->
-                        <a href="/roles/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/roles/"
-                           data-rp-tooltip="Roles">
+                        <a
+                            href="/roles/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/roles/"
+                            data-rp-tooltip="Roles"
+                        >
                             <i class="bi bi-person-gear"></i>
                             <span class="rp-sidebar-link-label">Roles</span>
                         </a>
                         <!-- Locations -->
-                        <a href="/locations/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/locations/"
-                           data-rp-tooltip="Locations">
+                        <a
+                            href="/locations/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/locations/"
+                            data-rp-tooltip="Locations"
+                        >
                             <i class="bi bi-geo-alt"></i>
                             <span class="rp-sidebar-link-label">Locations</span>
                         </a>
                         <!-- Employment Types -->
-                        <a href="/employment-types/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/employment-types/"
-                           data-rp-tooltip="Employment Types">
+                        <a
+                            href="/employment-types/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/employment-types/"
+                            data-rp-tooltip="Employment Types"
+                        >
                             <i class="bi bi-briefcase"></i>
                             <span class="rp-sidebar-link-label">Employment Types</span>
                         </a>
                         <!-- Project Types -->
-                        <a href="/project-types/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/project-types/"
-                           data-rp-tooltip="Project Types">
+                        <a
+                            href="/project-types/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/project-types/"
+                            data-rp-tooltip="Project Types"
+                        >
                             <i class="bi bi-folder2"></i>
                             <span class="rp-sidebar-link-label">Project Types</span>
                         </a>
                         <!-- Project Sub Statuses -->
-                        <a href="/project-sub-statuses/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/project-sub-statuses/"
-                           data-rp-tooltip="Project Sub Statuses"
-                           style="font-size: 0.75rem;">
+                        <a
+                            href="/project-sub-statuses/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/project-sub-statuses/"
+                            data-rp-tooltip="Project Sub Statuses"
+                            style="font-size: 0.75rem"
+                        >
                             <i class="bi bi-tags"></i>
                             <span class="rp-sidebar-link-label">Project Sub Statuses</span>
                         </a>
@@ -287,21 +372,25 @@
                     <div class="rp-sidebar-section">
                         <p class="rp-sidebar-label">Configuration</p>
                         <!-- Configurations -->
-                        <a href="/configurations/"
-                           class="rp-sidebar-link"
-                           data-nav-match="/configurations/"
-                           data-rp-tooltip="Configurations">
+                        <a
+                            href="/configurations/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/configurations/"
+                            data-rp-tooltip="Configurations"
+                        >
                             <i class="bi bi-toggles"></i>
                             <span class="rp-sidebar-link-label">Configurations</span>
                         </a>
                     </div>
                 </aside>
 
-                <button class="rp-sub-sidebar-toggle"
-                        id="rpSubToggle"
-                        onclick="rpToggleSub()"
-                        title="Collapse settings panel"
-                        aria-label="Toggle settings sidebar">
+                <button
+                    class="rp-sub-sidebar-toggle"
+                    id="rpSubToggle"
+                    onclick="rpToggleSub()"
+                    title="Collapse settings panel"
+                    aria-label="Toggle settings sidebar"
+                >
                     <i class="bi bi-chevron-left"></i>
                 </button>
             </div>
@@ -312,9 +401,7 @@
                 {% block page_header %}{% endblock %}
 
                 <!-- Content -->
-                <div class="rp-content px-4 pb-5">
-                    {% block content %}{% endblock %}
-                </div>
+                <div class="rp-content px-4 pb-5">{% block content %}{% endblock %}</div>
             </main>
         </div>
 
@@ -334,18 +421,24 @@
                 'use strict';
 
                 // ── localStorage keys ──────────────────────────────────────
-                var MAIN_KEY     = 'rp_main_collapsed';
-                var SUB_KEY      = 'rp_sub_collapsed';
+                var MAIN_KEY = 'rp_main_collapsed';
+                var SUB_KEY = 'rp_sub_collapsed';
                 var SUB_OPEN_KEY = 'rp_sub_open';
+                var PROJ_SUB_KEY = 'rp_proj_sub_collapsed';
+                var PROJ_SUB_OPEN_KEY = 'rp_proj_sub_open';
 
                 // ── Element refs ───────────────────────────────────────────
-                var mainOuter      = document.getElementById('rpMainOuter');
-                var mainSidebar    = document.getElementById('rpMainSidebar');
-                var subOuter       = document.getElementById('rpSubOuter');
-                var subSidebar     = document.getElementById('rpSubSidebar');
+                var mainOuter = document.getElementById('rpMainOuter');
+                var mainSidebar = document.getElementById('rpMainSidebar');
+                var subOuter = document.getElementById('rpSubOuter');
+                var subSidebar = document.getElementById('rpSubSidebar');
+                var projSubOuter = document.getElementById('rpProjectsSubOuter');
+                var projSubSidebar = document.getElementById('rpProjectsSubSidebar');
                 var mainToggleIcon = document.querySelector('#rpMainToggle i');
-                var subToggleIcon  = document.querySelector('#rpSubToggle i');
-                var settingsLink   = document.getElementById('rpSettingsLink');
+                var subToggleIcon = document.querySelector('#rpSubToggle i');
+                var projSubToggleIcon = document.querySelector('#rpProjectsSubToggle i');
+                var settingsLink = document.getElementById('rpSettingsLink');
+                var projectsLink = document.getElementById('rpProjectsLink');
 
                 // ── Active nav state (JS path matching) ───────────────────
                 _applyActiveStates();
@@ -355,15 +448,32 @@
                     _applyCollapseMain();
                 }
 
+                // Open when any Projects sub-sidebar link is active, OR the user
+                // manually opened it last time (PROJ_SUB_OPEN_KEY).
+                var isProjectsPage =
+                    projSubSidebar.querySelectorAll('.rp-sidebar-link.active').length > 0;
+
+                if (isProjectsPage || localStorage.getItem(PROJ_SUB_OPEN_KEY) === '1') {
+                    projSubOuter.classList.remove('rp-sub-sidebar--hidden');
+                    projectsLink.classList.add('active');
+                    if (localStorage.getItem(PROJ_SUB_KEY) === '1') {
+                        _applyCollapseProjSub();
+                    }
+                }
+
                 // The sub-sidebar opens when the current path lives under a
                 // settings route.  We detect this by checking whether any
                 // sub-sidebar link is marked active after _applyActiveStates().
-                var isSettingsPage = (
+                var isSettingsPage =
                     settingsLink.classList.contains('active') ||
-                    subSidebar.querySelectorAll('.rp-sidebar-link.active').length > 0
-                );
+                    subSidebar.querySelectorAll('.rp-sidebar-link.active').length > 0;
 
                 if (isSettingsPage) {
+                    // Make sure Projects sub is hidden when we are on a Settings page.
+                    projSubOuter.classList.add('rp-sub-sidebar--hidden');
+                    projectsLink.classList.remove('active');
+                    localStorage.removeItem(PROJ_SUB_OPEN_KEY);
+
                     subOuter.classList.remove('rp-sub-sidebar--hidden');
                     if (localStorage.getItem(SUB_KEY) === '1') {
                         _applyCollapseSub();
@@ -392,40 +502,55 @@
                 function _checkFyWarning() {
                     // Fetch active FY and warning threshold in parallel
                     Promise.all([
-                        fetch('/api/v1/fy/active/', { method: 'GET' })
-                            .then(function (r) { return r.ok ? r.json() : null; }),
-                        fetch('/api/v1/configurations/by_code/?code=FY_EXPIRY_WARNING_DAYS', { method: 'GET' })
-                            .then(function (r) { return r.ok ? r.json() : { value: '30' }; })
-                            .catch(function () { return { value: '30' }; }),
+                        fetch('/api/v1/fy/active/', { method: 'GET' }).then(function (r) {
+                            return r.ok ? r.json() : null;
+                        }),
+                        fetch('/api/v1/configurations/by_code/?code=FY_EXPIRY_WARNING_DAYS', {
+                            method: 'GET',
+                        })
+                            .then(function (r) {
+                                return r.ok ? r.json() : { value: '30' };
+                            })
+                            .catch(function () {
+                                return { value: '30' };
+                            }),
                     ])
-                    .then(function (results) {
-                        var fy        = results[0];
-                        var cfgResult = results[1];
-                        var banner    = document.getElementById('rp-fy-warning-banner');
-                        var textEl    = document.getElementById('rp-fy-warning-text');
-                        if (!banner || !textEl) return;
+                        .then(function (results) {
+                            var fy = results[0];
+                            var cfgResult = results[1];
+                            var banner = document.getElementById('rp-fy-warning-banner');
+                            var textEl = document.getElementById('rp-fy-warning-text');
+                            if (!banner || !textEl) return;
 
-                        if (!fy || !fy.remaining_days) {
-                            banner.classList.add('d-none');
-                            return;
-                        }
+                            if (!fy || !fy.remaining_days) {
+                                banner.classList.add('d-none');
+                                return;
+                            }
 
-                        var threshold = parseInt(cfgResult && cfgResult.value ? cfgResult.value : '30', 10);
-                        if (isNaN(threshold)) threshold = 30;
-
-                        if (fy.remaining_days > 0 && fy.remaining_days <= threshold) {
-                            textEl.textContent = (
-                                'Active financial year ' + _esc(fy.long_fy) +
-                                ' ends in ' + fy.remaining_days +
-                                (fy.remaining_days === 1 ? ' day' : ' days') +
-                                ' (' + _esc(fy.end_date) + ').'
+                            var threshold = parseInt(
+                                cfgResult && cfgResult.value ? cfgResult.value : '30',
+                                10,
                             );
-                            banner.classList.remove('d-none');
-                        } else {
-                            banner.classList.add('d-none');
-                        }
-                    })
-                    .catch(function () { /* silently ignore */ });
+                            if (isNaN(threshold)) threshold = 30;
+
+                            if (fy.remaining_days > 0 && fy.remaining_days <= threshold) {
+                                textEl.textContent =
+                                    'Active financial year ' +
+                                    _esc(fy.long_fy) +
+                                    ' ends in ' +
+                                    fy.remaining_days +
+                                    (fy.remaining_days === 1 ? ' day' : ' days') +
+                                    ' (' +
+                                    _esc(fy.end_date) +
+                                    ').';
+                                banner.classList.remove('d-none');
+                            } else {
+                                banner.classList.add('d-none');
+                            }
+                        })
+                        .catch(function () {
+                            /* silently ignore */
+                        });
                 }
 
                 // ── FY dropdown bootstrap ──────────────────────────────────
@@ -458,8 +583,38 @@
                         : _collapseSub();
                 };
 
+                window.rpToggleProjectsSub = function () {
+                    projSubSidebar.classList.contains('rp-sub-sidebar--collapsed')
+                        ? _expandProjSub()
+                        : _collapseProjSub();
+                };
+
+                window.rpOpenProjects = function (e) {
+                    e.preventDefault();
+
+                    // Close Settings sub-sidebar if it was open.
+                    subOuter.classList.add('rp-sub-sidebar--hidden');
+                    localStorage.removeItem(SUB_OPEN_KEY);
+
+                    // Collapse main sidebar to give sub-sidebar room.
+                    _collapseMain();
+
+                    // Show and expand the Projects sub-sidebar.
+                    projSubOuter.classList.remove('rp-sub-sidebar--hidden');
+                    _expandProjSub();
+                    localStorage.setItem(PROJ_SUB_OPEN_KEY, '1');
+
+                    // Mark Projects as the active main-sidebar link.
+                    document.querySelectorAll('.rp-sidebar-link').forEach(function (l) {
+                        l.classList.remove('active');
+                    });
+                    projectsLink.classList.add('active');
+                };
+
                 window.rpOpenSettings = function (e) {
                     e.preventDefault();
+                    projSubOuter.classList.add('rp-sub-sidebar--hidden');
+                    localStorage.removeItem(PROJ_SUB_OPEN_KEY);
                     _collapseMain();
                     subOuter.classList.remove('rp-sub-sidebar--hidden');
                     _expandSub();
@@ -473,20 +628,11 @@
                 // ── Active state helper ────────────────────────────────────
                 function _applyActiveStates() {
                     var path = window.location.pathname;
-
-                    // All nav links in the navbar and both sidebars that carry
-                    // a data-nav-match attribute are candidates.
-                    var links = document.querySelectorAll('[data-nav-match]');
-
-                    links.forEach(function (link) {
+                    document.querySelectorAll('[data-nav-match]').forEach(function (link) {
                         var match = link.dataset.navMatch;
                         var exact = link.dataset.navExact === 'true';
-                        var isActive = exact
-                            ? path === match
-                            : path.startsWith(match);
-                        if (isActive) {
-                            link.classList.add('active');
-                        }
+                        var isActive = exact ? path === match : path.startsWith(match);
+                        if (isActive) link.classList.add('active');
                     });
                 }
 
@@ -514,13 +660,17 @@
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' },
                     })
-                    .then(function (r) { return r.ok ? r.json() : null; })
-                    .then(function (fys) {
-                        if (!fys || !Array.isArray(fys)) return;
-                        _renderDropdown(fys);
-                        _writeCookie(fys);
-                    })
-                    .catch(function () { /* silently ignore — stale cookie is fine */ });
+                        .then(function (r) {
+                            return r.ok ? r.json() : null;
+                        })
+                        .then(function (fys) {
+                            if (!fys || !Array.isArray(fys)) return;
+                            _renderDropdown(fys);
+                            _writeCookie(fys);
+                        })
+                        .catch(function () {
+                            /* silently ignore — stale cookie is fine */
+                        });
                 }
 
                 function _renderDropdown(fys) {
@@ -530,39 +680,55 @@
 
                     var active = null;
                     for (var i = 0; i < fys.length; i++) {
-                        if (fys[i].is_active) { active = fys[i]; break; }
+                        if (fys[i].is_active) {
+                            active = fys[i];
+                            break;
+                        }
                     }
 
                     var html = '';
 
                     if (active) {
-                        html += '<li><div class="px-3 py-2 d-flex align-items-center gap-2">'
-                            + '<span class="rp-badge rp-badge--success" style="font-size:10.5px">Active</span>'
-                            + '<span class="fw-500" style="font-size:13px">' + _esc(active.long_fy) + '</span>'
-                            + '</div></li>'
-                            + '<li><hr class="dropdown-divider my-1"></li>';
+                        html +=
+                            '<li><div class="px-3 py-2 d-flex align-items-center gap-2">' +
+                            '<span class="rp-badge rp-badge--success" style="font-size:10.5px">Active</span>' +
+                            '<span class="fw-500" style="font-size:13px">' +
+                            _esc(active.long_fy) +
+                            '</span>' +
+                            '</div></li>' +
+                            '<li><hr class="dropdown-divider my-1"></li>';
                         if (toggleLabel) toggleLabel.textContent = active.short_fy;
                     } else {
                         if (toggleLabel) toggleLabel.textContent = 'Financial Years';
                     }
 
                     if (fys.length === 0) {
-                        html += '<li><span class="dropdown-item text-secondary" style="font-size:13px">No financial years yet</span></li>';
+                        html +=
+                            '<li><span class="dropdown-item text-secondary" style="font-size:13px">No financial years yet</span></li>';
                     } else {
                         for (var j = 0; j < fys.length; j++) {
                             var fy = fys[j];
-                            html += '<li><a class="dropdown-item d-flex align-items-center justify-content-between'
-                                + (fy.is_active ? ' fw-500' : '') + '"'
-                                + ' href="/fy/' + fy.id + '/">'
-                                + '<span>' + _esc(fy.long_fy) + '</span>'
-                                + '<span class="text-secondary" style="font-size:11.5px">' + _esc(fy.short_fy) + '</span>'
-                                + '</a></li>';
+                            html +=
+                                '<li><a class="dropdown-item d-flex align-items-center justify-content-between' +
+                                (fy.is_active ? ' fw-500' : '') +
+                                '"' +
+                                ' href="/fy/' +
+                                fy.id +
+                                '/">' +
+                                '<span>' +
+                                _esc(fy.long_fy) +
+                                '</span>' +
+                                '<span class="text-secondary" style="font-size:11.5px">' +
+                                _esc(fy.short_fy) +
+                                '</span>' +
+                                '</a></li>';
                         }
                     }
 
-                    html += '<li><hr class="dropdown-divider my-1"></li>'
-                        + '<li><a class="dropdown-item" href="/fy/"><i class="bi bi-list-ul me-2"></i>All financial years</a></li>'
-                        + '<li><a class="dropdown-item" href="/fy/new/"><i class="bi bi-plus me-2"></i>New financial year</a></li>';
+                    html +=
+                        '<li><hr class="dropdown-divider my-1"></li>' +
+                        '<li><a class="dropdown-item" href="/fy/"><i class="bi bi-list-ul me-2"></i>All financial years</a></li>' +
+                        '<li><a class="dropdown-item" href="/fy/new/"><i class="bi bi-plus me-2"></i>New financial year</a></li>';
 
                     container.innerHTML = html;
                 }
@@ -570,12 +736,20 @@
                 function _writeCookie(fys) {
                     var active = null;
                     for (var i = 0; i < fys.length; i++) {
-                        if (fys[i].is_active) { active = fys[i]; break; }
+                        if (fys[i].is_active) {
+                            active = fys[i];
+                            break;
+                        }
                     }
                     var val = active
-                        ? JSON.stringify({ id: active.id, long_fy: active.long_fy, short_fy: active.short_fy })
+                        ? JSON.stringify({
+                              id: active.id,
+                              long_fy: active.long_fy,
+                              short_fy: active.short_fy,
+                          })
                         : '';
-                    document.cookie = 'rp_active_fy=' + encodeURIComponent(val) + '; path=/; SameSite=Strict';
+                    document.cookie =
+                        'rp_active_fy=' + encodeURIComponent(val) + '; path=/; SameSite=Strict';
                 }
 
                 function _readCookie(name) {
@@ -595,46 +769,78 @@
                 function _collapseMain() {
                     mainSidebar.classList.add('rp-sidebar--collapsed');
                     mainOuter.classList.add('rp-sidebar-outer--collapsed');
-                    if (mainToggleIcon) mainToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
+                    if (mainToggleIcon)
+                        mainToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
                     document.getElementById('rpMainToggle').title = 'Expand sidebar';
                     localStorage.setItem(MAIN_KEY, '1');
                 }
                 function _applyCollapseMain() {
                     mainSidebar.classList.add('rp-sidebar--collapsed');
                     mainOuter.classList.add('rp-sidebar-outer--collapsed');
-                    if (mainToggleIcon) mainToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
+                    if (mainToggleIcon)
+                        mainToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
                     document.getElementById('rpMainToggle').title = 'Expand sidebar';
                 }
                 function _expandMain() {
                     mainSidebar.classList.remove('rp-sidebar--collapsed');
                     mainOuter.classList.remove('rp-sidebar-outer--collapsed');
-                    if (mainToggleIcon) mainToggleIcon.classList.replace('bi-chevron-right', 'bi-chevron-left');
+                    if (mainToggleIcon)
+                        mainToggleIcon.classList.replace('bi-chevron-right', 'bi-chevron-left');
                     document.getElementById('rpMainToggle').title = 'Collapse sidebar';
                     localStorage.setItem(MAIN_KEY, '0');
                 }
                 function _collapseSub() {
                     subSidebar.classList.add('rp-sub-sidebar--collapsed');
                     subOuter.classList.add('rp-sub-sidebar-outer--collapsed');
-                    if (subToggleIcon) subToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
+                    if (subToggleIcon)
+                        subToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
                     document.getElementById('rpSubToggle').title = 'Expand settings panel';
                     localStorage.setItem(SUB_KEY, '1');
                 }
                 function _applyCollapseSub() {
                     subSidebar.classList.add('rp-sub-sidebar--collapsed');
                     subOuter.classList.add('rp-sub-sidebar-outer--collapsed');
-                    if (subToggleIcon) subToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
+                    if (subToggleIcon)
+                        subToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
                     document.getElementById('rpSubToggle').title = 'Expand settings panel';
                 }
                 function _expandSub() {
                     subSidebar.classList.remove('rp-sub-sidebar--collapsed');
                     subOuter.classList.remove('rp-sub-sidebar-outer--collapsed');
-                    if (subToggleIcon) subToggleIcon.classList.replace('bi-chevron-right', 'bi-chevron-left');
+                    if (subToggleIcon)
+                        subToggleIcon.classList.replace('bi-chevron-right', 'bi-chevron-left');
                     document.getElementById('rpSubToggle').title = 'Collapse settings panel';
                     localStorage.setItem(SUB_KEY, '0');
                 }
 
+                function _collapseProjSub() {
+                    projSubSidebar.classList.add('rp-sub-sidebar--collapsed');
+                    projSubOuter.classList.add('rp-sub-sidebar-outer--collapsed');
+                    if (projSubToggleIcon)
+                        projSubToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
+                    document.getElementById('rpProjectsSubToggle').title = 'Expand projects panel';
+                    localStorage.setItem(PROJ_SUB_KEY, '1');
+                }
+                function _applyCollapseProjSub() {
+                    projSubSidebar.classList.add('rp-sub-sidebar--collapsed');
+                    projSubOuter.classList.add('rp-sub-sidebar-outer--collapsed');
+                    if (projSubToggleIcon)
+                        projSubToggleIcon.classList.replace('bi-chevron-left', 'bi-chevron-right');
+                    document.getElementById('rpProjectsSubToggle').title = 'Expand projects panel';
+                }
+
+                function _expandProjSub() {
+                    projSubSidebar.classList.remove('rp-sub-sidebar--collapsed');
+                    projSubOuter.classList.remove('rp-sub-sidebar-outer--collapsed');
+                    if (projSubToggleIcon)
+                        projSubToggleIcon.classList.replace('bi-chevron-right', 'bi-chevron-left');
+                    document.getElementById('rpProjectsSubToggle').title =
+                        'Collapse projects panel';
+                    localStorage.setItem(PROJ_SUB_KEY, '0');
+                }
+
                 // ── Floating tooltip ───────────────────────────────────────
-                var tipEl    = document.getElementById('rpTooltip');
+                var tipEl = document.getElementById('rpTooltip');
                 var tipTimer;
 
                 function _showTip(text, anchor) {
@@ -650,27 +856,43 @@
                 }
                 function _moveTip(anchor) {
                     var r = anchor.getBoundingClientRect();
-                    tipEl.style.top  = Math.round(r.top + r.height / 2 + window.scrollY) + 'px';
+                    tipEl.style.top = Math.round(r.top + r.height / 2 + window.scrollY) + 'px';
                     tipEl.style.left = Math.round(r.right + 10) + 'px';
                 }
 
-                document.querySelectorAll('.rp-sidebar-link[data-rp-tooltip]').forEach(function (link) {
-                    link.addEventListener('mouseenter', function () {
+                document
+                    .querySelectorAll('.rp-sidebar-link[data-rp-tooltip]')
+                    .forEach(function (link) {
+                        // Determine which sidebar this link lives in.
                         var inMain = mainSidebar.contains(link);
-                        var inSub  = subSidebar.contains(link);
-                        var mainCollapsed = mainSidebar.classList.contains('rp-sidebar--collapsed');
-                        var subCollapsed  = subSidebar.classList.contains('rp-sub-sidebar--collapsed');
-                        if ((inMain && mainCollapsed) || (inSub && subCollapsed)) {
-                            _showTip(link.dataset.rpTooltip, link);
-                        }
+                        var inSub = subSidebar.contains(link);
+                        var inProjSub = projSubSidebar.contains(link);
+
+                        link.addEventListener('mouseenter', function () {
+                            var mainCollapsed =
+                                mainSidebar.classList.contains('rp-sidebar--collapsed');
+                            var subCollapsed = subSidebar.classList.contains(
+                                'rp-sub-sidebar--collapsed',
+                            );
+                            var projSubCollapsed = projSubSidebar.classList.contains(
+                                'rp-sub-sidebar--collapsed',
+                            );
+
+                            if (
+                                (inMain && mainCollapsed) ||
+                                (inSub && subCollapsed) ||
+                                (inProjSub && projSubCollapsed)
+                            ) {
+                                _showTip(link.dataset.rpTooltip, link);
+                            }
+                        });
+                        link.addEventListener('mousemove', function () {
+                            if (tipEl.classList.contains('rp-floating-tooltip--visible')) {
+                                _moveTip(link);
+                            }
+                        });
+                        link.addEventListener('mouseleave', _hideTip);
                     });
-                    link.addEventListener('mousemove', function () {
-                        if (tipEl.classList.contains('rp-floating-tooltip--visible')) {
-                            _moveTip(link);
-                        }
-                    });
-                    link.addEventListener('mouseleave', _hideTip);
-                });
 
                 // ── Sprint pill helpers ────────────────────────────────────
 
@@ -680,8 +902,8 @@
                     var today = new Date();
                     today.setHours(0, 0, 0, 0);
                     var s = new Date(startDate + 'T00:00:00');
-                    var e = new Date(endDate   + 'T00:00:00');
-                    var total   = e - s;
+                    var e = new Date(endDate + 'T00:00:00');
+                    var total = e - s;
                     var elapsed = today - s;
                     if (elapsed <= 0) return 0;
                     if (elapsed >= total) return 100;
@@ -692,11 +914,11 @@
                 // > 50 % elapsed → green, > 80 % → amber, else → red.
                 // (Mirrors renderSprintTimer in sprints.js.)
                 function _applySprintPillColour(pct) {
-                    var iconEl  = document.getElementById('sprint-pill-icon');
+                    var iconEl = document.getElementById('sprint-pill-icon');
                     var badgeEl = document.getElementById('sprint-pill-badge');
                     if (!iconEl || !badgeEl) return;
 
-                    iconEl.className  = 'rp-sprint-pill-icon';
+                    iconEl.className = 'rp-sprint-pill-icon';
                     badgeEl.className = 'rp-sprint-pill-badge';
 
                     if (pct < 50) {
@@ -714,7 +936,7 @@
                 // Render all three pill elements from a sprint data object.
                 function _renderSprintPill(sprint) {
                     var navItem = document.getElementById('sprint-pill-nav-item');
-                    var nameEl  = document.getElementById('sprint-pill-name');
+                    var nameEl = document.getElementById('sprint-pill-name');
                     var badgeEl = document.getElementById('sprint-pill-badge');
                     if (!navItem || !nameEl || !badgeEl) return;
 
@@ -723,8 +945,8 @@
                         return;
                     }
 
-                    nameEl.textContent  = _esc(sprint.sprint_name);
-                    var remaining       = sprint.remaining_days != null ? sprint.remaining_days : '—';
+                    nameEl.textContent = _esc(sprint.sprint_name);
+                    var remaining = sprint.remaining_days != null ? sprint.remaining_days : '—';
                     badgeEl.textContent = remaining + (remaining === 1 ? 'd' : 'd');
 
                     var linkEl = document.getElementById('sprint-pill-link');
@@ -756,26 +978,31 @@
                         method: 'GET',
                         headers: { 'Content-Type': 'application/json' },
                     })
-                    .then(function (r) { return r.ok ? r.json() : null; })
-                    .then(function (sprint) {
-                        _renderSprintPill(sprint);
-                        _writeSprintCookie(sprint);
-                    })
-                    .catch(function () { /* silently ignore — stale cookie is fine */ });
+                        .then(function (r) {
+                            return r.ok ? r.json() : null;
+                        })
+                        .then(function (sprint) {
+                            _renderSprintPill(sprint);
+                            _writeSprintCookie(sprint);
+                        })
+                        .catch(function () {
+                            /* silently ignore — stale cookie is fine */
+                        });
                 }
 
                 // Persist active sprint to cookie so next page load can seed instantly.
                 function _writeSprintCookie(sprint) {
                     var val = sprint
                         ? JSON.stringify({
-                            id:           sprint.id,
-                            sprint_name:  sprint.sprint_name,
-                            start_date:   sprint.start_date,
-                            end_date:     sprint.end_date,
-                            remaining_days: sprint.remaining_days,
+                              id: sprint.id,
+                              sprint_name: sprint.sprint_name,
+                              start_date: sprint.start_date,
+                              end_date: sprint.end_date,
+                              remaining_days: sprint.remaining_days,
                           })
                         : '';
-                    document.cookie = 'rp_active_sprint=' + encodeURIComponent(val) + '; path=/; SameSite=Strict';
+                    document.cookie =
+                        'rp_active_sprint=' + encodeURIComponent(val) + '; path=/; SameSite=Strict';
                 }
             })();
         </script>
