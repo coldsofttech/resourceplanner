@@ -14,6 +14,7 @@ const LABELS = {
     holidays: "holidays",
     leaves: "leaves",
     financial_years: "financial years",
+    project_sub_statuses: "project sub-statuses",
 };
 
 const importBtn         = document.getElementById('import-btn');

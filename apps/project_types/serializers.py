@@ -21,4 +21,4 @@ class ProjectTypeSerializer(serializers.ModelSerializer):
 class ProjectTypeExportSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectType
-        fields = ['id', 'name', 'description']
+        fields = ['id', 'name', 'description', 'is_active']

@@ -6,6 +6,7 @@ class ProjectType(models.Model):
     Structure:
     * name: TEXT NOT NULL UNIQUE 60 CHARS
     * description: TEXT
+    * is_active: BOOLEAN DEFAULT (TRUE)
     * created_at: DATETIME
     * updated_at: DATETIME
     """
@@ -15,6 +16,9 @@ class ProjectType(models.Model):
     )
     description = models.CharField(
         blank=True
+    )
+    is_active = models.BooleanField(
+        default=True
     )
     created_at = models.DateTimeField(
         auto_now_add=True

@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function initListView() {
     setPageTitle("Project Types");
     renderStatistics();
+    renderStatusFilterOptions();
 
     const renderer = initRenderer({
         tbodyId: 'types-tbody',
@@ -85,7 +86,12 @@ function initListView() {
         apiUrl: API_URLS.project_types.list.href,
         pageSize: 20,
         searchInputId: 'type-search',
-        filters: [],
+        filters: [
+            {
+                id: 'status-filter',
+                param: 'is_active',
+            },
+        ],
         onLoadStart: () => renderer.renderLoading('Loading project types...'),
         onSuccess: ({ results, pagination, state }) => {
             const hasFilters = !!state.search || Object.keys(state.filters).length > 0;
@@ -123,6 +129,24 @@ async function renderStatistics() {
     }
 }
 
+async function renderStatusFilterOptions() {
+    try {
+        const { method, href } = API_URLS.project_types.options;
+        const options = await apiFetch(href, { method });
+        const statuses = options?.is_active ?? [];
+
+        const select = document.getElementById('status-filter');
+        statuses.forEach(({ value, label }) => {
+            const opt = document.createElement('option');
+            opt.value = value;
+            opt.textContent = label;
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error('[renderStatusFilterOptions] Failed to load status filter options: ', err);
+    }
+}
+
 function renderTypeRow(type) {
     return `
         <tr data-type-id="${type.id}">
@@ -137,6 +161,12 @@ function renderTypeRow(type) {
                 <span class="rp-truncate">
                     ${escHtml(type.description ?? '')}
                 </span>
+            </td>
+            <td class="text-center">
+                ${type.is_active
+                    ? '<span class="rp-badge rp-badge--success">Active</span>'
+                    : '<span class="rp-badge rp-badge--muted">Inactive</span>'
+                }
             </td>
             <td class="text-center">
                 <div class="d-flex justify-content-center gap-1">
@@ -289,6 +319,7 @@ async function handleCreateEditSubmit(e) {
     const payload = {
         name:        nameInput.value.trim(),
         description: document.getElementById('id_description').value.trim(),
+        is_active:   document.getElementById('id_is_active').checked,
     };
 
     const method = isEdit
@@ -334,6 +365,7 @@ function populateForm(type) {
 
     document.getElementById('id_name').value        = type.name        ?? '';
     document.getElementById('id_description').value = type.description ?? '';
+    document.getElementById('id_is_active').checked = type.is_active   ?? true;
 
     pageTitle.textContent    = 'Edit Project Type';
     pageSubtitle.innerHTML   = `Updating <strong>${escHtml(type.name)}</strong>`;
@@ -385,6 +417,10 @@ async function initDetailView() {
 
 function renderDetailTitle(type) {
     document.getElementById('type-name').textContent = type.name;
+    document.getElementById('type-status').textContent = type.is_active ? "Active" : "Inactive";
+    document.getElementById('type-status').classList.add(
+        type.is_active ? "rp-badge--success" : "rp-badge--muted"
+    );
     document.getElementById('edit-type-btn').href = URLS.project_types.edit(typePk);
 }
 
@@ -448,6 +484,7 @@ const LIST_EXPORT_COLUMNS = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Name' },
     { key: 'description', label: 'Description' },
+    { key: 'is_active', label: 'Active' },
 ];
 
 async function runListExport(format) {

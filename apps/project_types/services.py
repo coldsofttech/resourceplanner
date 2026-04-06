@@ -23,13 +23,18 @@ class ProjectTypeService:
 
     @staticmethod
     def list_types(filters=None, page=1, page_size=20):
-        VALID_ORDER_FIELDS = {'name'}
+        VALID_ORDER_FIELDS = {'name', 'is_active'}
         qs = ProjectType.objects.all()
 
         if filters:
             if filters.get('search'):
                 s_term = filters['search']
                 qs = qs.filter(name__icontains=s_term) | qs.filter(description__icontains=s_term)
+
+            if filters.get('is_active') is not None:
+                is_active_raw = filters['is_active']
+                is_active = ProjectTypeService._parse_bool(is_active_raw)
+                qs = qs.filter(is_active=is_active)
 
         order_by = filters.get('order_by') if filters else None
         order_dir = filters.get('order_dir') if filters else None
@@ -81,6 +86,24 @@ class ProjectTypeService:
         return result
 
     @staticmethod
+    def list_options(fields=None):
+        def wants(field):
+            return fields is None or field in fields
+
+        ds = {
+            "is_active": [
+                {"value": True, "label": "Active"},
+                {"value": False, "label": "Inactive"},
+            ]
+        }
+        result = {}
+
+        if wants("is_active"):
+            result["is_active"] = ds["is_active"]
+
+        return result
+
+    @staticmethod
     def get_type(type_id: int):
         if not type_id:
             raise ValidationError("Invalid: type_id must be an integer and greater than 0.")
@@ -106,6 +129,7 @@ class ProjectTypeService:
             _type = ProjectType(
                 name=type_name,
                 description=data.get('description', '').strip(),
+                is_active=data.get('is_active', True),
             )
             _type.full_clean()
             _type.save()
@@ -141,6 +165,8 @@ class ProjectTypeService:
             _type.name = new_name
         if 'description' in data:
             _type.description = data['description'].strip()
+        if 'is_active' in data:
+            _type.is_active = data['is_active']
 
         try:
             _type.full_clean()
@@ -228,6 +254,7 @@ class ProjectTypeService:
                 data = {
                     "name": name,
                     "description": row.get('description', '').strip(),
+                    "is_active": (row.get('is_active') or 'true').strip().lower() == "true",
                 }
 
                 if dry_run:

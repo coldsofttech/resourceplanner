@@ -5,10 +5,10 @@ from django.apps import AppConfig
 logger = logging.getLogger(__name__)
 
 
-class ConfigurationsConfig(AppConfig):
+class ProjectSubStatusesConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.configurations'
-    label = 'configurations'
+    name = 'apps.project_sub_statuses'
+    label = 'project_sub_statuses'
 
     def ready(self):
         from django.db.models.signals import post_migrate
@@ -17,18 +17,18 @@ class ConfigurationsConfig(AppConfig):
 
 def _seed_defaults(sender, **kwargs):
     from django.db import transaction
-    from apps.configurations.models import Configuration
-    from apps.configurations.services import CONFIGURATION_DEFAULTS
+    from apps.project_sub_statuses.services import PROJECT_SUB_STATUS_DEFAULTS
+    from apps.project_sub_statuses.models import ProjectSubStatus
 
     with transaction.atomic():
-        for code, meta in CONFIGURATION_DEFAULTS.items():
+        for code, meta in PROJECT_SUB_STATUS_DEFAULTS.items():
             try:
-                Configuration.objects.update_or_create(
-                    code=code,
+                ProjectSubStatus.objects.update_or_create(
+                    name=meta["name"],
+                    main_status=meta["main_status"],
                     defaults={
-                        "label": meta["label"],
-                        "value": meta["value"],
-                        "description": meta["description"],
+                        "order": meta["order"],
+                        "is_active": meta["is_active"],
                     }
                 )
             except Exception as e:

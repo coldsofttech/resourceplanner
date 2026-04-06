@@ -93,6 +93,14 @@
                class="form-control rp-search-input"
                placeholder="Search project types by name or description..." />
     </div>
+
+    <!-- Filters -->
+    <select id="status-filter"
+            class="form-select rp-select"
+            style="max-width: 160px;">
+        <option value="">All statuses</option>
+        <!-- Populated by JS -->
+    </select>
 </div>
 
 <!-- Project Types Table -->
@@ -106,6 +114,10 @@
                     Name <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
                 <th>Description</th>
+                <th class="text-center sortable"
+                    data-field="is_active">
+                    Status <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                </th>
                 <th class="text-center">Actions</th>
             </tr>
         </thead>
