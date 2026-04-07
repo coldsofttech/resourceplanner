@@ -1,0 +1,295 @@
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div
+    class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3"
+>
+    <!-- Page Title -->
+    <div>
+        <h1 class="rp-page-title">Contacts</h1>
+        <p class="rp-page-subtitle">Manage contacts that can be assigned to projects.</p>
+    </div>
+
+    <!-- Features -->
+    <div class="d-flex gap-2 flex-wrap">
+        <!-- Import -->
+        <a href="/import/?module=contacts" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-upload me-1"></i>Import
+        </a>
+
+        <!-- Export -->
+        <div class="dropdown">
+            <button
+                class="btn btn-outline-secondary btn-sm dropdown-toggle"
+                id="export-dropdown-btn"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+            >
+                <i class="bi bi-download me-1"></i>Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <a class="dropdown-item" href="#" id="export-csv">
+                        <i class="bi bi-filetype-csv me-2"></i>CSV
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="#" id="export-pdf">
+                        <i class="bi bi-filetype-pdf me-2"></i>PDF
+                    </a>
+                </li>
+            </ul>
+        </div>
+
+        <a href="#" class="btn btn-primary btn-sm" id="add-contact-btn">
+            <i class="bi bi-plus-lg me-1"></i>Add Contact
+        </a>
+    </div>
+</div>
+{% endblock %} {% block content %}
+<!-- Statistics -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Total Contacts</span>
+            <span class="rp-stat-value" id="stat-total">0</span>
+        </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Active Contacts</span>
+            <span class="rp-stat-value" id="stat-active">0</span>
+        </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Inactive Contacts</span>
+            <span class="rp-stat-value" id="stat-inactive">0</span>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Filters -->
+<div class="rp-toolbar d-flex gap-3 mb-3 flex-wrap">
+    <div class="rp-search flex-grow-1">
+        <i class="bi bi-search rp-search-icon"></i>
+        <input
+            type="text"
+            id="contact-search"
+            class="form-control rp-search-input"
+            placeholder="Search contacts by name or email…"
+        />
+    </div>
+
+    <select id="status-filter" class="form-select rp-select" style="max-width: 160px">
+        <option value="">All statuses</option>
+        <!-- Populated by JS -->
+    </select>
+</div>
+
+<!-- Table -->
+<div class="rp-table-wrap">
+    <table class="table rp-table" id="contact-table">
+        <thead>
+            <tr>
+                <th data-field="name" class="sortable">
+                    Name <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                </th>
+                <th data-field="email" class="sortable">
+                    Email <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                </th>
+                <th class="text-center" data-field="is_active" class="sortable">
+                    Status <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                </th>
+                <th class="text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="contact-tbody"></tbody>
+    </table>
+
+    <div
+        class="rp-pagination-bar d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2"
+        id="contact-pagination-bar"
+        style="display: none"
+    >
+        <span class="rp-pagination-info text-secondary small" id="contact-pagination-info"></span>
+        <nav>
+            <ul
+                class="rp-pagination-controls pagination pagination-sm mb-0"
+                id="contact-pagination-controls"
+            ></ul>
+        </nav>
+    </div>
+</div>
+
+<!-- View Modal -->
+<div
+    class="modal fade rp-view-modal"
+    id="contactViewModal"
+    tabindex="-1"
+    aria-labelledby="contact-view-title"
+    aria-modal="true"
+    data-bs-backdrop="false"
+    data-bs-scroll="true"
+>
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="d-flex flex-column">
+                    <h5 class="modal-title mb-0" id="contact-view-title">Contact</h5>
+                    <p class="rp-page-subtitle mb-0 mt-1"></p>
+                </div>
+                <div class="d-flex align-items-center gap-2 ms-auto">
+                    <button
+                        type="button"
+                        class="btn btn-outline-danger d-none"
+                        id="contact-view-delete-btn"
+                    >
+                        <i class="bi bi-trash me-1"></i>Delete contact
+                    </button>
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-primary d-none"
+                        id="contact-view-edit-btn"
+                    >
+                        <i class="bi bi-pencil me-1"></i>Edit contact
+                    </button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+            </div>
+            <div class="modal-body" id="contact-view-body"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Add / Edit Modal ─────────────────────────────────────────── -->
+<div class="modal fade" id="contactModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="contact-modal-title">Add Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="contact-modal-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+
+                <div class="mb-3">
+                    <label class="rp-label" for="contact-modal-name">
+                        Name <span class="rp-required">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        id="contact-modal-name"
+                        class="form-control rp-input"
+                        maxlength="200"
+                        placeholder="e.g. Alice Johnson"
+                    />
+                    <div class="invalid-feedback" id="contact-modal-name-error"></div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="rp-label" for="contact-modal-email">
+                        Email <span class="rp-required">*</span>
+                    </label>
+                    <input
+                        type="email"
+                        id="contact-modal-email"
+                        class="form-control rp-input"
+                        placeholder="e.g. alice.johnson@example.com"
+                    />
+                    <div class="invalid-feedback" id="contact-modal-email-error"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" id="contact-modal-save">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Activate / Deactivate Modal ──────────────────────────────── -->
+<div class="modal fade" id="contactActiveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="contact-active-modal-title">Deactivate Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="contact-active-modal-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <p class="text-secondary mb-0" id="contact-active-message"></p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm" id="confirm-active-btn">Deactivate</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Delete Modal ─────────────────────────────────────────────── -->
+<div class="modal fade" id="contactDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Delete Contact</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="contact-delete-modal-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <p class="text-secondary mb-0">
+                    <strong id="contact-delete-name"></strong> will be permanently removed. This
+                    cannot be undone.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-danger btn-sm" id="confirm-delete-btn">
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script type="module" src="{% static 'js/list/fetch.js' %}"></script>
+<script type="module" src="{% static 'js/list/sort.js' %}"></script>
+<script type="module" src="{% static 'js/list/render.js' %}"></script>
+<script type="module" src="{% static 'js/export.js' %}"></script>
+<script type="module" src="{% static 'js/modules/contacts.js' %}"></script>
+{% endblock %}

@@ -218,6 +218,21 @@ export const API_URLS = {
         import: { method: 'POST', href: `${API_BASE}programmes/import/` },
         export: { method: 'GET', href: `${API_BASE}programmes/export/` },
     },
+    contacts: {
+        list: { method: 'GET', href: `${API_BASE}contacts/` },
+        new: { method: 'POST', href: `${API_BASE}contacts/` },
+        get: (pk) => ({ method: 'GET', href: `${API_BASE}contacts/${pk}/` }),
+        detail: (pk) => ({ method: 'GET', href: `${API_BASE}contacts/${pk}/` }),
+        edit: (pk) => ({ method: 'PUT', href: `${API_BASE}contacts/${pk}/` }),
+        partial_edit: (pk) => ({ method: 'PATCH', href: `${API_BASE}contacts/${pk}/` }),
+        delete: (pk) => ({ method: 'DELETE', href: `${API_BASE}contacts/${pk}/` }),
+        stats: { method: 'GET', href: `${API_BASE}contacts/stats/` },
+        options: { method: 'GET', href: `${API_BASE}contacts/options/` },
+        import_spec: { method: 'GET', href: `${API_BASE}contacts/import/specifications/` },
+        import_sample: { method: 'GET', href: `${API_BASE}contacts/import/sample/` },
+        import: { method: 'POST', href: `${API_BASE}contacts/import/` },
+        export: { method: 'GET', href: `${API_BASE}contacts/export/` },
+    },
     configurations: {
         list: { method: 'GET', href: `${API_BASE}configurations/` },
         stats: { method: 'GET', href: `${API_BASE}configurations/stats/` },
@@ -347,6 +362,10 @@ export const URLS = {
     programmes: {
         list: '/programmes/',
         import_sample: '/programmes/import/sample/',
+    },
+    contacts: {
+        list: '/contacts/',
+        import_sample: '/contacts/import/sample/',
     },
     configurations: {
         list: '/configurations/',

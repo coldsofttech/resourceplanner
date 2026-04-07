@@ -20,6 +20,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
 from apps.configurations.api_views import ConfigurationViewSet
+from apps.contacts.api_views import ContactViewSet
 from apps.delivery_teams.api_views import DeliveryTeamViewSet
 from apps.employment_types.api_views import EmploymentTypeViewSet
 from apps.financial_years.api_views import FinancialYearViewSet
@@ -53,6 +54,7 @@ router.register(
     r"project-sub-statuses", ProjectSubStatusViewSet, basename="project-sub-status"
 )
 router.register(r"programmes", ProgrammeViewSet, basename="programme")
+router.register(r"contacts", ContactViewSet, basename="contact")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -66,6 +68,7 @@ urlpatterns = [
     path("sprints/", include("apps.sprints.urls")),
     # Projects
     path("programmes/", include("apps.programmes.urls")),
+    path("contacts/", include("apps.contacts.urls")),
     # Settings
     path("holidays/", include("apps.public_holidays.urls")),
     path("skills/", include("apps.skills.urls")),
