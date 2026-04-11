@@ -66,12 +66,13 @@ export function showFlash(message, type = 'success') {
     setTimeout(() => {
         const bsAlert = bootstrap.Alert.getOrCreateInstance(alert);
         bsAlert?.close();
+        container.classList.add('d-none');
     }, 4000);
 }
 
 /* Format Date Helper */
 export function formatDate(isoString) {
-    if (!isoString) return '—';
+    if (!isoString) return '-';
     try {
         return new Date(isoString).toLocaleString('en-GB', {
             day: '2-digit', month: 'short', year: 'numeric',

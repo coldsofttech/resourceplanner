@@ -49,7 +49,7 @@ function _mountViewModal() {
 
 function _setViewModalOffset(modal) {
     const header = document.querySelector('.rp-page-header');
-    const offset = header ? header.getBoundingClientRect().height : 0;
+    const offset = header ? (header.offsetTop + header.offsetHeight) : 0;
     modal.style.top = `${offset}px`;
     modal.style.height = `calc(100% - ${offset}px)`;
 }
@@ -223,6 +223,18 @@ function bindModalEvents() {
 }
 
 async function openViewModal(id) {
+    const modal = document.getElementById('progViewModal');
+    if (modal) {
+        _setViewModalOffset(modal);
+
+        modal.style.setProperty('padding', '3px', 'important');
+        const content = modal.querySelector('.modal-content');
+        if (content) content.style.borderRadius = '15px';
+
+        const top = modal.offsetTop;
+        window.scrollTo({ top, behavior: 'smooth' });
+    }
+
     _renderViewLoading();
     _showModal('progViewModal');
 
@@ -292,6 +304,7 @@ function _renderViewContent(prog) {
         : `<p class="mb-0 text-secondary fst-italic">No description provided.</p>`;
 
     document.getElementById('prog-view-title').innerHTML = `
+        <i class="bi bi-collection me-2 opacity-50"></i>
         <span>${prog.name}</span>${protectedBadge}
     `;
 
@@ -337,19 +350,6 @@ function _renderViewContent(prog) {
                 </div>
             </aside>
         </div>`;
-}
-
-function _fmtDatetime(iso) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (isNaN(d)) return iso;
-    return d.toLocaleString(undefined, {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    });
 }
 
 function openAddModal() {
@@ -568,7 +568,10 @@ async function runListExport(format) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function _showModal(id) {
-    bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).show();
+    bootstrap.Modal.getOrCreateInstance(
+        document.getElementById(id),
+        { focus: false }
+    ).show();
 }
 
 function _hideModal(id) {

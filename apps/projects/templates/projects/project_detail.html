@@ -1,0 +1,467 @@
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div
+    class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3"
+    id="proj-detail-header"
+>
+    <div class="d-flex align-items-center gap-3">
+        <a href="/projects/" class="btn btn-ghost-icon" title="Back to projects">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span id="project-detail-name"></span>
+                <span id="proj-active-badge"></span>
+            </h1>
+        </div>
+    </div>
+</div>
+{% endblock %} {% block content %}
+<div class="row g-4">
+    <div id="proj-detail-banner" class="alert d-none mb-3" role="alert"></div>
+
+    <ul class="rp-tabs mb-3" id="projDetailsTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link active"
+                id="tab-general"
+                data-bs-toggle="tab"
+                data-bs-target="#pane-general"
+                type="button"
+                role="tab"
+            >
+                <i class="bi bi-info-circle"></i>General
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                id="tab-operational"
+                data-bs-toggle="tab"
+                data-bs-target="#pane-operational"
+                type="button"
+                role="tab"
+            >
+                <i class="bi bi-gear"></i>Operational
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                id="tab-labels"
+                data-bs-toggle="tab"
+                data-bs-target="#pane-labels"
+                type="button"
+                role="tab"
+            >
+                <i class="bi bi-wallet"></i>Code & Labels
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                id="tab-teams"
+                data-bs-toggle="tab"
+                data-bs-target="#pane-teams"
+                type="button"
+                role="tab"
+            >
+                <i class="bi bi-people"></i>Teams
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content rp-tab-content" id="projDetailTabContent">
+        <div class="tab-pane fade show active" id="pane-general" role="tabpanel">
+            <div class="row g-4 rp-view-layout" id="general-view-mode">
+                <div class="col-lg-8 rp-view-main">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">General information</h6>
+                            <button class="btn btn-primary btn-sm" id="btn-edit-general">
+                                <i class="bi bi-pencil me-1"></i>Edit
+                            </button>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Name</span>
+                            <span class="rp-view-value" id="view-name"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="d-none" id="view-project-type-id"></span>
+                            <span class="rp-view-label">Project type</span>
+                            <span class="rp-view-value" id="view-project-type"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="d-none" id="view-programme-id"></span>
+                            <span class="rp-view-label">Programme</span>
+                            <span class="rp-view-value" id="view-programme"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="d-none" id="view-status-id"></span>
+                            <span class="rp-view-label">Status</span>
+                            <span class="rp-view-value" id="view-status"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="d-none" id="view-sub-status-id"></span>
+                            <span class="rp-view-label">Sub-status</span>
+                            <span class="rp-view-value" id="view-sub-status"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="d-none" id="view-confidence-id"></span>
+                            <span class="rp-view-label">Confidence</span>
+                            <span class="rp-view-value" id="view-confidence"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="d-none" id="view-priority-id"></span>
+                            <span class="rp-view-label">Priority</span>
+                            <span class="rp-view-value" id="view-priority"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Start date</span>
+                            <span class="rp-view-value" id="view-tentative-start"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">End date</span>
+                            <span class="rp-view-value" id="view-tentative-end"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 rp-view-meta">
+                    <div class="rp-view-section">
+                        <h6 class="rp-view-section-title">
+                            <i class="bi bi-clock-history me-2"></i>Metadata
+                        </h6>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Created</span>
+                            <span class="rp-view-value" id="meta-created"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Last updated</span>
+                            <span class="rp-view-value" id="meta-updated"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rp-card rp-edit-card d-none" id="general-edit-mode">
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="rp-field mb-4">
+                            <label class="rp-label" for="edit-name">
+                                Name <span class="rp-required">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="edit-name"
+                                name="name"
+                                value=""
+                                class="form-control rp-input"
+                                autocomplete="off"
+                                maxlength="200"
+                                placeholder="e.g. Customer Portal Redesign"
+                            />
+                            <div class="invalid-feedback" id="name-error"></div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="edit-project-type">
+                                Project type <span class="rp-required">*</span>
+                            </label>
+                            <select id="edit-project-type" class="rp-select form-select">
+                                <option value="">Select type...</option>
+                            </select>
+                            <div class="invalid-feedback" id="project-type-error"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-lg-6">
+                        <div class="rp-field" style="position: relative">
+                            <label class="rp-label" for="edit-programme">Programme</label>
+                            <input
+                                type="text"
+                                id="edit-programme"
+                                class="rp-input form-control"
+                                placeholder="Type to search or enter new..."
+                                autocomplete="off"
+                            />
+                            <input type="hidden" id="edit-programme-id" />
+                            <div
+                                id="edit-programme-suggestions"
+                                class="rp-programme-suggestions"
+                                style="display: none"
+                            ></div>
+                            <div class="rp-hint">
+                                Defaults to "Others" if left blank. Type a new name to create a
+                                programme.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="rp-field">
+                            <label class="form-check-label rp-label" for="edit-is-active">
+                                Active
+                            </label>
+                            <div class="form-check form-switch rp-switch mt-1">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="edit-is-active"
+                                    name="is-active"
+                                />
+                            </div>
+                            <div class="rp-hint">
+                                Inactive projects are hidden from planning views.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-lg-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="edit-status">Status</label>
+                            <select id="edit-status" class="rp-select form-select"></select>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="edit-sub-status">Sub-status</label>
+                            <select id="edit-sub-status" class="rp-select form-select">
+                                <option value="">Select sub-status...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-lg-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="edit-confidence">Confidence</label>
+                            <select id="edit-confidence" class="rp-select form-select">
+                                <option value="">Not set</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="edit-priority">Priority</label>
+                            <select id="edit-priority" class="rp-select form-select">
+                                <option value="">Not set</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-lg-6">
+                        <div class="rp-field mb-4">
+                            <label class="rp-label" for="edit-tentative-start">
+                                Tentative start date
+                            </label>
+                            <input
+                                type="date"
+                                id="edit-tentative-start"
+                                class="rp-input form-control"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="edit-tentative-end">
+                                Tentative end date
+                            </label>
+                            <input
+                                type="date"
+                                id="edit-tentative-end"
+                                class="rp-input form-control"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="d-flex gap-2 mt-4">
+                        <button class="btn btn-primary btm-sm" id="btn-save-general">
+                            Save changes
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-general">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-operational" role="tabpanel">
+            <div class="row g-4 rp-view-layout" id="operational-view-mode">
+                <div class="col-lg-8 rp-view-main">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">Operational</h6>
+                            <button class="btn btn-primary" id="btn-edit-operational">
+                                <i class="bi bi-pencil me-2"></i>Edit
+                            </button>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Efforts issued</span>
+                            <span class="rp-view-value" id="view-efforts-issued"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Efforts issue commitment date</span>
+                            <span
+                                class="rp-view-value"
+                                id="view-effort-issue-commitment-date"
+                            ></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Run cost applies</span>
+                            <span class="rp-view-value" id="view-run-cost"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rp-card rp-edit-card d-none" id="operational-edit-mode">
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="rp-field mb-4">
+                            <label class="rp-label" for="edit-effort-issue-commitment-date">
+                                Effort issue commitment date
+                            </label>
+                            <input
+                                type="date"
+                                id="edit-effort-issue-commitment-date"
+                                class="rp-input form-control"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="rp-field mb-4">
+                            <label class="form-check-label rp-label" for="edit-efforts-issued">
+                                Efforts issued
+                            </label>
+                            <div class="form-check form-switch rp-switch">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="edit-efforts-issued"
+                                    name="efforts-issued"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="rp-field mb-4">
+                            <label class="form-check-label rp-label" for="edit-run-cost">
+                                Run cost applies
+                            </label>
+                            <div class="form-check form-switch rp-switch">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="edit-run-cost"
+                                    name="run-cost"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="d-flex gap-2 mt-4">
+                        <button class="btn btn-primary btn-sm" id="btn-save-operational">
+                            Save changes
+                        </button>
+                        <button
+                            class="btn btn-outline-secondary btn-sm"
+                            id="btn-cancel-operational"
+                        >
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-teams" role="tabpanel">
+            <div class="row g-4 rp-view-layout" id="teams-view-mode">
+                <div class="col-lg-8 rp-view-main">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">Teams Assignment</h6>
+                            <button class="btn btn-primary btn-sm" id="btn-edit-teams">
+                                <i class="bi bi-pencil me-1"></i>Edit
+                            </button>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="d-none" id="view-assigned-team-id"></span>
+                            <span class="rp-view-label">Team</span>
+                            <span class="rp-view-value" id="view-assigned-team"></span>
+                        </div>
+                        <div class="rp-view-field rp-view-field--block">
+                            <span class="rp-view-label">Collaborating teams</span>
+                            <span
+                                class="rp-view-value rp-view-description"
+                                id="view-collaborators-list"
+                            >
+                                <span class="text-muted" style="font-size: 13px"
+                                    >No collaborating teams</span
+                                >
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rp-card rp-edit-card d-none" id="teams-edit-mode">
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="rp-field mb-4">
+                            <label class="rp-label" for="edit-assigned-team">Assigned team</label>
+                            <input type="hidden" id="edit-assigned-team-id" />
+                            <select id="edit-assigned-team" class="rp-select form-select"></select>
+                            <span class="rp-hint"> Required when status is 'In Progress'. </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-lg-6">
+                        <div class="rp-field mb-4">
+                            <label class="rp-label" for="edit-collaborators-list">Collaborating teams</label>
+                            <div id="edit-collaborators-list" class="d-flex flex-wrap gap-2"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="d-flex gap-2 mt-4">
+                        <button class="btn btn-primary btm-sm" id="btn-save-teams">
+                            Save changes
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-teams">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script type="module" src="{% static 'js/modules/project_detail.js' %}"></script>
+{% endblock %}

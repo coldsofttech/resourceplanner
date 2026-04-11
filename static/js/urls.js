@@ -233,6 +233,28 @@ export const API_URLS = {
         import: { method: 'POST', href: `${API_BASE}contacts/import/` },
         export: { method: 'GET', href: `${API_BASE}contacts/export/` },
     },
+    projects: {
+        list: { method: 'GET', href: `${API_BASE}projects/` },
+        new: { method: 'POST', href: `${API_BASE}projects/` },
+        get: (pk) => ({ method: 'GET', href: `${API_BASE}projects/${pk}/` }),
+        detail: (pk) => ({ method: 'GET', href: `${API_BASE}projects/${pk}/` }),
+        get_operational: (pk) => ({
+            method: 'GET',
+            href: `${API_BASE}projects/${pk}/operational/`,
+        }),
+        get_teams: (pk) => ({ method: 'GET', href: `${API_BASE}projects/${pk}/teams/` }),
+        edit: (pk) => ({ method: 'PUT', href: `${API_BASE}projects/${pk}/` }),
+        partial_edit: (pk) => ({ method: 'PATCH', href: `${API_BASE}projects/${pk}/` }),
+        edit_operational: (pk) => ({ method: 'PATCH', href: `${API_BASE}projects/${pk}/teams/` }),
+        edit_teams: (pk) => ({ method: 'PATCH', href: `${API_BASE}projects/${pk}/teams/` }),
+        delete: (pk) => ({ method: 'DELETE', href: `${API_BASE}projects/${pk}/` }),
+        stats: { method: 'GET', href: `${API_BASE}projects/stats/` },
+        options: { method: 'GET', href: `${API_BASE}projects/options/` },
+        import_spec: { method: 'GET', href: `${API_BASE}projects/import/specifications/` },
+        import_sample: { method: 'GET', href: `${API_BASE}projects/import/sample/` },
+        import: { method: 'POST', href: `${API_BASE}projects/import/` },
+        export: { method: 'GET', href: `${API_BASE}projects/export/` },
+    },
     configurations: {
         list: { method: 'GET', href: `${API_BASE}configurations/` },
         stats: { method: 'GET', href: `${API_BASE}configurations/stats/` },
@@ -366,6 +388,11 @@ export const URLS = {
     contacts: {
         list: '/contacts/',
         import_sample: '/contacts/import/sample/',
+    },
+    projects: {
+        list: '/projects/',
+        detail: (pk) => `/projects/${pk}/`,
+        import_sample: '/projects/import/sample/',
     },
     configurations: {
         list: '/configurations/',

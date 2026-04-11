@@ -48,7 +48,7 @@ function _mountViewModal() {
 
 function _setViewModalOffset(modal) {
     const header = document.querySelector('.rp-page-header');
-    const offset = header ? header.getBoundingClientRect().height : 0;
+    const offset = header ? (header.offsetTop + header.offsetHeight) : 0;
     modal.style.top = `${offset}px`;
     modal.style.height = `calc(100% - ${offset}px)`;
 }
@@ -196,6 +196,18 @@ function bindModalEvents() {
 }
 
 async function openViewModal(id) {
+    const modal = document.getElementById('contactViewModal');
+    if (modal) {
+        _setViewModalOffset(modal);
+
+        modal.style.setProperty('padding', '3px', 'important');
+        const content = modal.querySelector('.modal-content');
+        if (content) content.style.borderRadius = '15px';
+
+        const top = modal.offsetTop;
+        window.scrollTo({ top, behavior: 'smooth' });
+    }
+
     _renderViewLoading();
     _showModal('contactViewModal');
 
@@ -249,7 +261,10 @@ function _renderViewContent(contact) {
         ? '<span class="rp-badge rp-badge--success">Active</span>'
         : '<span class="rp-badge rp-badge--muted">Inactive</span>';
 
-    document.getElementById('contact-view-title').textContent = contact.name;
+    document.getElementById('contact-view-title').innerHTML = `
+        <i class="bi bi-person-lines-fill me-2 opacity-50"></i>
+        <span>${contact.name}</span>
+    `;
 
     document.getElementById('contact-view-body').innerHTML = `
         <div class="row g-4 rp-view-layout">
@@ -526,7 +541,10 @@ async function runListExport(format) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function _showModal(id) {
-    bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).show();
+    bootstrap.Modal.getOrCreateInstance(
+        document.getElementById(id),
+        { focus: false }
+    ).show();
 }
 
 function _hideModal(id) {

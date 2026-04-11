@@ -1,0 +1,158 @@
+from rest_framework import serializers
+
+from .models import Project, ProjectCollaborator
+
+
+class ProjectSerializer(serializers.ModelSerializer):
+    display_name = serializers.SerializerMethodField()
+    project_type_name = serializers.SerializerMethodField()
+    programme_name = serializers.SerializerMethodField()
+    sub_status_name = serializers.SerializerMethodField()
+    assigned_team_name = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    confidence_display = serializers.SerializerMethodField()
+    priority_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Project
+        fields = [
+            "id",
+            "name",
+            "display_name",
+            "project_type",
+            "project_type_name",
+            "programme",
+            "programme_name",
+            "code",
+            "status",
+            "status_display",
+            "sub_status",
+            "sub_status_name",
+            "assigned_team",
+            "assigned_team_name",
+            "confidence",
+            "confidence_display",
+            "priority",
+            "priority_display",
+            "tentative_start_date",
+            "tentative_end_date",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["display_name", "created_at", "updated_at"]
+
+    def get_display_name(self, obj):
+        return obj.display_name
+
+    def get_project_type_name(self, obj):
+        return obj.project_type.name if obj.project_type_id else None
+
+    def get_programme_name(self, obj):
+        return obj.programme.name if obj.programme_id else None
+
+    def get_sub_status_name(self, obj):
+        return obj.sub_status.name if obj.sub_status_id else None
+
+    def get_assigned_team_name(self, obj):
+        return obj.assigned_team.name if obj.assigned_team_id else None
+
+    def get_status_display(self, obj):
+        return obj.get_status_display()
+
+    def get_confidence_display(self, obj):
+        return obj.get_confidence_display() if obj.confidence else None
+
+    def get_priority_display(self, obj):
+        return obj.get_priority_display() if obj.priority else None
+
+    def validate_name(self, value):
+        if not value or not value.strip():
+            raise serializers.ValidationError("Name is required and cannot be blank.")
+        if len(value.strip()) > 200:
+            raise serializers.ValidationError("Name must be 200 characters or fewer.")
+        return value.strip()
+
+    def validate_code(self, value):
+        if value:
+            return value.strip()
+        return ""
+
+
+class ProjectOperationalSerializer(ProjectSerializer):
+    class Meta(ProjectSerializer.Meta):
+        fields = ProjectSerializer.Meta.fields + [
+            "efforts_issued",
+            "effort_issue_commitment_date",
+            "run_cost_applies",
+        ]
+
+
+class ProjectTeamsSerializer(ProjectSerializer):
+    assigned_team_name = serializers.SerializerMethodField()
+    collaborators = serializers.SerializerMethodField()
+
+    class Meta(ProjectSerializer.Meta):
+        fields = ProjectSerializer.Meta.fields + [
+            "assigned_team",
+            "assigned_team_name",
+            "collaborators",
+        ]
+
+    def get_assigned_team_name(self, obj):
+        return obj.assigned_team.name if obj.assigned_team_id else None
+
+    def get_collaborators(self, obj):
+        return [
+            {"id": pc.team_id, "name": pc.team.name}
+            for pc in obj.project_collaborators.select_related("team").all()
+        ]
+
+
+class ProjectExportSerializer(serializers.ModelSerializer):
+    project_type_name = serializers.SerializerMethodField()
+    programme_name = serializers.SerializerMethodField()
+    sub_status_name = serializers.SerializerMethodField()
+    assigned_team_name = serializers.SerializerMethodField()
+    status_display = serializers.SerializerMethodField()
+    confidence_display = serializers.SerializerMethodField()
+    priority_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Project
+        fields = [
+            "id",
+            "name",
+            "project_type_name",
+            "programme_name",
+            "code",
+            "status_display",
+            "sub_status_name",
+            "assigned_team_name",
+            "confidence_display",
+            "priority_display",
+            "tentative_start_date",
+            "tentative_end_date",
+            "is_active",
+        ]
+
+    def get_project_type_name(self, obj):
+        return obj.project_type.name if obj.project_type_id else None
+
+    def get_programme_name(self, obj):
+        return obj.programme.name if obj.programme_id else None
+
+    def get_sub_status_name(self, obj):
+        return obj.sub_status.name if obj.sub_status_id else None
+
+    def get_assigned_team_name(self, obj):
+        return obj.assigned_team.name if obj.assigned_team_id else None
+
+    def get_status_display(self, obj):
+        return obj.get_status_display()
+
+    def get_confidence_display(self, obj):
+        return obj.get_confidence_display() if obj.confidence else None
+
+    def get_priority_display(self, obj):
+        return obj.get_priority_display() if obj.priority else None

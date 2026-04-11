@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'apps.project_sub_statuses',
     'apps.programmes',
     'apps.contacts',
+    'apps.projects',
     'apps.import',
 ]
 
