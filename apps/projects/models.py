@@ -141,3 +141,53 @@ class ProjectCollaborator(models.Model):
                         "team": "A collaborating team cannot be the same as the assigned team."
                     }
                 )
+
+
+class ProjectLabel(models.Model):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="labels",
+        null=True,
+    )
+    label = models.CharField(max_length=50, unique=True)
+    is_primary = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-is_primary", "label"]
+
+    def __str__(self):
+        return self.label
+
+
+class ProjectStatusHistory(models.Model):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="status_history",
+    )
+    previous_status = models.CharField(max_length=20, blank=True)
+    new_status = models.CharField(max_length=20)
+    previous_sub_status = models.ForeignKey(
+        "project_sub_statuses.ProjectSubStatus",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    new_sub_status = models.ForeignKey(
+        "project_sub_statuses.ProjectSubStatus",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    reason = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.project_id}: {self.previous_status} → {self.new_status}"

@@ -21,6 +21,14 @@ document.addEventListener('DOMContentLoaded', () => {
 let options = null;
 let _allSubStatuses = [];
 
+const STATUS_ICON = {
+    NEW: { icon: 'bi-circle', cls: 'text-secondary' },
+    IN_PROGRESS: { icon: 'bi-play-circle-fill', cls: 'text-success' },
+    ON_HOLD: { icon: 'bi-pause-circle-fill', cls: 'text-warning' },
+    CANCELLED: { icon: 'bi-x-circle-fill', cls: 'text-danger' },
+    COMPLETED: { icon: 'bi-check-circle-fill', cls: 'text-primary' },
+};
+
 async function initDetailView() {
     try {
         const project = await fetchProject();
@@ -47,6 +55,12 @@ function bindTabEvents() {
     document.getElementById('tab-teams').addEventListener('shown.bs.tab', function () {
         renderTeams();
     });
+    document.getElementById('tab-labels').addEventListener('shown.bs.tab', function () {
+        renderLabels();
+    });
+    document.getElementById('tab-history').addEventListener('shown.bs.tab', function () {
+        renderStatusHistory();
+    });
 }
 
 async function fetchOptions() {
@@ -70,6 +84,18 @@ async function fetchOperational() {
 async function fetchTeams() {
     const { method, href } = API_URLS.projects.get_teams(projectPk);
     const res = await apiFetch(href, { method });
+    return res;
+}
+
+async function fetchLabels() {
+    const { method, href } = API_URLS.projects.list_labels(projectPk);
+    const res = await apiFetch(`${href}?page_size=200`, { method });
+    return res;
+}
+
+async function fetchStatusHistory() {
+    const { method, href } = API_URLS.projects.status_history(projectPk);
+    const res = await apiFetch(`${href}?page_size=10`, { method });
     return res;
 }
 
@@ -161,6 +187,147 @@ async function renderTeams() {
         _showBanner('Failed to load project information. Please refresh the page.', 'error');
         console.error('[renderTeams] Failed to load project teams information.', err);
     }
+}
+
+async function renderLabels() {
+    try {
+        exitEditMode('labels');
+        const labels = await fetchLabels();
+
+        const primaryLabel = labels['results'].find((l) => l.is_primary === true);
+        const primaryLabelEl = document.getElementById('view-project-label');
+        if (primaryLabel) {
+            primaryLabelEl.innerHTML = `
+                <a href="#" class="rp-badge rp-badge--primary-label" style="text-decoration: none;">${primaryLabel.label}</a>
+            `;
+            primaryLabelEl.dataset.id = primaryLabel.id;
+            primaryLabelEl.dataset.label = primaryLabel.label;
+            primaryLabelEl.addEventListener('click', (e) => {
+                e.preventDefault();
+                showDeleteLabelModal(primaryLabel.id, primaryLabel.label, primaryLabel.is_primary);
+            });
+        } else {
+            primaryLabelEl.innerHTML = `<span class="rp-badge rp-badge--muted">-</span>`;
+        }
+
+        const secondaryLabels = labels['results'].filter((l) => l.is_primary !== true);
+        const secondaryLabelsEl = document.getElementById('view-secondary-labels');
+        secondaryLabelsEl.innerHTML = '';
+        secondaryLabels.forEach((l) => {
+            const el = document.createElement('a');
+            el.href = '#';
+            el.classList.add('rp-link', 'rp-badge', 'rp-badge--muted', 'me-1', 'mb-1');
+            el.dataset.id = l.id;
+            el.dataset.label = l.label;
+            el.textContent = l.label;
+            secondaryLabelsEl.appendChild(el);
+
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                showDeleteLabelModal(l.id, l.label, l.is_primary);
+            });
+        });
+    } catch (err) {
+        _showBanner('Failed to load project information. Please refresh the page.', 'error');
+        console.error('[renderLabels] Failed to load project labels information.', err);
+    }
+}
+
+async function renderStatusHistory() {
+    try {
+        exitEditMode('history');
+        const history = await fetchStatusHistory();
+        const items = history.results || history;
+
+        const countBtn = document.getElementById('status-history-count');
+        if (countBtn && items.length) {
+            const n = items.length;
+            countBtn.textContent = `${n} record${n !== 1 ? 's' : ''}`;
+            countBtn.style.display = '';
+        }
+
+        const container = document.getElementById('status-history-container');
+        if (!items.length) {
+            container.innerHTML = `
+                <div class="d-flex flex-column align-items-center justify-content-center py-4 text-secondary">
+                    <i class="bi bi-clock-history fs-3 mb-2 opacity-50"></i>
+                    <span class="small">No status history recorded yet.</span>
+                </div>`;
+            return;
+        }
+
+        container.innerHTML = `<div class="rp-timeline d-flex flex-column">${_buildStatusHistoryItems(items, items.length > 20)}</div>`;
+    } catch (err) {
+        _showBanner('Failed to load history information. Please refresh the page.', 'error');
+        console.error('[renderStatusHistory] Failed to load project history information.', err);
+    }
+}
+
+function _buildStatusHistoryItems(entries, addEllipsis = false) {
+    const items = entries.map((entry, i) => {
+        const fromStatus = entry.previous_status
+            ? `<strong>${escHtml(entry.previous_status_display)}</strong>`
+            : '<span class="text-secondary fst-italic">—</span>';
+        const toStatus = `<strong>${escHtml(entry.new_status_display)}</strong>`;
+
+        const fromSub = entry.previous_sub_status_name
+            ? `<span class="rp-badge rp-badge--muted ms-1">${escHtml(entry.previous_sub_status_name)}</span>`
+            : '';
+        const toSub = entry.new_sub_status_name
+            ? `<span class="rp-badge rp-badge--muted ms-1">${escHtml(entry.new_sub_status_name)}</span>`
+            : '';
+
+        const reason = entry.reason
+            ? `<p class="text-secondary small mb-0 mt-1">${escHtml(entry.reason)}</p>`
+            : '';
+        const isLatest = i === 0;
+        const dotClass = isLatest ? 'rp-timeline-dot--success' : 'rp-timeline-dot--muted';
+
+        return `
+            <div class="rp-timeline-item">
+                <div class="rp-timeline-marker">
+                    <div class="rp-timeline-dot ${dotClass}"></div>
+                    ${i < entries.length - 1 || addEllipsis ? '<div class="rp-timeline-line"></div>' : ''}
+                </div>
+                <div class="rp-timeline-body pb-4">
+                    <div class="rp-timeline-meta">
+                        <i class="bi bi-calendar3"></i> ${formatDateTime(entry.created_at)}
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        ${fromStatus}${fromSub}
+                        <i class="bi bi-arrow-right text-secondary small"></i>
+                        ${toStatus}${toSub}
+                        ${isLatest ? '<span class="rp-badge rp-badge--info ms-1">Current</span>' : ''}
+                    </div>
+                    ${reason}
+                </div>
+            </div>`;
+    });
+
+    if (addEllipsis) {
+        items.push(`
+            <div class="rp-timeline-item">
+                <div class="rp-timeline-marker">
+                    <div class="rp-timeline-dot rp-timeline-dot--muted"></div>
+                </div>
+                <div class="rp-timeline-body pb-2">
+                    <span class="text-secondary small fst-italic">
+                        Older records — click the record count above to view all.
+                    </span>
+                </div>
+            </div>`);
+    }
+
+    return items.join('');
+}
+
+function statusMeta(code) {
+    return STATUS_ICON[code] || { icon: 'bi-record-circle', cls: 'text-muted' };
+}
+
+function formatStatus(code) {
+    if (!code) return '—';
+    return code.replace(/_/g, ' ');
 }
 
 function populateEditDropdowns(opts) {
@@ -380,6 +547,78 @@ function bindEditButtons() {
     document.getElementById('btn-save-teams')?.addEventListener('click', () => saveTeams());
 
     _bindAssignedTeamSync();
+
+    // Labels tab
+    document
+        .getElementById('btn-add-label')
+        ?.addEventListener('click', () => _showModal('projAddLabelModal'));
+    document
+        .getElementById('suggest-project-label-btn')
+        ?.addEventListener('click', () => suggestLabel());
+    document.getElementById('add-project-label-btn')?.addEventListener('click', () => saveLabel());
+    document.getElementById('delete-label-btn')?.addEventListener('click', () => deleteLabel());
+    document.getElementById('primary-label-btn')?.addEventListener('click', () => updateLabel());
+}
+
+function _showModal(id) {
+    if (id === 'projAddLabelModal') resetAddLabelModal();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(id), { focus: false }).show();
+}
+
+function _hideModal(id) {
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(id)).hide();
+}
+
+function resetAddLabelModal() {
+    ['add-project-label', 'add-project-label-primary'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    clearAddLabelModalErrors();
+}
+
+function clearAddLabelModalErrors() {
+    document.getElementById('proj-add-label-banner').classList.add('d-none');
+    ['add-project-label'].forEach((id) => {
+        document.getElementById(id)?.classList.remove('is-invalid');
+        const errEl = document.getElementById(`${id}-err`);
+        if (errEl) errEl.textContent = '';
+    });
+}
+
+function showDeleteLabelModal(id, label, isPrimary) {
+    const messageEl = document.getElementById('update-label-message');
+    const deleteBtn = document.getElementById('delete-label-btn');
+    const activeBtn = document.getElementById('primary-label-btn');
+    messageEl.innerHTML = `
+        <strong>${label}</strong>: Click <strong>${
+            isPrimary ? 'Set as Secondary' : 'Set as Primary'
+        }</strong> to make it the ${isPrimary ? 'secondary' : 'primary'} label, or click <strong>Delete</strong> to remove this label.
+    `;
+    deleteBtn.dataset.id = id;
+    activeBtn.dataset.id = id;
+    activeBtn.dataset.mode = isPrimary;
+    if (isPrimary) {
+        activeBtn.textContent = 'Set as Secondary';
+        activeBtn.classList.remove('btn-outline-success');
+        activeBtn.classList.add('btn-outline-danger');
+    } else {
+        activeBtn.textContent = 'Set as Primary';
+        activeBtn.classList.add('btn-outline-success');
+        activeBtn.classList.remove('btn-outline-danger');
+    }
+    _showModal('projUpdateLabelModal');
+}
+
+async function suggestLabel() {
+    try {
+        const { method, href } = API_URLS.projects.suggest_label(projectPk);
+        const res = await apiFetch(href, { method });
+        document.getElementById('add-project-label').value = res.suggestion ?? '-';
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to suggest project label. Please try again.');
+        _showBanner(msg, 'error');
+    }
 }
 
 async function enterEditMode(tab) {
@@ -426,7 +665,7 @@ async function saveGeneral() {
     const saveBtn = document.getElementById('btn-save-general');
     const prevText = saveBtn.textContent;
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving…';
+    saveBtn.textContent = 'Saving...';
 
     const progInput = document.getElementById('edit-programme').value.trim();
     const progId = document.getElementById('edit-programme-id').value;
@@ -470,7 +709,7 @@ async function saveOperational() {
     const saveBtn = document.getElementById('btn-save-operational');
     const prevText = saveBtn.textContent;
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving…';
+    saveBtn.textContent = 'Saving...';
 
     const payload = {
         efforts_issued: document.getElementById('edit-efforts-issued').checked,
@@ -495,7 +734,7 @@ async function saveTeams() {
     const saveBtn = document.getElementById('btn-save-teams');
     const prevText = saveBtn.textContent;
     saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving…';
+    saveBtn.textContent = 'Saving...';
 
     const assignedTeamRaw = document.getElementById('edit-assigned-team').value;
     const collaboratorIds = Array.from(
@@ -519,6 +758,73 @@ async function saveTeams() {
     }
 }
 
+async function saveLabel() {
+    const saveBtn = document.getElementById('add-project-label-btn');
+    const prevText = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    const payload = {
+        label: document.getElementById('add-project-label').value,
+        is_primary: document.getElementById('add-project-label-primary').checked,
+    };
+
+    try {
+        const { method, href } = API_URLS.projects.create_label(projectPk);
+        await saveTab(saveBtn, payload, 'labels', method, href);
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to save labels information. Please try again.');
+        _showBanner(msg, 'error');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = prevText;
+    }
+}
+
+async function deleteLabel() {
+    const deleteBtn = document.getElementById('delete-label-btn');
+    const prevText = deleteBtn.textContent;
+    deleteBtn.disabled = true;
+    deleteBtn.textContent = 'Deleting...';
+
+    const labelId = deleteBtn.dataset.id;
+    try {
+        const { method, href } = API_URLS.projects.delete_label(projectPk, labelId);
+        await saveTab(deleteBtn, null, 'labels', method, href);
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to delete label information. Please try again.');
+        _showBanner(msg, 'error');
+    } finally {
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = prevText;
+    }
+}
+
+async function updateLabel() {
+    const updateBtn = document.getElementById('primary-label-btn');
+    const prevText = updateBtn.textContent;
+    updateBtn.disabled = true;
+    updateBtn.textContent = 'Updating...';
+
+    const labelId = updateBtn.dataset.id;
+    const isPrimary = updateBtn.dataset.mode === 'true';
+
+    const payload = {
+        is_primary: !isPrimary,
+    };
+
+    try {
+        const { method, href } = API_URLS.projects.edit_label(projectPk, labelId);
+        await saveTab(updateBtn, payload, 'labels', method, href);
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to update label information. Please try again.');
+        _showBanner(msg, 'error');
+    } finally {
+        updateBtn.disabled = false;
+        updateBtn.textContent = prevText;
+    }
+}
+
 async function saveTab(saveBtn, payload, tab, method, apiUrl) {
     const prevText = saveBtn.textContent;
     saveBtn.disabled = true;
@@ -536,6 +842,10 @@ async function saveTab(saveBtn, payload, tab, method, apiUrl) {
             renderOperational();
         } else if (tab === 'teams') {
             renderTeams();
+        } else if (tab === 'labels') {
+            _hideModal('projAddLabelModal');
+            _hideModal('projUpdateLabelModal');
+            renderLabels();
         }
 
         exitEditMode(tab);

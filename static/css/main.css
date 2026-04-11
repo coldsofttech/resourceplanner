@@ -884,6 +884,15 @@ a:hover {
     color: var(--color-info-dk);
 }
 
+.rp-badge--primary-label {
+    background-color: color-mix(in srgb, var(--color-primary) 12%, transparent);
+    color: var(--color-primary);
+    border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
+    font-family: var(--font-mono);
+    letter-spacing: 0.06em;
+    font-size: 0.8rem;
+}
+
 /* Roles */
 .rp-badge-role {
     display: inline-block;

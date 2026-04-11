@@ -1,4 +1,5 @@
 import logging
+import re
 
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
@@ -7,7 +8,7 @@ from django.db.models import Q
 
 from apps.core.utils import parse_bool
 
-from .models import Project, ProjectCollaborator
+from .models import Project, ProjectCollaborator, ProjectLabel, ProjectStatusHistory
 
 logger = logging.getLogger(__name__)
 
@@ -412,6 +413,9 @@ class ProjectService:
             )
             project.full_clean()
             project.save()
+
+            ProjectLabelService.create_label(project)
+            ProjectStatusHistoryService.record_creation(project)
             return project
         except IntegrityError as e:
             logger.error("IntegrityError creating project '%s': %s", name, e)
@@ -438,6 +442,13 @@ class ProjectService:
         project = Project.objects.get(pk=project_id)
         if not project:
             raise ValidationError(f"Project '{project_id}' does not exist.")
+
+        old_status = Project.objects.get(pk=project_id).status
+        old_sub_status = (
+            Project.objects.get(pk=project_id).sub_status
+            if hasattr(project, "sub_status")
+            else None
+        )
 
         if operational_only:
             # Only update operational fields
@@ -510,6 +521,19 @@ class ProjectService:
         try:
             project.full_clean()
             project.save()
+
+            if project.status != old_status or project.sub_status != old_sub_status:
+                ProjectStatusHistoryService.record_transition(
+                    project=project,
+                    previous_status=old_status,
+                    new_status=project.status,
+                    previous_sub_status=old_sub_status,
+                    new_sub_status=(
+                        project.sub_status if hasattr(project, "sub_status") else None
+                    ),
+                    reason=data.get("reason") or None,
+                )
+
             return project
         except IntegrityError as e:
             logger.error("IntegrityError updating project %s: %s", project_id, e)
@@ -587,3 +611,308 @@ class ProjectService:
                 "Unexpected error when deleting project '%s': %s", project_id, e
             )
             raise
+
+
+class ProjectLabelService:
+    @staticmethod
+    def slugify_part(text: str, max_len: int):
+        words = re.split(r"[\s\-_/]+", text.strip())
+        initials = "".join(w[0].upper() for w in words if w)
+        return re.sub(r"[^A-Z0-9]", "", initials)[:max_len]
+
+    @staticmethod
+    def build_candidate(programme_name: str | None, project_name: str):
+        proj_part = ProjectLabelService.slugify_part(project_name, 10)
+        if not programme_name or programme_name.strip().upper() == "OTHERS":
+            return proj_part
+        prog_part = ProjectLabelService.slugify_part(programme_name, 8)
+        return f"{prog_part}_{proj_part}" if prog_part else proj_part
+
+    @staticmethod
+    def resolve_collision(base: str):
+        if not ProjectLabel.objects.filter(label=base).exists():
+            return base
+
+        suffix = 2
+        while True:
+            candidate = f"{base}_{suffix}"
+            if not ProjectLabel.objects.filter(label=candidate).exists():
+                return candidate
+
+            suffix += 1
+
+    @staticmethod
+    def suggest_label(project: Project):
+        programme_name = None
+        if hasattr(project, "programme") and project.programme:
+            programme_name = project.programme.name
+
+        base = ProjectLabelService.build_candidate(programme_name, project.name)
+        return ProjectLabelService.resolve_collision(base)
+
+    @staticmethod
+    def list_labels_for_project(project: Project, page: int = 1, page_size: int = 20):
+        qs = ProjectLabel.objects.filter(project=project).order_by(
+            "-is_primary", "label"
+        )
+
+        paginator = Paginator(qs, page_size)
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
+
+    @staticmethod
+    def get_label(project: Project, label_id: int):
+        return ProjectLabel.objects.get(pk=label_id, project=project)
+
+    @staticmethod
+    @transaction.atomic
+    def create_label(
+        project: Project, label: str | None = None, is_primary: bool = False
+    ):
+        if label:
+            label = label.strip().upper()
+        else:
+            programme_name = None
+            if hasattr(project, "programme") and project.programme:
+                programme_name = project.programme.name
+
+            base = ProjectLabelService.build_candidate(programme_name, project.name)
+            label = ProjectLabelService.resolve_collision(base)
+
+        if not re.match(r"^[A-Z0-9_]+$", label):
+            raise ValueError(
+                "Label must contain only uppercase letters, digits, and underscores."
+            )
+
+        if ProjectLabel.objects.filter(label=label).exclude(project=project).exists():
+            raise ValueError(f"Label '{label}' is already in use by another project.")
+
+        existing_count = ProjectLabel.objects.filter(project=project).count()
+        if existing_count == 0:
+            is_primary = True
+
+        if is_primary:
+            ProjectLabel.objects.filter(project=project, is_primary=True).update(
+                is_primary=False
+            )
+
+        try:
+            return ProjectLabel.objects.create(
+                project=project, label=label, is_primary=is_primary
+            )
+        except IntegrityError as e:
+            logger.error("IntegrityError creating label '%s': %s", label, e)
+            raise ValidationError(
+                f"Label '{label}' could not be created due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception("DatabaseError creating label '%s': %s", label, e)
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception("Unexpected error when creating label '%s': %s", label, e)
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def update_label(project: Project, label_id: int, **kwargs):
+        lbl = ProjectLabel.objects.select_for_update().get(pk=label_id, project=project)
+
+        if "label" in kwargs and kwargs["label"]:
+            new_val = kwargs["label"].strip().upper()
+            if not re.match(r"^[A-Z0-9_]+$", new_val):
+                raise ValueError(
+                    "Label must contain only uppercase letters, digits, and underscores."
+                )
+
+            if ProjectLabel.objects.filter(label=new_val).exclude(pk=lbl.pk).exists():
+                raise ValueError(f"Label '{new_val}' is already in use.")
+
+            lbl.label = new_val
+
+        is_primary = kwargs.get("is_primary")
+
+        try:
+            if is_primary is True:
+                ProjectLabel.objects.filter(project=project, is_primary=True).exclude(
+                    pk=lbl.pk
+                ).update(is_primary=False)
+                lbl.is_primary = True
+            elif is_primary is False:
+                lbl.is_primary = False
+                replacement = (
+                    ProjectLabel.objects.filter(project=project)
+                    .exclude(pk=lbl.pk)
+                    .order_by("-created_at")
+                    .first()
+                )
+                if replacement:
+                    replacement.is_primary = True
+                    replacement.save(update_fields=["is_primary"])
+
+            lbl.save()
+            return lbl
+        except IntegrityError as e:
+            logger.error("IntegrityError updating label %s: %s", label_id, e)
+            raise ValidationError(
+                "Label could not be updated due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception("DatabaseError updating label %s: %s", label_id, e)
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when updating label '%s': %s", label_id, e
+            )
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def delete_label(project: Project, label_id: int):
+        lbl = ProjectLabel.objects.get(pk=label_id, project=project)
+
+        try:
+            if lbl.is_primary:
+                next_lbl = (
+                    ProjectLabel.objects.filter(project=project)
+                    .exclude(pk=lbl.pk)
+                    .order_by("created_at")
+                    .first()
+                )
+
+                if next_lbl:
+                    next_lbl.is_primary = True
+                    next_lbl.save(update_fields=["is_primary"])
+            lbl.delete()
+        except DatabaseError as e:
+            logger.exception("DatabaseError deleting label %s: %s", label_id, e)
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when deleting label '%s': %s", label_id, e
+            )
+            raise
+
+
+class ProjectStatusHistoryService:
+    @staticmethod
+    def record_creation(project: Project):
+        try:
+            return ProjectStatusHistory.objects.create(
+                project=project,
+                previous_status="",
+                new_status=project.status,
+                previous_sub_status=None,
+                new_sub_status=(
+                    project.sub_status if hasattr(project, "sub_status") else None
+                ),
+                reason=None,
+            )
+        except IntegrityError as e:
+            logger.error(
+                "IntegrityError creating project status history '%s': %s", project.pk, e
+            )
+            raise ValidationError(
+                f"Project status history '{project.pk}' could not be created due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError creating project status history '%s': %s", project.pk, e
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when creating project status history '%s': %s",
+                project.pk,
+                e,
+            )
+            raise
+
+    @staticmethod
+    def record_transition(
+        project: Project,
+        previous_status: str,
+        new_status: str,
+        previous_sub_status=None,
+        new_sub_status=None,
+        reason: str | None = None,
+    ):
+        try:
+            return ProjectStatusHistory.objects.create(
+                project=project,
+                previous_status=previous_status,
+                new_status=new_status,
+                previous_sub_status=previous_sub_status,
+                new_sub_status=new_sub_status,
+                reason=reason or None,
+            )
+        except IntegrityError as e:
+            logger.error(
+                "IntegrityError updating project status history %s: %s", project.pk, e
+            )
+            raise ValidationError(
+                "Project status history could not be updated due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError updating proproject status historyject %s: %s",
+                project.pk,
+                e,
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when updating project status history '%s': %s",
+                project.pk,
+                e,
+            )
+            raise
+
+    @staticmethod
+    def list_history_for_project(project: Project, page: int = 1, page_size: int = 20):
+        qs = (
+            ProjectStatusHistory.objects.filter(project=project)
+            .select_related("previous_sub_status", "new_sub_status")
+            .order_by("-created_at")
+        )
+        paginator = Paginator(qs, page_size)
+
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }

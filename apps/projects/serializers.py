@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Project, ProjectCollaborator
+from .models import Project, ProjectCollaborator, ProjectLabel, ProjectStatusHistory
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -107,6 +107,60 @@ class ProjectTeamsSerializer(ProjectSerializer):
             {"id": pc.team_id, "name": pc.team.name}
             for pc in obj.project_collaborators.select_related("team").all()
         ]
+
+
+class ProjectLabelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectLabel
+        fields = "__all__"
+        read_only_fields = ["project", "created_at"]
+
+
+class ProjectLabelSuggestSerializer(serializers.Serializer):
+    suggestion = serializers.CharField()
+
+
+class ProjectStatusHistorySerializer(serializers.ModelSerializer):
+    previous_sub_status_name = serializers.SerializerMethodField()
+    previous_status_display = serializers.SerializerMethodField()
+    new_sub_status_name = serializers.SerializerMethodField()
+    new_status_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectStatusHistory
+        fields = [
+            "id",
+            "project",
+            "previous_status",
+            "previous_status_display",
+            "new_status",
+            "new_status_display",
+            "previous_sub_status",
+            "previous_sub_status_name",
+            "new_sub_status",
+            "new_sub_status_name",
+            "reason",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_previous_sub_status_name(self, obj):
+        return obj.previous_sub_status.name if obj.previous_sub_status else None
+
+    def get_new_sub_status_name(self, obj):
+        return obj.new_sub_status.name if obj.new_sub_status else None
+
+    def get_previous_status_display(self, obj):
+        if not obj.previous_status:
+            return None
+        choices = dict(Project.STATUS_CHOICES)
+        return choices.get(obj.previous_status, obj.previous_status)
+
+    def get_new_status_display(self, obj):
+        if not obj.new_status:
+            return None
+        choices = dict(Project.STATUS_CHOICES)
+        return choices.get(obj.new_status, obj.new_status)
 
 
 class ProjectExportSerializer(serializers.ModelSerializer):

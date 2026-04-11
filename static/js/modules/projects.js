@@ -53,10 +53,10 @@ async function loadStats() {
     try {
         const { method, href } = API_URLS.projects.stats;
         const data = await apiFetch(href, { method });
-        document.getElementById('stat-total').textContent = data.total_projects ?? '—';
-        document.getElementById('stat-active').textContent = data.active_projects ?? '—';
-        document.getElementById('stat-in-progress').textContent = data.in_progress_projects ?? '—';
-        document.getElementById('stat-new').textContent = data.new_projects ?? '—';
+        document.getElementById('stat-total').textContent = data.total_projects ?? '-';
+        document.getElementById('stat-active').textContent = data.active_projects ?? '-';
+        document.getElementById('stat-in-progress').textContent = data.in_progress_projects ?? '-';
+        document.getElementById('stat-new').textContent = data.new_projects ?? '-';
     } catch (err) {
         console.error('[loadStats] Failed.', err);
     }
@@ -292,36 +292,6 @@ function initTable() {
     window._projBaseApiUrl = href;
 }
 
-// function _refreshWithFilters() {
-//     const href = window._projBaseApiUrl;
-//     if (!href || !window._projFetcher) return;
-
-//     const filteredUrl = _buildFilterUrl(href);
-//     const renderer = window._projRenderer;
-//     const fetcher = initFetch({
-//         apiUrl: filteredUrl,
-//         pageSize: 20,
-//         searchInputId: 'proj-search',
-//         filters: [],
-//         onLoadStart: () => renderer.renderLoading('Loading projects…'),
-//         onSuccess: ({ results, pagination, state }) => {
-//             const hasFilters =
-//                 !!state.search ||
-//                 MULTI_FILTERS.some(({ multiId }) => {
-//                     const el = document.getElementById(multiId);
-//                     return el && Array.from(el.selectedOptions).length > 0;
-//                 });
-//             renderer.renderRows(results, hasFilters);
-//             renderer.renderPagination(pagination);
-//         },
-//         onError: () => renderer.renderError('Failed to load projects. Please refresh the page.'),
-//     });
-
-//     initSorting({ tableId: 'proj-table', fetcher });
-//     fetcher.refresh();
-//     window._projFetcher = fetcher;
-// }
-
 function renderProjectRow(proj) {
     const detailUrl = URLS.projects.detail(proj.id);
 
@@ -375,7 +345,7 @@ function _statusBadge(status, label) {
 }
 
 function _levelBadge(value, label) {
-    if (!value) return '<span class="text-muted">—</span>';
+    if (!value) return '<span class="text-muted">-</span>';
     const key = value.toLowerCase().replace(/_/g, '-');
     return `<span class="rp-badge rp-badge-level--${key}">${escHtml(label || value)}</span>`;
 }

@@ -9,14 +9,16 @@ from rest_framework.response import Response
 
 from apps.core.utils import view_set_validation_details
 
-from .models import Project
+from .models import Project, ProjectLabel
 from .serializers import (
+    ProjectLabelSerializer,
     ProjectSerializer,
     ProjectOperationalSerializer,
+    ProjectStatusHistorySerializer,
     ProjectTeamsSerializer,
     ProjectExportSerializer,
 )
-from .services import ProjectService
+from .services import ProjectLabelService, ProjectService, ProjectStatusHistoryService
 
 logger = logging.getLogger(__name__)
 
@@ -358,6 +360,232 @@ class ProjectViewSet(viewsets.ViewSet):
             )
         except Exception as e:
             logger.exception("Unexpected error in export: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/labels/
+    # POST /projects/<id>/labels/
+    @action(detail=True, methods=["get", "post"], url_path="labels")
+    def labels_create_or_get(self, request, pk=None):
+        try:
+            try:
+                page = int(request.query_params.get("page", 1))
+                page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            except (ValueError, TypeError):
+                page, page_size = 1, 20
+
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                result = ProjectLabelService.list_labels_for_project(
+                    instance, page, page_size
+                )
+                serializer = ProjectLabelSerializer(result["results"], many=True)
+                return Response(
+                    {
+                        "results": serializer.data,
+                        "pagination": {
+                            "total_count": result["total_count"],
+                            "total_pages": result["total_pages"],
+                            "current_page": result["current_page"],
+                            "page_size": result["page_size"],
+                            "has_next": result["has_next"],
+                            "has_previous": result["has_previous"],
+                        },
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            if request.method == "POST":
+                label_val = request.data.get("label") or None
+                is_primary = bool(request.data.get("is_primary", False))
+                label = ProjectLabelService.create_label(
+                    instance, label_val, is_primary
+                )
+                return Response(
+                    ProjectLabelSerializer(label).data, status=status.HTTP_201_CREATED
+                )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in labels: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in labels: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/labels/suggest/
+    @action(detail=True, methods=["get"], url_path="labels/suggest")
+    def label_suggest(self, request, pk=None):
+        try:
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            suggestion = ProjectLabelService.suggest_label(instance)
+            return Response({"suggestion": suggestion}, status=status.HTTP_200_OK)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in label_suggest: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in label_suggest: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/labels/<id>/
+    # PATCH /projects/<id>/labels/<id>/
+    # DELETE /projects/<id>/labels/<id>/
+    @action(
+        detail=True,
+        methods=["get", "patch", "delete"],
+        url_path="labels/(?P<label_pk>[^/.]+)",
+    )
+    def labels_get_patch_or_delete(self, request, pk=None, label_pk=None):
+        try:
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                label = ProjectLabelService.get_label(instance, label_pk)
+                return Response(
+                    ProjectLabelSerializer(label).data, status=status.HTTP_200_OK
+                )
+
+            try:
+                label = ProjectLabelService.get_label(instance, label_pk)
+            except ProjectLabel.DoesNotExist:
+                logger.warning("Project label %s does not exist.", label_pk)
+                return Response(
+                    {"error": "Project label not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            if request.method == "PATCH":
+                updated = ProjectLabelService.update_label(
+                    instance, label_pk, **request.data
+                )
+                return Response(
+                    ProjectLabelSerializer(updated).data, status=status.HTTP_200_OK
+                )
+
+            if request.method == "DELETE":
+                ProjectLabelService.delete_label(instance, label_pk)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in labels_get_patch_or_delete: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in labels_get_patch_or_delete: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/status-history/
+    @action(detail=True, methods=["get"], url_path="status-history")
+    def status_history(self, request, pk=None):
+        try:
+            try:
+                page = int(request.query_params.get("page", 1))
+                page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            except (ValueError, TypeError):
+                page, page_size = 1, 20
+
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            result = ProjectStatusHistoryService.list_history_for_project(
+                instance, page, page_size
+            )
+            serializer = ProjectStatusHistorySerializer(result["results"], many=True)
+            return Response(
+                {
+                    "results": serializer.data,
+                    "pagination": {
+                        "total_count": result["total_count"],
+                        "total_pages": result["total_pages"],
+                        "current_page": result["current_page"],
+                        "page_size": result["page_size"],
+                        "has_next": result["has_next"],
+                        "has_previous": result["has_previous"],
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in status history: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in status history: %s", e)
             return Response(
                 {"error": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

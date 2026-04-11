@@ -68,6 +68,18 @@
                 <i class="bi bi-people"></i>Teams
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                id="tab-history"
+                data-bs-toggle="tab"
+                data-bs-target="#pane-history"
+                type="button"
+                role="tab"
+            >
+                <i class="bi bi-hourglass-split"></i>History
+            </button>
+        </li>
     </ul>
 
     <div class="tab-content rp-tab-content" id="projDetailTabContent">
@@ -397,6 +409,34 @@
             </div>
         </div>
 
+        <div class="tab-pane fade" id="pane-labels" role="tabpanel">
+            <div class="row g-4 rp-view-layout" id="labels-view-mode">
+                <div class="col-lg-8 rp-view-main">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">Project Labels</h6>
+                            <button class="btn btn-primary btn-sm" id="btn-add-label">
+                                <i class="bi bi-plus-lg me-1"></i>Add
+                            </button>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Primary Label</span>
+                            <span class="rp-view-value" id="view-project-label"></span>
+                        </div>
+                        <div class="rp-view-field rp-view-block">
+                            <span class="rp-view-label">Secondary Labels</span>
+                            <span
+                                class="rp-view-value rp-view-description"
+                                id="view-secondary-labels"
+                            ></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rp-card rp-edit-card d-none" id="labels-edit-mode"></div>
+        </div>
+
         <div class="tab-pane fade" id="pane-teams" role="tabpanel">
             <div class="row g-4 rp-view-layout" id="teams-view-mode">
                 <div class="col-lg-8 rp-view-main">
@@ -442,7 +482,9 @@
                 <div class="row">
                     <div class="col-lg-6">
                         <div class="rp-field mb-4">
-                            <label class="rp-label" for="edit-collaborators-list">Collaborating teams</label>
+                            <label class="rp-label" for="edit-collaborators-list"
+                                >Collaborating teams</label
+                            >
                             <div id="edit-collaborators-list" class="d-flex flex-wrap gap-2"></div>
                         </div>
                     </div>
@@ -458,6 +500,123 @@
                         </button>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div class="tab-pane fade" id="pane-history" role="tabpanel">
+            <div class="row g-4 rp-view-layout" id="history-view-mode">
+                <div class="col-lg-6 rp-view-main">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">Status History</h6>
+                            <button
+                                type="button"
+                                class="btn btn-link btn-sm p-0 text-secondary text-decoration-none"
+                                id="status-history-count"
+                                style="display: none"
+                                title="View all history"
+                            ></button>
+                        </div>
+                        <div class="rp-hint">Only top 20 entries are displayed</div>
+                        <div id="status-history-container" class="rp-timeline">
+                            <p class="text-secondary small mb-0">Loading history…</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rp-card rp-edit-card d-none" id="history-edit-mode"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Label Modal -->
+<div class="modal fade" id="projAddLabelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 400px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Create label</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="proj-add-label-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <p class="text-secondary small mb-3">
+                    Additional labels act as aliases for external system mapping (e.g., Jira).
+                </p>
+                <div class="rp-field mb-3">
+                    <label class="rp-label" for="add-project-label">
+                        Label <span class="rp-required">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        id="add-project-label"
+                        class="rp-input form-control"
+                        placeholder="Auto-generate..."
+                        maxlength="50"
+                        oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9_]/g, '')"
+                    />
+                    <div class="invalid-feedback" id="add-project-label-err"></div>
+                </div>
+                <div class="rp-field">
+                    <div class="form-check form-switch rp-switch">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            id="add-project-label-primary"
+                            name="is_primary"
+                            checked
+                        />
+                        <label class="form-check-label rp-label" for="add-project-label-primary">
+                            Primary
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-warning" id="suggest-project-label-btn">
+                    Suggest
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" id="add-project-label-btn">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Label Update Modal -->
+<div class="modal fade" id="projUpdateLabelModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Update label</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="update-label-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <p class="text-secondary mb-0" id="update-label-message"></p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-danger me-auto" id="delete-label-btn">
+                    Delete
+                </button>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm" id="primary-label-btn">
+                    Set as Primary
+                </button>
             </div>
         </div>
     </div>

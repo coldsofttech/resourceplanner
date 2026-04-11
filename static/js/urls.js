@@ -243,6 +243,20 @@ export const API_URLS = {
             href: `${API_BASE}projects/${pk}/operational/`,
         }),
         get_teams: (pk) => ({ method: 'GET', href: `${API_BASE}projects/${pk}/teams/` }),
+        list_labels: (pk) => ({ method: 'GET', href: `${API_BASE}projects/${pk}/labels/` }),
+        suggest_label: (pk) => ({
+            method: 'GET',
+            href: `${API_BASE}projects/${pk}/labels/suggest/`,
+        }),
+        create_label: (pk) => ({ method: 'POST', href: `${API_BASE}projects/${pk}/labels/` }),
+        edit_label: (pk, labelPk) => ({
+            method: 'PATCH',
+            href: `${API_BASE}projects/${pk}/labels/${labelPk}/`,
+        }),
+        delete_label: (pk, labelPk) => ({
+            method: 'DELETE',
+            href: `${API_BASE}projects/${pk}/labels/${labelPk}/`,
+        }),
         edit: (pk) => ({ method: 'PUT', href: `${API_BASE}projects/${pk}/` }),
         partial_edit: (pk) => ({ method: 'PATCH', href: `${API_BASE}projects/${pk}/` }),
         edit_operational: (pk) => ({ method: 'PATCH', href: `${API_BASE}projects/${pk}/teams/` }),
@@ -254,6 +268,10 @@ export const API_URLS = {
         import_sample: { method: 'GET', href: `${API_BASE}projects/import/sample/` },
         import: { method: 'POST', href: `${API_BASE}projects/import/` },
         export: { method: 'GET', href: `${API_BASE}projects/export/` },
+        status_history: (pk) => ({
+            method: 'GET',
+            href: `${API_BASE}projects/${pk}/status-history/`,
+        }),
     },
     configurations: {
         list: { method: 'GET', href: `${API_BASE}configurations/` },
