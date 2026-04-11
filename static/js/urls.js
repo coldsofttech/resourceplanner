@@ -272,6 +272,38 @@ export const API_URLS = {
             method: 'GET',
             href: `${API_BASE}projects/${pk}/status-history/`,
         }),
+        tags: {
+            get: (projectId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/tags/`,
+            }),
+            create: (projectId) => ({
+                method: 'POST',
+                href: `${API_BASE}projects/${projectId}/tags/`,
+            }),
+            delete: (projectId, tagId) => ({
+                method: 'DELETE',
+                href: `${API_BASE}projects/${projectId}/tags/${tagId}/`,
+            }),
+        },
+        comments: {
+            list: (projectId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/comments/`,
+            }),
+            create: (projectId) => ({
+                method: 'POST',
+                href: `${API_BASE}projects/${projectId}/comments/`,
+            }),
+            patch: (projectId, commentId) => ({
+                method: 'PATCH',
+                href: `${API_BASE}projects/${projectId}/comments/${commentId}/`,
+            }),
+            delete: (projectId, commentId) => ({
+                method: 'DELETE',
+                href: `${API_BASE}projects/${projectId}/comments/${commentId}/`,
+            }),
+        },
     },
     configurations: {
         list: { method: 'GET', href: `${API_BASE}configurations/` },

@@ -11,14 +11,22 @@ from apps.core.utils import view_set_validation_details
 
 from .models import Project, ProjectLabel
 from .serializers import (
+    ProjectCommentSerializer,
     ProjectLabelSerializer,
     ProjectSerializer,
     ProjectOperationalSerializer,
     ProjectStatusHistorySerializer,
+    ProjectTagSerializer,
     ProjectTeamsSerializer,
     ProjectExportSerializer,
 )
-from .services import ProjectLabelService, ProjectService, ProjectStatusHistoryService
+from .services import (
+    ProjectCommentService,
+    ProjectLabelService,
+    ProjectService,
+    ProjectStatusHistoryService,
+    ProjectTagService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -422,13 +430,13 @@ class ProjectViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
         except DatabaseError as e:
-            logger.exception("DatabaseError in labels: %s", e)
+            logger.exception("DatabaseError in labels_create_or_get: %s", e)
             return Response(
                 {"error": "A database error occurred."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except Exception as e:
-            logger.exception("Unexpected error in labels: %s", e)
+            logger.exception("Unexpected error in labels_create_or_get: %s", e)
             return Response(
                 {"error": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -586,6 +594,197 @@ class ProjectViewSet(viewsets.ViewSet):
             )
         except Exception as e:
             logger.exception("Unexpected error in status history: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/tags/
+    # POST /projects/<id>/tags/
+    @action(detail=True, methods=["get", "post"], url_path="tags")
+    def tags_create_or_get(self, request, pk=None):
+        try:
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                result = ProjectTagService.list_tags_for_project(pk)
+                serializer = ProjectTagSerializer(result, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            if request.method == "POST":
+                name = (request.data.get("name") or "").strip()
+                if not name:
+                    return Response(
+                        {"details": {"name": ["Tag name is required."]}},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+                pt = ProjectTagService.add_tag(pk, name)
+                return Response(
+                    ProjectTagSerializer(pt).data, status=status.HTTP_201_CREATED
+                )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in tags_create_or_get: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in tags_create_or_get: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # DELETE /projects/<id>/tags/<id>/
+    @action(detail=True, methods=["delete"], url_path="tags/(?P<tag_pk>[^/.]+)")
+    def tags_delete(self, request, pk=None, tag_pk=None):
+        try:
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "DELETE":
+                ProjectTagService.remove_tag(pk, tag_pk)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in tags_delete: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in tags_delete: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/comments/
+    # POST /projects/<id>/comments/
+    @action(detail=True, methods=["get", "post"], url_path="comments")
+    def comments_create_or_get(self, request, pk=None):
+        try:
+            try:
+                page = int(request.query_params.get("page", 1))
+                page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            except (ValueError, TypeError):
+                page, page_size = 1, 20
+
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                result = ProjectCommentService.list_for_project(pk, page, page_size)
+                result["pinned"] = ProjectCommentSerializer(
+                    result["pinned"], many=True
+                ).data
+                result["results"] = ProjectCommentSerializer(
+                    result["results"], many=True
+                ).data
+                return Response(result, status=status.HTTP_200_OK)
+
+            if request.method == "POST":
+                comment_text = (request.data.get("comment") or "").strip()
+                comment = ProjectCommentService.create_comment(pk, comment_text)
+                return Response(
+                    ProjectCommentSerializer(comment).data,
+                    status=status.HTTP_201_CREATED,
+                )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in comments_create_or_get: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in comments_create_or_get: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # PATCH /projects/<id>/comments/<id>/
+    # DELETE /projects/<id>/comments/<id>/
+    @action(
+        detail=True,
+        methods=["patch", "delete"],
+        url_path="comments/(?P<comment_pk>[^/.]+)",
+    )
+    def comments_patch_or_delete(self, request, pk=None, comment_pk=None):
+        try:
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "PATCH":
+                comment = ProjectCommentService.update_comment(comment_pk, request.data)
+                return Response(
+                    ProjectCommentSerializer(comment).data, status=status.HTTP_200_OK
+                )
+
+            if request.method == "DELETE":
+                ProjectCommentService.delete_comment(comment_pk)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in comments_patch_or_delete: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in comments_patch_or_delete: %s", e)
             return Response(
                 {"error": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

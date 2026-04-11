@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 let options = null;
 let _allSubStatuses = [];
+let commentPage = 1;
 
 const STATUS_ICON = {
     NEW: { icon: 'bi-circle', cls: 'text-secondary' },
@@ -81,6 +82,18 @@ async function fetchOperational() {
     return res;
 }
 
+async function fetchTags() {
+    const { method, href } = API_URLS.projects.tags.get(projectPk);
+    const res = await apiFetch(href, { method });
+    return res;
+}
+
+async function fetchComments(page = 1) {
+    const { method, href } = API_URLS.projects.comments.list(projectPk);
+    const res = await apiFetch(`${href}?page=${page}`, { method });
+    return res;
+}
+
 async function fetchTeams() {
     const { method, href } = API_URLS.projects.get_teams(projectPk);
     const res = await apiFetch(href, { method });
@@ -134,9 +147,226 @@ async function renderGeneral() {
 
         document.getElementById('meta-created').textContent =
             formatDateTime(project.created_at) ?? '-';
+        document.getElementById('meta-updated').textContent =
+            formatDateTime(project.updated_at) ?? '-';
+
+        renderComments(commentPage);
     } catch (err) {
         _showBanner('Failed to load project information. Please refresh the page.', 'error');
         console.error('[renderGeneral] Failed to load project general information.', err);
+    }
+}
+
+async function renderComments(page = 1) {
+    commentPage = page;
+    const container = document.getElementById('comments-container');
+    const pinnedContainer = document.getElementById('comments-pinned-container');
+    const paginationEl = document.getElementById('comments-pagination');
+    if (!container) return;
+
+    try {
+        const data = await fetchComments(page);
+        renderPinnedComments(data.pinned ?? [], pinnedContainer);
+        renderCommentList(data.results ?? [], container);
+        renderCommentPagination(data, paginationEl, renderComments);
+    } catch (err) {
+        container.innerHTML = '<p class="text-secondary small">Failed to load comments.</p>';
+        console.error('[renderComments] Failed to load comments.', err);
+    }
+}
+
+function renderPinnedComments(pinned, container) {
+    if (!container) return;
+    if (!pinned.length) {
+        container.innerHTML = '';
+        return;
+    }
+    container.innerHTML = pinned.map((c) => _commentCardHtml(c, true)).join('');
+    _bindCommentCardActions(container);
+}
+
+function renderCommentList(comments, container, opts = {}) {
+    if (!container) return;
+    if (!comments.length) {
+        container.innerHTML = '<p class="text-secondary small mb-0">No comments yet.</p>';
+        return;
+    }
+    container.innerHTML = comments.map((c) => _commentCardHtml(c, opts.showPin ?? false)).join('');
+    _bindCommentCardActions(container);
+}
+
+function _commentCardHtml(c, showPin) {
+    const pinnedCls = c.is_pinned ? 'rp-comment-card--pinned' : '';
+    const pinnedBadge = c.is_pinned
+        ? '<span class="rp-comment-pin-badge"><i class="bi bi-pin-angle-fill"></i>Pinned</span>'
+        : '';
+    const editedBadge = c.is_edited ? '<span class="rp-comment-edited">edited</span>' : '';
+    const pinActionLabel = c.is_pinned ? 'Unpin' : 'Pin';
+
+    return `
+    <div class="rp-comment-card ${pinnedCls}" data-comment-id="${c.id}">
+        <p class="rp-comment-body">${escHtml(c.comment)}</p>
+        <div class="rp-comment-meta">
+            ${pinnedBadge}
+            <span>${escHtml(c.posted_by)}</span>
+            <span>·</span>
+            <span>${formatDateTime(c.created_at)}</span>
+            ${editedBadge}
+            <div class="rp-comment-actions">
+                <button class="btn btn-ghost-icon btn-sm js-pin-comment" data-id="${c.id}" data-pinned="${c.is_pinned}" title="${pinActionLabel}">
+                    <i class="bi bi-pin${c.is_pinned ? '-angle-fill' : ''}"></i>
+                </button>
+                <button class="btn btn-ghost-icon btn-sm js-edit-comment" data-id="${c.id}" data-comment="${escHtml(c.comment)}" title="Edit">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-ghost-icon btn-ghost-icon--danger btn-sm js-delete-comment" data-id="${c.id}" title="Delete">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    </div>`;
+}
+
+function _bindCommentCardActions(container) {
+    container.querySelectorAll('.js-edit-comment').forEach((btn) => {
+        btn.addEventListener('click', () =>
+            openEditCommentModal(btn.dataset.id, btn.dataset.comment),
+        );
+    });
+    container.querySelectorAll('.js-delete-comment').forEach((btn) => {
+        btn.addEventListener('click', () => openDeleteCommentModal(btn.dataset.id));
+    });
+    container.querySelectorAll('.js-pin-comment').forEach((btn) => {
+        btn.addEventListener('click', () =>
+            togglePinComment(btn.dataset.id, btn.dataset.pinned === 'true'),
+        );
+    });
+}
+
+function renderCommentPagination(data, el, loadFn) {
+    if (!el) return;
+    const { current_page, total_pages } = data;
+    if (total_pages <= 1) {
+        el.innerHTML = '';
+        return;
+    }
+
+    const prevDisabled = current_page <= 1 ? 'disabled' : '';
+    const nextDisabled = current_page >= total_pages ? 'disabled' : '';
+    el.innerHTML = `
+        <button class="btn btn-outline-secondary btn-sm" ${prevDisabled} id="comments-prev">
+            <i class="bi bi-chevron-left"></i> Prev
+        </button>
+        <span class="text-secondary small">Page ${current_page} of ${total_pages}</span>
+        <button class="btn btn-outline-secondary btn-sm" ${nextDisabled} id="comments-next">
+            Next <i class="bi bi-chevron-right"></i>
+        </button>`;
+
+    el.querySelector('#comments-prev')?.addEventListener('click', () => loadFn(current_page - 1));
+    el.querySelector('#comments-next')?.addEventListener('click', () => loadFn(current_page + 1));
+}
+
+async function handlePostComment() {
+    const btn = document.getElementById('btn-post-comment');
+    const input = document.getElementById('new-comment-input');
+    const text = input.value.trim();
+    if (!text) {
+        input.classList.add('is-invalid');
+        return;
+    }
+    input.classList.remove('is-invalid');
+
+    const prevHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    try {
+        const { method, href } = API_URLS.projects.comments.create(projectPk);
+        await apiFetch(href, { method, body: JSON.stringify({ comment: text }) });
+        input.value = '';
+        showFlash('Comment posted.', 'success');
+        renderComments(1);
+    } catch (err) {
+        showFlash(_extractError(err, 'Failed to post comment.'), 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = prevHtml;
+    }
+}
+
+function openEditCommentModal(commentId, currentText) {
+    document.getElementById('edit-comment-input').value = currentText;
+    document.getElementById('confirm-edit-comment-btn').dataset.commentId = commentId;
+    document.getElementById('proj-edit-comment-banner').classList.add('d-none');
+    _showModal('projEditCommentModal');
+}
+
+function openDeleteCommentModal(commentId) {
+    document.getElementById('confirm-delete-comment-btn').dataset.commentId = commentId;
+    document.getElementById('proj-delete-comment-banner').classList.add('d-none');
+    _showModal('projDeleteCommentModal');
+}
+
+async function handleSaveEditComment() {
+    const btn = document.getElementById('confirm-edit-comment-btn');
+    const commentId = btn.dataset.commentId;
+    const text = document.getElementById('edit-comment-input').value.trim();
+    if (!text) {
+        document.getElementById('edit-comment-input').classList.add('is-invalid');
+        return;
+    }
+
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    try {
+        const { method, href } = API_URLS.projects.comments.patch(projectPk, commentId);
+        await apiFetch(href, { method, body: JSON.stringify({ comment: text }) });
+        _hideModal('projEditCommentModal');
+        showFlash('Comment updated.', 'success');
+        renderComments(commentPage);
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to update comment.');
+        document.getElementById('proj-edit-comment-banner').textContent = msg;
+        document.getElementById('proj-edit-comment-banner').classList.remove('d-none');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
+async function handleDeleteComment() {
+    const btn = document.getElementById('confirm-delete-comment-btn');
+    const commentId = btn.dataset.commentId;
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+
+    try {
+        const { method, href } = API_URLS.projects.comments.delete(projectPk, commentId);
+        await apiFetch(href, { method });
+        _hideModal('projDeleteCommentModal');
+        showFlash('Comment deleted.', 'success');
+        renderComments(commentPage);
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to delete comment.');
+        document.getElementById('proj-delete-comment-banner').textContent = msg;
+        document.getElementById('proj-delete-comment-banner').classList.remove('d-none');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
+async function togglePinComment(commentId, currentlyPinned) {
+    try {
+        const { method, href } = API_URLS.projects.comments.patch(projectPk, commentId);
+        await apiFetch(href, { method, body: JSON.stringify({ is_pinned: !currentlyPinned }) });
+        showFlash(currentlyPinned ? 'Comment unpinned.' : 'Comment pinned.', 'success');
+        renderComments(commentPage);
+    } catch (err) {
+        showFlash(_extractError(err, 'Failed to update pin status.'), 'error');
     }
 }
 
@@ -155,6 +385,29 @@ async function renderOperational() {
         document.getElementById('view-effort-issue-commitment-date').textContent =
             formatDate(operational.effort_issue_commitment_date) ?? '-';
         document.getElementById('view-run-cost').innerHTML = runCostApplies;
+
+        const tags = await fetchTags();
+        const tagsContainer = document.getElementById('proj-tags-container');
+        if (!tags.length) {
+            tagsContainer.innerHTML =
+                '<p class="text-secondary small mb-0">No tags. Use the "Add" button to add one.';
+        } else {
+            tagsContainer.innerHTML = tags
+                .map(
+                    (t) => `
+                <a href="#" class="rp-link rp-tag-chip me-1 mb-1" data-tag-id="${t.id}" data-tag-name="${escHtml(t.name)}">
+                    <span class="rp-tag-prefix">#</span>${escHtml(t.name.slice(1))}
+                </a>
+            `,
+                )
+                .join('');
+
+            tagsContainer.querySelectorAll('.rp-tag-chip').forEach((chip) => {
+                chip.addEventListener('click', () => {
+                    showDeleteTagModal(chip.dataset.tagId, chip.dataset.tagName);
+                });
+            });
+        }
     } catch (err) {
         _showBanner('Failed to load project information. Please refresh the page.', 'error');
         console.error('[renderOperational] Failed to load project operational information.', err);
@@ -319,15 +572,6 @@ function _buildStatusHistoryItems(entries, addEllipsis = false) {
     }
 
     return items.join('');
-}
-
-function statusMeta(code) {
-    return STATUS_ICON[code] || { icon: 'bi-record-circle', cls: 'text-muted' };
-}
-
-function formatStatus(code) {
-    if (!code) return '—';
-    return code.replace(/_/g, ' ');
 }
 
 function populateEditDropdowns(opts) {
@@ -525,6 +769,19 @@ function bindEditButtons() {
         .getElementById('btn-cancel-general')
         ?.addEventListener('click', () => exitEditMode('general'));
     document.getElementById('btn-save-general')?.addEventListener('click', () => saveGeneral());
+    document.getElementById('btn-post-comment')?.addEventListener('click', handlePostComment);
+    document.getElementById('new-comment-input')?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            e.preventDefault();
+            handlePostComment();
+        }
+    });
+    document
+        .getElementById('confirm-edit-comment-btn')
+        ?.addEventListener('click', handleSaveEditComment);
+    document
+        .getElementById('confirm-delete-comment-btn')
+        ?.addEventListener('click', handleDeleteComment);
 
     // Operational tab
     document
@@ -536,6 +793,11 @@ function bindEditButtons() {
     document
         .getElementById('btn-save-operational')
         ?.addEventListener('click', () => saveOperational());
+    document
+        .getElementById('btn-add-tag')
+        ?.addEventListener('click', () => _showModal('projAddTagModal'));
+    document.getElementById('confirm-add-tag-btn')?.addEventListener('click', () => saveTag());
+    document.getElementById('confirm-delete-tag-btn')?.addEventListener('click', () => deleteTag());
 
     // Teams tab
     document
@@ -562,6 +824,7 @@ function bindEditButtons() {
 
 function _showModal(id) {
     if (id === 'projAddLabelModal') resetAddLabelModal();
+    if (id === 'projAddTagModal') resetAddTagModel();
     bootstrap.Modal.getOrCreateInstance(document.getElementById(id), { focus: false }).show();
 }
 
@@ -577,9 +840,26 @@ function resetAddLabelModal() {
     clearAddLabelModalErrors();
 }
 
+function resetAddTagModel() {
+    ['add-tag-input'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    clearAddTagModalErrors();
+}
+
 function clearAddLabelModalErrors() {
     document.getElementById('proj-add-label-banner').classList.add('d-none');
     ['add-project-label'].forEach((id) => {
+        document.getElementById(id)?.classList.remove('is-invalid');
+        const errEl = document.getElementById(`${id}-err`);
+        if (errEl) errEl.textContent = '';
+    });
+}
+
+function clearAddTagModalErrors() {
+    document.getElementById('proj-add-tag-banner').classList.add('d-none');
+    ['add-tag-input'].forEach((id) => {
         document.getElementById(id)?.classList.remove('is-invalid');
         const errEl = document.getElementById(`${id}-err`);
         if (errEl) errEl.textContent = '';
@@ -608,6 +888,14 @@ function showDeleteLabelModal(id, label, isPrimary) {
         activeBtn.classList.remove('btn-outline-danger');
     }
     _showModal('projUpdateLabelModal');
+}
+
+function showDeleteTagModal(id, name) {
+    document.getElementById('delete-tag-name').textContent = name;
+    const deleteBtn = document.getElementById('confirm-delete-tag-btn');
+    deleteBtn.dataset.id = id;
+    deleteBtn.dataset.name = name;
+    _showModal('projDeleteTagModal');
 }
 
 async function suggestLabel() {
@@ -781,6 +1069,28 @@ async function saveLabel() {
     }
 }
 
+async function saveTag() {
+    const saveBtn = document.getElementById('confirm-add-tag-btn');
+    const prevText = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    const payload = {
+        name: document.getElementById('add-tag-input').value,
+    };
+
+    try {
+        const { method, href } = API_URLS.projects.tags.create(projectPk);
+        await saveTab(saveBtn, payload, 'operational', method, href);
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to save tags information. Please try again.');
+        _showBanner(msg, 'error', 'proj-add-tag-banner');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = prevText;
+    }
+}
+
 async function deleteLabel() {
     const deleteBtn = document.getElementById('delete-label-btn');
     const prevText = deleteBtn.textContent;
@@ -793,6 +1103,25 @@ async function deleteLabel() {
         await saveTab(deleteBtn, null, 'labels', method, href);
     } catch (err) {
         const msg = _extractError(err, 'Failed to delete label information. Please try again.');
+        _showBanner(msg, 'error');
+    } finally {
+        deleteBtn.disabled = false;
+        deleteBtn.textContent = prevText;
+    }
+}
+
+async function deleteTag() {
+    const deleteBtn = document.getElementById('confirm-delete-tag-btn');
+    const prevText = deleteBtn.textContent;
+    deleteBtn.disabled = true;
+    deleteBtn.textContent = 'Deleting...';
+
+    const tagId = deleteBtn.dataset.id;
+    try {
+        const { method, href } = API_URLS.projects.tags.delete(projectPk, tagId);
+        await saveTab(deleteBtn, null, 'operational', method, href);
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to delete tag information. Please try again.');
         _showBanner(msg, 'error');
     } finally {
         deleteBtn.disabled = false;
@@ -839,6 +1168,8 @@ async function saveTab(saveBtn, payload, tab, method, apiUrl) {
             renderHeader(project);
             renderGeneral();
         } else if (tab === 'operational') {
+            _hideModal('projAddTagModal');
+            _hideModal('projDeleteTagModal');
             renderOperational();
         } else if (tab === 'teams') {
             renderTeams();
@@ -851,6 +1182,10 @@ async function saveTab(saveBtn, payload, tab, method, apiUrl) {
         exitEditMode(tab);
     } catch (err) {
         const msg = _extractError(err, 'Failed to save changes. Please try again.');
+        if (tab === 'operational' && method === 'POST' && apiUrl.includes('tags')) {
+            _showBanner(msg, 'danger', 'proj-add-tag-banner');
+            return;
+        }
         _showBanner(msg, 'danger');
     } finally {
         saveBtn.disabled = false;
@@ -885,8 +1220,8 @@ function _levelBadge(value, label) {
     return `<span class="rp-badge rp-badge-level--${key}">${escHtml(label || value)}</span>`;
 }
 
-function _showBanner(message, type = 'danger') {
-    const banner = document.getElementById('proj-detail-banner');
+function _showBanner(message, type = 'danger', bannerId = 'proj-detail-banner') {
+    const banner = document.getElementById(bannerId);
     if (!banner) return;
     banner.textContent = message;
     banner.className = `alert alert-${type} mb-3`;

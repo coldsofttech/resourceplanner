@@ -54,6 +54,7 @@ export function showFlash(message, type = 'success') {
     }[type] || 'alert-info';
 
     const alert = document.createElement('div');
+    alert.classList.remove('d-none');
     alert.className = `alert ${alertClass} alert-dismissible fade show`;
     alert.setAttribute('role', 'alert');
     alert.innerHTML = `

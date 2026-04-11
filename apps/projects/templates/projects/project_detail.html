@@ -85,7 +85,7 @@
     <div class="tab-content rp-tab-content" id="projDetailTabContent">
         <div class="tab-pane fade show active" id="pane-general" role="tabpanel">
             <div class="row g-4 rp-view-layout" id="general-view-mode">
-                <div class="col-lg-8 rp-view-main">
+                <div class="col-lg-7 rp-view-main">
                     <div class="rp-view-section">
                         <div class="d-flex align-items-center justify-content-between mb-3">
                             <h6 class="rp-view-section-title">General information</h6>
@@ -136,10 +136,8 @@
                             <span class="rp-view-value" id="view-tentative-end"></span>
                         </div>
                     </div>
-                </div>
 
-                <div class="col-lg-4 rp-view-meta">
-                    <div class="rp-view-section">
+                    <div class="rp-view-meta rp-view-section mt-4">
                         <h6 class="rp-view-section-title">
                             <i class="bi bi-clock-history me-2"></i>Metadata
                         </h6>
@@ -151,6 +149,32 @@
                             <span class="rp-view-label">Last updated</span>
                             <span class="rp-view-value" id="meta-updated"></span>
                         </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-5 rp-view-meta">
+                    <div class="rp-view-section">
+                        <h6 class="rp-view-section-title">
+                            <i class="bi bi-chat-left-text me-2"></i>Comments
+                        </h6>
+                        <div class="mb-3">
+                            <textarea
+                                id="new-comment-input"
+                                class="form-control rp-input rp-comment-textarea"
+                                placeholder="Add a comment..."
+                                rows="3"
+                            ></textarea>
+                            <div class="d-flex justify-content-end mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-post-comment">
+                                    <i class="bi bi-send me-1"></i>Post
+                                </button>
+                            </div>
+                        </div>
+                        <div id="comments-pinned-container"></div>
+                        <div id="comments-container">
+                            <p class="text-secondary small">Loading comments...</p>
+                        </div>
+                        <div id="comments-pagination" class="mt-2"></div>
                     </div>
                 </div>
             </div>
@@ -172,7 +196,7 @@
                                 maxlength="200"
                                 placeholder="e.g. Customer Portal Redesign"
                             />
-                            <div class="invalid-feedback" id="name-error"></div>
+                            <div class="invalid-feedback" id="edit-name-err"></div>
                         </div>
                     </div>
 
@@ -184,7 +208,7 @@
                             <select id="edit-project-type" class="rp-select form-select">
                                 <option value="">Select type...</option>
                             </select>
-                            <div class="invalid-feedback" id="project-type-error"></div>
+                            <div class="invalid-feedback" id="edit-project-type-err"></div>
                         </div>
                     </div>
                 </div>
@@ -336,6 +360,22 @@
                         <div class="rp-view-field">
                             <span class="rp-view-label">Run cost applies</span>
                             <span class="rp-view-value" id="view-run-cost"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 rp-view-meta">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">
+                                <i class="bi bi-tags me-2"></i>Tags
+                            </h6>
+                            <button class="btn btn-ghost-icon" id="btn-add-tag" title="Add tag">
+                                <i class="bi bi-plus-lg"></i>
+                            </button>
+                        </div>
+                        <div id="proj-tags-container" class="rp-tags-wrap">
+                            <p class="text-secondary small mb-0">Loading tags...</p>
                         </div>
                     </div>
                 </div>
@@ -616,6 +656,143 @@
                 </button>
                 <button type="button" class="btn btn-sm" id="primary-label-btn">
                     Set as Primary
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Tag Modal -->
+<div class="modal fade" id="projAddTagModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 380px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Add tag</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="proj-add-tag-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <div class="rp-field">
+                    <label class="rp-label" for="add-tag-input">
+                        Tag name <span class="rp-required">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        id="add-tag-input"
+                        class="rp-input form-control"
+                        placeholder="e.g. backend, migration…"
+                        maxlength="50"
+                        autocomplete="off"
+                    />
+                    <div class="invalid-feedback" id="add-tag-input-err"></div>
+                    <div class="rp-hint">
+                        A new tag is created automatically if the name is new.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" id="confirm-add-tag-btn">
+                    Add
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Tag Modal -->
+<div class="modal fade" id="projDeleteTagModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 380px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Remove tag</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="proj-delete-tag-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <p class="text-secondary mb-0">
+                    Remove tag <strong id="delete-tag-name"></strong> from this project?
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-tag-btn">
+                    Remove
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Comment Modal -->
+<div class="modal fade" id="projEditCommentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Edit comment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="proj-edit-comment-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <div class="rp-field">
+                    <textarea
+                        id="edit-comment-input"
+                        class="form-control rp-input rp-comment-textarea"
+                        rows="4"
+                    ></textarea>
+                    <div class="invalid-feedback" id="edit-comment-err"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" id="confirm-edit-comment-btn">
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Comment Modal -->
+<div class="modal fade" id="projDeleteCommentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 380px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Delete comment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="proj-delete-comment-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <p class="text-secondary mb-0">This comment will be permanently deleted.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-comment-btn">
+                    Delete
                 </button>
             </div>
         </div>

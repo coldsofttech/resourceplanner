@@ -7,8 +7,17 @@ from django.db import transaction, IntegrityError, DatabaseError
 from django.db.models import Q
 
 from apps.core.utils import parse_bool
+from apps.tags.services import TagService
 
-from .models import Project, ProjectCollaborator, ProjectLabel, ProjectStatusHistory
+from .engines import ProjectLabelEngineService
+from .models import (
+    Project,
+    ProjectCollaborator,
+    ProjectComment,
+    ProjectLabel,
+    ProjectStatusHistory,
+    ProjectTag,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +28,16 @@ class ProjectService:
     def list_projects(filters=None, page=1, page_size=20):
         VALID_ORDER_FIELDS = {"name", "status", "priority"}
 
-        qs = Project.objects.select_related(
-            "project_type", "programme", "sub_status", "assigned_team"
-        ).all()
+        qs = (
+            Project.objects.select_related(
+                "project_type",
+                "programme",
+                "sub_status",
+                "assigned_team",
+            )
+            .prefetch_related("project_tags__tag")
+            .all()
+        )
 
         if filters:
             search = filters.get("search")
@@ -73,6 +89,10 @@ class ProjectService:
                     Q(assigned_team_id__in=team_vals)
                     | Q(project_collaborators__team_id__in=team_vals)
                 ).distinct()
+
+            tag_vals = _vals("tags")
+            if tag_vals:
+                qs = qs.filter(project_tags__tag_id__in=tag_vals).distinct()
 
         order_by = filters.get("order_by") if filters else None
         order_dir = filters.get("order_dir") if filters else None
@@ -615,40 +635,25 @@ class ProjectService:
 
 class ProjectLabelService:
     @staticmethod
-    def slugify_part(text: str, max_len: int):
-        words = re.split(r"[\s\-_/]+", text.strip())
-        initials = "".join(w[0].upper() for w in words if w)
-        return re.sub(r"[^A-Z0-9]", "", initials)[:max_len]
-
-    @staticmethod
-    def build_candidate(programme_name: str | None, project_name: str):
-        proj_part = ProjectLabelService.slugify_part(project_name, 10)
-        if not programme_name or programme_name.strip().upper() == "OTHERS":
-            return proj_part
-        prog_part = ProjectLabelService.slugify_part(programme_name, 8)
-        return f"{prog_part}_{proj_part}" if prog_part else proj_part
-
-    @staticmethod
-    def resolve_collision(base: str):
-        if not ProjectLabel.objects.filter(label=base).exists():
-            return base
-
-        suffix = 2
-        while True:
-            candidate = f"{base}_{suffix}"
-            if not ProjectLabel.objects.filter(label=candidate).exists():
-                return candidate
-
-            suffix += 1
-
-    @staticmethod
     def suggest_label(project: Project):
         programme_name = None
         if hasattr(project, "programme") and project.programme:
             programme_name = project.programme.name
 
-        base = ProjectLabelService.build_candidate(programme_name, project.name)
-        return ProjectLabelService.resolve_collision(base)
+        candidates = ProjectLabelEngineService.build_candidates(
+            programme_name, project.name
+        )
+        for candidate in candidates:
+            if not ProjectLabel.objects.filter(label=candidate).exists():
+                return candidate
+
+        # All natural patterns taken — suffix the first (shortest) candidate
+        base = (
+            candidates[0]
+            if candidates
+            else re.sub(r"[^A-Z0-9_]", "", project.name.upper())[:30]
+        )
+        return ProjectLabelEngineService.resolve_collision(base)
 
     @staticmethod
     def list_labels_for_project(project: Project, page: int = 1, page_size: int = 20):
@@ -686,12 +691,7 @@ class ProjectLabelService:
         if label:
             label = label.strip().upper()
         else:
-            programme_name = None
-            if hasattr(project, "programme") and project.programme:
-                programme_name = project.programme.name
-
-            base = ProjectLabelService.build_candidate(programme_name, project.name)
-            label = ProjectLabelService.resolve_collision(base)
+            label = ProjectLabelService.suggest_label(project)
 
         if not re.match(r"^[A-Z0-9_]+$", label):
             raise ValueError(
@@ -916,3 +916,201 @@ class ProjectStatusHistoryService:
             "has_previous": page_obj.has_previous(),
             "page_size": page_size,
         }
+
+
+class ProjectTagService:
+    MAX_TAGS = 10
+
+    @staticmethod
+    def list_tags_for_project(project_id: int):
+        return (
+            ProjectTag.objects.filter(project_id=project_id)
+            .select_related("tag")
+            .order_by("tag__name")
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def add_tag(project_id: int, name: str):
+        project = Project.objects.get(pk=project_id)
+        if not project:
+            raise ValidationError(f"Project '{project_id}' does not exist.")
+
+        current_count = ProjectTag.objects.filter(project=project).count()
+        if current_count >= ProjectTagService.MAX_TAGS:
+            raise ValidationError(
+                {
+                    "name": f"A project can have at most {ProjectTagService.MAX_TAGS} tags."
+                }
+            )
+
+        try:
+            tag = TagService.get_or_create(name)
+
+            pt, created = ProjectTag.objects.get_or_create(project=project, tag=tag)
+            if not created:
+                raise ValidationError(
+                    {"name": "This tag is already applied to the project."}
+                )
+            return pt
+        except IntegrityError as e:
+            logger.error("IntegrityError creating tag '%s': %s", name, e)
+            raise ValidationError(
+                f"Tag '{name}' could not be created due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception("DatabaseError creating tag '%s': %s", name, e)
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception("Unexpected error when creating tag '%s': %s", name, e)
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def remove_tag(project_id: int, tag_id: int):
+        pt = ProjectTag.objects.filter(project_id=project_id, tag_id=tag_id).first()
+        if not pt:
+            raise ValidationError("Tag not found on this project.")
+
+        try:
+            tag = pt.tag
+            pt.delete()
+            TagService.delete_if_orphan(tag)
+        except DatabaseError as e:
+            logger.exception("DatabaseError deleting tag %s: %s", tag_id, e)
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception("Unexpected error when deleting tag '%s': %s", tag_id, e)
+            raise
+
+
+class ProjectCommentService:
+    MAX_PINNED = 3
+
+    @staticmethod
+    def list_for_project(project_id: int, page=1, page_size=20):
+        pinned = list(
+            ProjectComment.objects.filter(
+                project_id=project_id, is_pinned=True
+            ).order_by("-created_at")
+        )
+        non_pinned_qs = ProjectComment.objects.filter(
+            project_id=project_id, is_pinned=False
+        ).order_by("-created_at")
+
+        paginator = Paginator(non_pinned_qs, page_size)
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "pinned": pinned,
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
+
+    @staticmethod
+    @transaction.atomic
+    def create_comment(project_id: int, comment_text: str):
+        project = Project.objects.get(pk=project_id)
+        if not project:
+            raise ValidationError(f"Project '{project_id}' does not exist.")
+
+        if not comment_text or not comment_text.strip():
+            raise ValidationError({"comment": "Comment cannot be blank."})
+
+        try:
+            return ProjectComment.objects.create(
+                project=project,
+                comment=comment_text.strip(),
+            )
+        except IntegrityError as e:
+            logger.error("IntegrityError creating comment '%s': %s", project_id, e)
+            raise ValidationError(
+                f"Comment for project '{project_id}' could not be created due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception("DatabaseError creating comment '%s': %s", project_id, e)
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when creating comment '%s': %s", project_id, e
+            )
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def update_comment(comment_id: int, data: dict):
+        comment = ProjectComment.objects.get(pk=comment_id)
+        if not comment:
+            raise ValidationError(f"Comment '{comment_id}' does not exist.")
+
+        if "comment" in data:
+            new_text = (data["comment"] or "").strip()
+            if not new_text:
+                raise ValidationError({"comment": "Comment cannot be blank."})
+            comment.comment = new_text
+            comment.is_edited = True
+
+        if "is_pinned" in data:
+            new_pinned = bool(data["is_pinned"])
+            if new_pinned and not comment.is_pinned:
+                current_pinned = ProjectComment.objects.filter(
+                    project=comment.project, is_pinned=True
+                ).count()
+                if current_pinned >= ProjectCommentService.MAX_PINNED:
+                    raise ValidationError(
+                        {
+                            "is_pinned": f"Maximum {ProjectCommentService.MAX_PINNED} pinned comments allowed per project."
+                        }
+                    )
+            comment.is_pinned = new_pinned
+
+        try:
+            comment.save()
+            return comment
+        except IntegrityError as e:
+            logger.error("IntegrityError updating comment %s: %s", comment_id, e)
+            raise ValidationError(
+                "Project comment could not be updated due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception("DatabaseError updating comment %s: %s", comment_id, e)
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when updating comment '%s': %s", comment_id, e
+            )
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def delete_comment(comment_id: int):
+        try:
+            ProjectComment.objects.filter(pk=comment_id).delete()
+        except DatabaseError as e:
+            logger.exception("DatabaseError deleting comment %s: %s", comment_id, e)
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when deleting comment '%s': %s", comment_id, e
+            )
+            raise

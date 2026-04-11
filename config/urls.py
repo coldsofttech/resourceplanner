@@ -34,6 +34,7 @@ from apps.public_holidays.api_views import PublicHolidayViewSet
 from apps.skills.api_views import SkillViewSet
 from apps.sprint_capacity.api_views import SprintCapacityViewSet
 from apps.sprints.api_views import SprintViewSet
+from apps.tags.api_views import TagViewSet
 from apps.team_members.api_views import TeamMemberViewSet
 from apps.team_roles.api_views import TeamRoleViewSet
 
@@ -57,6 +58,7 @@ router.register(
 router.register(r"programmes", ProgrammeViewSet, basename="programme")
 router.register(r"contacts", ContactViewSet, basename="contact")
 router.register(r"projects", ProjectViewSet, basename="project")
+router.register(r"tags", TagViewSet, basename="tag")
 
 urlpatterns = [
     path("admin/", admin.site.urls),

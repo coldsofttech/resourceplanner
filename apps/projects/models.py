@@ -191,3 +191,38 @@ class ProjectStatusHistory(models.Model):
 
     def __str__(self):
         return f"{self.project_id}: {self.previous_status} → {self.new_status}"
+
+
+class ProjectTag(models.Model):
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="project_tags"
+    )
+    tag = models.ForeignKey(
+        "tags.Tag", on_delete=models.PROTECT, related_name="project_tags"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("project", "tag")
+        ordering = ["tag__name"]
+
+    def __str__(self):
+        return f"{self.project_id} — #{self.tag.name}"
+
+
+class ProjectComment(models.Model):
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="comments"
+    )
+    comment = models.TextField()
+    posted_by = models.CharField(max_length=200, default="Anonymous")
+    is_edited = models.BooleanField(default=False)
+    is_pinned = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-is_pinned", "-created_at"]
+
+    def __str__(self):
+        return f"Comment {self.pk} on project {self.project_id}"

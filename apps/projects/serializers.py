@@ -1,6 +1,13 @@
 from rest_framework import serializers
 
-from .models import Project, ProjectCollaborator, ProjectLabel, ProjectStatusHistory
+from .models import (
+    Project,
+    ProjectCollaborator,
+    ProjectComment,
+    ProjectLabel,
+    ProjectStatusHistory,
+    ProjectTag,
+)
 
 
 class ProjectSerializer(serializers.ModelSerializer):
@@ -12,6 +19,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     status_display = serializers.SerializerMethodField()
     confidence_display = serializers.SerializerMethodField()
     priority_display = serializers.SerializerMethodField()
+    tags = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -37,6 +45,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "tentative_start_date",
             "tentative_end_date",
             "is_active",
+            "tags",
             "created_at",
             "updated_at",
         ]
@@ -77,6 +86,12 @@ class ProjectSerializer(serializers.ModelSerializer):
         if value:
             return value.strip()
         return ""
+
+    def get_tags(self, obj):
+        return [
+            {"id": pt.tag_id, "name": pt.tag.name}
+            for pt in obj.project_tags.select_related("tag").all()
+        ]
 
 
 class ProjectOperationalSerializer(ProjectSerializer):
@@ -161,6 +176,31 @@ class ProjectStatusHistorySerializer(serializers.ModelSerializer):
             return None
         choices = dict(Project.STATUS_CHOICES)
         return choices.get(obj.new_status, obj.new_status)
+
+
+class ProjectTagSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(source="tag.id", read_only=True)
+    name = serializers.CharField(source="tag.name", read_only=True)
+    created_at = serializers.DateTimeField(read_only=True)
+
+    class Meta:
+        model = ProjectTag
+        fields = ["id", "name", "created_at"]
+
+
+class ProjectCommentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectComment
+        fields = [
+            "id",
+            "comment",
+            "posted_by",
+            "is_edited",
+            "is_pinned",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "posted_by", "is_edited", "created_at", "updated_at"]
 
 
 class ProjectExportSerializer(serializers.ModelSerializer):
