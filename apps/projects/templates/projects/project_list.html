@@ -84,7 +84,7 @@
             type="text"
             id="proj-search"
             class="form-control rp-search-input"
-            placeholder="Search projects by name, programme or code..."
+            placeholder="Search projects by name, programme, code or tags..."
         />
     </div>
 </div>
@@ -131,6 +131,15 @@
                     <label class="rp-label mb-1" for="prog-filter">Programme</label>
                     <select
                         id="prog-filter"
+                        class="rp-select form-select form-select-sm"
+                        multiple
+                        size="4"
+                    ></select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="rp-label mb-1" for="proj-filter">Project</label>
+                    <select
+                        id="proj-filter"
                         class="rp-select form-select form-select-sm"
                         multiple
                         size="4"
@@ -185,6 +194,15 @@
                     <label class="rp-label mb-1" for="ptype-filter">Project type</label>
                     <select
                         id="ptype-filter"
+                        class="rp-select form-select form-select-sm"
+                        multiple
+                        size="4"
+                    ></select>
+                </div>
+                <div class="col-12 col-sm-6 col-lg-3">
+                    <label class="rp-label mb-1" for="tag-filter">Tags</label>
+                    <select
+                        id="tag-filter"
                         class="rp-select form-select form-select-sm"
                         multiple
                         size="4"

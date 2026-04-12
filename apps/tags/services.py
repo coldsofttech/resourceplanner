@@ -49,29 +49,21 @@ class TagService:
 
     @staticmethod
     def get_or_create(name: str):
-        normalised = name.strip().lower()
-        if not normalised:
+        cleaned = name.strip()
+        if not cleaned:
             raise ValidationError({"name": "Tag name cannot be blank."})
 
-        tag = Tag.objects.filter(name__iexact=normalised).first()
-        if tag:
-            return tag
+        normalized = cleaned if cleaned.startswith("#") else f"#{cleaned}"
 
         try:
-            return Tag.objects.create(name=name.strip())
-        except IntegrityError as e:
-            logger.error("IntegrityError creating tag '%s': %s", name, e)
-            raise ValidationError(
-                f"Tag '{name}' could not be created due to a conflict."
-            ) from e
-        except DatabaseError as e:
-            logger.exception("DatabaseError creating tag '%s': %s", name, e)
-            raise RuntimeError(
-                "A database error occurred. Please try again later."
-            ) from e
-        except Exception as e:
-            logger.exception("Unexpected error when creating tag '%s': %s", name, e)
-            raise
+            with transaction.atomic():
+                return Tag.objects.create(name=normalized)
+        except IntegrityError:
+            tag = Tag.objects.filter(name__iexact=normalized).first()
+            if tag:
+                return tag
+
+            raise RuntimeError(f"Tag '{cleaned}' could not be created or retrieved.")
 
     @staticmethod
     def delete_if_orphan(tag: Tag):

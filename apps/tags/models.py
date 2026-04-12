@@ -1,4 +1,5 @@
 from django.db import models
+from django.db.models.functions import Lower
 
 
 class Tag(models.Model):
@@ -7,6 +8,11 @@ class Tag(models.Model):
 
     class Meta:
         ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                Lower("name"), name="unique_tag_name_case_insensitive"
+            )
+        ]
 
     def __str__(self):
         return self.name

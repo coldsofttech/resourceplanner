@@ -4,7 +4,7 @@ import re
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db import transaction, IntegrityError, DatabaseError
-from django.db.models import Q
+from django.db.models import F, Q
 
 from apps.core.utils import parse_bool
 from apps.tags.services import TagService
@@ -46,6 +46,7 @@ class ProjectService:
                     Q(name__icontains=search)
                     | Q(programme__name__icontains=search)
                     | Q(code__icontains=search)
+                    | Q(project_tags__tag__name__icontains=search)
                 )
 
             def _vals(key):
@@ -58,6 +59,8 @@ class ProjectService:
                 bools = [bool_map[v] for v in is_active_vals if v in bool_map]
                 if bools:
                     qs = qs.filter(is_active__in=bools)
+            else:
+                qs = qs.filter(is_active=True)
 
             status_vals = _vals("status")
             if status_vals:
@@ -82,6 +85,10 @@ class ProjectService:
             programme_vals = _vals("programme")
             if programme_vals:
                 qs = qs.filter(programme_id__in=programme_vals)
+
+            project_vals = _vals("project")
+            if project_vals:
+                qs = qs.filter(id__in=project_vals)
 
             team_vals = _vals("team")
             if team_vals:
@@ -194,6 +201,14 @@ class ProjectService:
                 .order_by("name")
             )
 
+        if wants("projects"):
+            result["projects"] = list(
+                Project.objects.filter(is_active=True)
+                .annotate(programme_name=F("programme__name"))
+                .values("id", "name", "programme_name")
+                .order_by("name")
+            )
+
         if wants("sub_statuses"):
             from apps.project_sub_statuses.models import ProjectSubStatus
 
@@ -211,6 +226,11 @@ class ProjectService:
                 .values("id", "name")
                 .order_by("name")
             )
+
+        if wants("tags"):
+            from apps.tags.models import Tag
+
+            result["tags"] = Tag.objects.values("id", "name").order_by("name")
 
         return result
 
@@ -944,28 +964,18 @@ class ProjectTagService:
                 }
             )
 
-        try:
-            tag = TagService.get_or_create(name)
+        tag = TagService.get_or_create(name)
 
-            pt, created = ProjectTag.objects.get_or_create(project=project, tag=tag)
-            if not created:
+        try:
+            return ProjectTag.objects.get_or_create(project=project, tag=tag)
+        except (IntegrityError, DatabaseError):
+            if ProjectTag.objects.filter(project=project, tag=tag).exists():
                 raise ValidationError(
                     {"name": "This tag is already applied to the project."}
                 )
-            return pt
-        except IntegrityError as e:
-            logger.error("IntegrityError creating tag '%s': %s", name, e)
-            raise ValidationError(
-                f"Tag '{name}' could not be created due to a conflict."
-            ) from e
-        except DatabaseError as e:
-            logger.exception("DatabaseError creating tag '%s': %s", name, e)
-            raise RuntimeError(
-                "A database error occurred. Please try again later."
-            ) from e
-        except Exception as e:
-            logger.exception("Unexpected error when creating tag '%s': %s", name, e)
-            raise
+
+            logger.exception("Error linking tag '%s' to project %s", name, project_id)
+            raise RuntimeError("A database error occurred. Please try again later.")
 
     @staticmethod
     @transaction.atomic

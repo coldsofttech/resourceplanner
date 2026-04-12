@@ -9,16 +9,20 @@ import { API_URLS, URLS } from './../urls.js';
 import { exportToCsv, exportToPdf } from '../export.js';
 
 let _allSubStatuses = [];
+let _progOptions = [];
+let _allProjects = [];
 let _deliveryTeams = [];
 
 const _MULTI_FILTER_IDS = [
     'prog-filter',
+    'proj-filter',
     'status-filter',
     'substatus-filter',
     'team-filter',
     'priority-filter',
     'confidence-filter',
     'ptype-filter',
+    'tag-filter',
     'active-filter',
 ];
 
@@ -69,15 +73,20 @@ async function populateFilterOptions() {
 
         _deliveryTeams = opts.delivery_teams ?? [];
         _allSubStatuses = opts.sub_statuses ?? [];
+        _allProjects = opts.projects ?? [];
+        _progOptions = opts.programmes ?? [];
 
-        _populateMultiSelect('prog-filter', opts.programmes ?? []);
+        _populateMultiSelect('prog-filter', _progOptions);
+        _populateMultiSelect('proj-filter', _allProjects, { useIdAsValue: true });
         _populateMultiSelect('status-filter', opts.status ?? []);
         _populateMultiSelect('team-filter', opts.delivery_teams ?? [], { useIdAsValue: true });
         _populateMultiSelect('priority-filter', opts.priority ?? []);
         _populateMultiSelect('confidence-filter', opts.confidence ?? []);
         _populateMultiSelect('ptype-filter', opts.project_types ?? [], { useIdAsValue: true });
         _populateMultiSelect('substatus-filter', _allSubStatuses, { useIdAsValue: true });
+        _populateMultiSelect('tag-filter', opts.tags ?? []);
         _populateMultiSelect('active-filter', opts.is_active ?? []);
+        document.getElementById('active-filter').value = true;
 
         // Add modal selects
         _populateSelect('proj-modal-type', opts.project_types ?? [], '', 'Select type…', {
@@ -160,14 +169,21 @@ function bindFilterEvents() {
         _cascadeFilterSubStatus();
         _updateClearBtn();
     });
+    document.getElementById('prog-filter')?.addEventListener('change', () => {
+        _cascadeFilterProject();
+        _updateClearBtn();
+    });
 
     [
         'prog-filter',
+        'proj-filter',
+        'status-filter',
         'substatus-filter',
         'team-filter',
         'priority-filter',
         'confidence-filter',
         'ptype-filter',
+        'tag-filter',
         'active-filter',
     ].forEach((id) => {
         document.getElementById(id)?.addEventListener('change', _updateClearBtn);
@@ -203,7 +219,36 @@ function _cascadeFilterSubStatus() {
             o.selected = prevSel.has(o.value);
         });
     }
-    _syncProxy('substatus-filter', 'proxy-substatus');
+}
+
+function _cascadeFilterProject() {
+    const progEl = document.getElementById('prog-filter');
+    const selectedIds = progEl
+        ? Array.from(progEl.selectedOptions).map((o) => Number(o.value))
+        : [];
+
+    const selectedNames =
+        selectedIds.length === 0
+            ? []
+            : _progOptions.filter((p) => selectedIds.includes(p.id)).map((p) => p.name);
+
+    const matching =
+        selectedNames.length === 0
+            ? _allProjects
+            : _allProjects.filter((s) => selectedNames.includes(s.programme_name ?? ''));
+
+    const projEl = document.getElementById('proj-filter');
+    const prevSel = projEl
+        ? new Set(Array.from(projEl.selectedOptions).map((o) => o.value))
+        : new Set();
+
+    _populateMultiSelect('proj-filter', matching, { useIdAsValue: true });
+
+    if (projEl) {
+        Array.from(projEl.options).forEach((o) => {
+            o.selected = prevSel.has(o.value);
+        });
+    }
 }
 
 function _cascadeModalSubStatus() {
@@ -264,12 +309,14 @@ function initTable() {
         filters: [],
         multiFilters: [
             { id: 'prog-filter', param: 'programme' },
+            { id: 'proj-filter', param: 'project' },
             { id: 'status-filter', param: 'status' },
             { id: 'substatus-filter', param: 'sub_status' },
             { id: 'team-filter', param: 'team' },
             { id: 'priority-filter', param: 'priority' },
             { id: 'confidence-filter', param: 'confidence' },
             { id: 'ptype-filter', param: 'project_type' },
+            { id: 'tag-filter', param: 'tags' },
             { id: 'active-filter', param: 'is_active' },
         ],
         onLoadStart: () => renderer.renderLoading('Loading projects…'),
