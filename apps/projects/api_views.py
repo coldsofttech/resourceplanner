@@ -9,8 +9,11 @@ from rest_framework.response import Response
 
 from apps.core.utils import view_set_validation_details
 
-from .models import Project, ProjectEstimate, ProjectLabel
+from .models import Project, ProjectBudget, ProjectEstimate, ProjectLabel
 from .serializers import (
+    ProjectBudgetHistorySerializer,
+    ProjectBudgetLifetimeSerializer,
+    ProjectBudgetSerializer,
     ProjectCodeSerializer,
     ProjectCommentSerializer,
     ProjectEstimateHistorySerializer,
@@ -24,6 +27,7 @@ from .serializers import (
     ProjectExportSerializer,
 )
 from .services import (
+    ProjectBudgetService,
     ProjectCodeService,
     ProjectCommentService,
     ProjectEstimateService,
@@ -1124,6 +1128,232 @@ class ProjectViewSet(viewsets.ViewSet):
             )
         except Exception as e:
             logger.exception("Unexpected error in estimates_history: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/budgets/
+    # POST /projects/<id>/budgets/
+    @action(detail=True, methods=["get", "post"], url_path="budgets")
+    def budget_create_or_get(self, request, pk=None):
+        try:
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                result = ProjectBudgetService.list_for_project(pk)
+                serializer = ProjectBudgetSerializer(result, many=True)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+
+            if request.method == "POST":
+                budget = ProjectBudgetService.create_budget(
+                    project_id=pk,
+                    financial_year_id=request.data.get("financial_year"),
+                    allocated_budget=request.data.get("allocated_budget") or None,
+                    refined_budget=request.data.get("refined_budget") or None,
+                    estimate_version_id=request.data.get("estimate_version") or None,
+                    notes=request.data.get("notes") or None,
+                )
+                return Response(
+                    ProjectBudgetSerializer(budget).data, status=status.HTTP_201_CREATED
+                )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in budget_create_or_get: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in budget_create_or_get: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/budgets/<id>/
+    # PATCH /projects/<id>/budgets/<id>/
+    # DELETE /projects/<id>/budgets/<id>/
+    @action(
+        detail=True,
+        methods=["get", "patch", "delete"],
+        url_path=r"budgets/(?P<budget_pk>(?!lifetime)[^/.]+)",
+    )
+    def budget_patch_delete_or_get(self, request, pk=None, budget_pk=None):
+        try:
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                budget = ProjectBudgetService.get_budget(pk, budget_pk)
+                return Response(
+                    ProjectBudgetSerializer(budget).data, status=status.HTTP_200_OK
+                )
+
+            if request.method == "PATCH":
+                kwargs = {}
+                if "allocated_budget" in request.data:
+                    kwargs["allocated_budget"] = (
+                        request.data["allocated_budget"] or None
+                    )
+                if "refined_budget" in request.data:
+                    kwargs["refined_budget"] = request.data["refined_budget"] or None
+                if "estimate_version" in request.data:
+                    kwargs["estimate_version_id"] = (
+                        request.data["estimate_version"] or None
+                    )
+                if "notes" in request.data:
+                    kwargs["notes"] = request.data["notes"] or None
+
+                budget = ProjectBudgetService.update_budget(pk, budget_pk, **kwargs)
+                return Response(
+                    ProjectBudgetSerializer(budget).data, status=status.HTTP_200_OK
+                )
+
+            if request.method == "DELETE":
+                ProjectBudgetService.delete_budget(pk, budget_pk)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+        except (ValueError, ProjectEstimate.DoesNotExist) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in budget_patch_delete_or_get: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in budget_patch_delete_or_get: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/budgets/<pk>/history/
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path=r"budgets/(?P<budget_pk>(?!lifetime)[^/.]+)/history",
+    )
+    def budgets_history(self, request, pk=None, budget_pk=None):
+        try:
+            try:
+                page = int(request.query_params.get("page", 1))
+                page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            except (ValueError, TypeError):
+                page, page_size = 1, 20
+
+            try:
+                project_instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            try:
+                budget_instance = ProjectBudgetService.get_budget(pk, budget_pk)
+            except ProjectBudget.DoesNotExist:
+                logger.warning("Project budget %s does not exist.", budget_pk)
+                return Response(
+                    {"error": "Project budget not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            result = ProjectBudgetService.list_history(pk, budget_pk, page, page_size)
+            serializer = ProjectBudgetHistorySerializer(result["results"], many=True)
+            return Response(
+                {
+                    "results": serializer.data,
+                    "pagination": {
+                        "total_count": result["total_count"],
+                        "total_pages": result["total_pages"],
+                        "current_page": result["current_page"],
+                        "page_size": result["page_size"],
+                        "has_next": result["has_next"],
+                        "has_previous": result["has_previous"],
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in budgets_history: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in budgets_history: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/budgets/lifetime/
+    @action(detail=True, methods=["get"], url_path="budgets/lifetime")
+    def budgets_lifetime(self, request, pk=None):
+        try:
+            try:
+                project_instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            result = ProjectBudgetService.lifetime_budget(pk)
+            return Response(
+                ProjectBudgetLifetimeSerializer(result).data, status=status.HTTP_200_OK
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in budgets_lifetime: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in budgets_lifetime: %s", e)
             return Response(
                 {"error": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

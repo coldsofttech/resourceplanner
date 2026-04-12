@@ -16,7 +16,7 @@ CONFIGURATION_DEFAULTS = {
         "description": (
             "Number of holiday days allocated to each team member per financial year. "
             "Used as the baseline when calculating available capacity in sprint planning."
-        )
+        ),
     },
     # Financial Years
     "FY_EXPIRY_WARNING_DAYS": {
@@ -60,6 +60,88 @@ CONFIGURATION_DEFAULTS = {
             "Day rate in GBP (£) used for calculating sprint cost based on story points. "
         ),
     },
+    # Projects
+    "BUDGET_THRESHOLD_PCT_DEFAULT": {
+        "label": "Budget Threshold %",
+        "value": "10",
+        "description": (
+            "Percentage band used to classify budget risk. "
+            "Remaining > +threshold% = GREEN, within ±threshold% = AMBER, "
+            "below -threshold% = RED."
+        ),
+    },
+    "BUDGET_SIZE_XS_MAX_AMOUNT": {
+        "label": "T-Shirt Size XS Upper Boundary (£)",
+        "value": "20000",
+        "description": (
+            "Maximum actual budget (inclusive) to classify a budget or estimate as X-Small. "
+            "Default £20,000."
+        ),
+    },
+    "BUDGET_SIZE_S_MAX_AMOUNT": {
+        "label": "T-Shirt Size S Upper Boundary (£)",
+        "value": "60000",
+        "description": (
+            "Maximum actual budget (inclusive) to classify a budget or estimate as Small. "
+            "Default £60,000."
+        ),
+    },
+    "BUDGET_SIZE_M_MAX_AMOUNT": {
+        "label": "T-Shirt Size M Upper Boundary (£)",
+        "value": "200000",
+        "description": (
+            "Maximum actual budget (inclusive) to classify a budget or estimate as Medium. "
+            "Default £200,000."
+        ),
+    },
+    "BUDGET_SIZE_L_MAX_AMOUNT": {
+        "label": "T-Shirt Size L Upper Boundary (£)",
+        "value": "500000",
+        "description": (
+            "Maximum actual budget (inclusive) to classify a budget or estimate as Large. "
+            "Default £500,000. Anything above is X-Large."
+        ),
+    },
+    "BUDGET_SIZE_XS_GREEN_PCT": {
+        "label": "T-Shirt Size XS Green Threshold (%)",
+        "value": "0.25",
+        "description": (
+            "Variance % within which an XS budget/estimate is considered On Budget (GREEN). "
+            "Default 0.25%."
+        ),
+    },
+    "BUDGET_SIZE_S_GREEN_PCT": {
+        "label": "T-Shirt Size S Green Threshold (%)",
+        "value": "0.50",
+        "description": (
+            "Variance % within which a Small budget/estimate is considered On Budget (GREEN). "
+            "Default 0.50%."
+        ),
+    },
+    "BUDGET_SIZE_M_GREEN_PCT": {
+        "label": "T-Shirt Size M Green Threshold (%)",
+        "value": "1.00",
+        "description": (
+            "Variance % within which a Medium budget/estimate is considered On Budget (GREEN). "
+            "Default 1.00%."
+        ),
+    },
+    "BUDGET_SIZE_L_GREEN_PCT": {
+        "label": "T-Shirt Size L Green Threshold (%)",
+        "value": "1.00",
+        "description": (
+            "Variance % within which a Large budget/estimate is considered On Budget (GREEN). "
+            "Default 1.00%."
+        ),
+    },
+    "BUDGET_SIZE_XL_GREEN_PCT": {
+        "label": "T-Shirt Size XL Green Threshold (%)",
+        "value": "1.00",
+        "description": (
+            "Variance % within which an XL budget/estimate is considered On Budget (GREEN). "
+            "Default 1.00%."
+        ),
+    },
     # Add future built-in configs as below
     # "CODE": {
     #   "label": "Human readable label for the config.",
@@ -76,20 +158,23 @@ class ConfigurationService:
         List the configurations.
         Supports filters: search
         """
-        VALID_ORDER_FIELDS = {'code'}
+        VALID_ORDER_FIELDS = {"code"}
         qs = Configuration.objects.all()
 
         if filters:
-            if filters.get('search'):
-                s_term = filters['search']
-                qs = qs.filter(code__icontains=s_term) | qs.filter(label__icontains=s_term) | qs.filter(
-                    description__icontains=s_term)
+            if filters.get("search"):
+                s_term = filters["search"]
+                qs = (
+                    qs.filter(code__icontains=s_term)
+                    | qs.filter(label__icontains=s_term)
+                    | qs.filter(description__icontains=s_term)
+                )
 
-        order_by = filters.get('order_by') if filters else None
-        order_dir = filters.get('order_dir') if filters else None
-        order_field = order_by if order_by in VALID_ORDER_FIELDS else 'code'
-        if order_dir == 'desc':
-            order_field = f'-{order_field}'
+        order_by = filters.get("order_by") if filters else None
+        order_dir = filters.get("order_dir") if filters else None
+        order_field = order_by if order_by in VALID_ORDER_FIELDS else "code"
+        if order_dir == "desc":
+            order_field = f"-{order_field}"
         qs = qs.order_by(order_field)
 
         paginator = Paginator(qs, page_size)
@@ -140,7 +225,9 @@ class ConfigurationService:
         Returns the details of the specified configuration id.
         """
         if not config_id:
-            raise ValidationError("Invalid: config_id must be an integer and greater than 0.")
+            raise ValidationError(
+                "Invalid: config_id must be an integer and greater than 0."
+            )
 
         return Configuration.objects.get(pk=config_id)
 
@@ -171,7 +258,7 @@ class ConfigurationService:
             raise ValidationError("Invalid: code cannot be blank.")
 
         entry = CONFIGURATION_DEFAULTS.get(u_code)
-        return entry.get('value') if entry else None
+        return entry.get("value") if entry else None
 
     @staticmethod
     @transaction.atomic
@@ -180,7 +267,9 @@ class ConfigurationService:
         Updates the specified configuration id.
         """
         if not config_id:
-            raise ValidationError("Invalid: config_id must be an integer and greater than 0.")
+            raise ValidationError(
+                "Invalid: config_id must be an integer and greater than 0."
+            )
 
         config = Configuration.objects.get(pk=config_id)
         if not config:
@@ -190,16 +279,26 @@ class ConfigurationService:
 
         try:
             config.full_clean()
-            config.save(update_fields=['value', 'updated_at'])
+            config.save(update_fields=["value", "updated_at"])
             return config
         except IntegrityError as e:
-            logger.error("Database error when updating configuration '%s': %s", config_id, e)
-            raise ValidationError(f"Configuration '{config_id}' could not be updated due to a conflict.") from e
+            logger.error(
+                "Database error when updating configuration '%s': %s", config_id, e
+            )
+            raise ValidationError(
+                f"Configuration '{config_id}' could not be updated due to a conflict."
+            ) from e
         except DatabaseError as e:
-            logger.exception("Database error when updating configuration '%s': %s", config_id, e)
-            raise RuntimeError(f"A database error occurred. Please try again later.") from e
+            logger.exception(
+                "Database error when updating configuration '%s': %s", config_id, e
+            )
+            raise RuntimeError(
+                f"A database error occurred. Please try again later."
+            ) from e
         except Exception as e:
-            logger.exception("Unexpected error when updating configuration '%s': %s", config_id, e)
+            logger.exception(
+                "Unexpected error when updating configuration '%s': %s", config_id, e
+            )
             raise
 
     @staticmethod
@@ -209,7 +308,9 @@ class ConfigurationService:
         Resets the configuration to default for the specified configuration id.
         """
         if not config_id:
-            raise ValidationError("Invalid: config_id must be an integer and greater than 0.")
+            raise ValidationError(
+                "Invalid: config_id must be an integer and greater than 0."
+            )
 
         config = Configuration.objects.get(pk=config_id)
         if not config:
@@ -217,22 +318,40 @@ class ConfigurationService:
 
         default = CONFIGURATION_DEFAULTS.get(config.code)
         if default is None:
-            raise ValidationError(f"No factory default is registered for '{config.code}'.")
+            raise ValidationError(
+                f"No factory default is registered for '{config.code}'."
+            )
 
-        config.value = default['value']
+        config.value = default["value"]
 
         try:
             config.full_clean()
-            config.save(update_fields=['value', 'updated_at'])
+            config.save(update_fields=["value", "updated_at"])
             return config
         except IntegrityError as e:
-            logger.error("Database error when resetting configuration to default '%s': %s", config_id, e)
-            raise ValidationError(f"Configuration '{config_id}' could not be updated due to a conflict.") from e
+            logger.error(
+                "Database error when resetting configuration to default '%s': %s",
+                config_id,
+                e,
+            )
+            raise ValidationError(
+                f"Configuration '{config_id}' could not be updated due to a conflict."
+            ) from e
         except DatabaseError as e:
-            logger.exception("Database error when resetting configuration to default '%s': %s", config_id, e)
-            raise RuntimeError(f"A database error occurred. Please try again later.") from e
+            logger.exception(
+                "Database error when resetting configuration to default '%s': %s",
+                config_id,
+                e,
+            )
+            raise RuntimeError(
+                f"A database error occurred. Please try again later."
+            ) from e
         except Exception as e:
-            logger.exception("Unexpected error when resetting configuration to default '%s': %s", config_id, e)
+            logger.exception(
+                "Unexpected error when resetting configuration to default '%s': %s",
+                config_id,
+                e,
+            )
             raise
 
     @staticmethod
@@ -244,7 +363,7 @@ class ConfigurationService:
             return fallback
 
     @staticmethod
-    def get_str(code: str, fallback: str = '') -> str:
+    def get_str(code: str, fallback: str = "") -> str:
         try:
             return Configuration.objects.get(code=code.strip().upper()).value
         except ObjectDoesNotExist:
@@ -262,6 +381,6 @@ class ConfigurationService:
     def get_bool(code: str, fallback: bool = False) -> bool:
         try:
             cfg = Configuration.objects.get(code=code.strip().upper())
-            return cfg.value.strip().lower() in ('1', 'true', 'yes', 'on')
+            return cfg.value.strip().lower() in ("1", "true", "yes", "on")
         except ObjectDoesNotExist:
             return fallback

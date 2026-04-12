@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.db import models
 from django.core.exceptions import ValidationError
 
+from .utils import get_tshirt_size
+
 
 class Project(models.Model):
     STATUS_NEW = "NEW"
@@ -301,6 +303,10 @@ class ProjectEstimate(models.Model):
             * (1 + self.contingency_pct / Decimal("100"))
         )
 
+    @property
+    def tshirt_size(self):
+        return get_tshirt_size(self.total_cost)
+
 
 class ProjectEstimateHistory(models.Model):
     ACTION_CREATED = "CREATED"
@@ -338,3 +344,130 @@ class ProjectEstimateHistory(models.Model):
 
     def __str__(self):
         return f"{self.estimate} — {self.action}"
+
+
+class ProjectBudget(models.Model):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="budgets",
+    )
+    financial_year = models.ForeignKey(
+        "financial_years.FinancialYear",
+        on_delete=models.PROTECT,
+        related_name="project_budgets",
+    )
+    allocated_budget = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+    refined_budget = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+    estimate_version = models.ForeignKey(
+        ProjectEstimate,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="budget_links",
+    )
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("project", "financial_year")
+        ordering = ["financial_year__start_date"]
+
+    def __str__(self):
+        return f"{self.project} — {self.financial_year}"
+
+    @property
+    def actual_budget(self):
+        val = (
+            self.refined_budget
+            if self.refined_budget is not None
+            else self.allocated_budget
+        )
+        if val is None:
+            return None
+        return Decimal(str(val))
+
+    @property
+    def remaining_budget(self):
+        actual = self.actual_budget
+        if actual is None:
+            return None
+        if self.estimate_version is None:
+            return actual
+        return actual - Decimal(str(self.estimate_version.total_cost))
+
+
+class ProjectBudgetHistory(models.Model):
+    ACTION_CREATED = "CREATED"
+    ACTION_UPDATED = "UPDATED"
+
+    ACTION_CHOICES = [
+        (ACTION_CREATED, "Created"),
+        (ACTION_UPDATED, "Updated"),
+    ]
+
+    budget = models.ForeignKey(
+        ProjectBudget,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="history",
+    )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="budget_history",
+    )
+    financial_year = models.ForeignKey(
+        "financial_years.FinancialYear",
+        on_delete=models.PROTECT,
+        related_name="budget_history",
+    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+
+    previous_allocated_budget = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+    previous_refined_budget = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+    previous_estimate_version = models.ForeignKey(
+        ProjectEstimate,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="budget_history_previous",
+    )
+    previous_total_cost = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+
+    new_allocated_budget = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+    new_refined_budget = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+    new_estimate_version = models.ForeignKey(
+        ProjectEstimate,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="budget_history_new",
+    )
+    new_total_cost = models.DecimalField(
+        max_digits=14, decimal_places=2, blank=True, null=True
+    )
+
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.action} — {self.project} / {self.financial_year} @ {self.created_at}"

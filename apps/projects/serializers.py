@@ -2,6 +2,8 @@ from rest_framework import serializers
 
 from .models import (
     Project,
+    ProjectBudget,
+    ProjectBudgetHistory,
     ProjectCode,
     ProjectCollaborator,
     ProjectComment,
@@ -226,6 +228,7 @@ class ProjectEstimateSerializer(serializers.ModelSerializer):
     total_cost = serializers.DecimalField(
         max_digits=14, decimal_places=2, read_only=True
     )
+    tshirt_size = serializers.CharField(read_only=True)
     status_display = serializers.CharField(source="get_status_display", read_only=True)
 
     class Meta:
@@ -244,6 +247,7 @@ class ProjectEstimateSerializer(serializers.ModelSerializer):
             "contingency_pct",
             "day_rate",
             "total_cost",
+            "tshirt_size",
             "is_active",
             "created_at",
             "updated_at",
@@ -254,6 +258,7 @@ class ProjectEstimateSerializer(serializers.ModelSerializer):
             "version_label",
             "day_rate",
             "total_cost",
+            "tshirt_size",
             "created_at",
             "updated_at",
         ]
@@ -275,6 +280,135 @@ class ProjectEstimateHistorySerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = fields
+
+
+class ProjectBudgetSerializer(serializers.ModelSerializer):
+    financial_year_display = serializers.CharField(
+        source="financial_year.short_fy", read_only=True
+    )
+    financial_year_long = serializers.CharField(
+        source="financial_year.long_fy", read_only=True
+    )
+    estimate_version_label = serializers.SerializerMethodField()
+    estimate_total_cost = serializers.SerializerMethodField()
+    actual_budget = serializers.SerializerMethodField()
+    remaining_budget = serializers.SerializerMethodField()
+    budget_risk = serializers.SerializerMethodField()
+    budget_risk_display = serializers.SerializerMethodField()
+    budget_risk_short = serializers.SerializerMethodField()
+    budget_risk_pct = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectBudget
+        fields = [
+            "id",
+            "project",
+            "financial_year",
+            "financial_year_display",
+            "financial_year_long",
+            "allocated_budget",
+            "refined_budget",
+            "estimate_version",
+            "estimate_version_label",
+            "notes",
+            "actual_budget",
+            "estimate_total_cost",
+            "remaining_budget",
+            "budget_risk",
+            "budget_risk_display",
+            "budget_risk_short",
+            "budget_risk_pct",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "project", "created_at", "updated_at"]
+
+    def get_estimate_version_label(self, obj):
+        if obj.estimate_version:
+            return obj.estimate_version.version_label
+        return None
+
+    def get_estimate_total_cost(self, obj):
+        if obj.estimate_version:
+            return obj.estimate_version.total_cost
+        return None
+
+    def get_actual_budget(self, obj):
+        val = getattr(obj, "_actual_budget", obj.actual_budget)
+        return val
+
+    def get_remaining_budget(self, obj):
+        val = getattr(obj, "_remaining_budget", obj.remaining_budget)
+        return val
+
+    def get_budget_risk(self, obj):
+        return getattr(obj, "_budget_risk", None)
+
+    def get_budget_risk_display(self, obj):
+        return getattr(obj, "_budget_risk_display", "—")
+
+    def get_budget_risk_short(self, obj):
+        return getattr(obj, "_budget_risk_short", "—")
+
+    def get_budget_risk_pct(self, obj):
+        return getattr(obj, "_budget_risk_pct", "-")
+
+
+class ProjectBudgetHistorySerializer(serializers.ModelSerializer):
+    action_display = serializers.CharField(source="get_action_display", read_only=True)
+    financial_year_display = serializers.CharField(
+        source="financial_year.short_fy", read_only=True
+    )
+    previous_estimate_label = serializers.SerializerMethodField()
+    new_estimate_label = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectBudgetHistory
+        fields = [
+            "id",
+            "action",
+            "action_display",
+            "financial_year",
+            "financial_year_display",
+            "previous_allocated_budget",
+            "previous_refined_budget",
+            "previous_estimate_version",
+            "previous_estimate_label",
+            "previous_total_cost",
+            "new_allocated_budget",
+            "new_refined_budget",
+            "new_estimate_version",
+            "new_estimate_label",
+            "new_total_cost",
+            "notes",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+    def get_previous_estimate_label(self, obj):
+        if obj.previous_estimate_version:
+            return obj.previous_estimate_version.version_label
+        return None
+
+    def get_new_estimate_label(self, obj):
+        if obj.new_estimate_version:
+            return obj.new_estimate_version.version_label
+        return None
+
+
+class ProjectBudgetLifetimeSerializer(serializers.Serializer):
+    total_actual_budget = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+    total_estimate_cost = serializers.DecimalField(max_digits=14, decimal_places=2)
+    remaining_budget = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+    budget_risk = serializers.CharField(allow_null=True)
+    budget_risk_display = serializers.CharField()
+    budget_risk_short = serializers.CharField()
+    budget_risk_pct = serializers.CharField()
+    partial_budget_warning = serializers.BooleanField()
 
 
 class ProjectExportSerializer(serializers.ModelSerializer):

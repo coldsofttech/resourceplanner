@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 import logging
 import re
 
@@ -8,12 +8,14 @@ from django.db import transaction, IntegrityError, DatabaseError
 from django.db.models import F, Q, Prefetch, Value, CharField
 from django.db.models.functions import Concat
 
-from apps.core.utils import parse_bool
+from .utils import get_tshirt_size, get_tshirt_size_definitions
 from apps.tags.services import TagService
 
 from .engines import ProjectLabelEngineService
 from .models import (
     Project,
+    ProjectBudget,
+    ProjectBudgetHistory,
     ProjectCode,
     ProjectCollaborator,
     ProjectComment,
@@ -25,6 +27,7 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
+SENTINEL = object()
 
 
 class ProjectService:
@@ -1463,6 +1466,9 @@ class ProjectEstimateService:
                 .order_by("-version")
             )
 
+        if wants("tshirt_sizes"):
+            result["tshirt_sizes"] = get_tshirt_size_definitions()
+
         return result
 
     @staticmethod
@@ -1488,3 +1494,342 @@ class ProjectEstimateService:
             "has_previous": page_obj.has_previous(),
             "page_size": page_size,
         }
+
+
+class ProjectBudgetService:
+    @staticmethod
+    def _threshold_pct():
+        from apps.configurations.services import ConfigurationService
+
+        return Decimal(
+            str(ConfigurationService.get_float("BUDGET_THRESHOLD_PCT", fallback=10.0))
+        )
+
+    @staticmethod
+    def _green_pct_for_size(size):
+        from apps.configurations.services import ConfigurationService
+
+        defaults = {"XS": "0.25", "S": "0.50", "M": "1.00", "L": "1.00", "XL": "1.00"}
+        key = f"BUDGET_SIZE_{size}_GREEN_PCT"
+        return Decimal(
+            str(
+                ConfigurationService.get_float(
+                    key, fallback=float(defaults.get(size, "1.00"))
+                )
+            )
+        )
+
+    @staticmethod
+    def _risk(actual_budget, estimate_total_cost):
+        """
+        Returns (risk, display, short, signed_risk_pct)
+        """
+        if actual_budget is None or estimate_total_cost is None:
+            return None, None, None, None
+
+        try:
+            actual_budget = Decimal(str(actual_budget))
+            estimate_total_cost = Decimal(str(estimate_total_cost))
+        except (InvalidOperation, TypeError):
+            return None, None, None, None
+
+        if actual_budget == 0 or estimate_total_cost == 0:
+            return None, None, None, None
+
+        threshold = ProjectBudgetService._threshold_pct()
+        size = get_tshirt_size(actual_budget)
+        green_pct = ProjectBudgetService._green_pct_for_size(size)
+        variance_pct = (estimate_total_cost - actual_budget) / actual_budget * 100
+        sign = "+" if variance_pct >= 0 else ""
+        risk_pct_str = f"{sign}{variance_pct:.2f}"
+        abs_variance = abs(variance_pct)
+
+        if abs_variance <= green_pct:
+            return "GREEN", "On Budget", "OB", risk_pct_str
+        elif abs_variance <= threshold:
+            if variance_pct > 0:
+                return "AMBER", "At Risk (Over)", "AR+", risk_pct_str
+            else:
+                return "AMBER", "At Risk (Under)", "AR-", risk_pct_str
+        else:
+            if variance_pct > 0:
+                return "RED", "Over Budget", "OVR", risk_pct_str
+            else:
+                return "RED", "Under Budget", "UND", risk_pct_str
+
+    @staticmethod
+    def _enrich(budget):
+        actual = budget.actual_budget
+        cost = (
+            Decimal(str(budget.estimate_version.total_cost))
+            if budget.estimate_version
+            else None
+        )
+        risk, risk_display, risk_short, risk_pct = ProjectBudgetService._risk(
+            actual, cost
+        )
+        budget._actual_budget = actual
+        budget._remaining_budget = budget.remaining_budget
+        budget._budget_risk = risk
+        budget._budget_risk_display = risk_display or "-"
+        budget._budget_risk_short = risk_short or "-"
+        budget._budget_risk_pct = risk_pct
+        return budget
+
+    @staticmethod
+    def list_for_project(project_id):
+        qs = (
+            ProjectBudget.objects.filter(project_id=project_id)
+            .select_related("financial_year", "estimate_version")
+            .order_by("financial_year__start_date")
+        )
+        return [ProjectBudgetService._enrich(b) for b in qs]
+
+    @staticmethod
+    def get_budget(project_id, budget_id):
+        budget = ProjectBudget.objects.select_related(
+            "financial_year", "estimate_version"
+        ).get(pk=budget_id, project_id=project_id)
+        return ProjectBudgetService._enrich(budget)
+
+    @staticmethod
+    def list_history(project_id, budget_id, page=1, page_size=20):
+        qs = ProjectBudgetHistory.objects.filter(
+            budget_id=budget_id, project_id=project_id
+        ).select_related(
+            "financial_year", "previous_estimate_version", "new_estimate_version"
+        )
+
+        paginator = Paginator(qs, page_size)
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
+
+    @staticmethod
+    def lifetime_budget(project_id):
+        budgets = ProjectBudget.objects.filter(project_id=project_id).select_related(
+            "financial_year", "estimate_version"
+        )
+        total_actual = Decimal("0")
+        total_cost = Decimal("0")
+        partial_budget_warning = False
+        has_any = False
+
+        for b in budgets:
+            has_any = True
+            actual = b.actual_budget
+            if actual is None:
+                partial_budget_warning = True
+                continue
+            total_actual += Decimal(str(actual))
+            if b.estimate_version is not None:
+                total_cost += Decimal(str(b.estimate_version.total_cost))
+
+        remaining = (
+            (total_actual - total_cost)
+            if has_any and not partial_budget_warning
+            else None
+        )
+        risk, risk_display, risk_short, risk_pct = ProjectBudgetService._risk(
+            total_actual if has_any else None,
+            total_cost if has_any else None,
+        )
+
+        return {
+            "total_actual_budget": total_actual if has_any else None,
+            "total_estimate_cost": total_cost,
+            "remaining_budget": remaining,
+            "budget_risk": risk,
+            "budget_risk_display": risk_display or "-",
+            "budget_risk_short": risk_short,
+            "budget_risk_pct": risk_pct,
+            "partial_budget_warning": partial_budget_warning,
+        }
+
+    @staticmethod
+    @transaction.atomic
+    def create_budget(
+        project_id,
+        financial_year_id,
+        allocated_budget=None,
+        refined_budget=None,
+        estimate_version_id=None,
+        notes=None,
+    ):
+        from apps.financial_years.models import FinancialYear
+
+        project = Project.objects.get(pk=project_id)
+
+        if not financial_year_id:
+            raise ValidationError("Invalid: financial_year_id cannot be blank.")
+        fy = FinancialYear.objects.get(pk=financial_year_id)
+
+        try:
+            budget = ProjectBudget.objects.create(
+                project=project,
+                financial_year=fy,
+                allocated_budget=(
+                    Decimal(str(allocated_budget))
+                    if allocated_budget is not None
+                    else None
+                ),
+                refined_budget=(
+                    Decimal(str(refined_budget)) if refined_budget is not None else None
+                ),
+                estimate_version_id=estimate_version_id,
+                notes=notes,
+            )
+
+            new_cost = (
+                Decimal(str(budget.estimate_version.total_cost))
+                if budget.estimate_version
+                else None
+            )
+
+            ProjectBudgetHistory.objects.create(
+                budget=budget,
+                project=project,
+                financial_year=fy,
+                action=ProjectBudgetHistory.ACTION_CREATED,
+                new_allocated_budget=budget.allocated_budget,
+                new_refined_budget=budget.refined_budget,
+                new_estimate_version_id=estimate_version_id,
+                new_total_cost=new_cost,
+            )
+
+            return ProjectBudgetService._enrich(budget)
+        except IntegrityError as e:
+            logger.error(
+                "IntegrityError creating project budget '%s': %s", project_id, e
+            )
+            raise ValidationError(
+                f"Project budget for project '{project_id}' could not be created due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError creating project budget '%s': %s", project_id, e
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when creating project budget '%s': %s",
+                project_id,
+                e,
+            )
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def update_budget(project_id, budget_id, **kwargs):
+        budget = ProjectBudget.objects.select_related("estimate_version").get(
+            pk=budget_id, project_id=project_id
+        )
+
+        tracked_keys = {"allocated_budget", "refined_budget", "estimate_version_id"}
+        changed = bool(tracked_keys & kwargs.keys())
+
+        prev_allocated = budget.allocated_budget
+        prev_refined = budget.refined_budget
+        prev_estimate_id = budget.estimate_version_id
+        prev_cost = (
+            Decimal(str(budget.estimate_version.total_cost))
+            if budget.estimate_version
+            else None
+        )
+
+        DECIMAL_FIELDS = {"allocated_budget", "refined_budget"}
+
+        for field, value in kwargs.items():
+            if field in DECIMAL_FIELDS and value is not None:
+                try:
+                    value = Decimal(str(value))
+                except (InvalidOperation, TypeError):
+                    raise ValueError(f"Invalid value for {field}: {value}")
+            setattr(budget, field, value)
+
+        try:
+            budget.save()
+
+            if changed:
+                new_ev_id = budget.estimate_version_id
+                try:
+                    from apps.projects.models import ProjectEstimate
+
+                    ev = (
+                        ProjectEstimate.objects.get(pk=new_ev_id) if new_ev_id else None
+                    )
+                    new_cost = Decimal(str(ev.total_cost)) if ev else None
+                except Exception:
+                    new_cost = None
+
+                ProjectBudgetHistory.objects.create(
+                    budget=budget,
+                    project_id=project_id,
+                    financial_year=budget.financial_year,
+                    action=ProjectBudgetHistory.ACTION_UPDATED,
+                    previous_allocated_budget=prev_allocated,
+                    previous_refined_budget=prev_refined,
+                    previous_estimate_version_id=prev_estimate_id,
+                    previous_total_cost=prev_cost,
+                    new_allocated_budget=budget.allocated_budget,
+                    new_refined_budget=budget.refined_budget,
+                    new_estimate_version_id=budget.estimate_version_id,
+                    new_total_cost=new_cost,
+                )
+
+            return ProjectBudgetService._enrich(budget)
+        except IntegrityError as e:
+            logger.error("IntegrityError updating project budget %s: %s", budget_id, e)
+            raise ValidationError(
+                "Project could not be updated due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError updating project budget %s: %s", budget_id, e
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when updating project budget '%s': %s",
+                budget_id,
+                e,
+            )
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def delete_budget(project_id, budget_id):
+        try:
+            budget = ProjectBudget.objects.get(pk=budget_id, project_id=project_id)
+            budget.delete()
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError deleting project budget %s: %s", budget_id, e
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when deleting project budget '%s': %s",
+                budget_id,
+                e,
+            )
+            raise

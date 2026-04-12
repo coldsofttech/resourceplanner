@@ -28,6 +28,10 @@ let codesPage = 1;
 let estimatesTableFetcher = null;
 let _estimateHistoryPage = 1;
 let _currentHistoryEstimateId = null;
+let _budgetHistoryPage = 1;
+let _currentHistoryBudgetId = null;
+let _budgetFyOptions = [];
+let _budgetEstimateOptions = [];
 
 async function initDetailView() {
     try {
@@ -63,6 +67,9 @@ function bindTabEvents() {
     });
     document.getElementById('tab-estimates').addEventListener('shown.bs.tab', function () {
         renderEstimates();
+    });
+    document.getElementById('tab-budgets').addEventListener('shown.bs.tab', function () {
+        renderBudgets();
     });
 }
 
@@ -691,6 +698,9 @@ function renderEstimateRow(estimate) {
             <td class="text-end">
                 <span class="rp-basis-amount">${costFormatted}</span>
             </td>
+            <td class="text-center">
+                <span class="rp-badge rp-badge--muted">${escHtml(estimate.tshirt_size)}</span>
+            </td>
             <td>${_estimateStatusBadge(estimate.status, estimate.status_display)}</td>
             <td>
                 <div class="d-flex gap-1">
@@ -859,6 +869,10 @@ async function openViewEstimateModal(estimateId) {
                 <span class="rp-hint">
                     Formula: estimate days * day rate * (1 + contigency % / 100)
                 </span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">T-Shirt Size</span>
+                <span class="rp-view-value"><span class="rp-badge rp-badge--muted">${escHtml(e.tshirt_size)}</span></span>
             </div>
             <div class="rp-view-field">
                 <span class="rp-view-label">Shared By</span>
@@ -1036,9 +1050,7 @@ async function _loadEstimateHistoryVersionDropdown() {
             sel.value = prevId;
             renderEstimateHistory(prevId, 1);
         }
-    } catch (_) {
-        // silent — dropdown is non-critical
-    }
+    } catch (_) {}
 }
 
 async function renderEstimateHistory(estimateId, page = 1) {
@@ -1492,6 +1504,13 @@ function bindEditButtons() {
         ?.addEventListener('change', (e) => renderEstimateHistory(e.target.value, 1));
 
     _bindEstimateTableActions();
+
+    // Budgets tab
+    document.getElementById('bud-create-save-btn')?.addEventListener('click', saveBudget);
+    document.getElementById('bud-edit-save-btn')?.addEventListener('click', saveEditBudget);
+    document
+        .getElementById('bud-delete-confirm-btn')
+        ?.addEventListener('click', confirmDeleteBudget);
 }
 
 function _showModal(id) {
@@ -1932,6 +1951,564 @@ function _levelBadge(value, label) {
     if (!value) return '<span class="text-muted">—</span>';
     const key = value.toLowerCase().replace('_', '-');
     return `<span class="rp-badge rp-badge-level--${key}">${escHtml(label || value)}</span>`;
+}
+
+const _fmtAmt = (v, fallback = '—') =>
+    v == null
+        ? fallback
+        : `£${parseFloat(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const _fmtAmtCell = (v) =>
+    v == null
+        ? '<span class="text-muted">—</span>'
+        : `<span class="rp-basis-amount">${_fmtAmt(v)}</span>`;
+
+// function _budgetRiskBadge(risk, display, short) {
+//     if (!risk) return '';
+//     const map = { GREEN: 'rp-badge--success', AMBER: 'rp-badge--warning', RED: 'rp-badge--danger' };
+//     const cls = map[risk] || 'rp-badge--muted';
+//     const label = short || display || risk;
+//     return `<span class="rp-badge ${cls}" title="${escHtml(display || risk)}">${escHtml(label)}</span>`;
+// }
+
+async function renderBudgets() {
+    await Promise.all([renderBudgetLifetime(), renderBudgetTable()]);
+    _bindBudgetTableActions();
+    await _loadBudgetHistoryFyDropdown();
+    document.getElementById('btn-add-budget')?.addEventListener('click', openAddBudgetModal);
+    document.getElementById('budget-history-fy-select')?.addEventListener('change', function () {
+        const budgetId = this.value;
+        if (budgetId) renderBudgetHistory(budgetId, 1);
+        else {
+            document.getElementById('budget-history-timeline').innerHTML =
+                '<p class="text-secondary small mb-0">Select a financial year to view its history.</p>';
+            document.getElementById('budget-history-pagination').innerHTML = '';
+        }
+    });
+}
+
+async function renderBudgetLifetime() {
+    try {
+        const { href, method } = API_URLS.projects.budgets.lifetime(projectPk);
+        const data = await apiFetch(href, { method });
+
+        document.getElementById('lt-total-budget').textContent = _fmtAmt(data.total_actual_budget);
+        document.getElementById('lt-total-cost').textContent = _fmtAmt(data.total_estimate_cost);
+        document.getElementById('lt-remaining').textContent = _fmtAmt(data.remaining_budget);
+
+        const riskEl = document.getElementById('lt-risk-badge');
+        riskEl.innerHTML = data.budget_risk
+            ? _budgetRiskBadge(data.budget_risk, data.budget_risk_display, data.budget_risk_short)
+            : '';
+
+        const riskPctEl = document.getElementById('lt-risk-pct');
+        if (riskPctEl) {
+            riskPctEl.textContent = data.budget_risk_pct != null ? `${data.budget_risk_pct}%` : '';
+        }
+        document
+            .getElementById('budget-partial-warning')
+            ?.classList.toggle('d-none', !data.partial_budget_warning);
+    } catch (err) {
+        console.error('[renderBudgetLifetime]', err);
+    }
+}
+
+async function renderBudgetTable() {
+    const tbody = document.getElementById('budgets-tbody');
+    if (!tbody) return;
+    tbody.innerHTML =
+        '<tr><td colspan="7" class="text-center text-secondary py-3"><div class="spinner-border spinner-border-sm"></div></td></tr>';
+
+    try {
+        const url = API_URLS.projects.budgets.list(projectPk);
+        const budgets = await apiFetch(url.href, { method: url.method });
+
+        if (!budgets.length) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center py-4">
+                        <div class="text-secondary small d-flex flex-column align-items-center gap-2">
+                            <i class="bi bi-cash-stack fs-3 opacity-50"></i>
+                            No budget records yet.
+                            <a href="#" class="rp-link" onclick="_showModal('projAddBudgetModal');return false;">
+                                Add the first one.
+                            </a>
+                        </div>
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        tbody.innerHTML = budgets.map(_renderBudgetRow).join('');
+        _budgetFyOptions = budgets.map((b) => ({
+            id: b.id,
+            label: b.financial_year_display,
+            fy_id: b.financial_year,
+        }));
+    } catch (err) {
+        tbody.innerHTML =
+            '<tr><td colspan="7" class="text-center text-danger py-3">Failed to load budgets.</td></tr>';
+        console.error('[renderBudgetTable]', err);
+    }
+}
+
+function _renderBudgetRow(b) {
+    const riskPct =
+        b.budget_risk_pct != null
+            ? `<span class="rp-code" style="font-size:.75rem">${escHtml(b.budget_risk_pct)}%</span>`
+            : '<span class="text-muted">—</span>';
+
+    return `
+        <tr data-budget-id="${b.id}">
+            <td class="fw-semibold">${escHtml(b.financial_year_long || b.financial_year_display)}</td>
+            <td class="text-end">${_fmtAmtCell(b.actual_budget)}</td>
+            <td class="text-end">${_fmtAmtCell(b.estimate_total_cost)}</td>
+            <td class="text-end">${_fmtAmtCell(b.remaining_budget)}</td>
+            <td class="text-end">${riskPct}</td>
+            <td>${b.budget_risk ? _budgetRiskBadge(b.budget_risk, b.budget_risk_display, b.budget_risk_short) : '<span class="text-muted">—</span>'}</td>
+            <td>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-ghost-icon btn-sm js-view-budget" data-id="${b.id}" title="View">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-ghost-icon btn-sm js-edit-budget" data-id="${b.id}" title="Edit">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-ghost-icon btn-ghost-icon--danger btn-sm js-delete-budget"
+                        data-id="${b.id}" data-label="${escHtml(b.financial_year_display)}" title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+}
+
+function _budgetRiskBadge(risk, display, short) {
+    if (!risk) return '';
+    const map = {
+        GREEN: 'rp-badge--success',
+        AMBER: 'rp-badge--warning',
+        RED: 'rp-badge--danger',
+    };
+    return `<span class="rp-badge ${map[risk] || 'rp-badge--muted'}" title="${escHtml(display)}">${escHtml(short || display)}</span>`;
+}
+
+function _bindBudgetTableActions() {
+    const tbody = document.getElementById('budgets-tbody');
+    if (!tbody) return;
+    tbody.addEventListener('click', (e) => {
+        const viewBtn = e.target.closest('.js-view-budget');
+        const editBtn = e.target.closest('.js-edit-budget');
+        const deleteBtn = e.target.closest('.js-delete-budget');
+        if (viewBtn) openViewBudgetModal(viewBtn.dataset.id);
+        if (editBtn) openEditBudgetModal(editBtn.dataset.id);
+        if (deleteBtn) openDeleteBudgetModal(deleteBtn.dataset.id, deleteBtn.dataset.label);
+    });
+}
+
+async function _fetchBudgetCreateOptions() {
+    const [fyRes, estRes] = await Promise.all([
+        apiFetch(API_URLS.financial_years.list.href, {
+            method: API_URLS.financial_years.list.method,
+        }),
+        apiFetch(API_URLS.projects.estimates.list(projectPk).href, {
+            method: API_URLS.projects.estimates.list(projectPk).method,
+        }),
+    ]);
+    _budgetFyOptions = (fyRes.results || fyRes).map((fy) => ({ id: fy.id, label: fy.short_fy }));
+    _budgetEstimateOptions = (estRes.results || estRes).map((e) => ({
+        id: e.id,
+        label: e.version_label,
+    }));
+    return { fyOptions: _budgetFyOptions, estimateOptions: _budgetEstimateOptions };
+}
+
+function _populateBudgetFySelect(selectEl, options, selectedId = '') {
+    selectEl.innerHTML = '<option value="">Select financial year…</option>';
+    options.forEach((fy) => {
+        const opt = document.createElement('option');
+        opt.value = fy.id;
+        opt.textContent = fy.label;
+        if (String(fy.id) === String(selectedId)) opt.selected = true;
+        selectEl.appendChild(opt);
+    });
+}
+
+function _populateBudgetEstimateSelect(selectEl, options, selectedId = '') {
+    selectEl.innerHTML = '<option value="">None</option>';
+    options.forEach((e) => {
+        const opt = document.createElement('option');
+        opt.value = e.id;
+        opt.textContent = e.label;
+        if (String(e.id) === String(selectedId)) opt.selected = true;
+        selectEl.appendChild(opt);
+    });
+}
+
+async function openAddBudgetModal() {
+    ['bud-create-allocated', 'bud-create-refined', 'bud-create-notes'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    document.getElementById('proj-add-budget-banner')?.classList.add('d-none');
+
+    try {
+        const { fyOptions, estimateOptions } = await _fetchBudgetCreateOptions();
+        _populateBudgetFySelect(document.getElementById('bud-create-fy'), fyOptions);
+        _populateBudgetEstimateSelect(
+            document.getElementById('bud-create-estimate'),
+            estimateOptions,
+        );
+    } catch (err) {
+        console.error('[openAddBudgetModal]', err);
+    }
+
+    _showModal('projAddBudgetModal');
+}
+
+async function saveBudget() {
+    const btn = document.getElementById('bud-create-save-btn');
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    const payload = {
+        financial_year: document.getElementById('bud-create-fy').value || null,
+        allocated_budget: document.getElementById('bud-create-allocated').value || null,
+        refined_budget: document.getElementById('bud-create-refined').value || null,
+        estimate_version: document.getElementById('bud-create-estimate').value || null,
+        notes: document.getElementById('bud-create-notes').value || null,
+    };
+
+    try {
+        const url = API_URLS.projects.budgets.create(projectPk);
+        await apiFetch(url.href, { method: url.method, body: JSON.stringify(payload) });
+        _hideModal('projAddBudgetModal');
+        showFlash('Budget created.', 'success');
+        await renderBudgets();
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to create budget.');
+        const banner = document.getElementById('proj-add-budget-banner');
+        if (banner) {
+            banner.textContent = msg;
+            banner.classList.remove('d-none');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
+async function openViewBudgetModal(budgetId) {
+    const container = document.getElementById('proj-view-budget-body');
+    container.innerHTML =
+        '<div class="text-center py-4"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
+    _showModal('projViewBudgetModal');
+
+    try {
+        const url = API_URLS.projects.budgets.detail(projectPk, budgetId);
+        const b = await apiFetch(url.href, { method: url.method });
+        const riskPctDisplay =
+            b.budget_risk_pct != null
+                ? `<span class="rp-code" style="font-size:.8rem">${escHtml(b.budget_risk_pct)}%</span>`
+                : '-';
+
+        container.innerHTML = `
+            <div class="rp-view-field">
+                <span class="rp-view-label">Financial Year</span>
+                <span class="rp-view-value fw-semibold">${escHtml(b.financial_year_long || b.financial_year_display)}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Allocated Budget</span>
+                <span class="rp-view-value">${_fmtAmt(b.allocated_budget)}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Refined Budget</span>
+                <span class="rp-view-value">${_fmtAmt(b.refined_budget)}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Actual Budget</span>
+                <span class="rp-view-value"><strong>${_fmtAmt(b.actual_budget)}</strong></span>
+                <span class="rp-hint">Refined if set, otherwise allocated.</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Estimate Version</span>
+                <span class="rp-view-value">${b.estimate_version_label ? escHtml(b.estimate_version_label) : '<span class="text-muted">None</span>'}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Estimate Cost</span>
+                <span class="rp-view-value">${_fmtAmt(b.estimate_total_cost)}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Remaining</span>
+                <span class="rp-view-value d-flex align-items-center gap-2">
+                    <strong>${_fmtAmt(b.remaining_budget)}</strong>
+                    ${_budgetRiskBadge(b.budget_risk, b.budget_risk_display, b.budget_risk_short)}
+                </span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Risk %</span>
+                <span class="rp-view-value">${riskPctDisplay}</span>
+            </div>
+            ${
+                b.notes
+                    ? `<div class="rp-view-field rp-view-field--block">
+                <span class="rp-view-label">Notes</span>
+                <span class="rp-view-value rp-view-description">${escHtml(b.notes)}</span>
+            </div>`
+                    : ''
+            }
+            <div class="rp-view-field">
+                <span class="rp-view-label">Created</span>
+                <span class="rp-view-value">${formatDateTime(b.created_at)}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Updated</span>
+                <span class="rp-view-value">${formatDateTime(b.updated_at)}</span>
+            </div>`;
+    } catch (err) {
+        container.innerHTML =
+            '<div class="alert alert-danger py-2">Failed to load budget details.</div>';
+    }
+}
+
+async function openEditBudgetModal(budgetId) {
+    document.getElementById('proj-edit-budget-banner')?.classList.add('d-none');
+    document.getElementById('bud-edit-id').value = budgetId;
+
+    try {
+        const { href, method } = API_URLS.projects.budgets.detail(projectPk, budgetId);
+        const b = await apiFetch(href, { method });
+
+        document.getElementById('bud-edit-fy-label').textContent =
+            b.financial_year_long || b.financial_year_display;
+        document.getElementById('bud-edit-allocated').value = b.allocated_budget ?? '';
+        document.getElementById('bud-edit-refined').value = b.refined_budget ?? '';
+        document.getElementById('bud-edit-notes').value = b.notes ?? '';
+
+        const { estimateOptions } = await _fetchBudgetCreateOptions();
+        _populateBudgetEstimateSelect(
+            document.getElementById('bud-edit-estimate'),
+            estimateOptions,
+            b.estimate_version,
+        );
+
+        _showModal('projEditBudgetModal');
+    } catch (err) {
+        showFlash('Could not load budget.', 'danger');
+    }
+}
+
+async function saveEditBudget() {
+    const btn = document.getElementById('bud-edit-save-btn');
+    const budgetId = document.getElementById('bud-edit-id').value;
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    const payload = {
+        allocated_budget: document.getElementById('bud-edit-allocated').value || null,
+        refined_budget: document.getElementById('bud-edit-refined').value || null,
+        estimate_version: document.getElementById('bud-edit-estimate').value || null,
+        notes: document.getElementById('bud-edit-notes').value || null,
+    };
+
+    try {
+        const url = API_URLS.projects.budgets.edit(projectPk, budgetId);
+        await apiFetch(url.href, { method: url.method, body: JSON.stringify(payload) });
+        _hideModal('projEditBudgetModal');
+        showFlash('Budget updated.', 'success');
+        await renderBudgets();
+        if (_currentHistoryBudgetId == budgetId) renderBudgetHistory(budgetId, 1);
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to update budget.');
+        const banner = document.getElementById('proj-edit-budget-banner');
+        if (banner) {
+            banner.textContent = msg;
+            banner.classList.remove('d-none');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
+function openDeleteBudgetModal(budgetId, label) {
+    document.getElementById('bud-delete-id').value = budgetId;
+    document.getElementById('bud-delete-label').textContent = label;
+    _showModal('projDeleteBudgetModal');
+}
+
+async function confirmDeleteBudget() {
+    const btn = document.getElementById('bud-delete-confirm-btn');
+    const budgetId = document.getElementById('bud-delete-id').value;
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+
+    try {
+        const url = API_URLS.projects.budgets.delete(projectPk, budgetId);
+        await apiFetch(url.href, { method: url.method });
+        _hideModal('projDeleteBudgetModal');
+        showFlash('Budget deleted.', 'success');
+        await renderBudgets();
+    } catch (err) {
+        showFlash(_extractError(err, 'Failed to delete budget.'), 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
+async function _loadBudgetHistoryFyDropdown() {
+    const sel = document.getElementById('budget-history-fy-select');
+    if (!sel) return;
+    const prevId = _currentHistoryBudgetId;
+
+    try {
+        const [budgetsRes, activeFyRes] = await Promise.all([
+            apiFetch(API_URLS.projects.budgets.list(projectPk).href, {
+                method: API_URLS.projects.budgets.list(projectPk).method,
+            }),
+            apiFetch(API_URLS.financial_years.active.href, {
+                method: API_URLS.financial_years.active.method,
+            }).catch(() => null),
+        ]);
+
+        if (!budgetsRes.length) return;
+
+        sel.innerHTML =
+            '<option value="">Select FY</option>' +
+            budgetsRes
+                .map((b) => `<option value="${b.id}">${escHtml(b.financial_year_display)}</option>`)
+                .join('');
+
+        let defaultBudget = budgetsRes[0];
+        if (activeFyRes?.short_fy) {
+            const match = budgetsRes.find((b) => b.financial_year_display === activeFyRes.short_fy);
+            if (match) defaultBudget = match;
+        }
+
+        const targetId = _currentHistoryBudgetId || defaultBudget?.id;
+        if (targetId) {
+            sel.value = targetId;
+            renderBudgetHistory(targetId, 1);
+        }
+    } catch (_) {
+    }
+}
+
+async function renderBudgetHistory(budgetId, page = 1) {
+    if (!budgetId) {
+        document.getElementById('budget-history-timeline').innerHTML = '';
+        document.getElementById('budget-history-pagination').innerHTML = '';
+        return;
+    }
+    _currentHistoryBudgetId = budgetId;
+    _budgetHistoryPage = page;
+
+    const container = document.getElementById('budget-history-timeline');
+    const paginationEl = document.getElementById('budget-history-pagination');
+    container.innerHTML =
+        '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-secondary"></div></div>';
+
+    try {
+        const url = API_URLS.projects.budgets.history(projectPk, budgetId);
+        const data = await apiFetch(`${url.href}?page=${page}&page_size=15`, {
+            method: url.method,
+        });
+        const items = data.results || [];
+
+        if (!items.length) {
+            container.innerHTML =
+                '<p class="text-secondary small mb-0">No history for this record.</p>';
+            if (paginationEl) paginationEl.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = `<div class="rp-timeline d-flex flex-column">${_buildBudgetHistoryItems(items)}</div>`;
+        if (paginationEl) _renderBudgetHistoryPagination(data, paginationEl, budgetId);
+    } catch (err) {
+        container.innerHTML = '<p class="text-secondary small mb-0">Failed to load history.</p>';
+    }
+}
+
+function _buildBudgetHistoryItems(entries) {
+    const iconMap = {
+        CREATED: { icon: 'bi-plus-circle-fill', cls: 'text-success' },
+        UPDATED: { icon: 'bi-pencil-fill', cls: 'text-primary' },
+    };
+
+    const fmtAmt = (v) =>
+        v == null
+            ? '—'
+            : `£${parseFloat(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    return entries
+        .map((h, i) => {
+            const { icon, cls } = iconMap[h.action] || { icon: 'bi-circle', cls: 'text-secondary' };
+
+            const budgetChange =
+                h.action === 'CREATED'
+                    ? `<div class="small text-secondary mt-1">
+                            Allocated: <strong>${fmtAmt(h.new_allocated_budget)}</strong>
+                            · Refined: <strong>${fmtAmt(h.new_refined_budget)}</strong>
+                            ${h.new_estimate_label ? `· Estimate: <strong>${escHtml(h.new_estimate_label)}</strong>` : ''}
+                            ${h.new_total_cost != null ? `· Cost: <strong>${fmtAmt(h.new_total_cost)}</strong>` : ''}
+                       </div>`
+                    : `<div class="small text-secondary mt-1">
+                            ${h.previous_allocated_budget !== h.new_allocated_budget ? `Allocated: <span class="rp-badge rp-badge--muted">${fmtAmt(h.previous_allocated_budget)}</span> <i class="bi bi-arrow-right mx-1" style="font-size:.7rem"></i> <span class="rp-badge rp-badge--muted">${fmtAmt(h.new_allocated_budget)}</span><br>` : ''}
+                            ${h.previous_refined_budget !== h.new_refined_budget ? `Refined: <span class="rp-badge rp-badge--muted">${fmtAmt(h.previous_refined_budget)}</span> <i class="bi bi-arrow-right mx-1" style="font-size:.7rem"></i> <span class="rp-badge rp-badge--muted">${fmtAmt(h.new_refined_budget)}</span><br>` : ''}
+                            ${h.previous_estimate_version !== h.new_estimate_version ? `Estimate: <span class="rp-badge rp-badge--muted">${escHtml(h.previous_estimate_label || '—')}</span> <i class="bi bi-arrow-right mx-1" style="font-size:.7rem"></i> <span class="rp-badge rp-badge--muted">${escHtml(h.new_estimate_label || '—')}</span>` : ''}
+                       </div>`;
+
+            return `
+            <div class="rp-timeline-item">
+                <div class="rp-timeline-marker">
+                    <div class="rp-timeline-dot ${i === 0 ? 'rp-timeline-dot--success' : 'rp-timeline-dot--muted'}">
+                        <i class="bi ${icon} ${cls}" style="font-size:.65rem; line-height:1;"></i>
+                    </div>
+                    ${i < entries.length - 1 ? '<div class="rp-timeline-line"></div>' : ''}
+                </div>
+                <div class="rp-timeline-body pb-3">
+                    <div class="rp-timeline-meta">
+                        <i class="bi bi-calendar3"></i> ${formatDateTime(h.created_at)}
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                        <span class="fw-semibold" style="font-size:.85rem">${escHtml(h.action_display)}</span>
+                    </div>
+                    ${budgetChange}
+                    ${h.notes ? `<p class="text-secondary small mb-0 mt-1">${escHtml(h.notes)}</p>` : ''}
+                </div>
+            </div>`;
+        })
+        .join('');
+}
+
+function _renderBudgetHistoryPagination(data, el, budgetId) {
+    const totalPages = data.num_pages || 1;
+    if (totalPages <= 1) {
+        el.innerHTML = '';
+        return;
+    }
+    el.innerHTML = `
+        <div class="d-flex align-items-center gap-2 mt-2">
+            <button class="btn btn-outline-secondary btn-sm" id="bud-hist-prev"
+                ${_budgetHistoryPage <= 1 ? 'disabled' : ''}>
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <span class="text-secondary small">Page ${_budgetHistoryPage} of ${totalPages}</span>
+            <button class="btn btn-outline-secondary btn-sm" id="bud-hist-next"
+                ${_budgetHistoryPage >= totalPages ? 'disabled' : ''}>
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>`;
+    el.querySelector('#bud-hist-prev')?.addEventListener('click', () =>
+        renderBudgetHistory(budgetId, _budgetHistoryPage - 1),
+    );
+    el.querySelector('#bud-hist-next')?.addEventListener('click', () =>
+        renderBudgetHistory(budgetId, _budgetHistoryPage + 1),
+    );
 }
 
 function _showBanner(message, type = 'danger', bannerId = 'proj-detail-banner') {

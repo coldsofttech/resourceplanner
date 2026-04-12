@@ -350,6 +350,36 @@ export const API_URLS = {
                 href: `${API_BASE}projects/${projectId}/estimates/${estimateId}/history/`,
             }),
         },
+        budgets: {
+            list: (projectId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/budgets/`,
+            }),
+            create: (projectId) => ({
+                method: 'POST',
+                href: `${API_BASE}projects/${projectId}/budgets/`,
+            }),
+            lifetime: (projectId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/budgets/lifetime/`,
+            }),
+            detail: (projectId, budgetId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/budgets/${budgetId}/`,
+            }),
+            edit: (projectId, budgetId) => ({
+                method: 'PATCH',
+                href: `${API_BASE}projects/${projectId}/budgets/${budgetId}/`,
+            }),
+            delete: (projectId, budgetId) => ({
+                method: 'DELETE',
+                href: `${API_BASE}projects/${projectId}/budgets/${budgetId}/`,
+            }),
+            history: (projectId, budgetId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/budgets/${budgetId}/history/`,
+            }),
+        },
     },
     configurations: {
         list: { method: 'GET', href: `${API_BASE}configurations/` },
