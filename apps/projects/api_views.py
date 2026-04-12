@@ -9,10 +9,12 @@ from rest_framework.response import Response
 
 from apps.core.utils import view_set_validation_details
 
-from .models import Project, ProjectLabel
+from .models import Project, ProjectEstimate, ProjectLabel
 from .serializers import (
     ProjectCodeSerializer,
     ProjectCommentSerializer,
+    ProjectEstimateHistorySerializer,
+    ProjectEstimateSerializer,
     ProjectLabelSerializer,
     ProjectSerializer,
     ProjectOperationalSerializer,
@@ -24,6 +26,7 @@ from .serializers import (
 from .services import (
     ProjectCodeService,
     ProjectCommentService,
+    ProjectEstimateService,
     ProjectLabelService,
     ProjectService,
     ProjectStatusHistoryService,
@@ -902,6 +905,225 @@ class ProjectViewSet(viewsets.ViewSet):
             )
         except Exception as e:
             logger.exception("Unexpected error in codes_history: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/estimates/
+    # POST /projects/<id>/estimates/
+    @action(detail=True, methods=["get", "post"], url_path="estimates")
+    def estimates_create_or_get(self, request, pk=None):
+        try:
+            try:
+                page = int(request.query_params.get("page", 1))
+                page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            except (ValueError, TypeError):
+                page, page_size = 1, 20
+
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                result = ProjectEstimateService.list_estimates(
+                    instance.pk, page, page_size
+                )
+                serializer = ProjectEstimateSerializer(result["results"], many=True)
+                return Response(
+                    {
+                        "results": serializer.data,
+                        "pagination": {
+                            "total_count": result["total_count"],
+                            "total_pages": result["total_pages"],
+                            "current_page": result["current_page"],
+                            "page_size": result["page_size"],
+                            "has_next": result["has_next"],
+                            "has_previous": result["has_previous"],
+                        },
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            if request.method == "POST":
+                notes = request.data.get("notes") or ""
+                estimate = ProjectEstimateService.create_estimate(
+                    instance.pk, request.data, notes
+                )
+                return Response(
+                    ProjectEstimateSerializer(estimate).data,
+                    status=status.HTTP_201_CREATED,
+                )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in estimates_create_or_get: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in estimates_create_or_get: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/estimates/<id>/
+    # PATCH /projects/<id>/estimates/<id>/
+    # DELETE /projects/<id>/estimates/<id>/
+    @action(
+        detail=True,
+        methods=["get", "patch", "delete"],
+        url_path="estimates/(?P<estimate_pk>[^/.]+)",
+    )
+    def estimates_patch_delete_or_get(self, request, pk=None, estimate_pk=None):
+        try:
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                estimate = ProjectEstimateService.get_estimate(pk, estimate_pk)
+                return Response(
+                    ProjectEstimateSerializer(estimate).data, status=status.HTTP_200_OK
+                )
+
+            if request.method == "PATCH":
+                notes = request.data.get("notes") or ""
+                estimate = ProjectEstimateService.update_estimate(
+                    pk, estimate_pk, request.data, notes
+                )
+                return Response(
+                    ProjectEstimateSerializer(estimate).data, status=status.HTTP_200_OK
+                )
+
+            if request.method == "DELETE":
+                ProjectEstimateService.delete_estimate(pk, estimate_pk)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+        except (ValueError, ProjectEstimate.DoesNotExist) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in estimates_patch_delete_or_get: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in estimates_patch_delete_or_get: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/estimates/options/
+    @action(detail=True, methods=["get"], url_path="estimates/options")
+    def estimates_option_choices(self, request, pk=None):
+        try:
+            fields_param = request.query_params.get("fields")
+            fields = fields_param.split(",") if fields_param else None
+            result = ProjectEstimateService.list_options(pk, fields=fields)
+            return Response(result, status=status.HTTP_200_OK)
+        except DatabaseError as e:
+            logger.exception("DatabaseError in estimates_option_choices: %s", e)
+            return Response(
+                {"error": "A database error occurred. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in estimates_option_choices: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/estimates/<id>/history/
+    @action(
+        detail=True,
+        methods=["get"],
+        url_path="estimates/(?P<estimate_pk>[^/.]+)/history",
+    )
+    def estimates_history(self, request, pk=None, estimate_pk=None):
+        try:
+            try:
+                page = int(request.query_params.get("page", 1))
+                page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            except (ValueError, TypeError):
+                page, page_size = 1, 20
+
+            try:
+                project_instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            try:
+                estimate_instance = ProjectEstimateService.get_estimate(pk, estimate_pk)
+            except ProjectEstimate.DoesNotExist:
+                logger.warning("Project estimate %s does not exist.", estimate_pk)
+                return Response(
+                    {"error": "Project estimate not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            result = ProjectEstimateService.list_history(
+                pk, estimate_pk, page, page_size
+            )
+            serializer = ProjectEstimateHistorySerializer(result["results"], many=True)
+            return Response(
+                {
+                    "results": serializer.data,
+                    "pagination": {
+                        "total_count": result["total_count"],
+                        "total_pages": result["total_pages"],
+                        "current_page": result["current_page"],
+                        "page_size": result["page_size"],
+                        "has_next": result["has_next"],
+                        "has_previous": result["has_previous"],
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in estimates_history: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in estimates_history: %s", e)
             return Response(
                 {"error": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

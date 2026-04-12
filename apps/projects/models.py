@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import models
 from django.core.exceptions import ValidationError
 
@@ -244,3 +246,95 @@ class ProjectCode(models.Model):
 
     def __str__(self):
         return f"{self.code} ({self.created_at:%Y-%m-%d})"
+
+
+class ProjectEstimate(models.Model):
+    STATUS_DRAFT = "DRAFT"
+    STATUS_REVIEWED = "REVIEWED"
+    STATUS_SHARED = "SHARED"
+    STATUS_APPROVED = "APPROVED"
+    STATUS_SUPERSEDED = "SUPERSEDED"
+
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Draft"),
+        (STATUS_REVIEWED, "Reviewed"),
+        (STATUS_SHARED, "Shared"),
+        (STATUS_APPROVED, "Approved"),
+        (STATUS_SUPERSEDED, "Superseded"),
+    ]
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="estimates",
+    )
+    version = models.PositiveIntegerField(editable=False)
+    estimate_link = models.URLField(blank=True, null=True)
+    shared_by = models.CharField(max_length=200, blank=True)
+    reviewed_by = models.CharField(max_length=200, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES)
+    estimate_days = models.DecimalField(max_digits=8, decimal_places=2)
+    contingency_pct = models.DecimalField(
+        max_digits=5, decimal_places=2, default=Decimal("0.00")
+    )
+    day_rate = models.DecimalField(max_digits=10, decimal_places=2)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-version"]
+        unique_together = [("project", "version")]
+
+    def __str__(self):
+        return f"{self.project} — {self.version_label}"
+
+    @property
+    def version_label(self):
+        return f"v{self.version}"
+
+    @property
+    def total_cost(self):
+        return (
+            self.estimate_days
+            * self.day_rate
+            * (1 + self.contingency_pct / Decimal("100"))
+        )
+
+
+class ProjectEstimateHistory(models.Model):
+    ACTION_CREATED = "CREATED"
+    ACTION_UPDATED = "UPDATED"
+    ACTION_APPROVED = "APPROVED"
+    ACTION_SUPERSEDED = "SUPERSEDED"
+
+    ACTION_CHOICES = [
+        (ACTION_CREATED, "Created"),
+        (ACTION_UPDATED, "Updated"),
+        (ACTION_APPROVED, "Approved"),
+        (ACTION_SUPERSEDED, "Superseded"),
+    ]
+
+    estimate = models.ForeignKey(
+        ProjectEstimate,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="history",
+    )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="estimate_history",
+    )
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    previous_status = models.CharField(max_length=20, blank=True)
+    new_status = models.CharField(max_length=20)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.estimate} — {self.action}"

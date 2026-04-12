@@ -5,6 +5,8 @@ from .models import (
     ProjectCode,
     ProjectCollaborator,
     ProjectComment,
+    ProjectEstimate,
+    ProjectEstimateHistory,
     ProjectLabel,
     ProjectStatusHistory,
     ProjectTag,
@@ -217,6 +219,62 @@ class ProjectCodeSerializer(serializers.ModelSerializer):
         model = ProjectCode
         fields = ["id", "code", "notes", "created_at"]
         read_only_fields = ["created_at"]
+
+
+class ProjectEstimateSerializer(serializers.ModelSerializer):
+    version_label = serializers.CharField(read_only=True)
+    total_cost = serializers.DecimalField(
+        max_digits=14, decimal_places=2, read_only=True
+    )
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = ProjectEstimate
+        fields = [
+            "id",
+            "project",
+            "version",
+            "version_label",
+            "estimate_link",
+            "shared_by",
+            "reviewed_by",
+            "status",
+            "status_display",
+            "estimate_days",
+            "contingency_pct",
+            "day_rate",
+            "total_cost",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "project",
+            "version",
+            "version_label",
+            "day_rate",
+            "total_cost",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class ProjectEstimateHistorySerializer(serializers.ModelSerializer):
+    action_display = serializers.CharField(source="get_action_display", read_only=True)
+
+    class Meta:
+        model = ProjectEstimateHistory
+        fields = [
+            "id",
+            "estimate",
+            "action",
+            "action_display",
+            "previous_status",
+            "new_status",
+            "notes",
+            "created_at",
+        ]
+        read_only_fields = fields
 
 
 class ProjectExportSerializer(serializers.ModelSerializer):

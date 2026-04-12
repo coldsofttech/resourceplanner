@@ -1,5 +1,8 @@
 'use strict';
 
+import { initFetch } from './../list/fetch.js';
+import { initRenderer } from './../list/render.js';
+import { initSorting } from './../list/sort.js';
 import {
     apiFetch,
     escHtml,
@@ -22,6 +25,9 @@ let options = null;
 let _allSubStatuses = [];
 let commentPage = 1;
 let codesPage = 1;
+let estimatesTableFetcher = null;
+let _estimateHistoryPage = 1;
+let _currentHistoryEstimateId = null;
 
 async function initDetailView() {
     try {
@@ -55,6 +61,9 @@ function bindTabEvents() {
     document.getElementById('tab-history').addEventListener('shown.bs.tab', function () {
         renderStatusHistory();
     });
+    document.getElementById('tab-estimates').addEventListener('shown.bs.tab', function () {
+        renderEstimates();
+    });
 }
 
 async function fetchOptions() {
@@ -65,6 +74,12 @@ async function fetchOptions() {
 
 async function fetchProject() {
     const { method, href } = API_URLS.projects.detail(projectPk);
+    const res = await apiFetch(href, { method });
+    return res;
+}
+
+async function fetchEstimateOptions() {
+    const { method, href } = API_URLS.projects.estimates.options(projectPk);
     const res = await apiFetch(href, { method });
     return res;
 }
@@ -589,6 +604,543 @@ async function renderLabels() {
     }
 }
 
+async function renderEstimates() {
+    try {
+        exitEditMode('estimates');
+
+        const renderer = initRenderer({
+            tbodyId: 'estimates-tbody',
+            colspan: 6,
+            itemLabel: 'estimates',
+            rowTemplate: renderEstimateRow,
+            emptyState: {
+                message: 'No estimates yet.',
+                link: {
+                    href: '#',
+                    label: 'Create the first one.',
+                    onclick: '_showModal("projAddEstimateModal")',
+                },
+            },
+            filterEmptyState: {},
+            paginationBarId: 'estimates-pagination-bar',
+            paginationInfoId: 'estimates-pagination-info',
+            paginationControlsId: 'estimates-pagination-controls',
+            onPageChange: (page) => estimatesTableFetcher.goToPage(page),
+        });
+
+        estimatesTableFetcher = initFetch({
+            apiUrl: API_URLS.projects.estimates.list(projectPk).href,
+            pageSize: 20,
+            searchInputId: '',
+            filters: [],
+            onLoadStart: () => renderer.renderLoading('Loading estimate versions...'),
+            onSuccess: ({ results, pagination, state }) => {
+                const hasFilters = !!state.search || Object.keys(state.filters).length > 0;
+                renderer.renderRows(results, hasFilters);
+                renderer.renderPagination(pagination);
+                _loadEstimateHistoryVersionDropdown();
+            },
+            onError: () =>
+                renderer.renderError('Failed to load estimate versions. Please refresh the page.'),
+        });
+
+        initSorting({
+            tableId: 'estimates-table',
+            fetcher: estimatesTableFetcher,
+        });
+
+        estimatesTableFetcher.refresh();
+    } catch (err) {
+        _showBanner('Failed to load project information. Please refresh the page.', 'error');
+        console.error('[renderEstimates] Failed to load project estimates information.', err);
+    }
+}
+
+function renderEstimateRow(estimate) {
+    const isApproved = estimate.status === 'APPROVED';
+    const isSuperseded = estimate.status === 'SUPERSEDED';
+    const canEdit = !isApproved && !isSuperseded;
+
+    const versionCell = estimate.estimate_link
+        ? `<a href="${escHtml(estimate.estimate_link)}" target="_blank" rel="noopener noreferrer" class="rp-link fw-semibold">${escHtml(estimate.version_label)}</a>`
+        : `<span class="fw-semibold">${escHtml(estimate.version_label)}</span>`;
+
+    const days = parseFloat(estimate.estimate_days);
+    const daysFormatted = isNaN(days)
+        ? '—'
+        : days.toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+
+    const pct = parseFloat(estimate.contingency_pct);
+    const pctFormatted = isNaN(pct) ? '—' : `${pct.toFixed(2)}%`;
+
+    const cost = parseFloat(estimate.total_cost);
+    const costFormatted = isNaN(cost)
+        ? '—'
+        : `£${cost.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+    return `
+        <tr data-estimate-id="${estimate.id}">
+            <td>${versionCell}</td>
+            <td class="text-center">
+                <span class="rp-metric-value">${daysFormatted}</span>
+                <span class="text-secondary" style="font-size:.75rem"> d</span>
+            </td>
+            <td class="text-center">
+                <span class="rp-metric-value">${pctFormatted}</span>
+            </td>
+            <td class="text-end">
+                <span class="rp-basis-amount">${costFormatted}</span>
+            </td>
+            <td>${_estimateStatusBadge(estimate.status, estimate.status_display)}</td>
+            <td>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-ghost-icon js-view-estimate" data-id="${estimate.id}" title="View">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    ${
+                        canEdit
+                            ? `
+                    <button class="btn btn-ghost-icon js-edit-estimate" data-id="${estimate.id}" title="Edit">
+                        <i class="bi bi-pencil"></i>
+                    </button>`
+                            : ''
+                    }
+                    ${
+                        canEdit
+                            ? `
+                    <button class="btn btn-ghost-icon btn-ghost-icon--danger js-delete-estimate" data-id="${estimate.id}" data-label="${escHtml(estimate.version_label)}" title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </button>`
+                            : ''
+                    }
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function _estimateStatusBadge(status, label) {
+    const map = {
+        DRAFT: 'rp-badge--muted',
+        REVIEWED: 'rp-badge--warning',
+        SHARED: 'rp-badge--warning',
+        APPROVED: 'rp-badge--success',
+        SUPERSEDED: 'rp-badge--muted',
+    };
+    return `<span class="rp-badge ${map[status] || 'rp-badge--muted'}">${escHtml(label || status)}</span>`;
+}
+
+function _bindEstimateTableActions() {
+    const tbody = document.getElementById('estimates-tbody');
+    if (!tbody) return;
+
+    tbody.addEventListener('click', (e) => {
+        const viewBtn = e.target.closest('.js-view-estimate');
+        const editBtn = e.target.closest('.js-edit-estimate');
+        const deleteBtn = e.target.closest('.js-delete-estimate');
+
+        if (viewBtn) openViewEstimateModal(viewBtn.dataset.id);
+        if (editBtn) openEditEstimateModal(editBtn.dataset.id);
+        if (deleteBtn) openDeleteEstimateModal(deleteBtn.dataset.id, deleteBtn.dataset.label);
+    });
+}
+
+async function openAddEstimateModal() {
+    [
+        'est-create-days',
+        'est-create-contingency',
+        'est-create-link',
+        'est-create-shared-by',
+        'est-create-reviewed-by',
+        'est-create-notes',
+    ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = id === 'est-create-contingency' ? '0' : '';
+    });
+
+    try {
+        const options = await fetchEstimateOptions();
+        const items = options?.status ?? [];
+        const dropDownEl = document.getElementById('est-create-status');
+        dropDownEl.innerHTML = '';
+
+        items.forEach((s) => {
+            const option = document.createElement('option');
+            option.value = s.value;
+            option.textContent = s.label;
+            dropDownEl.appendChild(option);
+        });
+        if (dropDownEl) dropDownEl.value = 'DRAFT';
+    } catch (err) {
+        console.error(err);
+    }
+
+    document.getElementById('proj-add-estimate-banner')?.classList.add('d-none');
+    _showModal('projAddEstimateModal');
+}
+
+async function saveEstimate() {
+    const btn = document.getElementById('est-create-save-btn');
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    const payload = {
+        estimate_days: document.getElementById('est-create-days').value,
+        contingency_pct: document.getElementById('est-create-contingency').value || '0',
+        status: document.getElementById('est-create-status').value,
+        estimate_link: document.getElementById('est-create-link').value || null,
+        shared_by: document.getElementById('est-create-shared-by').value,
+        reviewed_by: document.getElementById('est-create-reviewed-by').value,
+        notes: document.getElementById('est-create-notes').value,
+    };
+
+    try {
+        const { method, href } = API_URLS.projects.estimates.create(projectPk);
+        await apiFetch(href, { method, body: JSON.stringify(payload) });
+        _hideModal('projAddEstimateModal');
+        showFlash('Estimate created.', 'success');
+        estimatesTableFetcher?.refresh();
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to create estimate.');
+        const banner = document.getElementById('proj-add-estimate-banner');
+        if (banner) {
+            banner.textContent = msg;
+            banner.classList.remove('d-none');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
+async function openViewEstimateModal(estimateId) {
+    const container = document.getElementById('proj-view-estimate-body');
+    container.innerHTML = `<div class="text-center py-4"><div class="spinner-border spinner-border-sm"></div></div>`;
+    _showModal('projViewEstimateModal');
+
+    try {
+        const { method, href } = API_URLS.projects.estimates.detail(projectPk, estimateId);
+        const e = await apiFetch(href, { method });
+
+        const cost = parseFloat(e.total_cost);
+        const costFmt = isNaN(cost)
+            ? '—'
+            : `£${cost.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const dayRate = parseFloat(e.day_rate);
+        const dayRateFmt = isNaN(dayRate)
+            ? '—'
+            : `£${dayRate.toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+        container.innerHTML = `
+            <div class="rp-view-field">
+                <span class="rp-view-label">Version</span>
+                <span class="rp-view-value rp-code">${escHtml(e.version_label)}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Status</span>
+                <span class="rp-view-value">${_estimateStatusBadge(e.status, e.status_display)}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Estimate Days</span>
+                <span class="rp-view-value">${parseFloat(e.estimate_days).toLocaleString('en-GB', { maximumFractionDigits: 2 })} d</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Contingency</span>
+                <span class="rp-view-value">${parseFloat(e.contingency_pct).toFixed(2)}%</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Day Rate</span>
+                <span class="rp-view-value">${dayRateFmt}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Total Cost</span>
+                <span class="rp-view-value"><strong>${costFmt}</strong></span>
+                <span class="rp-hint">
+                    Formula: estimate days * day rate * (1 + contigency % / 100)
+                </span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Shared By</span>
+                <span class="rp-view-value">${escHtml(e.shared_by || '-')}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Reviewed By</span>
+                <span class="rp-view-value">${escHtml(e.reviewed_by || '-')}</span>
+            </div>
+            ${
+                e.estimate_link
+                    ? `<div class="rp-view-field rp-view-field--block">
+                    <span class="rp-view-label">Estimate Link</span>
+                    <span class="rp-view-value rp-view-description">
+                        <a href="${escHtml(e.estimate_link)}" target="_blank" rel="noopener noreferrer" class="rp-link">${escHtml(e.estimate_link)}</a>
+                    </span>
+                </div>`
+                    : ''
+            }
+            <div class="rp-view-field">
+                <span class="rp-view-label">Created</span>
+                <span class="rp-view-value">${formatDateTime(e.created_at)}</span>
+            </div>
+            <div class="rp-view-field">
+                <span class="rp-view-label">Updated</span>
+                <span class="rp-view-value">${formatDateTime(e.updated_at)}</span>
+            </div>`;
+    } catch (err) {
+        container.innerHTML = `<div class="alert alert-danger py-2">Failed to load estimate.</div>`;
+    }
+}
+
+async function openEditEstimateModal(estimateId) {
+    document.getElementById('proj-edit-estimate-banner')?.classList.add('d-none');
+    document.getElementById('est-edit-id').value = estimateId;
+
+    try {
+        const options = await fetchEstimateOptions();
+        const items = options?.status ?? [];
+        const dropDownEl = document.getElementById('est-edit-status');
+        dropDownEl.innerHTML = '';
+
+        items.forEach((s) => {
+            const option = document.createElement('option');
+            option.value = s.value;
+            option.textContent = s.label;
+            dropDownEl.appendChild(option);
+        });
+
+        const { method, href } = API_URLS.projects.estimates.detail(projectPk, estimateId);
+        const e = await apiFetch(href, { method });
+
+        document.getElementById('est-edit-days').value = e.estimate_days;
+        document.getElementById('est-edit-contingency').value = e.contingency_pct;
+        document.getElementById('est-edit-days')._originalValue = e.estimate_days;
+        document.getElementById('est-edit-contingency')._originalValue = e.contingency_pct;
+        document.getElementById('est-edit-status').value = e.status;
+        document.getElementById('est-edit-link').value = e.estimate_link || '';
+        document.getElementById('est-edit-shared-by').value = e.shared_by || '';
+        document.getElementById('est-edit-reviewed-by').value = e.reviewed_by || '';
+        document.getElementById('est-edit-notes').value = '';
+
+        const locked = e.status === 'APPROVED' || e.status === 'SUPERSEDED';
+        const notice = document.getElementById('est-edit-locked-notice');
+        if (notice) notice.classList.toggle('d-none', !locked);
+
+        ['est-edit-days', 'est-edit-contingency'].forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = locked;
+        });
+
+        _showModal('projEditEstimateModal');
+    } catch (err) {
+        showFlash('Could not load estimate.', 'danger');
+    }
+}
+
+async function saveEditEstimate() {
+    const btn = document.getElementById('est-edit-save-btn');
+    const estimateId = document.getElementById('est-edit-id').value;
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving…';
+
+    const daysEl = document.getElementById('est-edit-days');
+    const contingencyEl = document.getElementById('est-edit-contingency');
+
+    const payload = {
+        status: document.getElementById('est-edit-status').value,
+        estimate_link: document.getElementById('est-edit-link').value || null,
+        shared_by: document.getElementById('est-edit-shared-by').value,
+        reviewed_by: document.getElementById('est-edit-reviewed-by').value,
+        notes: document.getElementById('est-edit-notes').value,
+    };
+
+    if (daysEl._originalValue !== daysEl.value) payload.estimate_days = daysEl.value;
+    if (contingencyEl._originalValue !== contingencyEl.value)
+        payload.contingency_pct = contingencyEl.value;
+
+    try {
+        const { method, href } = API_URLS.projects.estimates.edit(projectPk, estimateId);
+        await apiFetch(href, { method, body: JSON.stringify(payload) });
+        _hideModal('projEditEstimateModal');
+        showFlash('Estimate updated.', 'success');
+        estimatesTableFetcher?.refresh();
+        if (_currentHistoryEstimateId == estimateId) {
+            renderEstimateHistory(estimateId, 1);
+        }
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to update estimate.');
+        const banner = document.getElementById('proj-edit-estimate-banner');
+        if (banner) {
+            banner.textContent = msg;
+            banner.classList.remove('d-none');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
+function openDeleteEstimateModal(estimateId, label) {
+    document.getElementById('est-delete-id').value = estimateId;
+    document.getElementById('est-delete-label').textContent = label;
+    _showModal('projDeleteEstimateModal');
+}
+
+async function confirmDeleteEstimate() {
+    const btn = document.getElementById('est-delete-confirm-btn');
+    const estimateId = document.getElementById('est-delete-id').value;
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+
+    try {
+        const { method, href } = API_URLS.projects.estimates.delete(projectPk, estimateId);
+        await apiFetch(href, { method });
+        _hideModal('projDeleteEstimateModal');
+        showFlash('Estimate deleted.', 'success');
+        estimatesTableFetcher?.refresh();
+        if (_currentHistoryEstimateId == estimateId) {
+            _currentHistoryEstimateId = null;
+            document.getElementById('estimate-history-timeline').innerHTML = '';
+            document.getElementById('estimate-history-version-select').value = '';
+        }
+    } catch (err) {
+        showFlash(_extractError(err, 'Failed to delete estimate.'), 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
+async function _loadEstimateHistoryVersionDropdown() {
+    const sel = document.getElementById('estimate-history-version-select');
+    if (!sel) return;
+
+    try {
+        const { method, href } = API_URLS.projects.estimates.options(projectPk);
+        const data = await apiFetch(href, { method });
+        const versions = Array.isArray(data) ? data : data.versions || [];
+
+        const prevId = _currentHistoryEstimateId || (versions[0] && versions[0].id);
+
+        sel.innerHTML =
+            `<option value="">Select version</option>` +
+            versions
+                .map(
+                    (v) =>
+                        `<option value="${v.id}">${escHtml(v.version_label)}${v.status ? ' · ' + escHtml(v.status) : ''}</option>`,
+                )
+                .join('');
+
+        if (prevId) {
+            sel.value = prevId;
+            renderEstimateHistory(prevId, 1);
+        }
+    } catch (_) {
+        // silent — dropdown is non-critical
+    }
+}
+
+async function renderEstimateHistory(estimateId, page = 1) {
+    if (!estimateId) {
+        document.getElementById('estimate-history-timeline').innerHTML = '';
+        document.getElementById('estimate-history-pagination').innerHTML = '';
+        return;
+    }
+    _currentHistoryEstimateId = estimateId;
+    _estimateHistoryPage = page;
+
+    const container = document.getElementById('estimate-history-timeline');
+    const paginationEl = document.getElementById('estimate-history-pagination');
+    container.innerHTML = `<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-secondary"></div></div>`;
+
+    try {
+        const { method, href } = API_URLS.projects.estimates.history(projectPk, estimateId);
+        const data = await apiFetch(`${href}?page=${page}&page_size=15`, { method });
+        const items = data.results || [];
+
+        if (!items.length) {
+            container.innerHTML = `<p class="text-secondary small mb-0">No history for this version.</p>`;
+            if (paginationEl) paginationEl.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = `<div class="rp-timeline d-flex flex-column">${_buildEstimateHistoryItems(items)}</div>`;
+
+        if (paginationEl) _renderEstimateHistoryPagination(data, paginationEl, estimateId);
+    } catch (err) {
+        container.innerHTML = `<p class="text-secondary small mb-0">Failed to load history.</p>`;
+    }
+}
+
+function _buildEstimateHistoryItems(entries) {
+    const iconMap = {
+        CREATED: { icon: 'bi-plus-circle-fill', cls: 'text-success' },
+        UPDATED: { icon: 'bi-pencil-fill', cls: 'text-primary' },
+        APPROVED: { icon: 'bi-check-circle-fill', cls: 'text-success' },
+        SUPERSEDED: { icon: 'bi-arrow-counterclockwise', cls: 'text-secondary' },
+    };
+
+    return entries
+        .map((h, i) => {
+            const { icon, cls } = iconMap[h.action] || { icon: 'bi-circle', cls: 'text-secondary' };
+            const statusChange = h.previous_status
+                ? `<span class="rp-badge rp-badge--muted">${escHtml(h.previous_status)}</span>
+                   <i class="bi bi-arrow-right mx-1 text-secondary" style="font-size:.7rem"></i>
+                   <span class="rp-badge rp-badge--muted">${escHtml(h.new_status)}</span>`
+                : `<span class="rp-badge rp-badge--muted">${escHtml(h.new_status)}</span>`;
+
+            return `
+            <div class="rp-timeline-item">
+                <div class="rp-timeline-marker">
+                    <div class="rp-timeline-dot ${i === 0 ? 'rp-timeline-dot--success' : 'rp-timeline-dot--muted'}">
+                        <i class="bi ${icon} ${cls}" style="font-size:.65rem; line-height:1;"></i>
+                    </div>
+                    ${i < entries.length - 1 ? '<div class="rp-timeline-line"></div>' : ''}
+                </div>
+                <div class="rp-timeline-body pb-3">
+                    <div class="rp-timeline-meta">
+                        <i class="bi bi-calendar3"></i> ${formatDateTime(h.created_at)}
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
+                        <span class="fw-semibold" style="font-size:.85rem">${escHtml(h.action_display)}</span>
+                        ${statusChange}
+                    </div>
+                    ${h.notes ? `<p class="text-secondary small mb-0">${escHtml(h.notes)}</p>` : ''}
+                </div>
+            </div>`;
+        })
+        .join('');
+}
+
+function _renderEstimateHistoryPagination(data, el, estimateId) {
+    const totalPages = data.num_pages || 1;
+    if (totalPages <= 1) {
+        el.innerHTML = '';
+        return;
+    }
+    const prev = _estimateHistoryPage > 1 ? 'disabled' : '';
+    const next = _estimateHistoryPage >= totalPages ? 'disabled' : '';
+    el.innerHTML = `
+        <div class="d-flex align-items-center gap-2 mt-2">
+            <button class="btn btn-outline-secondary btn-sm" ${prev ? '' : ''} id="est-hist-prev"
+                ${_estimateHistoryPage <= 1 ? 'disabled' : ''}>
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <span class="text-secondary small">Page ${_estimateHistoryPage} of ${totalPages}</span>
+            <button class="btn btn-outline-secondary btn-sm" id="est-hist-next"
+                ${_estimateHistoryPage >= totalPages ? 'disabled' : ''}>
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>`;
+    el.querySelector('#est-hist-prev')?.addEventListener('click', () =>
+        renderEstimateHistory(estimateId, _estimateHistoryPage - 1),
+    );
+    el.querySelector('#est-hist-next')?.addEventListener('click', () =>
+        renderEstimateHistory(estimateId, _estimateHistoryPage + 1),
+    );
+}
+
 async function renderStatusHistory() {
     try {
         exitEditMode('history');
@@ -927,6 +1479,19 @@ function bindEditButtons() {
         .getElementById('btn-add-code')
         ?.addEventListener('click', () => _showModal('projAddCodeModal'));
     document.getElementById('add-project-code-btn')?.addEventListener('click', () => saveCode());
+
+    // Estimates tab
+    document.getElementById('btn-add-estimate')?.addEventListener('click', openAddEstimateModal);
+    document.getElementById('est-create-save-btn')?.addEventListener('click', saveEstimate);
+    document.getElementById('est-edit-save-btn')?.addEventListener('click', saveEditEstimate);
+    document
+        .getElementById('est-delete-confirm-btn')
+        ?.addEventListener('click', confirmDeleteEstimate);
+    document
+        .getElementById('estimate-history-version-select')
+        ?.addEventListener('change', (e) => renderEstimateHistory(e.target.value, 1));
+
+    _bindEstimateTableActions();
 }
 
 function _showModal(id) {

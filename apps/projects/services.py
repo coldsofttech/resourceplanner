@@ -1,10 +1,12 @@
+from decimal import Decimal
 import logging
 import re
 
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db import transaction, IntegrityError, DatabaseError
-from django.db.models import F, Q, Prefetch
+from django.db.models import F, Q, Prefetch, Value, CharField
+from django.db.models.functions import Concat
 
 from apps.core.utils import parse_bool
 from apps.tags.services import TagService
@@ -15,6 +17,8 @@ from .models import (
     ProjectCode,
     ProjectCollaborator,
     ProjectComment,
+    ProjectEstimate,
+    ProjectEstimateHistory,
     ProjectLabel,
     ProjectStatusHistory,
     ProjectTag,
@@ -1176,3 +1180,311 @@ class ProjectCodeService:
             code=code,
             notes=notes or None,
         )
+
+
+class ProjectEstimateService:
+    IMMUTABLE_AFTER_APPROVED = {
+        "estimate_days",
+        "contingency_pct",
+        "estimate_link",
+        "shared_by",
+        "reviewed_by",
+    }
+
+    @staticmethod
+    def list_estimates(project_id: int, page=1, page_size=20):
+        qs = (
+            ProjectEstimate.objects.filter(project_id=project_id)
+            .select_related("project")
+            .order_by("-version")
+        )
+
+        paginator = Paginator(qs, page_size)
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
+
+    @staticmethod
+    def get_estimate(project_id: int, estimate_id: int):
+        return ProjectEstimate.objects.select_related("project").get(
+            pk=estimate_id, project_id=project_id
+        )
+
+    @staticmethod
+    def _supersede_previous(approved_estimate, project):
+        previous = (
+            ProjectEstimate.objects.filter(
+                project=project,
+                status=ProjectEstimate.STATUS_APPROVED,
+            )
+            .exclude(pk=approved_estimate.pk)
+            .first()
+        )
+        if previous:
+            old_status = previous.status
+            previous.status = ProjectEstimate.STATUS_SUPERSEDED
+            previous.save(update_fields=["status", "updated_at"])
+            ProjectEstimateHistory.objects.create(
+                estimate=previous,
+                project=project,
+                action=ProjectEstimateHistory.ACTION_SUPERSEDED,
+                previous_status=old_status,
+                new_status=ProjectEstimate.STATUS_SUPERSEDED,
+                notes=None,
+            )
+
+    @staticmethod
+    @transaction.atomic
+    def create_estimate(project_id: int, data: dict, notes: str = ""):
+        project = Project.objects.get(pk=project_id)
+        if not project:
+            raise ValidationError(f"Project '{project_id}' does not exist.")
+
+        estimate_days = data.get("estimate_days")
+        if not estimate_days:
+            raise ValidationError("Invalid: estimate_days cannot be blank.")
+        else:
+            estimate_days = Decimal(str(estimate_days))
+
+        contingency_pct = Decimal(str(data.get("contingency_pct")) or "0")
+
+        # auto-increment version per project
+        last = (
+            ProjectEstimate.objects.filter(project=project)
+            .order_by("-version")
+            .values_list("version", flat=True)
+            .first()
+        )
+        next_version = (last or 0) + 1
+
+        # snapshot day rate
+        from apps.configurations.services import ConfigurationService
+
+        day_rate = ConfigurationService.get_float("SPRINT_POINT_PRICE", fallback=0.0)
+
+        status = data.get("status") or ProjectEstimate.STATUS_DRAFT
+        if status == ProjectEstimate.STATUS_SUPERSEDED:
+            raise ValueError("Cannot create an estimate with status SUPERSEDED.")
+
+        try:
+            estimate = ProjectEstimate.objects.create(
+                project=project,
+                version=next_version,
+                estimate_link=data.get("estimate_link") or None,
+                shared_by=data.get("shared_by") or "",
+                reviewed_by=data.get("reviewed_by") or "",
+                status=status,
+                estimate_days=estimate_days,
+                contingency_pct=contingency_pct,
+                day_rate=Decimal(str(day_rate)),
+            )
+
+            ProjectEstimateHistory.objects.create(
+                estimate=estimate,
+                project=project,
+                action=ProjectEstimateHistory.ACTION_CREATED,
+                previous_status="",
+                new_status=status,
+                notes=notes or None,
+            )
+
+            if status == ProjectEstimate.STATUS_APPROVED:
+                ProjectEstimateService._supersede_previous(estimate, project)
+
+            return estimate
+        except IntegrityError as e:
+            logger.error(
+                "IntegrityError creating project estimate '%s': %s", project_id, e
+            )
+            raise ValidationError(
+                f"Project estimate for project '{project_id}' could not be created due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError creating project estimate '%s': %s", project_id, e
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when creating project estimate '%s': %s",
+                project_id,
+                e,
+            )
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def update_estimate(project_id: int, estimate_id: int, data: dict, notes: str = ""):
+        estimate = ProjectEstimate.objects.select_for_update().get(
+            pk=estimate_id, project_id=project_id
+        )
+
+        if estimate.status == ProjectEstimate.STATUS_APPROVED:
+            raise ValueError("Approved estimates are immutable. Create a new version.")
+        if estimate.status == ProjectEstimate.STATUS_SUPERSEDED:
+            raise ValueError("Superseded estimates cannot be modified.")
+
+        previous_status = estimate.status
+        changed = False
+
+        new_status = data.get("status")
+        if new_status and new_status != previous_status:
+            if new_status == ProjectEstimate.STATUS_SUPERSEDED:
+                raise ValueError("Cannot manually set status to SUPERSEDED.")
+            estimate.status = new_status
+            changed = True
+
+        # non-status fields — only allowed in DRAFT
+        mutable_fields = {
+            "estimate_link": lambda v: v or None,
+            "shared_by": lambda v: v or "",
+            "reviewed_by": lambda v: v or "",
+            "estimate_days": lambda v: Decimal(str(v)),
+            "contingency_pct": lambda v: Decimal(str(v or "0")),
+        }
+
+        for field, coerce in mutable_fields.items():
+            if field in data:
+                if (
+                    field in ("estimate_days", "contingency_pct")
+                    and previous_status != ProjectEstimate.STATUS_DRAFT
+                ):
+                    raise ValueError(f"'{field}' can only be changed in DRAFT status.")
+                setattr(estimate, field, coerce(data[field]))
+                changed = True
+
+        try:
+            if changed:
+                estimate.save()
+
+                action = ProjectEstimateHistory.ACTION_UPDATED
+                if estimate.status == ProjectEstimate.STATUS_APPROVED:
+                    action = ProjectEstimateHistory.ACTION_APPROVED
+
+                ProjectEstimateHistory.objects.create(
+                    estimate=estimate,
+                    project_id=project_id,
+                    action=action,
+                    previous_status=previous_status,
+                    new_status=estimate.status,
+                    notes=notes or None,
+                )
+
+                if estimate.status == ProjectEstimate.STATUS_APPROVED:
+                    ProjectEstimateService._supersede_previous(
+                        estimate, estimate.project
+                    )
+
+            return estimate
+        except IntegrityError as e:
+            logger.error(
+                "IntegrityError updating project estimate %s: %s", estimate_id, e
+            )
+            raise ValidationError(
+                "Project could not be updated due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError updating project estimate %s: %s", estimate_id, e
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when updating project estimate '%s': %s",
+                estimate_id,
+                e,
+            )
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def delete_estimate(project_id: int, estimate_id: int):
+        estimate = ProjectEstimate.objects.get(pk=estimate_id, project_id=project_id)
+        if estimate.status == ProjectEstimate.STATUS_APPROVED:
+            raise ValueError("Approved estimates cannot be deleted.")
+
+        try:
+            estimate.delete()
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError deleting project estimate %s: %s", estimate_id, e
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when deleting project estimate '%s': %s",
+                estimate_id,
+                e,
+            )
+            raise
+
+    @staticmethod
+    def list_options(project_id: int, fields=None):
+        def wants(field):
+            return fields is None or field in fields
+
+        result = {}
+
+        if wants("status"):
+            result["status"] = [
+                {"value": value, "label": label}
+                for value, label in ProjectEstimate.STATUS_CHOICES
+                if value != ProjectEstimate.STATUS_SUPERSEDED
+            ]
+
+        if wants("versions"):
+            result["versions"] = list(
+                ProjectEstimate.objects.filter(project_id=project_id)
+                .annotate(
+                    version_label=Concat(
+                        Value("v"), "version", output_field=CharField()
+                    )
+                )
+                .values("id", "version", "version_label", "status")
+                .order_by("-version")
+            )
+
+        return result
+
+    @staticmethod
+    def list_history(project_id: int, estimate_id: int, page=1, page_size=20):
+        qs = ProjectEstimateHistory.objects.filter(
+            estimate_id=estimate_id, project_id=project_id
+        ).order_by("-created_at")
+
+        paginator = Paginator(qs, page_size)
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
