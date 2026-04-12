@@ -44,7 +44,6 @@ class Project(models.Model):
         blank=True,
         null=True,
     )
-    code = models.CharField(max_length=255, blank=True)
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -226,3 +225,22 @@ class ProjectComment(models.Model):
 
     def __str__(self):
         return f"Comment {self.pk} on project {self.project_id}"
+
+
+class ProjectCode(models.Model):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="codes",
+    )
+    code = models.CharField(max_length=255)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.code} ({self.created_at:%Y-%m-%d})"

@@ -268,10 +268,12 @@ export const API_URLS = {
         import_sample: { method: 'GET', href: `${API_BASE}projects/import/sample/` },
         import: { method: 'POST', href: `${API_BASE}projects/import/` },
         export: { method: 'GET', href: `${API_BASE}projects/export/` },
-        status_history: (pk) => ({
-            method: 'GET',
-            href: `${API_BASE}projects/${pk}/status-history/`,
-        }),
+        status: {
+            history: (projectId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/status/history/`,
+            }),
+        },
         tags: {
             get: (projectId) => ({
                 method: 'GET',
@@ -302,6 +304,20 @@ export const API_URLS = {
             delete: (projectId, commentId) => ({
                 method: 'DELETE',
                 href: `${API_BASE}projects/${projectId}/comments/${commentId}/`,
+            }),
+        },
+        codes: {
+            active: (projectId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/codes/`,
+            }),
+            create: (projectId) => ({
+                method: 'POST',
+                href: `${API_BASE}projects/${projectId}/codes/`,
+            }),
+            history: (projectId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/codes/history/`,
             }),
         },
     },

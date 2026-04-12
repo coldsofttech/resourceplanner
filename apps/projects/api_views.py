@@ -11,6 +11,7 @@ from apps.core.utils import view_set_validation_details
 
 from .models import Project, ProjectLabel
 from .serializers import (
+    ProjectCodeSerializer,
     ProjectCommentSerializer,
     ProjectLabelSerializer,
     ProjectSerializer,
@@ -21,6 +22,7 @@ from .serializers import (
     ProjectExportSerializer,
 )
 from .services import (
+    ProjectCodeService,
     ProjectCommentService,
     ProjectLabelService,
     ProjectService,
@@ -254,7 +256,10 @@ class ProjectViewSet(viewsets.ViewSet):
         try:
             serializer = ProjectSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            project = ProjectService.create_project(serializer.validated_data)
+            code = (request.data.get("code") or "").strip()
+            project = ProjectService.create_project(
+                serializer.validated_data, code=code
+            )
             return Response(
                 ProjectSerializer(project).data, status=status.HTTP_201_CREATED
             )
@@ -542,8 +547,8 @@ class ProjectViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    # GET /projects/<id>/status-history/
-    @action(detail=True, methods=["get"], url_path="status-history")
+    # GET /projects/<id>/status/history/
+    @action(detail=True, methods=["get"], url_path="status/history")
     def status_history(self, request, pk=None):
         try:
             try:
@@ -785,6 +790,118 @@ class ProjectViewSet(viewsets.ViewSet):
             )
         except Exception as e:
             logger.exception("Unexpected error in comments_patch_or_delete: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/codes/
+    # POST /projects/<id>/codes/
+    @action(detail=True, methods=["get", "post"], url_path="codes")
+    def codes_create_or_get(self, request, pk=None):
+        try:
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                active_code = ProjectCodeService.get_active(instance.pk)
+                if active_code is None:
+                    return Response(
+                        {"id": None, "code": None, "notes": None, "created_at": None},
+                        status=status.HTTP_204_NO_CONTENT,
+                    )
+                return Response(
+                    ProjectCodeSerializer(active_code).data, status=status.HTTP_200_OK
+                )
+
+            if request.method == "POST":
+                serializer = ProjectCodeSerializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                code_entry = ProjectCodeService.set_code(
+                    instance.pk,
+                    serializer.validated_data["code"],
+                    serializer.validated_data.get("notes") or None,
+                )
+                return Response(
+                    ProjectCodeSerializer(code_entry).data,
+                    status=status.HTTP_201_CREATED,
+                )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in codes_create_or_get: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in codes_create_or_get: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/codes/history/
+    @action(detail=True, methods=["get"], url_path="codes/history")
+    def codes_history(self, request, pk=None):
+        try:
+            try:
+                page = int(request.query_params.get("page", 1))
+                page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            except (ValueError, TypeError):
+                page, page_size = 1, 20
+
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            result = ProjectCodeService.get_history(instance.pk, page, page_size)
+            serializer = ProjectCodeSerializer(result["results"], many=True)
+            return Response(
+                {
+                    "results": serializer.data,
+                    "pagination": {
+                        "total_count": result["total_count"],
+                        "total_pages": result["total_pages"],
+                        "current_page": result["current_page"],
+                        "page_size": result["page_size"],
+                        "has_next": result["has_next"],
+                        "has_previous": result["has_previous"],
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in codes_history: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in codes_history: %s", e)
             return Response(
                 {"error": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -4,7 +4,7 @@ import re
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db import transaction, IntegrityError, DatabaseError
-from django.db.models import F, Q
+from django.db.models import F, Q, Prefetch
 
 from apps.core.utils import parse_bool
 from apps.tags.services import TagService
@@ -12,6 +12,7 @@ from apps.tags.services import TagService
 from .engines import ProjectLabelEngineService
 from .models import (
     Project,
+    ProjectCode,
     ProjectCollaborator,
     ProjectComment,
     ProjectLabel,
@@ -35,7 +36,14 @@ class ProjectService:
                 "sub_status",
                 "assigned_team",
             )
-            .prefetch_related("project_tags__tag")
+            .prefetch_related(
+                "project_tags__tag",
+                Prefetch(
+                    "codes",
+                    queryset=ProjectCode.objects.order_by("-created_at"),
+                    to_attr="_prefetched_codes",
+                ),
+            )
             .all()
         )
 
@@ -45,7 +53,7 @@ class ProjectService:
                 qs = qs.filter(
                     Q(name__icontains=search)
                     | Q(programme__name__icontains=search)
-                    | Q(code__icontains=search)
+                    | Q(codes__code__icontains=search)
                     | Q(project_tags__tag__name__icontains=search)
                 )
 
@@ -410,7 +418,7 @@ class ProjectService:
 
     @staticmethod
     @transaction.atomic
-    def create_project(data: dict):
+    def create_project(data: dict, code: str = ""):
         if not isinstance(data, dict) or "name" not in data:
             raise ValidationError("Invalid: data must be a dict containing 'name'.")
 
@@ -431,7 +439,6 @@ class ProjectService:
 
         sub_status_id = ProjectService._pk(data.get("sub_status"))
         assigned_team_id = ProjectService._pk(data.get("assigned_team"))
-        code = (data.get("code") or "").strip()
         status = data.get("status") or Project.STATUS_NEW
 
         ProjectService._enforce_in_progress_rules(status, code, assigned_team_id)
@@ -441,7 +448,6 @@ class ProjectService:
                 name=name,
                 project_type_id=project_type_id,
                 programme_id=programme_id,
-                code=code,
                 status=status,
                 sub_status_id=sub_status_id,
                 assigned_team_id=assigned_team_id,
@@ -455,6 +461,8 @@ class ProjectService:
             project.save()
 
             ProjectLabelService.create_label(project)
+            if code:
+                ProjectCodeService.set_code(project.pk, code)
             ProjectStatusHistoryService.record_creation(project)
             return project
         except IntegrityError as e:
@@ -1124,3 +1132,47 @@ class ProjectCommentService:
                 "Unexpected error when deleting comment '%s': %s", comment_id, e
             )
             raise
+
+
+class ProjectCodeService:
+    @staticmethod
+    def get_active(project_id: int):
+        return (
+            ProjectCode.objects.filter(project_id=project_id)
+            .order_by("-created_at")
+            .first()
+        )
+
+    @staticmethod
+    def get_history(project_id: int, page: int = 1, page_size: int = 20):
+        qs = ProjectCode.objects.filter(project_id=project_id).order_by("-created_at")
+        paginator = Paginator(qs, page_size)
+
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
+
+    @staticmethod
+    def set_code(project_id: int, code: str, notes: str | None = None):
+        code = code.strip()
+        if not code:
+            raise ValueError("code is required")
+
+        return ProjectCode.objects.create(
+            project_id=project_id,
+            code=code,
+            notes=notes or None,
+        )

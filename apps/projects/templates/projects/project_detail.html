@@ -471,6 +471,31 @@
                             ></span>
                         </div>
                     </div>
+
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">Project Code</h6>
+                            <button class="btn btn-primary btn-sm" id="btn-add-code">
+                                <i class="bi bi-plus-lg me-1"></i>Add
+                            </button>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Code</span>
+                            <span class="rp-view-value rp-code" id="view-project-code"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 rp-view-meta">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">Code History</h6>
+                        </div>
+                        <div id="code-history-container" class="rp-timeline">
+                            <p class="text-secondary small mb-0">Loading history…</p>
+                        </div>
+                        <div id="code-history-pagination"></div>
+                    </div>
                 </div>
             </div>
 
@@ -793,6 +818,55 @@
                 </button>
                 <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-comment-btn">
                     Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Code Modal -->
+<div class="modal fade" id="projAddCodeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 400px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Add code</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="proj-add-code-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <div class="rp-field mb-3">
+                    <label class="rp-label" for="add-project-code">
+                        Code <span class="rp-required">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        id="add-project-code"
+                        class="rp-input form-control"
+                        placeholder="e.g. PRJ-001"
+                        maxlength="255"
+                    />
+                    <div class="invalid-feedback" id="add-project-code-err"></div>
+                </div>
+                <div class="rp-field mb-3">
+                    <label class="rp-label" for="add-project-code-notes"> Notes </label>
+                    <textarea
+                        id="add-project-code-notes"
+                        class="form-control rp-input rp-comment-textarea"
+                        rows="4"
+                        placeholder="Why is this code being changed?"
+                    ></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" id="add-project-code-btn">
+                    Save
                 </button>
             </div>
         </div>

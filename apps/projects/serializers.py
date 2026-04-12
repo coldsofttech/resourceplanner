@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from .models import (
     Project,
+    ProjectCode,
     ProjectCollaborator,
     ProjectComment,
     ProjectLabel,
@@ -20,6 +21,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     confidence_display = serializers.SerializerMethodField()
     priority_display = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
+    code = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -92,6 +94,13 @@ class ProjectSerializer(serializers.ModelSerializer):
             {"id": pt.tag_id, "name": pt.tag.name}
             for pt in obj.project_tags.select_related("tag").all()
         ]
+
+    def get_code(self, obj):
+        prefetched = getattr(obj, "_prefetched_codes", None)
+        if prefetched is not None:
+            return prefetched[0].code if prefetched else None
+        entry = obj.codes.order_by("-created_at").first()
+        return entry.code if entry else None
 
 
 class ProjectOperationalSerializer(ProjectSerializer):
@@ -201,6 +210,13 @@ class ProjectCommentSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "posted_by", "is_edited", "created_at", "updated_at"]
+
+
+class ProjectCodeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectCode
+        fields = ["id", "code", "notes", "created_at"]
+        read_only_fields = ["created_at"]
 
 
 class ProjectExportSerializer(serializers.ModelSerializer):

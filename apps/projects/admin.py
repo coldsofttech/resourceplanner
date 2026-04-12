@@ -17,7 +17,6 @@ class ProjectAdmin(admin.ModelAdmin):
         "name",
         "project_type",
         "programme",
-        "code",
         "status",
         "sub_status",
         "assigned_team",

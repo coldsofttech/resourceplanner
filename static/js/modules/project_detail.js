@@ -9,7 +9,7 @@ import {
     setPageTitle,
     showFlash,
 } from './../main.js';
-import { API_URLS, URLS } from './../urls.js';
+import { API_URLS } from './../urls.js';
 
 const projectPk = getPkFromUrl('projects');
 
@@ -21,14 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
 let options = null;
 let _allSubStatuses = [];
 let commentPage = 1;
-
-const STATUS_ICON = {
-    NEW: { icon: 'bi-circle', cls: 'text-secondary' },
-    IN_PROGRESS: { icon: 'bi-play-circle-fill', cls: 'text-success' },
-    ON_HOLD: { icon: 'bi-pause-circle-fill', cls: 'text-warning' },
-    CANCELLED: { icon: 'bi-x-circle-fill', cls: 'text-danger' },
-    COMPLETED: { icon: 'bi-check-circle-fill', cls: 'text-primary' },
-};
+let codesPage = 1;
 
 async function initDetailView() {
     try {
@@ -106,8 +99,20 @@ async function fetchLabels() {
     return res;
 }
 
+async function fetchLatestCode() {
+    const { method, href } = API_URLS.projects.codes.active(projectPk);
+    const res = await apiFetch(href, { method });
+    return res;
+}
+
+async function fetchCodeHistory(page = 1) {
+    const { method, href } = API_URLS.projects.codes.history(projectPk);
+    const res = await apiFetch(`${href}?page=${page}`, { method });
+    return res;
+}
+
 async function fetchStatusHistory() {
-    const { method, href } = API_URLS.projects.status_history(projectPk);
+    const { method, href } = API_URLS.projects.status.history(projectPk);
     const res = await apiFetch(`${href}?page_size=10`, { method });
     return res;
 }
@@ -442,6 +447,99 @@ async function renderTeams() {
     }
 }
 
+async function renderCodeHistory(page = 1) {
+    codesPage = page;
+    const container = document.getElementById('code-history-container');
+    const paginationEl = document.getElementById('code-history-pagination');
+    if (!container) return;
+
+    try {
+        const history = await fetchCodeHistory(codesPage);
+        const items = history.results ?? [];
+        const isPaginated = !!history.pagination?.total_pages;
+
+        if (!items.length) {
+            container.innerHTML = `
+                <div class="d-flex flex-column align-items-center justify-content-center py-4 text-secondary">
+                    <i class="bi bi-clock-history fs-3 mb-2 opacity-50"></i>
+                    <span class="small">No code history recorded yet.</span>
+                </div>`;
+            if (paginationEl) paginationEl.innerHTML = '';
+            return;
+        }
+
+        container.innerHTML = `<div class="rp-timeline d-flex flex-column">${_buildCodeHistoryItems(items, codesPage)}</div>`;
+
+        if (paginationEl && isPaginated) {
+            _renderCodeHistoryPagination(history.pagination, paginationEl);
+        } else if (paginationEl) {
+            paginationEl.innerHTML = '';
+        }
+    } catch (err) {
+        container.innerHTML = '<p class="text-secondary small">Failed to load code history.</p>';
+        console.error('[renderCodeHistory] Failed to load code history.', err);
+    }
+}
+
+function _buildCodeHistoryItems(entries, page = 1) {
+    return entries
+        .map((entry, i) => {
+            const isLatest = page === 1 && i === 0;
+            const dotClass = isLatest ? 'rp-timeline-dot--success' : 'rp-timeline-dot--muted';
+            const notes = entry.notes
+                ? `<p class="text-secondary small mb-0 mt-1">${escHtml(entry.notes)}</p>`
+                : '';
+            const currentBadge = isLatest
+                ? '<span class="rp-badge rp-badge--info ms-1">Current</span>'
+                : '';
+
+            return `
+            <div class="rp-timeline-item">
+                <div class="rp-timeline-marker">
+                    <div class="rp-timeline-dot ${dotClass}"></div>
+                    ${i < entries.length - 1 ? '<div class="rp-timeline-line"></div>' : ''}
+                </div>
+                <div class="rp-timeline-body pb-4">
+                    <div class="rp-timeline-meta">
+                        <i class="bi bi-calendar3"></i> ${formatDateTime(entry.created_at)}
+                    </div>
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <span class="rp-code">${escHtml(entry.code)}</span>
+                        ${currentBadge}
+                    </div>
+                    ${notes}
+                </div>
+            </div>`;
+        })
+        .join('');
+}
+
+function _renderCodeHistoryPagination(data, el) {
+    const { current_page, total_pages } = data;
+    if (total_pages <= 1) {
+        el.innerHTML = '';
+        return;
+    }
+    const prevDisabled = current_page <= 1 ? 'disabled' : '';
+    const nextDisabled = current_page >= total_pages ? 'disabled' : '';
+    el.innerHTML = `
+        <div class="d-flex align-items-center gap-2 mt-2">
+            <button class="btn btn-outline-secondary btn-sm" ${prevDisabled} id="codes-prev">
+                <i class="bi bi-chevron-left"></i> Prev
+            </button>
+            <span class="text-secondary small">Page ${current_page} of ${total_pages}</span>
+            <button class="btn btn-outline-secondary btn-sm" ${nextDisabled} id="codes-next">
+                Next <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>`;
+    el.querySelector('#codes-prev')?.addEventListener('click', () =>
+        renderCodeHistory(current_page - 1),
+    );
+    el.querySelector('#codes-next')?.addEventListener('click', () =>
+        renderCodeHistory(current_page + 1),
+    );
+}
+
 async function renderLabels() {
     try {
         exitEditMode('labels');
@@ -480,6 +578,11 @@ async function renderLabels() {
                 showDeleteLabelModal(l.id, l.label, l.is_primary);
             });
         });
+
+        const active_code = await fetchLatestCode();
+        document.getElementById('view-project-code').textContent = active_code?.code ?? '-';
+
+        renderCodeHistory(codesPage);
     } catch (err) {
         _showBanner('Failed to load project information. Please refresh the page.', 'error');
         console.error('[renderLabels] Failed to load project labels information.', err);
@@ -820,11 +923,16 @@ function bindEditButtons() {
     document.getElementById('add-project-label-btn')?.addEventListener('click', () => saveLabel());
     document.getElementById('delete-label-btn')?.addEventListener('click', () => deleteLabel());
     document.getElementById('primary-label-btn')?.addEventListener('click', () => updateLabel());
+    document
+        .getElementById('btn-add-code')
+        ?.addEventListener('click', () => _showModal('projAddCodeModal'));
+    document.getElementById('add-project-code-btn')?.addEventListener('click', () => saveCode());
 }
 
 function _showModal(id) {
     if (id === 'projAddLabelModal') resetAddLabelModal();
-    if (id === 'projAddTagModal') resetAddTagModel();
+    if (id === 'projAddTagModal') resetAddTagModal();
+    if (id === 'projAddCodeModal') resetAddCodeModal();
     bootstrap.Modal.getOrCreateInstance(document.getElementById(id), { focus: false }).show();
 }
 
@@ -840,12 +948,20 @@ function resetAddLabelModal() {
     clearAddLabelModalErrors();
 }
 
-function resetAddTagModel() {
+function resetAddTagModal() {
     ['add-tag-input'].forEach((id) => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
     clearAddTagModalErrors();
+}
+
+function resetAddCodeModal() {
+    ['add-project-code', 'add-project-code-notes'].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    clearAddCodeModalErrors();
 }
 
 function clearAddLabelModalErrors() {
@@ -860,6 +976,15 @@ function clearAddLabelModalErrors() {
 function clearAddTagModalErrors() {
     document.getElementById('proj-add-tag-banner').classList.add('d-none');
     ['add-tag-input'].forEach((id) => {
+        document.getElementById(id)?.classList.remove('is-invalid');
+        const errEl = document.getElementById(`${id}-err`);
+        if (errEl) errEl.textContent = '';
+    });
+}
+
+function clearAddCodeModalErrors() {
+    document.getElementById('proj-add-code-banner').classList.add('d-none');
+    ['add-project-code', 'add-project-code-notes'].forEach((id) => {
         document.getElementById(id)?.classList.remove('is-invalid');
         const errEl = document.getElementById(`${id}-err`);
         if (errEl) errEl.textContent = '';
@@ -1069,6 +1194,29 @@ async function saveLabel() {
     }
 }
 
+async function saveCode() {
+    const saveBtn = document.getElementById('add-project-code-btn');
+    const prevText = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    const payload = {
+        code: document.getElementById('add-project-code').value,
+        notes: document.getElementById('add-project-code-notes').value,
+    };
+
+    try {
+        const { method, href } = API_URLS.projects.codes.create(projectPk);
+        await saveTab(saveBtn, payload, 'labels', method, href);
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to save code information. Please try again.');
+        _showBanner(msg, 'error');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = prevText;
+    }
+}
+
 async function saveTag() {
     const saveBtn = document.getElementById('confirm-add-tag-btn');
     const prevText = saveBtn.textContent;
@@ -1176,6 +1324,7 @@ async function saveTab(saveBtn, payload, tab, method, apiUrl) {
         } else if (tab === 'labels') {
             _hideModal('projAddLabelModal');
             _hideModal('projUpdateLabelModal');
+            _hideModal('projAddCodeModal');
             renderLabels();
         }
 
