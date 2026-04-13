@@ -28,6 +28,54 @@ class ProgrammeSerializer(serializers.ModelSerializer):
         return None
 
 
+class ProjectBudgetSummarySerializer(serializers.Serializer):
+    actual_budget = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+    estimated_cost = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+    remaining_budget = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+    risk_pct = serializers.DecimalField(max_digits=7, decimal_places=2, allow_null=True)
+    risk_display = serializers.CharField(allow_null=True)
+    risk_short = serializers.CharField(allow_null=True)
+    risk = serializers.CharField(allow_null=True)
+
+
+class ProjectSummaryRowSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    status = serializers.CharField()
+    financial_year = serializers.CharField(allow_null=True)
+    assigned_team = serializers.CharField(allow_null=True)
+    actual_budget = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+    estimate_total_cost = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+    remaining_budget = serializers.DecimalField(
+        max_digits=14, decimal_places=2, allow_null=True
+    )
+    risk_pct = serializers.DecimalField(max_digits=7, decimal_places=2, allow_null=True)
+    risk = serializers.CharField(allow_null=True)
+    risk_display = serializers.CharField(allow_null=True)
+    risk_short = serializers.CharField(allow_null=True)
+
+
+class ProgrammeSummarySerializer(serializers.Serializer):
+    total_count = serializers.IntegerField()
+    total_pages = serializers.IntegerField()
+    current_page = serializers.IntegerField()
+    has_next = serializers.BooleanField()
+    has_previous = serializers.BooleanField()
+    page_size = serializers.IntegerField()
+    results = ProjectSummaryRowSerializer(many=True)
+    summary = ProjectBudgetSummarySerializer()
+
+
 class ProgrammeExportSerializer(serializers.ModelSerializer):
     class Meta:
         model = Programme

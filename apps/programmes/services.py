@@ -1,4 +1,5 @@
 import csv
+from decimal import Decimal
 import io
 import logging
 
@@ -311,3 +312,165 @@ class ProgrammeService:
             )
 
         return results
+
+    @staticmethod
+    def get_programme_summary(
+        programme_id: int, fy_id: int = None, page: int = 1, page_size: int = 20
+    ):
+        if not programme_id:
+            raise ValidationError("Invalid: programme_id cannot be blank.")
+
+        from apps.configurations.services import ConfigurationService
+        from apps.projects.models import Project, ProjectBudget
+        from apps.projects.services import ProjectBudgetService
+        from apps.financial_years.models import FinancialYear
+
+        programme = Programme.objects.get(pk=programme_id)
+        threshold_pct = Decimal(
+            str(ConfigurationService.get_float("BUDGET_THRESHOLD_PCT", fallback=10.0))
+        )
+
+        all_projects = (
+            Project.objects.filter(programme=programme)
+            .exclude(status=Project.STATUS_CANCELLED)
+            .select_related("assigned_team")
+            .order_by("name")
+        )
+
+        if fy_id:
+            all_fys = FinancialYear.objects.filter(id=fy_id).order_by("-start_date")
+        else:
+            all_fys = FinancialYear.objects.order_by("-start_date")
+
+        total_actual_budget = Decimal("0")
+        total_estimated_cost = Decimal("0")
+        total_remaining_budget = Decimal("0")
+
+        final_qs = []
+
+        for proj in all_projects:
+            for fy in all_fys:
+                budget = (
+                    ProjectBudget.objects.filter(
+                        project_id=proj.pk, financial_year_id=fy.pk
+                    )
+                    .select_related("estimate_version")
+                    .first()
+                )
+
+                actual_budget = budget.actual_budget if budget else None
+                est_cost = (
+                    budget.estimate_version.total_cost
+                    if budget and budget.estimate_version
+                    else None
+                )
+                remaining_budget = budget.remaining_budget if budget else None
+                enriched_budget = ProjectBudgetService._enrich(budget)
+                row_risk = (
+                    getattr(enriched_budget, "_budget_risk")
+                    if hasattr(enriched_budget, "_budget_risk")
+                    else None
+                )
+                row_risk_display = (
+                    getattr(enriched_budget, "_budget_risk_display")
+                    if hasattr(enriched_budget, "_budget_risk_display")
+                    else None
+                )
+                row_risk_short = (
+                    getattr(enriched_budget, "_budget_risk_short")
+                    if hasattr(enriched_budget, "_budget_risk_short")
+                    else None
+                )
+                row_risk_pct = (
+                    getattr(enriched_budget, "_budget_risk_pct")
+                    if hasattr(enriched_budget, "_budget_risk_pct")
+                    else None
+                )
+
+                if actual_budget is not None:
+                    total_actual_budget += actual_budget
+                if est_cost is not None:
+                    total_estimated_cost += Decimal(str(est_cost))
+                if remaining_budget is not None:
+                    total_remaining_budget += remaining_budget
+
+                final_qs.append(
+                    {
+                        "id": proj.pk,
+                        "name": proj.name,
+                        "status": proj.get_status_display(),
+                        "financial_year": fy.long_fy,
+                        "assigned_team": (
+                            proj.assigned_team.name if proj.assigned_team else None
+                        ),
+                        "actual_budget": actual_budget,
+                        "estimate_total_cost": est_cost,
+                        "remaining_budget": remaining_budget,
+                        "risk": row_risk,
+                        "risk_pct": row_risk_pct,
+                        "risk_display": row_risk_display,
+                        "risk_short": row_risk_short,
+                    }
+                )
+
+        programme_risk_pct = None
+        programme_risk_display = None
+        programme_risk_short = None
+        programme_risk = None
+        if total_actual_budget != Decimal("0"):
+            variance_pct = (
+                (total_estimated_cost - total_actual_budget) / total_actual_budget * 100
+            )
+            abs_variance = abs(variance_pct)
+            sign = "+" if variance_pct >= 0 else ""
+            programme_risk_pct = f"{sign}{variance_pct:.2f}"
+            abs_variance = abs(variance_pct)
+
+            if abs_variance <= Decimal("1.00"):
+                programme_risk_display = "On Budget"
+                programme_risk_short = "OB"
+                programme_risk = "GREEN"
+            elif abs_variance <= threshold_pct:
+                programme_risk = "AMBER"
+                if variance_pct > 0:
+                    programme_risk_display = "At Risk (Over)"
+                    programme_risk_short = "AR+"
+                else:
+                    programme_risk_display = "At Risk (Under)"
+                    programme_risk_short = "AR-"
+            else:
+                programme_risk = "RED"
+                if variance_pct > 0:
+                    programme_risk_display = "Over Budget"
+                    programme_risk_short = "OVR"
+                else:
+                    programme_risk_display = "Under Budget"
+                    programme_risk_short = "UND"
+
+        paginator = Paginator(final_qs, page_size)
+
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": list(page_obj.object_list),
+            "summary": {
+                "actual_budget": total_actual_budget,
+                "estimated_cost": total_estimated_cost,
+                "remaining_budget": total_remaining_budget,
+                "risk_pct": programme_risk_pct,
+                "risk_display": programme_risk_display,
+                "risk_short": programme_risk_short,
+                "risk": programme_risk,
+            },
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }

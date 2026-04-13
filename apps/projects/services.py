@@ -1559,6 +1559,9 @@ class ProjectBudgetService:
 
     @staticmethod
     def _enrich(budget):
+        if budget is None:
+            return None
+        
         actual = budget.actual_budget
         cost = (
             Decimal(str(budget.estimate_version.total_cost))

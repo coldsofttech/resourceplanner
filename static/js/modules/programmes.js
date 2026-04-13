@@ -7,8 +7,6 @@ import { apiFetch, escAttr, escHtml, formatDateTime, setPageTitle, showFlash } f
 import { API_URLS, URLS } from './../urls.js';
 import { exportToCsv, exportToPdf } from '../export.js';
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
 const LIST_EXPORT_COLUMNS = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Name' },
@@ -16,14 +14,20 @@ const LIST_EXPORT_COLUMNS = [
     { key: 'is_active', label: 'Active' },
 ];
 
-// ── Bootstrap ────────────────────────────────────────────────────────────────
+const RISK_BADGE = {
+    GREEN: '<span class="rp-badge rp-badge--success">OB</span>',
+    AMBER: '<span class="rp-badge rp-badge--warning">AR</span>',
+    RED: '<span class="rp-badge rp-badge--danger">OVR</span>',
+};
+
+let _progId = null;
+let _fyId = null;
+let _projPage = 1;
 
 document.addEventListener('DOMContentLoaded', () => {
     if (!document.getElementById('prog-tbody')) return;
     initListView();
 });
-
-// ── Init ─────────────────────────────────────────────────────────────────────
 
 async function initListView() {
     setPageTitle('Programmes');
@@ -43,18 +47,15 @@ function _mountViewModal() {
     parent.appendChild(modal);
     _setViewModalOffset(modal);
 
-    // Re-measure whenever the viewport is resized (header height can change).
     window.addEventListener('resize', () => _setViewModalOffset(modal), { passive: true });
 }
 
 function _setViewModalOffset(modal) {
     const header = document.querySelector('.rp-page-header');
-    const offset = header ? (header.offsetTop + header.offsetHeight) : 0;
+    const offset = header ? header.offsetTop + header.offsetHeight : 0;
     modal.style.top = `${offset}px`;
     modal.style.height = `calc(100% - ${offset}px)`;
 }
-
-// ── Stats ─────────────────────────────────────────────────────────────────────
 
 async function loadStats() {
     try {
@@ -86,15 +87,11 @@ async function renderStatusFilterOptions() {
     }
 }
 
-// ── Toolbar ───────────────────────────────────────────────────────────────────
-
 function bindToolbarEvents() {
     document.getElementById('add-programme-btn')?.addEventListener('click', () => openAddModal());
     document.getElementById('export-csv')?.addEventListener('click', () => runListExport('csv'));
     document.getElementById('export-pdf')?.addEventListener('click', () => runListExport('pdf'));
 }
-
-// ── Table / Fetcher ───────────────────────────────────────────────────────────
 
 function initTable() {
     const { method, href } = API_URLS.programmes.list;
@@ -135,11 +132,8 @@ function initTable() {
     initSorting({ tableId: 'prog-table', fetcher });
     fetcher.refresh();
 
-    // Keep stats fresh after mutations
     window._progFetcher = fetcher;
 }
-
-// ── Row template ──────────────────────────────────────────────────────────────
 
 function renderProgrammeRow(prog) {
     const activeBtnTitle = prog.is_active ? 'Deactivate programme' : 'Activate programme';
@@ -213,8 +207,6 @@ function renderProgrammeRow(prog) {
     `;
 }
 
-// ── Modals — Add / Edit ────────────────────────────────────────────────────────
-
 function bindModalEvents() {
     document.getElementById('progModal')?.addEventListener('hidden.bs.modal', resetAddEditModal);
     document.getElementById('prog-modal-save')?.addEventListener('click', handleModalSave);
@@ -223,6 +215,10 @@ function bindModalEvents() {
 }
 
 async function openViewModal(id) {
+    _progId = id;
+    _fyId = null;
+    _projPage = 1;
+
     const modal = document.getElementById('progViewModal');
     if (modal) {
         _setViewModalOffset(modal);
@@ -241,7 +237,7 @@ async function openViewModal(id) {
     try {
         const { method, href } = API_URLS.programmes.detail(id);
         const prog = await apiFetch(href, { method });
-        _renderViewContent(prog);
+        await _renderViewContent(prog);
     } catch (err) {
         _renderViewError('Failed to load programme details. Please try again.');
         console.error('[openViewModal] Failed to fetch programme.', err);
@@ -249,6 +245,9 @@ async function openViewModal(id) {
 }
 
 function _renderViewLoading() {
+    document.getElementById('prog-view-title').textContent = 'Programme';
+    document.getElementById('prog-view-edit-btn').classList.add('d-none');
+    document.getElementById('prog-view-delete-btn').classList.add('d-none');
     document.getElementById('prog-view-body').innerHTML = `
         <div class="d-flex align-items-center justify-content-center py-5 text-secondary">
             <div class="spinner-border spinner-border-sm me-2" role="status"></div>
@@ -265,7 +264,7 @@ function _renderViewError(message) {
         </div>`;
 }
 
-function _renderViewContent(prog) {
+async function _renderViewContent(prog) {
     const editBtn = document.getElementById('prog-view-edit-btn');
     if (prog.is_protected) {
         editBtn.classList.add('d-none');
@@ -305,7 +304,7 @@ function _renderViewContent(prog) {
 
     document.getElementById('prog-view-title').innerHTML = `
         <i class="bi bi-collection me-2 opacity-50"></i>
-        <span>${prog.name}</span>${protectedBadge}
+        <span class="me-1">${prog.name}</span><span class="me-1">${statusBadge}</span><span>${protectedBadge}</span>
     `;
 
     document.getElementById('prog-view-body').innerHTML = `
@@ -313,17 +312,6 @@ function _renderViewContent(prog) {
             <div class="col-lg-8 rp-view-main">
                 <div class="rp-view-section">
                     <h6 class="rp-view-section-title">Details</h6>
-
-                    <div class="rp-view-field">
-                        <span class="rp-view-label">Name</span>
-                        <span class="rp-view-value">${escHtml(prog.name)}</span>
-                    </div>
-
-                    <div class="rp-view-field">
-                        <span class="rp-view-label">Status</span>
-                        <span class="rp-view-value">${statusBadge}</span>
-                    </div>
-
                     <div class="rp-view-field rp-view-field--block">
                         <span class="rp-view-label">Description</span>
                         <div class="rp-view-value rp-view-description">
@@ -349,7 +337,281 @@ function _renderViewContent(prog) {
                     </div>
                 </div>
             </aside>
+        </div>
+
+        <div class="rp-card mt-3">
+            <div id="prog-view-projects-panel">
+                <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                    <h6 class="rp-view-section-title mb-0">
+                        <i class="bi bi-folder2 me-2 opacity-50"></i>Projects
+                    </h6>
+                    <select id="prog-view-fy-select" class="form-select form-select-sm rp-select" style="width:auto;min-width:150px;">
+                        <option value="">Loading…</option>
+                    </select>
+                </div>
+
+                <div class="row g-2 mb-3" id="prog-view-summary-cards">
+                    ${_summaryCardsSkeleton()}
+                </div>
+
+                <div class="rp-table-wrap">
+                    <table class="table rp-table rp-table--sm mb-0">
+                        <thead>
+                            <tr>
+                                <th>Project</th>
+                                <th>Status</th>
+                                <th>Team</th>
+                                <th>Financial Year</th>
+                                <th class="text-end">Actual Budget</th>
+                                <th class="text-end">Estimate Cost</th>
+                                <th class="text-end">Remaining</th>
+                                <th class="text-end">Risk %</th>
+                                <th class="text-center">Risk</th>
+                            </tr>
+                        </thead>
+                        <tbody id="prog-view-proj-tbody">${_projLoadingRow()}</tbody>
+                    </table>
+                </div>
+
+                <div class="rp-pagination-bar d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2"
+                    id="prog-view-proj-pagination-bar" style="display:none!important">
+                    <span class="rp-pagination-info text-secondary small" id="prog-view-proj-pagination-info"></span>
+                    <nav>
+                        <ul class="rp-pagination-controls pagination pagination-sm mb-0"
+                            id="prog-view-proj-pagination-controls"></ul>
+                    </nav>
+                </div>
+            </div>
         </div>`;
+
+    await _loadFyOptions(prog.id);
+}
+
+async function _loadFyOptions(progId) {
+    const select = document.getElementById('prog-view-fy-select');
+    if (!select) return;
+
+    try {
+        const { method, href } = API_URLS.financial_years.list;
+        const data = await apiFetch(href, { method });
+        const fys = data.results ?? [];
+
+        select.innerHTML = '';
+        const lifetimeOpt = document.createElement('option');
+        lifetimeOpt.value = '';
+        lifetimeOpt.textContent = 'Lifetime';
+        select.appendChild(lifetimeOpt);
+
+        let currentFyId = null;
+        (fys ?? []).forEach((fy) => {
+            const opt = document.createElement('option');
+            opt.value = fy.id;
+            opt.textContent = fy.label ?? fy.short_fy ?? fy.long_fy ?? String(fy.id);
+            if (fy.is_active) {
+                opt.selected = true;
+                currentFyId = fy.id;
+            }
+            select.appendChild(opt);
+        });
+
+        _fyId = currentFyId;
+
+        select.addEventListener('change', () => {
+            _fyId = select.value ? parseInt(select.value, 10) : null;
+            _projPage = 1;
+            _loadSummary(progId);
+        });
+    } catch (err) {
+        console.error('[_loadFyOptions]', err);
+        select.innerHTML = '<option value="">Lifetime</option>';
+        _fyId = null;
+    }
+
+    _loadSummary(progId);
+}
+
+async function _loadSummary(progId) {
+    const tbody = document.getElementById('prog-view-proj-tbody');
+    if (tbody) tbody.innerHTML = _projLoadingRow();
+    _renderSummaryCards(null);
+
+    try {
+        const { method, href } = API_URLS.programmes.summary(progId);
+        const params = new URLSearchParams({ page: _projPage, page_size: 20 });
+        if (_fyId) params.set('fy', _fyId);
+
+        const data = await apiFetch(`${href}?${params}`, { method });
+
+        _renderSummaryCards(data.summary ?? null);
+        _renderProjRows(data.results ?? []);
+        _renderProjPagination(data);
+    } catch (err) {
+        if (tbody)
+            tbody.innerHTML = `
+            <tr><td colspan="9" class="text-center text-danger py-3">
+                <i class="bi bi-exclamation-circle me-1"></i>Failed to load projects.
+            </td></tr>`;
+        console.error('[_loadSummary]', err);
+    }
+}
+
+function _summaryCardsSkeleton() {
+    return ['Actual Budget', 'Estimate Cost', 'Remaining', 'Risk']
+        .map(
+            (label) => `
+        <div class="col-6 col-md-3">
+            <div class="rp-stat-card">
+                <span class="rp-stat-label">${label}</span>
+                <span class="rp-stat-value text-secondary">—</span>
+            </div>
+        </div>`,
+        )
+        .join('');
+}
+
+function _renderSummaryCards(summary) {
+    const el = document.getElementById('prog-view-summary-cards');
+    if (!el) return;
+    if (!summary) {
+        el.innerHTML = _summaryCardsSkeleton();
+        return;
+    }
+
+    const riskBadge = summary.risk ? (RISK_BADGE[summary.risk] ?? '—') : '—';
+    const riskPct = summary.risk_pct != null ? `${Number(summary.risk_pct).toFixed(1)}%` : '—';
+    const remNeg =
+        summary.total_remaining_budget != null && Number(summary.total_remaining_budget) < 0;
+
+    el.innerHTML = `
+        <div class="col-6 col-md-3">
+            <div class="rp-stat-card">
+                <span class="rp-stat-label">Actual Budget</span>
+                <span class="rp-stat-value">${_fmtAmt(summary.actual_budget)}</span>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="rp-stat-card">
+                <span class="rp-stat-label">Estimate Cost</span>
+                <span class="rp-stat-value">${_fmtAmt(summary.estimated_cost)}</span>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="rp-stat-card">
+                <span class="rp-stat-label">Remaining</span>
+                <span class="rp-stat-value ${remNeg ? 'text-danger' : ''}">${_fmtAmt(summary.remaining_budget)}</span>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="rp-stat-card">
+                <span class="rp-stat-label">Risk (${riskPct})</span>
+                <span class="rp-stat-value">${riskBadge}</span>
+            </div>
+        </div>`;
+}
+
+function _renderProjRows(results) {
+    const tbody = document.getElementById('prog-view-proj-tbody');
+    if (!tbody) return;
+
+    if (!results.length) {
+        tbody.innerHTML = `
+            <tr><td colspan="9" class="text-center py-4 text-secondary">
+                <i class="bi bi-folder2-open fs-4 d-block mb-2 opacity-50"></i>
+                No projects found for this selection.
+            </td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = results
+        .map((p) => {
+            const remNeg = p.remaining_budget != null && Number(p.remaining_budget) < 0;
+            const riskBadge = p.risk ? (RISK_BADGE[p.risk] ?? '—') : '—';
+            const riskPct = p.risk_pct != null ? `${Number(p.risk_pct).toFixed(1)}%` : '—';
+
+            return `
+        <tr>
+            <td><a href="${URLS.projects.detail(p.id)}" class="rp-link">${escHtml(p.name)}</a></td>
+            <td><span class="rp-badge ${_statusBadgeCls(p.status)}">${escHtml(p.status)}</span></td>
+            <td>${p.assigned_team ? escHtml(p.assigned_team) : '—'}</td>
+            <td class="text-secondary small">${p.financial_year ? escHtml(p.financial_year) : '—'}</td>
+            <td class="text-end"><span class="rp-basis-amount">${_fmtAmt(p.actual_budget)}</span></td>
+            <td class="text-end"><span class="rp-basis-amount">${_fmtAmt(p.estimate_total_cost)}</span></td>
+            <td class="text-end"><span class="rp-basis-amount ${remNeg ? ' text-danger fw-semibold' : ''}">
+                ${_fmtAmt(p.remaining_budget)}
+            </span></td>
+            <td class="text-end"><span class="rp-code" style="font-size: 0.75rem;">${riskPct}</span></td>
+            <td class="text-center">${riskBadge}</td>
+        </tr>`;
+        })
+        .join('');
+}
+
+function _renderProjPagination(data) {
+    const bar = document.getElementById('prog-view-proj-pagination-bar');
+    const infoEl = document.getElementById('prog-view-proj-pagination-info');
+    const controls = document.getElementById('prog-view-proj-pagination-controls');
+    if (!bar) return;
+
+    const { total_count, total_pages, current_page, has_next, has_previous } = data;
+    if (!total_count || total_pages <= 1) {
+        bar.style.setProperty('display', 'none', 'important');
+        return;
+    }
+    bar.style.removeProperty('display');
+
+    if (infoEl) {
+        const start = (current_page - 1) * 20 + 1;
+        const end = Math.min(current_page * 20, total_count);
+        infoEl.textContent = `${start}–${end} of ${total_count}`;
+    }
+
+    if (controls) {
+        let html = `<li class="page-item ${!has_previous ? 'disabled' : ''}">
+            <button class="page-link" data-p="${current_page - 1}">&laquo;</button></li>`;
+        for (let p = 1; p <= total_pages; p++) {
+            html += `<li class="page-item ${p === current_page ? 'active' : ''}">
+                <button class="page-link" data-p="${p}">${p}</button></li>`;
+        }
+        html += `<li class="page-item ${!has_next ? 'disabled' : ''}">
+            <button class="page-link" data-p="${current_page + 1}">&raquo;</button></li>`;
+        controls.innerHTML = html;
+        controls.querySelectorAll('button[data-p]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const pg = parseInt(btn.dataset.p, 10);
+                if (pg >= 1 && pg <= total_pages) {
+                    _projPage = pg;
+                    _loadSummary(_progId);
+                }
+            });
+        });
+    }
+}
+
+function _projLoadingRow() {
+    return `<tr><td colspan="9" class="text-center py-3 text-secondary">
+        <span class="spinner-border spinner-border-sm me-2" role="status"></span>Loading…
+    </td></tr>`;
+}
+
+function _fmtMoney(val) {
+    if (val == null) return '—';
+    return `£${Number(val).toLocaleString('en-GB', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
+
+const _fmtAmt = (v, fallback = '—') =>
+    v == null
+        ? fallback
+        : `£${parseFloat(v).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function _statusBadgeCls(status) {
+    const map = {
+        New: 'rp-badge--muted',
+        'In Progress': 'rp-badge--success',
+        'On Hold': 'rp-badge--warning',
+        Completed: 'rp-badge',
+        Cancelled: 'rp-badge--danger',
+    };
+    return map[status] ?? 'rp-badge--muted';
 }
 
 function openAddModal() {
@@ -419,14 +681,14 @@ async function handleModalSave() {
 
     try {
         if (mode === 'add') {
-            const { method, href } = API_URLS.programmes.new;
+            const { method, href } = API_URLS.programmes.create;
             await apiFetch(href, {
                 method,
                 body: JSON.stringify({ name, description }),
             });
             showFlash(`${name} programme added successfully.`, 'success');
         } else {
-            const { method, href } = API_URLS.programmes.partial_edit(id);
+            const { method, href } = API_URLS.programmes.update(id);
             await apiFetch(href, {
                 method,
                 body: JSON.stringify({ name, description }),
@@ -476,7 +738,7 @@ async function handleConfirmActive() {
     btn.textContent = 'Saving…';
 
     try {
-        const { method, href } = API_URLS.programmes.partial_edit(id);
+        const { method, href } = API_URLS.programmes.update(id);
         await apiFetch(href, {
             method,
             body: JSON.stringify({ is_active: !isActive }),
@@ -568,10 +830,7 @@ async function runListExport(format) {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function _showModal(id) {
-    bootstrap.Modal.getOrCreateInstance(
-        document.getElementById(id),
-        { focus: false }
-    ).show();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById(id), { focus: false }).show();
 }
 
 function _hideModal(id) {

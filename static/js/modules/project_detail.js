@@ -1932,7 +1932,7 @@ async function _resolveOrCreateProgramme(name) {
     );
     if (existing) return existing.id;
 
-    const { method, href } = API_URLS.programmes.new;
+    const { method, href } = API_URLS.programmes.create;
     const created = await apiFetch(href, {
         method,
         body: JSON.stringify({ name }),

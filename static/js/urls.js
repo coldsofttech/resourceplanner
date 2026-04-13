@@ -204,19 +204,42 @@ export const API_URLS = {
         }),
     },
     programmes: {
-        list: { method: 'GET', href: `${API_BASE}programmes/` },
-        new: { method: 'POST', href: `${API_BASE}programmes/` },
-        get: (pk) => ({ method: 'GET', href: `${API_BASE}programmes/${pk}/` }),
-        detail: (pk) => ({ method: 'GET', href: `${API_BASE}programmes/${pk}/` }),
-        edit: (pk) => ({ method: 'PUT', href: `${API_BASE}programmes/${pk}/` }),
-        partial_edit: (pk) => ({ method: 'PATCH', href: `${API_BASE}programmes/${pk}/` }),
-        delete: (pk) => ({ method: 'DELETE', href: `${API_BASE}programmes/${pk}/` }),
-        stats: { method: 'GET', href: `${API_BASE}programmes/stats/` },
-        options: { method: 'GET', href: `${API_BASE}programmes/options/` },
+        list: {
+            method: 'GET',
+            href: `${API_BASE}programmes/`,
+        },
+        create: {
+            method: 'POST',
+            href: `${API_BASE}programmes/`,
+        },
+        detail: (programmeId) => ({
+            method: 'GET',
+            href: `${API_BASE}programmes/${programmeId}/`,
+        }),
+        update: (programmeId) => ({
+            method: 'PATCH',
+            href: `${API_BASE}programmes/${programmeId}/`,
+        }),
+        delete: (programmeId) => ({
+            method: 'DELETE',
+            href: `${API_BASE}programmes/${programmeId}/`,
+        }),
+        stats: {
+            method: 'GET',
+            href: `${API_BASE}programmes/stats/`,
+        },
+        options: {
+            method: 'GET',
+            href: `${API_BASE}programmes/options/`,
+        },
         import_spec: { method: 'GET', href: `${API_BASE}programmes/import/specifications/` },
         import_sample: { method: 'GET', href: `${API_BASE}programmes/import/sample/` },
         import: { method: 'POST', href: `${API_BASE}programmes/import/` },
         export: { method: 'GET', href: `${API_BASE}programmes/export/` },
+        summary: (programmeId) => ({
+            method: 'GET',
+            href: `${API_BASE}programmes/${programmeId}/summary/`,
+        }),
     },
     contacts: {
         list: { method: 'GET', href: `${API_BASE}contacts/` },

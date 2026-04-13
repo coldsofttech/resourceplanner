@@ -13,7 +13,11 @@ from rest_framework.response import Response
 from apps.core.utils import view_set_validation_details
 
 from .models import Programme
-from .serializers import ProgrammeSerializer, ProgrammeExportSerializer
+from .serializers import (
+    ProgrammeSerializer,
+    ProgrammeExportSerializer,
+    ProgrammeSummarySerializer,
+)
 from .services import ProgrammeService
 
 logger = logging.getLogger(__name__)
@@ -222,6 +226,63 @@ class ProgrammeViewSet(viewsets.ViewSet):
         try:
             ProgrammeService.delete_programme(pk)
             return Response(status=status.HTTP_204_NO_CONTENT)
+        except Programme.DoesNotExist:
+            logger.warning("Programme %s does not exist.", pk)
+            return Response(
+                {"error": "Programme not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            logger.warning("Validation error in destroy: %s", e)
+            return Response(
+                {
+                    "error": "Invalid parameters/values.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in destroy: %s", e)
+            return Response(
+                {"error": "A database error occurred. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in destroy: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /programmes/<id>/summary/
+    @action(detail=True, methods=["get"], url_path="summary")
+    def programme_summary(self, request, pk=None):
+        try:
+            fy_param = request.query_params.get("fy")
+            fy_id = None
+
+            if fy_param is not None:
+                try:
+                    fy_id = int(fy_param)
+                    if fy_id <= 0:
+                        raise ValueError
+                except (ValueError, TypeError):
+                    return Response(
+                        {
+                            "error",
+                            "Invalid 'fy' parameter. Must be a positive integer.",
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            try:
+                page = int(request.query_params.get("page", 1))
+                page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            except (ValueError, TypeError):
+                page, page_size = 1, 20
+
+            result = ProgrammeService.get_programme_summary(pk, fy_id, page, page_size)
+            serializer = ProgrammeSummarySerializer(result)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         except Programme.DoesNotExist:
             logger.warning("Programme %s does not exist.", pk)
             return Response(
