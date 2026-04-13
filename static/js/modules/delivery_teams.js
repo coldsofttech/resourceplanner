@@ -1,9 +1,17 @@
 'use strict';
 
 import {
-    apiFetch, showFlash, formatDateTime, setPageTitle, escHtml, escAttr,
-    getPkFromUrl, isSubPathUrl, clearErrors, setSubmitting, extractFieldMessage,
-    showBanner, applyErrors
+    apiFetch,
+    showFlash,
+    formatDateTime,
+    setPageTitle,
+    escHtml,
+    escAttr,
+    getPkFromUrl,
+    isSubPathUrl,
+    clearErrors,
+    setSubmitting,
+    applyErrors,
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -13,6 +21,7 @@ import { loadSpecs, initImportDropZone } from './../import.js';
 import { exportToCsv, exportToPdf } from './../export.js';
 import { initMembersPanel } from './../member_panel.js';
 import { initLeavesPanel } from './../leave_panel.js';
+import { initTeamProjectsPanel } from './../project_panel.js';
 
 let fetcher = null;
 
@@ -53,7 +62,7 @@ document.addEventListener('DOMContentLoaded', () => {
  * List View
  */
 function initListView() {
-    setPageTitle("Teams");
+    setPageTitle('Teams');
     renderStatistics();
     renderStatusFilterOptions();
 
@@ -79,7 +88,7 @@ function initListView() {
         paginationBarId: 'pagination-bar',
         paginationInfoId: 'pagination-info',
         paginationControlsId: 'pagination-controls',
-        onPageChange: page => fetcher.goToPage(page),
+        onPageChange: (page) => fetcher.goToPage(page),
     });
 
     fetcher = initFetch({
@@ -124,7 +133,8 @@ async function renderStatistics() {
         document.getElementById('stat-total-teams').textContent = stats.total_teams ?? '-';
         document.getElementById('stat-active-teams').textContent = stats.active_teams ?? '-';
         document.getElementById('stat-total-members').textContent = stats.total_members ?? '-';
-        document.getElementById('stat-unassigned-members').textContent = stats.unassigned_members ?? '-';
+        document.getElementById('stat-unassigned-members').textContent =
+            stats.unassigned_members ?? '-';
     } catch (err) {
         console.error('[renderStatistics] Failed to load statistics: ', err);
     }
@@ -169,9 +179,10 @@ function renderTeamRow(team) {
                 </span>
             </td>
             <td class="text-center">
-                ${team.is_active
-                    ? '<span class="rp-badge rp-badge--success">Active</span>'
-                    : '<span class="rp-badge rp-badge--muted">Inactive</span>'
+                ${
+                    team.is_active
+                        ? '<span class="rp-badge rp-badge--success">Active</span>'
+                        : '<span class="rp-badge rp-badge--muted">Inactive</span>'
                 }
             </td>
             <td class="text-center">
@@ -208,9 +219,9 @@ function onDeleteFromList(id, name) {
  * Import View
  */
 function initImportView() {
-    setPageTitle("Import");
-    const importBtn        = document.getElementById('import-btn');
-    const importResults    = document.getElementById('import-results');
+    setPageTitle('Import');
+    const importBtn = document.getElementById('import-btn');
+    const importResults = document.getElementById('import-results');
     const importAnotherBtn = document.getElementById('import-another-btn');
 
     let importFile = null;
@@ -221,21 +232,25 @@ function initImportView() {
     if (dropZoneEl) {
         const dropZoneApi = initImportDropZone(
             {
-                dropZone:   dropZoneEl,
-                fileInput:  document.getElementById('csv-file-input'),
-                fileInfo:   document.getElementById('file-info'),
+                dropZone: dropZoneEl,
+                fileInput: document.getElementById('csv-file-input'),
+                fileInfo: document.getElementById('file-info'),
                 fileNameEl: document.getElementById('file-name'),
                 fileSizeEl: document.getElementById('file-size'),
-                removeBtn:  document.getElementById('remove-file-btn'),
-                submitBtn:  importBtn,
-                errorEl:    document.getElementById('file-error'),
+                removeBtn: document.getElementById('remove-file-btn'),
+                submitBtn: importBtn,
+                errorEl: document.getElementById('file-error'),
                 errorMsgEl: document.getElementById('file-error-msg'),
             },
             {
-                accept:  '.csv',
-                onFile:  file => { importFile = file; },
-                onReset: ()   => { importFile = null; },
-            }
+                accept: '.csv',
+                onFile: (file) => {
+                    importFile = file;
+                },
+                onReset: () => {
+                    importFile = null;
+                },
+            },
         );
 
         importBtn.addEventListener('click', () => {
@@ -243,8 +258,8 @@ function initImportView() {
 
             submitImport(window.location.pathname, importFile, {
                 submitBtn: importBtn,
-                onSuccess: data => renderImportResults(data),
-                onError:   msg  => dropZoneApi.showError(msg),
+                onSuccess: (data) => renderImportResults(data),
+                onError: (msg) => dropZoneApi.showError(msg),
             });
         });
     }
@@ -261,31 +276,31 @@ function initImportView() {
  * Create & Edit View
  */
 function initCreateView() {
-    setPageTitle("New Team");
-    const pageTitle     = document.getElementById('page-title');
-    const pageSubtitle  = document.getElementById('page-subtitle');
-    const submitLabel   = document.getElementById('submit-label');
-    const submitBtn     = document.getElementById('submit-btn');
-    pageTitle.textContent    = 'New Team';
+    setPageTitle('New Team');
+    const pageTitle = document.getElementById('page-title');
+    const pageSubtitle = document.getElementById('page-subtitle');
+    const submitLabel = document.getElementById('submit-label');
+    const submitBtn = document.getElementById('submit-btn');
+    pageTitle.textContent = 'New Team';
     pageSubtitle.textContent = 'Add a new team to the business unit';
-    submitLabel.textContent  = 'Create team';
+    submitLabel.textContent = 'Create team';
     submitBtn.dataset.originalLabel = 'Create team';
 }
 
 async function initEditView() {
-    setPageTitle("Edit Team");
-    const pageTitle     = document.getElementById('page-title');
-    const pageSubtitle  = document.getElementById('page-subtitle');
-    const submitLabel   = document.getElementById('submit-label');
-    const submitBtn     = document.getElementById('submit-btn');
-    pageTitle.textContent    = 'Edit Team';
+    setPageTitle('Edit Team');
+    const pageTitle = document.getElementById('page-title');
+    const pageSubtitle = document.getElementById('page-subtitle');
+    const submitLabel = document.getElementById('submit-label');
+    const submitBtn = document.getElementById('submit-btn');
+    pageTitle.textContent = 'Edit Team';
     pageSubtitle.textContent = 'Loading…';
-    submitLabel.textContent  = 'Save changes';
+    submitLabel.textContent = 'Save changes';
     submitBtn.dataset.originalLabel = 'Save changes';
     submitBtn.disabled = true;
 
     try {
-        const { method, href } = API_URLS.delivery_teams.get(teamPk);
+        const { method, href } = API_URLS.delivery_teams.detail(teamPk);
         const res = await apiFetch(href, { method });
         populateForm(res);
         submitBtn.disabled = false;
@@ -297,14 +312,13 @@ async function initEditView() {
                 'This team no longer exists. It may have been deleted. Redirecting to the list…',
                 'warning',
             );
-            setTimeout(() => { window.location.href = URLS.delivery_teams.list; }, 3000);
+            setTimeout(() => {
+                window.location.href = URLS.delivery_teams.list;
+            }, 3000);
             return;
         }
 
-        showFlash(
-            err?.data?.error || 'Could not load team data. Please try again.',
-            'danger',
-        );
+        showFlash(err?.data?.error || 'Could not load team data. Please try again.', 'danger');
     }
 
     submitBtn.disabled = false;
@@ -323,17 +337,17 @@ async function handleCreateEditSubmit(e) {
     }
 
     const payload = {
-        name:        nameInput.value.trim(),
+        name: nameInput.value.trim(),
         description: document.getElementById('id_description').value.trim(),
-        is_active:   document.getElementById('id_is_active').checked,
+        is_active: document.getElementById('id_is_active').checked,
     };
 
     const method = isEdit
-        ? API_URLS.delivery_teams.partial_edit(teamPk).method
-        : API_URLS.delivery_teams.new.method;
+        ? API_URLS.delivery_teams.update(teamPk).method
+        : API_URLS.delivery_teams.create.method;
     const url = isEdit
-        ? API_URLS.delivery_teams.partial_edit(teamPk).href
-        : API_URLS.delivery_teams.new.href;
+        ? API_URLS.delivery_teams.update(teamPk).href
+        : API_URLS.delivery_teams.create.href;
 
     setSubmitting(true);
 
@@ -350,11 +364,16 @@ async function handleCreateEditSubmit(e) {
                 'This team no longer exists and cannot be saved. Redirecting to the list…',
                 'warning',
             );
-            setTimeout(() => { window.location.href = URLS.delivery_teams.list; }, 3000);
+            setTimeout(() => {
+                window.location.href = URLS.delivery_teams.list;
+            }, 3000);
             return;
         }
         if (err?.status === 503 || err?.status === 500) {
-            showFlash(err.data?.error || `Unexpected error (${err.status}). Please try again.`, 'danger');
+            showFlash(
+                err.data?.error || `Unexpected error (${err.status}). Please try again.`,
+                'danger',
+            );
             return;
         }
         showFlash('Could not reach the server. Check your connection and try again.', 'danger');
@@ -364,17 +383,17 @@ async function handleCreateEditSubmit(e) {
 }
 
 function populateForm(team) {
-    const pageTitle     = document.getElementById('page-title');
-    const pageSubtitle  = document.getElementById('page-subtitle');
-    const metadataCard  = document.getElementById('metadata-card');
+    const pageTitle = document.getElementById('page-title');
+    const pageSubtitle = document.getElementById('page-subtitle');
+    const metadataCard = document.getElementById('metadata-card');
     const deleteBtnSlot = document.getElementById('delete-btn-slot');
 
-    document.getElementById('id_name').value        = team.name        ?? '';
+    document.getElementById('id_name').value = team.name ?? '';
     document.getElementById('id_description').value = team.description ?? '';
-    document.getElementById('id_is_active').checked = team.is_active   ?? true;
+    document.getElementById('id_is_active').checked = team.is_active ?? true;
 
-    pageTitle.textContent    = 'Edit Team';
-    pageSubtitle.innerHTML   = `Updating <strong>${escHtml(team.name)}</strong>`;
+    pageTitle.textContent = 'Edit Team';
+    pageSubtitle.innerHTML = `Updating <strong>${escHtml(team.name)}</strong>`;
 
     document.getElementById('meta-created').textContent = formatDateTime(team.created_at);
     document.getElementById('meta-updated').textContent = formatDateTime(team.updated_at);
@@ -386,10 +405,9 @@ function populateForm(team) {
                 id="delete-team-btn">
             <i class="bi bi-trash me-1"></i> Delete
         </button>`;
-    document.getElementById('delete-team-btn')
-        .addEventListener('click', () =>
-            confirmDelete(team.id, team.name, onDeleteFromEdit)
-        );
+    document
+        .getElementById('delete-team-btn')
+        .addEventListener('click', () => confirmDelete(team.id, team.name, onDeleteFromEdit));
 }
 
 function onDeleteFromEdit(id, name) {
@@ -401,7 +419,7 @@ function onDeleteFromEdit(id, name) {
  */
 async function initDetailView() {
     if (!teamPk) return;
-    setPageTitle("Team");
+    setPageTitle('Team');
 
     try {
         const { method, href } = API_URLS.delivery_teams.detail(teamPk);
@@ -410,52 +428,60 @@ async function initDetailView() {
         renderTeamDetails(data);
     } catch (err) {
         if (err?.status === 404) {
-            showFlash(
-                'This team no longer exists. Redirecting to the list…',
-                'warning',
-            );
-            setTimeout(() => { window.location.href = URLS.delivery_teams.list; }, 3000);
+            showFlash('This team no longer exists. Redirecting to the list…', 'warning');
+            setTimeout(() => {
+                window.location.href = URLS.delivery_teams.list;
+            }, 3000);
             return;
         }
         showFlash(err?.data?.error || 'Could not load team details. Please refresh.', 'danger');
     }
 
     initMembersPanel({
-        containerSelector:      '#members-panel',
-        tbodyId:                'members-tbody',
-        paginationBarId:        'members-pagination-bar',
-        paginationInfoId:       'members-pagination-info',
-        paginationControlsId:   'members-pagination-controls',
+        containerSelector: '#members-panel',
+        tbodyId: 'members-tbody',
+        paginationBarId: 'members-pagination-bar',
+        paginationInfoId: 'members-pagination-info',
+        paginationControlsId: 'members-pagination-controls',
         includeInactiveToggleId: 'include-inactive-toggle',
-        filterParam:            'team_id',
-        filterValue:            teamPk,
-        columns:                'delivery_teams',
-        newMemberHref:          URLS.team_members.new,
+        filterParam: 'team_id',
+        filterValue: teamPk,
+        columns: 'delivery_teams',
+        newMemberHref: URLS.team_members.new,
+    });
+
+    initTeamProjectsPanel({
+        tbodyId: 'team-projects-tbody',
+        paginationBarId: 'team-projects-pagination-bar',
+        paginationInfoId: 'team-projects-pagination-info',
+        paginationControlsId: 'team-projects-pagination-controls',
+        teamId: teamPk,
+        newProjectHref: '/projects/',
     });
 
     initLeavesPanel({
-        apiUrl:               API_URLS.delivery_teams.leaves(teamPk).href,
-        tbodyId:              'team-leaves-tbody',
-        paginationBarId:      'team-leaves-pagination-bar',
-        paginationInfoId:     'team-leaves-pagination-info',
+        apiUrl: API_URLS.delivery_teams.leaves(teamPk).href,
+        tbodyId: 'team-leaves-tbody',
+        paginationBarId: 'team-leaves-pagination-bar',
+        paginationInfoId: 'team-leaves-pagination-info',
         paginationControlsId: 'team-leaves-pagination-controls',
-        includePastToggleId:  'team-leaves-include-past',
-        showMemberColumn:     true,
+        includePastToggleId: 'team-leaves-include-past',
+        showMemberColumn: true,
     });
 }
 
 function renderDetailTitle(team) {
     document.getElementById('team-name').textContent = team.name;
-    document.getElementById('team-status').textContent = team.is_active ? "Active" : "Inactive";
-    document.getElementById('team-status').classList.add(
-        team.is_active ? "rp-badge--success" : "rp-badge--muted"
-    );
+    document.getElementById('team-status').textContent = team.is_active ? 'Active' : 'Inactive';
+    document
+        .getElementById('team-status')
+        .classList.add(team.is_active ? 'rp-badge--success' : 'rp-badge--muted');
     document.getElementById('edit-team-btn').href = URLS.delivery_teams.edit(teamPk);
 }
 
 function renderTeamDetails(team) {
     document.getElementById('total-team-members').textContent = team.member_count ?? 0;
-    document.getElementById('team-description').textContent = team.description ?? "-";
+    document.getElementById('team-description').textContent = team.description ?? '-';
     document.getElementById('meta-created').textContent = formatDateTime(team.created_at);
     document.getElementById('meta-updated').textContent = formatDateTime(team.updated_at);
 }
@@ -464,9 +490,9 @@ function renderTeamDetails(team) {
  * Delete Modal - Shared
  */
 function confirmDelete(id, name, onSuccess) {
-    const modal     = document.getElementById('deleteModal');
-    const nameEl    = document.getElementById('delete-team-name');
-    const btn       = document.getElementById('confirm-delete-btn');
+    const modal = document.getElementById('deleteModal');
+    const nameEl = document.getElementById('delete-team-name');
+    const btn = document.getElementById('confirm-delete-btn');
 
     if (!modal || !btn) return;
 
@@ -477,7 +503,7 @@ function confirmDelete(id, name, onSuccess) {
 
     newBtn.addEventListener('click', async () => {
         try {
-            newBtn.disabled    = true;
+            newBtn.disabled = true;
             newBtn.textContent = 'Deleting...';
             await apiFetch(href, { method });
             bootstrap.Modal.getInstance(modal)?.hide();
@@ -496,10 +522,10 @@ function confirmDelete(id, name, onSuccess) {
             }
             showFlash(
                 err?.data?.detail || `Failed to delete team "${name}". Please try again.`,
-                'error'
+                'error',
             );
         } finally {
-            newBtn.disabled    = false;
+            newBtn.disabled = false;
             newBtn.textContent = 'Delete';
         }
     });
@@ -523,8 +549,9 @@ async function runListExport(format) {
     bootstrap.Dropdown.getInstance(btn)?.hide();
 
     if (btn) {
-        btn.disabled  = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Exporting…';
+        btn.disabled = true;
+        btn.innerHTML =
+            '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Exporting…';
     }
 
     try {
@@ -542,7 +569,7 @@ async function runListExport(format) {
         showFlash('Export failed. Please try again.', 'error');
     } finally {
         if (btn) {
-            btn.disabled  = false;
+            btn.disabled = false;
             btn.innerHTML = '<i class="bi bi-download me-1"></i>Export';
         }
     }

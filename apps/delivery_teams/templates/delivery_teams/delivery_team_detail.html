@@ -1,38 +1,29 @@
-{% extends "base.html" %}
-{% load static %}
-
-{% block page_header %}
-<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div
+    class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3"
+>
     <div class="d-flex align-items-center gap-3">
         <!-- Back Button -->
-        <a href="/delivery-teams/"
-           class="btn btn-ghost-icon"
-           title="Back to Teams">
+        <a href="/delivery-teams/" class="btn btn-ghost-icon" title="Back to Teams">
             <i class="bi bi-arrow-left"></i>
         </a>
         <div>
             <h1 class="rp-page-title d-flex align-items-center gap-2">
                 <span id="team-name"></span>
-                <span id="team-status"
-                      class="rp-badge"></span>
+                <span id="team-status" class="rp-badge"></span>
             </h1>
         </div>
     </div>
 
     <!-- Edit -->
     <div class="d-flex gap-2">
-        <a href="#"
-           id="edit-team-btn"
-           class="btn btn-primary btn-sm">
+        <a href="#" id="edit-team-btn" class="btn btn-primary btn-sm">
             <i class="bi bi-pencil me-1"></i>Edit team
         </a>
     </div>
 </div>
-{% endblock %}
-
-{% block content %}
-<div id="detail-root"
-     class="row g-4">
+{% endblock %} {% block content %}
+<div id="detail-root" class="row g-4">
     <!-- Left Panel -->
     <div class="col-lg-4">
         <!-- Team Details -->
@@ -47,9 +38,7 @@
         </div>
         <!-- Metadata Details -->
         <div class="rp-card rp-card--muted mb-3">
-            <h6 class="rp-card-heading">
-                <i class="bi bi-clock-history me-2"></i>Metadata
-            </h6>
+            <h6 class="rp-card-heading"><i class="bi bi-clock-history me-2"></i>Metadata</h6>
             <dl class="rp-meta-list">
                 <dt>Created</dt>
                 <dd id="meta-created"></dd>
@@ -70,22 +59,21 @@
 
     <!-- Team Members - need to update this -->
     <div class="col-12 mb-3">
-        <div class="rp-card"
-             id="members-panel">
+        <div class="rp-card" id="members-panel">
             <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                 <h6 class="rp-card-heading mb-0">Members in this team</h6>
                 <div class="d-flex gap-2 align-items-center">
                     <div class="form-check form-switch rp-switch me-2">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               id="include-inactive-toggle" />
-                        <label class="form-check-label rp-label"
-                               for="include-inactive-toggle">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            id="include-inactive-toggle"
+                        />
+                        <label class="form-check-label rp-label" for="include-inactive-toggle">
                             Include inactive
                         </label>
                     </div>
-                    <a href="/team-members/new/"
-                       class="btn btn-sm btn-outline-primary">
+                    <a href="/team-members/new/" class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-plus me-1"></i>Add member
                     </a>
                 </div>
@@ -107,17 +95,17 @@
                             <th class="text-center">Actions</th>
                         </tr>
                     </thead>
-                <tbody id="members-tbody"></tbody>
+                    <tbody id="members-tbody"></tbody>
                 </table>
             </div>
-            <div class="d-flex align-items-center justify-content-between px-1 pt-2 flex-wrap gap-2"
-                 id="members-pagination-bar"
-                 style="display:none;">
-                <span class="text-secondary small"
-                      id="members-pagination-info"></span>
+            <div
+                class="d-flex align-items-center justify-content-between px-1 pt-2 flex-wrap gap-2"
+                id="members-pagination-bar"
+                style="display: none"
+            >
+                <span class="text-secondary small" id="members-pagination-info"></span>
                 <nav>
-                    <ul class="pagination pagination-sm mb-0"
-                        id="members-pagination-controls"></ul>
+                    <ul class="pagination pagination-sm mb-0" id="members-pagination-controls"></ul>
                 </nav>
             </div>
         </div>
@@ -129,12 +117,42 @@
             <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="rp-card-heading mb-0">
                     Active projects
-                    <span class="rp-hint ms-2">New &amp; In Progress - as assigned team or collaborator</span>
+                    <span class="rp-hint ms-2"
+                        >New &amp; In Progress — as assigned team or collaborator</span
+                    >
                 </h6>
-                <a href="#"
-                   class="btn btn-sm btn-outline-primary">
+                <a href="/projects/" class="btn btn-sm btn-outline-primary">
                     <i class="bi bi-plus me-1"></i>New project
                 </a>
+            </div>
+            <div class="rp-table-wrap">
+                <table class="table rp-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Project</th>
+                            <th>Programme</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Priority</th>
+                            <th>Role</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="team-projects-tbody"></tbody>
+                </table>
+            </div>
+            <div
+                class="d-flex align-items-center justify-content-between px-1 pt-2 flex-wrap gap-2"
+                id="team-projects-pagination-bar"
+                style="display: none"
+            >
+                <span class="text-secondary small" id="team-projects-pagination-info"></span>
+                <nav>
+                    <ul
+                        class="pagination pagination-sm mb-0"
+                        id="team-projects-pagination-controls"
+                    ></ul>
+                </nav>
             </div>
         </div>
     </div>
@@ -146,10 +164,14 @@
                 <h6 class="rp-card-heading mb-0">Member Leaves</h6>
                 <div class="d-flex gap-2 align-items-center">
                     <div class="form-check form-switch rp-switch me-2 mb-0">
-                        <input class="form-check-input" type="checkbox"
-                               id="team-leaves-include-past" />
-                        <label class="form-check-label rp-label mb-0"
-                               for="team-leaves-include-past">Include past</label>
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            id="team-leaves-include-past"
+                        />
+                        <label class="form-check-label rp-label mb-0" for="team-leaves-include-past"
+                            >Include past</label
+                        >
                     </div>
                     <a href="/leaves/new/" class="btn btn-sm btn-outline-primary">
                         <i class="bi bi-plus me-1"></i>Add leave
@@ -171,19 +193,21 @@
                     <tbody id="team-leaves-tbody"></tbody>
                 </table>
             </div>
-            <div class="d-flex align-items-center justify-content-between px-1 pt-2 flex-wrap gap-2"
-                 id="team-leaves-pagination-bar">
+            <div
+                class="d-flex align-items-center justify-content-between px-1 pt-2 flex-wrap gap-2"
+                id="team-leaves-pagination-bar"
+            >
                 <span class="text-secondary small" id="team-leaves-pagination-info"></span>
                 <nav>
-                    <ul class="pagination pagination-sm mb-0"
-                        id="team-leaves-pagination-controls"></ul>
+                    <ul
+                        class="pagination pagination-sm mb-0"
+                        id="team-leaves-pagination-controls"
+                    ></ul>
                 </nav>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
+{% endblock %} {% block extra_js %}
 <script type="module" src="{% static 'js/modules/delivery_teams.js' %}"></script>
 {% endblock %}

@@ -10,8 +10,8 @@ class DeliveryTeamSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DeliveryTeam
-        fields = '__all__'
-        read_only_fields = ['member_count', 'created_at', 'updated_at']
+        fields = "__all__"
+        read_only_fields = ["member_count", "created_at", "updated_at"]
 
     def validate_team(self, value):
         name = value
@@ -29,4 +29,4 @@ class DeliveryTeamExportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = DeliveryTeam
-        fields = ['id', 'name', 'description', 'member_count', 'is_active']
+        fields = ["id", "name", "description", "member_count", "is_active"]

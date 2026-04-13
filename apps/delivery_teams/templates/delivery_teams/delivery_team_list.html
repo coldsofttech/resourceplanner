@@ -1,44 +1,38 @@
-{% extends "base.html" %}
-{% load static %}
-
-{% block page_header %}
-<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div
+    class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3"
+>
     <!-- Page Title -->
     <div>
         <h1 class="rp-page-title">Teams</h1>
-        <p class="rp-page-subtitle">
-            Manage all teams in your business unit.
-        </p>
+        <p class="rp-page-subtitle">Manage all teams in your business unit.</p>
     </div>
 
     <!-- Features -->
     <div class="d-flex gap-2 flex-wrap">
         <!-- Import -->
-        <a href="/import/?module=delivery_teams"
-           class="btn btn-outline-secondary btn-sm">
+        <a href="/import/?module=delivery_teams" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
 
         <!-- Export -->
         <div class="dropdown">
-            <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
-                    id="export-dropdown-btn"
-                    data-bs-toggle="dropdown"
-                    aria-expanded="false">
+            <button
+                class="btn btn-outline-secondary btn-sm dropdown-toggle"
+                id="export-dropdown-btn"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+            >
                 <i class="bi bi-download me-1"></i>Export
             </button>
             <ul class="dropdown-menu dropdown-menu-end">
                 <li>
-                    <a class="dropdown-item"
-                       href="#"
-                       id="export-csv">
+                    <a class="dropdown-item" href="#" id="export-csv">
                         <i class="bi bi-filetype-csv me-2"></i>CSV
                     </a>
                 </li>
                 <li>
-                    <a class="dropdown-item"
-                       href="#"
-                       id="export-pdf">
+                    <a class="dropdown-item" href="#" id="export-pdf">
                         <i class="bi bi-filetype-pdf me-2"></i>PDF
                     </a>
                 </li>
@@ -46,15 +40,12 @@
         </div>
 
         <!-- New Delivery Team -->
-        <a href="/delivery-teams/new"
-           class="btn btn-primary btn-sm">
+        <a href="/delivery-teams/new" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-lg me-1"></i>New Team
         </a>
     </div>
 </div>
-{% endblock %}
-
-{% block content %}
+{% endblock %} {% block content %}
 <!-- Statistics -->
 <div class="row g-3 mb-4">
     <!-- Populated by JS -->
@@ -62,8 +53,7 @@
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
             <span class="rp-stat-label">Total Teams</span>
-            <span class="rp-stat-value"
-                  id="stat-total-teams">0</span>
+            <span class="rp-stat-value" id="stat-total-teams">0</span>
         </div>
     </div>
 
@@ -71,8 +61,7 @@
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
             <span class="rp-stat-label">Active Teams</span>
-            <span class="rp-stat-value"
-                  id="stat-active-teams">0</span>
+            <span class="rp-stat-value" id="stat-active-teams">0</span>
         </div>
     </div>
 
@@ -80,8 +69,7 @@
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
             <span class="rp-stat-label">Total Team Members</span>
-            <span class="rp-stat-value"
-                  id="stat-total-members">0</span>
+            <span class="rp-stat-value" id="stat-total-members">0</span>
         </div>
     </div>
 
@@ -89,8 +77,7 @@
     <div class="col-6 col-md-3">
         <div class="rp-stat-card">
             <span class="rp-stat-label">Unassigned Team Members</span>
-            <span class="rp-stat-value"
-                  id="stat-unassigned-members">0</span>
+            <span class="rp-stat-value" id="stat-unassigned-members">0</span>
         </div>
     </div>
 </div>
@@ -100,16 +87,16 @@
     <!-- Search -->
     <div class="rp-search flex-grow-1">
         <i class="bi bi-search rp-search-icon"></i>
-        <input type="text"
-               id="team-search"
-               class="form-control rp-search-input"
-               placeholder="Search teams by name or description..." />
+        <input
+            type="text"
+            id="team-search"
+            class="form-control rp-search-input"
+            placeholder="Search teams by name or description..."
+        />
     </div>
 
     <!-- Filters -->
-    <select id="status-filter"
-            class="form-select rp-select"
-            style="max-width: 160px;">
+    <select id="status-filter" class="form-select rp-select" style="max-width: 160px">
         <option value="">All statuses</option>
         <!-- Populated by JS -->
     </select>
@@ -117,21 +104,17 @@
 
 <!-- Delivery Teams Table -->
 <div class="rp-table-wrap">
-    <table class="table rp-table"
-           id="delivery-teams-table">
+    <table class="table rp-table" id="delivery-teams-table">
         <thead>
             <tr>
-                <th class="sortable"
-                    data-field="name">
+                <th class="sortable" data-field="name">
                     Name <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
                 <th>Description</th>
-                <th class="text-center sortable"
-                    data-field="member_count">
+                <th class="text-center sortable" data-field="member_count">
                     Total Team Members <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th class="text-center sortable"
-                    data-field="is_active">
+                <th class="text-center sortable" data-field="is_active">
                     Status <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
                 <th class="text-center">Actions</th>
@@ -143,9 +126,11 @@
     </table>
 
     <!-- Pagination -->
-    <div class="d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2"
-         id="pagination-bar"
-         style="display:none;">
+    <div
+        class="d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2"
+        id="pagination-bar"
+        style="display: none"
+    >
         <span class="text-secondary small" id="pagination-info"></span>
         <nav>
             <ul class="pagination pagination-sm mb-0" id="pagination-controls"></ul>
@@ -154,47 +139,40 @@
 </div>
 
 <!-- Delete Confirmation Modal -->
-<div class="modal fade"
-     id="deleteModal"
-     tabindex="-1">
+<div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content rp-modal">
             <!-- Modal Header -->
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title">Delete team?</h5>
-                <button type="button"
-                        class="btn-close"
-                        data-bs-dismiss="modal">
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
 
             <!-- Modal Body -->
             <div class="modal-body">
                 <p class="text-secondary mb-0">
-                    <strong id="delete-team-name"></strong> will be permanently removed.
-                    This cannot be undone.
+                    <strong id="delete-team-name"></strong> will be permanently removed. This cannot
+                    be undone.
                 </p>
             </div>
 
             <!-- Modal Footer -->
             <div class="modal-footer border-0 pt-0">
-                <button type="button"
-                        class="btn btn-sm btn-outline-secondary"
-                        data-bs-dismiss="modal">
+                <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-dismiss="modal"
+                >
                     Cancel
                 </button>
-                <button type="button"
-                        class="btn btn-sm btn-danger"
-                        id="confirm-delete-btn">
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-btn">
                     Delete
                 </button>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
+{% endblock %} {% block extra_js %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script type="module" src="{% static 'js/list/fetch.js' %}"></script>

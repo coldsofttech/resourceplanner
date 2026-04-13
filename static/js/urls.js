@@ -4,21 +4,62 @@ const API_BASE = '/api/v1/';
 
 export const API_URLS = {
     delivery_teams: {
-        list: { method: 'GET', href: `${API_BASE}delivery-teams/` },
-        stats: { method: 'GET', href: `${API_BASE}delivery-teams/stats/` },
-        new: { method: 'POST', href: `${API_BASE}delivery-teams/` },
-        get: (pk) => ({ method: 'GET', href: `${API_BASE}delivery-teams/${pk}/` }),
-        detail: (pk) => ({ method: 'GET', href: `${API_BASE}delivery-teams/${pk}/` }),
-        edit: (pk) => ({ method: 'PUT', href: `${API_BASE}delivery-teams/${pk}/` }),
-        partial_edit: (pk) => ({ method: 'PATCH', href: `${API_BASE}delivery-teams/${pk}/` }),
-        delete: (pk) => ({ method: 'DELETE', href: `${API_BASE}delivery-teams/${pk}/` }),
-        members: (pk) => ({ method: 'GET', href: `${API_BASE}delivery-teams/${pk}/members/` }),
-        leaves: (pk) => ({ method: 'GET', href: `${API_BASE}delivery-teams/${pk}/leaves/` }),
-        options: { method: 'GET', href: `${API_BASE}delivery-teams/options/` },
-        import_spec: { method: 'GET', href: `${API_BASE}delivery-teams/import/specifications/` },
-        import_sample: { method: 'GET', href: `${API_BASE}delivery-teams/import/sample/` },
-        import: { method: 'POST', href: `${API_BASE}delivery-teams/import/` },
-        export: { method: 'GET', href: `${API_BASE}delivery-teams/export/` },
+        list: {
+            method: 'GET',
+            href: `${API_BASE}delivery-teams/`,
+        },
+        stats: {
+            method: 'GET',
+            href: `${API_BASE}delivery-teams/stats/`,
+        },
+        create: {
+            method: 'POST',
+            href: `${API_BASE}delivery-teams/`,
+        },
+        detail: (teamId) => ({
+            method: 'GET',
+            href: `${API_BASE}delivery-teams/${teamId}/`,
+        }),
+        update: (teamId) => ({
+            method: 'PATCH',
+            href: `${API_BASE}delivery-teams/${teamId}/`,
+        }),
+        delete: (teamId) => ({
+            method: 'DELETE',
+            href: `${API_BASE}delivery-teams/${teamId}/`,
+        }),
+        members: (teamId) => ({
+            method: 'GET',
+            href: `${API_BASE}delivery-teams/${teamId}/members/`,
+        }),
+        leaves: (teamId) => ({
+            method: 'GET',
+            href: `${API_BASE}delivery-teams/${teamId}/leaves/`,
+        }),
+        projects: (teamId) => ({
+            method: 'GET',
+            href: `${API_BASE}delivery-teams/${teamId}/projects/`,
+        }),
+        options: {
+            method: 'GET',
+            href: `${API_BASE}delivery-teams/options/`,
+        },
+        import_spec: {
+            method: 'GET',
+            href: `${API_BASE}delivery-teams/import/specifications/`,
+        },
+        import_sample: {
+            method: 'GET',
+            href: `${API_BASE}delivery-teams/import/sample/`,
+        },
+        import: {
+            method: 'POST',
+            href: `${API_BASE}delivery-teams/import/`,
+        },
+        export: {
+            method: 'GET',
+            href: `${API_BASE}delivery-teams/export/`,
+        },
     },
     skills: {
         list: { method: 'GET', href: `${API_BASE}skills/` },
@@ -232,10 +273,22 @@ export const API_URLS = {
             method: 'GET',
             href: `${API_BASE}programmes/options/`,
         },
-        import_spec: { method: 'GET', href: `${API_BASE}programmes/import/specifications/` },
-        import_sample: { method: 'GET', href: `${API_BASE}programmes/import/sample/` },
-        import: { method: 'POST', href: `${API_BASE}programmes/import/` },
-        export: { method: 'GET', href: `${API_BASE}programmes/export/` },
+        import_spec: {
+            method: 'GET',
+            href: `${API_BASE}programmes/import/specifications/`,
+        },
+        import_sample: {
+            method: 'GET',
+            href: `${API_BASE}programmes/import/sample/`,
+        },
+        import: {
+            method: 'POST',
+            href: `${API_BASE}programmes/import/`,
+        },
+        export: {
+            method: 'GET',
+            href: `${API_BASE}programmes/export/`,
+        },
         summary: (programmeId) => ({
             method: 'GET',
             href: `${API_BASE}programmes/${programmeId}/summary/`,

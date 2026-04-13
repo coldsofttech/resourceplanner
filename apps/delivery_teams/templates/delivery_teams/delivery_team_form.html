@@ -1,106 +1,85 @@
-{% extends "base.html" %}
-{% load static %}
-
-{% block page_header %}
+{% extends "base.html" %} {% load static %} {% block page_header %}
 <div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center gap-3">
     <!-- Back Button -->
-    <a href="/delivery-teams/"
-       class="btn btn-ghost-icon"
-       title="Back to Teams">
+    <a href="/delivery-teams/" class="btn btn-ghost-icon" title="Back to Teams">
         <i class="bi bi-arrow-left"></i>
     </a>
 
     <!-- Page Title -->
     <div>
-        <h1 class="rp-page-title"
-            id="page-title"></h1>
-        <p class="rp-page-subtitle"
-           id="page-subtitle"></p>
+        <h1 class="rp-page-title" id="page-title"></h1>
+        <p class="rp-page-subtitle" id="page-subtitle"></p>
     </div>
 </div>
-{% endblock %}
-
-{% block content %}
+{% endblock %} {% block content %}
 <div class="row">
     <div class="col-lg-7">
         <div class="rp-card">
-            <form id="team-form"
-                  novalidate
-                  data-team-id="{{ delivery_team.pk|default: '' }">
+            <form id="team-form" novalidate data-team-id="{{ delivery_team.pk|default: '' }">
                 {% csrf_token %}
                 <!-- Name -->
                 <div class="rp-field mb-4">
-                    <label class="rp-label"
-                           for="id_name">
+                    <label class="rp-label" for="id_name">
                         Team name <span class="rp-required">*</span>
                     </label>
-                    <input type="text"
-                           id="id_name"
-                           name="name"
-                           value="{{ delivery_team.name|default:'' }}"
-                           class="form-control rp-input"
-                           autocomplete="off"
-                           maxlength="120"
-                           placeholder="e.g. Platform Engineering"
-                           required
-                           autofocus />
-                    <div class="invalid-feedback"
-                         id="name-error"></div>
+                    <input
+                        type="text"
+                        id="id_name"
+                        name="name"
+                        value="{{ delivery_team.name|default:'' }}"
+                        class="form-control rp-input"
+                        autocomplete="off"
+                        maxlength="120"
+                        placeholder="e.g. Platform Engineering"
+                        required
+                        autofocus
+                    />
+                    <div class="invalid-feedback" id="name-error"></div>
                 </div>
 
                 <!-- Description -->
                 <div class="rp-field mb-4">
-                    <label class="rp-label"
-                           for="id_description">
-                        Description
-                    </label>
-                    <textarea id="id_description"
-                              name="description"
-                              class="form-control rp-input"
-                              rows="3"
-                              placeholder="What does this team own or focus on?"></textarea>
-                    <div class="invalid-feedback"
-                         id="description-error"></div>
+                    <label class="rp-label" for="id_description"> Description </label>
+                    <textarea
+                        id="id_description"
+                        name="description"
+                        class="form-control rp-input"
+                        rows="3"
+                        placeholder="What does this team own or focus on?"
+                    ></textarea>
+                    <div class="invalid-feedback" id="description-error"></div>
                 </div>
 
                 <!-- Active Toggle -->
                 <div class="rp-field mb-5">
                     <div class="form-check form-switch rp-switch">
-                        <input class="form-check-input"
-                               type="checkbox"
-                               id="id_is_active"
-                               name="is_active"
-                               checked />
-                        <label class="form-check-label rp-label"
-                               for="id_is_active">
+                        <input
+                            class="form-check-input"
+                            type="checkbox"
+                            id="id_is_active"
+                            name="is_active"
+                            checked
+                        />
+                        <label class="form-check-label rp-label" for="id_is_active">
                             Active team
                         </label>
                     </div>
-                    <p class="rp-hint mt-1">
-                        Inactive teams are hidden from planning views.
-                    </p>
+                    <p class="rp-hint mt-1">Inactive teams are hidden from planning views.</p>
                 </div>
 
                 <!-- Form Errors (non-field) -->
-                <div class="alert alert-danger mb-4 d-none"
-                     id="form-error-banner"></div>
+                <div class="alert alert-danger mb-4 d-none" id="form-error-banner"></div>
 
                 <!-- Actions -->
                 <div class="d-flex gap-2">
-                    <button type="submit"
-                            id="submit-btn"
-                            class="btn btn-primary">
+                    <button type="submit" id="submit-btn" class="btn btn-primary">
                         <i class="bi bi-check-lg me-1"></i>
                         <span id="submit-label">Create team</span>
                     </button>
-                    <a href="/delivery-teams/"
-                       class="btn btn-outline-secondary">
-                        Cancel
-                    </a>
+                    <a href="/delivery-teams/" class="btn btn-outline-secondary"> Cancel </a>
 
                     <!-- Delete Button - only in Edit mode -->
-                    <span id="delete-btn-slot"
-                          class="ms-auto"></span>
+                    <span id="delete-btn-slot" class="ms-auto"></span>
                 </div>
             </form>
         </div>
@@ -110,21 +89,21 @@
     <div class="col-lg-4 offset-lg-1 mt-4 mt-lg-0">
         <!-- Tips -->
         <div class="rp-card rp-card--muted">
-            <h6 class="fw-600 mb-3">
-                <i class="bi bi-info-circle me-2"></i>Tips
-            </h6>
+            <h6 class="fw-600 mb-3"><i class="bi bi-info-circle me-2"></i>Tips</h6>
             <ul class="rp-tip-list">
-                <li>Use a clear, recognisable team name - it will appear across sprint boards and reports.</li>
-                <li>Inactive teams remain in historical data but are excluded from new planning.</li>
+                <li>
+                    Use a clear, recognisable team name - it will appear across sprint boards and
+                    reports.
+                </li>
+                <li>
+                    Inactive teams remain in historical data but are excluded from new planning.
+                </li>
             </ul>
         </div>
 
         <!-- Metadata - only in Edit mode -->
-        <div id="metadata-card"
-             class="rp-card rp-card--muted mt-3 d-none">
-            <h6 class="fw-600 mb-2">
-                <i class="bi bi-clock-history me-2"></i>Metadata
-            </h6>
+        <div id="metadata-card" class="rp-card rp-card--muted mt-3 d-none">
+            <h6 class="fw-600 mb-2"><i class="bi bi-clock-history me-2"></i>Metadata</h6>
             <dl class="rp-meta-list">
                 <dt>Created</dt>
                 <dd id="meta-created"></dd>
@@ -136,46 +115,39 @@
 </div>
 
 <!-- Delete Confirmation Modal -->
-<div class="modal fade"
-     id="deleteModal"
-     tabindex="-1">
+<div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog modal-sm modal-dialog-centered">
         <div class="modal-content rp-modal">
             <!-- Modal Header -->
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title">Delete team?</h5>
-                <button type="button"
-                        class="btn-close"
-                        data-bs-dismiss="modal">
-                </button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
 
             <!-- Modal Body -->
             <div class="modal-body">
                 <p class="text-secondary mb-0">
-                    <strong id="delete-team-name"></strong> will be permanently removed.
-                    This cannot be undone.
+                    <strong id="delete-team-name"></strong> will be permanently removed. This cannot
+                    be undone.
                 </p>
             </div>
 
             <!-- Modal Footer -->
             <div class="modal-footer border-0 pt-0">
-                <button type="button"
-                        class="btn btn-sm btn-outline-secondary"
-                        data-bs-dismiss="modal">
+                <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-dismiss="modal"
+                >
                     Cancel
                 </button>
-                <button type="button"
-                        class="btn btn-sm btn-danger"
-                        id="confirm-delete-btn">
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-btn">
                     Delete
                 </button>
             </div>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
+{% endblock %} {% block extra_js %}
 <script type="module" src="{% static 'js/modules/delivery_teams.js' %}"></script>
 {% endblock %}

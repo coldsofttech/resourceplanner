@@ -34,8 +34,8 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
         List all delivery teams.
         """
         try:
-            page = int(request.query_params.get('page', 1))
-            page_size = min(int(request.query_params.get('page_size', 20)), 100)
+            page = int(request.query_params.get("page", 1))
+            page_size = min(int(request.query_params.get("page_size", 20)), 100)
         except (ValueError, TypeError):
             page, page_size = 1, 20
 
@@ -78,13 +78,13 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
             )
 
     # GET /delivery-teams/stats/
-    @action(detail=False, methods=['get'], url_path='stats')
+    @action(detail=False, methods=["get"], url_path="stats")
     def statistics(self, request):
         """
         List all statistics associated with delivery teams.
         """
         try:
-            fields_param = request.query_params.get('fields')
+            fields_param = request.query_params.get("fields")
             fields = fields_param.split(",") if fields_param else None
             result = DeliveryTeamService.list_stats(fields=fields)
             return Response(result, status=status.HTTP_200_OK)
@@ -106,13 +106,13 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
             )
 
     # GET /delivery-teams/options/
-    @action(detail=False, methods=['get'], url_path='options')
+    @action(detail=False, methods=["get"], url_path="options")
     def option_choices(self, request):
         """
         List all options associated with delivery teams.
         """
         try:
-            fields_param = request.query_params.get('fields')
+            fields_param = request.query_params.get("fields")
             fields = fields_param.split(",") if fields_param else None
             result = DeliveryTeamService.list_options(fields=fields)
             return Response(result, status=status.HTTP_200_OK)
@@ -148,9 +148,7 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
         except DeliveryTeam.DoesNotExist:
             logging.warning("Delivery team %s does not exist", pk)
             return Response(
-                {
-                    "error": "Team not found."
-                },
+                {"error": "Team not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
         except (DjangoValidationError, DRFValidationError, ValueError) as e:
@@ -228,13 +226,13 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
             except DeliveryTeam.DoesNotExist:
                 logging.warning("Delivery team %s does not exist", pk)
                 return Response(
-                    {
-                        "error": "Team not found."
-                    },
+                    {"error": "Team not found."},
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-            serializer = DeliveryTeamSerializer(instance, data=request.data, partial=partial)
+            serializer = DeliveryTeamSerializer(
+                instance, data=request.data, partial=partial
+            )
             serializer.is_valid(raise_exception=True)
             team = DeliveryTeamService.update_team(pk, serializer.validated_data)
             return Response(
@@ -292,9 +290,7 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
         except DeliveryTeam.DoesNotExist:
             logging.warning("Delivery team %s does not exist", pk)
             return Response(
-                {
-                    "error": "Team not found."
-                },
+                {"error": "Team not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
         except (DjangoValidationError, DRFValidationError, ValueError) as e:
@@ -324,17 +320,17 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
             )
 
     # GET /delivery-teams/<id>/members/
-    @action(detail=True, methods=['get'], url_path='members')
+    @action(detail=True, methods=["get"], url_path="members")
     def list_members(self, request, pk=None):
         """
         List all members associated with the team
         """
         try:
-            page = int(request.query_params.get('page', 1))
-            page_size = min(int(request.query_params.get('page_size', 20)), 100)
-            include = request.query_params.get('include', '')
+            page = int(request.query_params.get("page", 1))
+            page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            include = request.query_params.get("include", "")
         except (ValueError, TypeError):
-            page, page_size, include = 1, 20, ''
+            page, page_size, include = 1, 20, ""
 
         try:
             result = DeliveryTeamService.list_members(
@@ -344,6 +340,7 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 include_inactive=include == "inactive",
             )
             from apps.team_members.serializers import TeamMemberSerializer
+
             serializer = TeamMemberSerializer(result["results"], many=True)
             return Response(
                 {
@@ -376,62 +373,112 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    # GET /delivery-teams/<id>/projects/
+    @action(detail=True, methods=["get"], url_path="projects")
+    def list_projects(self, request, pk=None):
+        try:
+            page = int(request.query_params.get("page", 1))
+            page_size = min(int(request.query_params.get("page_size", 20)), 100)
+        except (ValueError, TypeError):
+            page, page_size = 1, 20
+
+        try:
+            result = DeliveryTeamService.list_projects(
+                team_id=pk,
+                page=page,
+                page_size=page_size,
+            )
+            from apps.projects.serializers import ProjectSerializer
+
+            serializer = ProjectSerializer(result["results"], many=True)
+            return Response(
+                {
+                    "results": serializer.data,
+                    "pagination": {
+                        "total_count": result["total_count"],
+                        "total_pages": result["total_pages"],
+                        "current_page": result["current_page"],
+                        "page_size": result["page_size"],
+                        "has_next": result["has_next"],
+                        "has_previous": result["has_previous"],
+                    },
+                },
+                status=status.HTTP_200_OK,
+            )
+        except DatabaseError as e:
+            logging.exception("Database error in list_projects: %s", e)
+            return Response(
+                {
+                    "error": "A database error occurred. Please try again later.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in list_projects: %s", e)
+            return Response(
+                {
+                    "error": "An unexpected error occurred. Please try again later.",
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
     # GET /delivery-teams/<id>/leaves
-    @action(detail=True, methods=['get'], url_path='leaves')
+    @action(detail=True, methods=["get"], url_path="leaves")
     def list_leaves(self, request, pk=None):
         """
         List all leaves for active members within the specified team.
         """
         try:
-            page = int(request.query_params.get('page', 1))
-            page_size = min(int(request.query_params.get('page_size', 20)), 100)
-            include = request.query_params.get('include', '')
+            page = int(request.query_params.get("page", 1))
+            page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            include = request.query_params.get("include", "")
         except (ValueError, TypeError):
-            page, page_size, include = 1, 20, ''
+            page, page_size, include = 1, 20, ""
 
         try:
             result = DeliveryTeamService.list_leaves(
                 team_id=pk,
                 page=page,
                 page_size=page_size,
-                include_past=include == 'past',
+                include_past=include == "past",
             )
             from apps.member_leaves.serializers import MemberLeaveSerializer
-            serializer = MemberLeaveSerializer(result['results'], many=True)
+
+            serializer = MemberLeaveSerializer(result["results"], many=True)
             return Response(
                 {
-                    'results': serializer.data,
-                    'pagination': {
-                        'total_count': result['total_count'],
-                        'total_pages': result['total_pages'],
-                        'current_page': result['current_page'],
-                        'page_size': result['page_size'],
-                        'has_next': result['has_next'],
-                        'has_previous': result['has_previous'],
+                    "results": serializer.data,
+                    "pagination": {
+                        "total_count": result["total_count"],
+                        "total_pages": result["total_pages"],
+                        "current_page": result["current_page"],
+                        "page_size": result["page_size"],
+                        "has_next": result["has_next"],
+                        "has_previous": result["has_previous"],
                     },
                 },
                 status=status.HTTP_200_OK,
             )
         except DeliveryTeam.DoesNotExist:
             return Response(
-                {'error': 'Delivery team not found.'},
+                {"error": "Delivery team not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
         except DatabaseError as e:
-            logger.exception('Database error in list_leaves: %s', e)
+            logger.exception("Database error in list_leaves: %s", e)
             return Response(
-                {'error': 'A database error occurred. Please try again later.'},
+                {"error": "A database error occurred. Please try again later."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except Exception as e:
-            logger.exception('Unexpected error in list_leaves: %s', e)
+            logger.exception("Unexpected error in list_leaves: %s", e)
             return Response(
-                {'error': 'An unexpected error occurred. Please try again later.'},
+                {"error": "An unexpected error occurred. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
     # GET /delivery-teams/import/specifications/
-    @action(detail=False, methods=['get'], url_path='import/specifications')
+    @action(detail=False, methods=["get"], url_path="import/specifications")
     def import_specifications(self, request):
         """
         Import specifications for delivery teams.
@@ -441,20 +488,23 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 {"name": "name", "required": True, "type": "string", "max_length": 120},
                 {"name": "description", "required": False, "type": "string"},
                 {
-                    "name": "is_active", "required": False, "type": "boolean",
-                    "allowed_values": ["true", "false"], "default": "true"
+                    "name": "is_active",
+                    "required": False,
+                    "type": "boolean",
+                    "allowed_values": ["true", "false"],
+                    "default": "true",
                 },
             ],
             "notes": [
                 "First row must be the header.",
                 "Boolean fields accept: true / false (case-insensitive).",
                 "Maximum 500 rows per import.",
-            ]
+            ],
         }
         return Response(specs, status=status.HTTP_200_OK)
 
     # GET /delivery-teams/import/sample/
-    @action(detail=False, methods=['get'], url_path='import/sample')
+    @action(detail=False, methods=["get"], url_path="import/sample")
     def import_sample(self, request):
         """
         A sample template for importing delivery teams.
@@ -466,16 +516,18 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
 
         buffer.seek(0)
         response = HttpResponse(buffer, content_type="text/csv")
-        response["Content-Disposition"] = 'attachment; filename="delivery_teams_import_template.csv"'
+        response["Content-Disposition"] = (
+            'attachment; filename="delivery_teams_import_template.csv"'
+        )
         return response
 
     # POST /delivery-teams/import/
-    @action(detail=False, methods=['post'], url_path='import')
+    @action(detail=False, methods=["post"], url_path="import")
     def bulk_import(self, request):
         """
         Bulk import for delivery teams.
         """
-        dry_run = request.query_params.get('validate', 'false').lower() == 'true'
+        dry_run = request.query_params.get("validate", "false").lower() == "true"
         try:
             results = DeliveryTeamService.bulk_import(request, dry_run=dry_run)
             return Response(results, status=status.HTTP_207_MULTI_STATUS)
@@ -484,10 +536,12 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             logger.exception("Unexpected error in bulk_import: %s", e)
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     # GET /delivery-teams/export/
-    @action(detail=False, methods=['get'], url_path='export')
+    @action(detail=False, methods=["get"], url_path="export")
     def export(self, request):
         """
         Export of delivery teams. Returns JSON. UI handles CSV or PDF formats.
@@ -500,7 +554,7 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                     "count": len(data),
                     "results": data,
                 },
-                status=status.HTTP_200_OK
+                status=status.HTTP_200_OK,
             )
         except DatabaseError as e:
             logging.exception("Database error in export: %s", e)
