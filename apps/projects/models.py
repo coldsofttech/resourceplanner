@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.db import models
 from django.core.exceptions import ValidationError
 
+from apps.contacts.models import Contact
+
 from .utils import get_tshirt_size
 
 
@@ -471,3 +473,84 @@ class ProjectBudgetHistory(models.Model):
 
     def __str__(self):
         return f"{self.action} — {self.project} / {self.financial_year} @ {self.created_at}"
+
+
+class ProjectContact(models.Model):
+    ROLE_PROJECT = "PROJECT"
+    ROLE_FINANCE = "FINANCE"
+    ROLE_CHOICES = [
+        (ROLE_PROJECT, "Project"),
+        (ROLE_FINANCE, "Finance"),
+    ]
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="project_contacts",
+    )
+    contact = models.ForeignKey(
+        Contact,
+        on_delete=models.PROTECT,
+        related_name="project_contact_assignments",
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["project", "contact", "role"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "contact", "role"],
+                name="unique_project_contact_role",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.project.name} — {self.role} | {self.contact.email}"
+
+
+class ProjectContactHistory(models.Model):
+    ROLE_PROJECT = "PROJECT"
+    ROLE_FINANCE = "FINANCE"
+    ROLE_CHOICES = [
+        (ROLE_PROJECT, "Project"),
+        (ROLE_FINANCE, "Finance"),
+    ]
+
+    ACTION_ADDED = "ADDED"
+    ACTION_REMOVED = "REMOVED"
+    ACTION_CHOICES = [
+        (ACTION_ADDED, "Added"),
+        (ACTION_REMOVED, "Removed"),
+    ]
+
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="project_contact_history",
+    )
+    contact = models.ForeignKey(
+        Contact,
+        on_delete=models.PROTECT,
+        related_name="contacts_history",
+    )
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    action = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    reason = models.TextField(blank=True, default="")  # optional on remove
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.contact} — {self.action} ({self.role})"
+
+    def save(self, *args, **kwargs):
+        if self.pk:
+            raise ValueError("History records are immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("History records cannot be deleted.")

@@ -119,17 +119,26 @@ class ContactService:
         except ValidationError:
             raise ValidationError(f"'{email}' is not a valid email address.")
 
-        if Contact.objects.filter(email=email).exists():
-            raise ValidationError(f"A contact with email '{email}' already exists.")
+        # if Contact.objects.filter(email=email).exists():
+        #     raise ValidationError(f"A contact with email '{email}' already exists.")
 
         try:
-            contact = Contact(
-                name=name,
-                email=email,
-                is_active=data.get("is_active", True),
-            )
-            contact.full_clean()
-            contact.save()
+            try:
+                contact = Contact.objects.get(email=email)
+                created = False
+                if not contact.is_active:
+                    contact.is_active = True
+                    contact.name = name.strip()
+                    contact.save(update_fields=["is_active", "name", "updated_at"])
+            except Contact.DoesNotExist:
+                contact = Contact(
+                    name=name,
+                    email=email,
+                    is_active=data.get("is_active", True),
+                )
+                contact.full_clean()
+                contact.save()
+
             return contact
         except IntegrityError as e:
             logger.error("IntegrityError creating contact '%s': %s", email, e)
@@ -179,8 +188,8 @@ class ContactService:
                 )
             contact.email = new_email
 
-        if "is_active" in data:
-            contact.is_active = data["is_active"]
+        if "notes" in data:
+            contact.notes = data["notes"]
 
         try:
             contact.full_clean()
@@ -201,6 +210,43 @@ class ContactService:
                 "Unexpected error when updating contact '%s': %s", contact_id, e
             )
             raise
+
+    @staticmethod
+    @transaction.atomic
+    def deactivate(contact_id: int, reason: str = ""):
+        """
+        Deactivate contact + cascade: set all active ProjectContact rows
+        is_active=False and write REMOVED history per project-role pair.
+        """
+        from apps.projects.models import ProjectContact, ProjectContactHistory
+
+        contact = Contact.objects.get(pk=contact_id)
+        contact.is_active = False
+        contact.save(update_fields=["is_active", "updated_at"])
+
+        active_assignments = ProjectContact.objects.filter(
+            contact=contact, is_active=True
+        ).select_related("project")
+
+        for pc in active_assignments:
+            pc.is_active = False
+            pc.save(update_fields=["is_active", "updated_at"])
+            ProjectContactHistory.objects.create(
+                project=pc.project,
+                contact=contact,
+                role=pc.role,
+                action=ProjectContactHistory.ACTION_REMOVED,
+                reason=reason,
+            )
+
+        return contact
+
+    @staticmethod
+    def reactivate(contact_id: int):
+        contact = Contact.objects.get(pk=contact_id)
+        contact.is_active = True
+        contact.save(update_fields=["is_active", "updated_at"])
+        return contact
 
     @staticmethod
     @transaction.atomic
@@ -322,3 +368,13 @@ class ContactService:
             )
 
         return results
+
+    @staticmethod
+    def suggest(q: str, limit: int = 20):
+        """Typeahead — active contacts matching name or email prefix."""
+        qs = Contact.objects.filter(is_active=True)
+        if q:
+            from django.db.models import Q
+
+            qs = qs.filter(Q(name__icontains=q) | Q(email__icontains=q))
+        return list(qs[:limit])

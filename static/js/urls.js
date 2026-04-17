@@ -295,19 +295,62 @@ export const API_URLS = {
         }),
     },
     contacts: {
-        list: { method: 'GET', href: `${API_BASE}contacts/` },
-        new: { method: 'POST', href: `${API_BASE}contacts/` },
-        get: (pk) => ({ method: 'GET', href: `${API_BASE}contacts/${pk}/` }),
-        detail: (pk) => ({ method: 'GET', href: `${API_BASE}contacts/${pk}/` }),
-        edit: (pk) => ({ method: 'PUT', href: `${API_BASE}contacts/${pk}/` }),
-        partial_edit: (pk) => ({ method: 'PATCH', href: `${API_BASE}contacts/${pk}/` }),
-        delete: (pk) => ({ method: 'DELETE', href: `${API_BASE}contacts/${pk}/` }),
-        stats: { method: 'GET', href: `${API_BASE}contacts/stats/` },
-        options: { method: 'GET', href: `${API_BASE}contacts/options/` },
-        import_spec: { method: 'GET', href: `${API_BASE}contacts/import/specifications/` },
-        import_sample: { method: 'GET', href: `${API_BASE}contacts/import/sample/` },
-        import: { method: 'POST', href: `${API_BASE}contacts/import/` },
-        export: { method: 'GET', href: `${API_BASE}contacts/export/` },
+        list: {
+            method: 'GET',
+            href: `${API_BASE}contacts/`,
+        },
+        new: {
+            method: 'POST',
+            href: `${API_BASE}contacts/`,
+        },
+        get: (contactId) => ({
+            method: 'GET',
+            href: `${API_BASE}contacts/${contactId}/`,
+        }),
+        detail: (contactId) => ({
+            method: 'GET',
+            href: `${API_BASE}contacts/${contactId}/`,
+        }),
+        edit: (contactId) => ({
+            method: 'PUT',
+            href: `${API_BASE}contacts/${contactId}/`,
+        }),
+        partial_edit: (contactId) => ({
+            method: 'PATCH',
+            href: `${API_BASE}contacts/${contactId}/`,
+        }),
+        delete: (contactId) => ({
+            method: 'DELETE',
+            href: `${API_BASE}contacts/${contactId}/`,
+        }),
+        stats: {
+            method: 'GET',
+            href: `${API_BASE}contacts/stats/`,
+        },
+        options: {
+            method: 'GET',
+            href: `${API_BASE}contacts/options/`,
+        },
+        import_spec: {
+            method: 'GET',
+            href: `${API_BASE}contacts/import/specifications/`,
+        },
+        import_sample: {
+            method: 'GET',
+            href: `${API_BASE}contacts/import/sample/`,
+        },
+        import: {
+            method: 'POST',
+            href: `${API_BASE}contacts/import/`,
+        },
+        export: {
+            method: 'GET',
+            href: `${API_BASE}contacts/export/`,
+        },
+        suggest: {
+            method: 'GET',
+            href: `${API_BASE}contacts/suggest/`,
+        },
     },
     projects: {
         list: { method: 'GET', href: `${API_BASE}projects/` },
@@ -454,6 +497,20 @@ export const API_URLS = {
             history: (projectId, budgetId) => ({
                 method: 'GET',
                 href: `${API_BASE}projects/${projectId}/budgets/${budgetId}/history/`,
+            }),
+        },
+        contacts: {
+            list: (projectId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/contacts/`,
+            }),
+            new: (projectId) => ({
+                method: 'POST',
+                href: `${API_BASE}projects/${projectId}/contacts/`,
+            }),
+            archive: (projectId, contactId) => ({
+                method: 'PATCH',
+                href: `${API_BASE}projects/${projectId}/contacts/${contactId}/archive/`,
             }),
         },
     },

@@ -5,8 +5,9 @@ from .models import (
     ProjectBudget,
     ProjectBudgetHistory,
     ProjectCode,
-    ProjectCollaborator,
     ProjectComment,
+    ProjectContact,
+    ProjectContactHistory,
     ProjectEstimate,
     ProjectEstimateHistory,
     ProjectLabel,
@@ -458,3 +459,76 @@ class ProjectExportSerializer(serializers.ModelSerializer):
 
     def get_priority_display(self, obj):
         return obj.get_priority_display() if obj.priority else None
+
+
+class ProjectContactReadSerializer(serializers.ModelSerializer):
+    from apps.contacts.serializers import ContactSerializer
+
+    contact = ContactSerializer(read_only=True)
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+
+    class Meta:
+        model = ProjectContact
+        fields = [
+            "id",
+            "contact",
+            "role",
+            "role_display",
+            "is_active",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class ProjectContactWriteSerializer(serializers.Serializer):
+    """Handles both contact_id path and name+email path."""
+
+    contact_id = serializers.IntegerField(required=False, allow_null=True)
+    name = serializers.CharField(max_length=200, required=False, allow_blank=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    role = serializers.ChoiceField(choices=ProjectContact.ROLE_CHOICES)
+
+    def validate(self, data):
+        # if not data.get("contact_id"):
+        #     if not data.get("name") or not data.get("email"):
+        #         raise serializers.ValidationError(
+        #             "Provide contact_id or both name and email."
+        #         )
+        # return data
+        contact_id = data.get("contact_id")
+        name = (data.get("name") or "").strip()
+        email = (data.get("email") or "").strip()
+
+        if not contact_id and not (name and email):
+            raise serializers.ValidationError(
+                "Provide contact_id or both name and email."
+            )
+        # normalise so service always gets clean values
+        data["name"] = name
+        data["email"] = email
+        return data
+
+
+class ProjectContactArchiveSerializer(serializers.Serializer):
+    reason = serializers.CharField(required=False, allow_blank=True, default="")
+
+
+class ProjectContactHistorySerializer(serializers.ModelSerializer):
+    contact_name = serializers.CharField(source="contact.name", read_only=True)
+    contact_email = serializers.CharField(source="contact.email", read_only=True)
+    role_display = serializers.CharField(source="get_role_display", read_only=True)
+    action_display = serializers.CharField(source="get_action_display", read_only=True)
+
+    class Meta:
+        model = ProjectContactHistory
+        fields = [
+            "id",
+            "contact_name",
+            "contact_email",
+            "role",
+            "role_display",
+            "action",
+            "action_display",
+            "reason",
+            "created_at",
+        ]

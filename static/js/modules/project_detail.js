@@ -5,6 +5,7 @@ import { initRenderer } from './../list/render.js';
 import { initSorting } from './../list/sort.js';
 import {
     apiFetch,
+    escAttr,
     escHtml,
     formatDate,
     formatDateTime,
@@ -32,6 +33,8 @@ let _budgetHistoryPage = 1;
 let _currentHistoryBudgetId = null;
 let _budgetFyOptions = [];
 let _budgetEstimateOptions = [];
+let _suggestTimeout = null;
+let _selectedContactId = null;
 
 async function initDetailView() {
     try {
@@ -70,6 +73,10 @@ function bindTabEvents() {
     });
     document.getElementById('tab-budgets').addEventListener('shown.bs.tab', function () {
         renderBudgets();
+    });
+    document.getElementById('tab-contacts').addEventListener('shown.bs.tab', function () {
+        renderContacts('PROJECT');
+        renderContacts('FINANCE');
     });
 }
 
@@ -136,6 +143,12 @@ async function fetchCodeHistory(page = 1) {
 async function fetchStatusHistory() {
     const { method, href } = API_URLS.projects.status.history(projectPk);
     const res = await apiFetch(`${href}?page_size=10`, { method });
+    return res;
+}
+
+async function fetchContacts(role) {
+    const { method, href } = API_URLS.projects.contacts.list(projectPk);
+    const res = await apiFetch(`${href}?role=${role}`, { method });
     return res;
 }
 
@@ -1153,6 +1166,55 @@ function _renderEstimateHistoryPagination(data, el, estimateId) {
     );
 }
 
+async function renderContacts(role) {
+    try {
+        exitEditMode('contacts');
+
+        const tbodyId = role === 'PROJECT' ? 'project-contacts-tbody' : 'finance-contacts-tbody';
+        const tbody = document.getElementById(tbodyId);
+        const countId = role === 'PROJECT' ? 'js-project-count' : 'js-finance-count';
+        const countEl = document.getElementById(countId);
+        try {
+            const rows = await fetchContacts(role);
+            if (!rows.length) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center text-muted py-4">No ${role.toLowerCase()} contacts yet.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = rows.map((pc) => renderContactRow(pc)).join('');
+            countEl.textContent = `${rows.length} / 10`;
+        } catch (e) {
+            tbody.innerHTML = `<tr><td colspan="4" class="text-danger py-3">${e.message}</td></tr>`;
+            countEl.textContent = '0 / 10';
+        }
+    } catch (err) {
+        _showBanner('Failed to load project information. Please refresh the page.', 'error');
+        console.error('[renderContacts] Failed to load project contacts information.', err);
+    }
+}
+
+function renderContactRow(pc) {
+    const statusBadge = pc.is_active
+        ? `<span class="rp-badge rp-badge--success">Active</span>`
+        : `<span class="rp-badge rp-badge--muted">Inactive</span>`;
+
+    const actions = pc.is_active
+        ? `<button class="btn-ghost-icon btn-ghost-icon--danger" title="Remove"
+              onclick="openRemoveContactModal(${pc.id}, '${escAttr(pc.contact.name)}')">
+         <i class="bi bi-x-circle"></i>
+       </button>`
+        : `<button class="btn-ghost-icon" title="Restore"
+              onclick="unarchive(${pc.id})">
+         <i class="bi bi-arrow-counterclockwise"></i>
+       </button>`;
+
+    return `<tr>
+    <td><a class="rp-link" href="/contacts/${pc.contact.id}/">${escHtml(pc.contact.name)}</a></td>
+    <td><a class="rp-link" href="mailto:${escHtml(pc.contact.email)}">${escHtml(pc.contact.email)}</a></td>
+    <td>${statusBadge}</td>
+    <td class="text-end">${actions}</td>
+  </tr>`;
+}
+
 async function renderStatusHistory() {
     try {
         exitEditMode('history');
@@ -1511,6 +1573,14 @@ function bindEditButtons() {
     document
         .getElementById('bud-delete-confirm-btn')
         ?.addEventListener('click', confirmDeleteBudget);
+
+    // Contacts tab
+    document
+        .getElementById('btn-add-project-contact')
+        ?.addEventListener('click', openAddProjectContactModal);
+    document
+        .getElementById('btn-add-finance-contact')
+        ?.addEventListener('click', openAddFinanceContactModal);
 }
 
 function _showModal(id) {
@@ -2394,8 +2464,7 @@ async function _loadBudgetHistoryFyDropdown() {
             sel.value = targetId;
             renderBudgetHistory(targetId, 1);
         }
-    } catch (_) {
-    }
+    } catch (_) {}
 }
 
 async function renderBudgetHistory(budgetId, page = 1) {
@@ -2511,6 +2580,97 @@ function _renderBudgetHistoryPagination(data, el, budgetId) {
     );
 }
 
+function openAddProjectContactModal() {
+    const role = 'PROJECT';
+    document.getElementById('modal-role').value = role;
+    document.getElementById('addContactModalLabel').textContent =
+        `Add ${role === 'PROJECT' ? 'Project' : 'Finance'} Contact`;
+    document.getElementById('contact-name-input').value = '';
+    document.getElementById('contact-email-input').value = '';
+    document.getElementById('contact-id-input').value = '';
+    document.getElementById('add-contact-error').classList.add('d-none');
+    hideSuggest();
+    _selectedContactId = null;
+    _showModal('addContactModal');
+}
+
+function openAddFinanceContactModal() {
+    const role = 'FINANCE';
+    document.getElementById('modal-role').value = role;
+    document.getElementById('addContactModalLabel').textContent =
+        `Add ${role === 'PROJECT' ? 'Project' : 'Finance'} Contact`;
+    document.getElementById('contact-name-input').value = '';
+    document.getElementById('contact-email-input').value = '';
+    document.getElementById('contact-id-input').value = '';
+    document.getElementById('add-contact-error').classList.add('d-none');
+    hideSuggest();
+    _selectedContactId = null;
+    _showModal('addContactModal');
+}
+
+function openRemoveContactModal(pcId, name) {
+    document.getElementById('remove-pc-id').value = pcId;
+    document.getElementById('remove-contact-name').textContent = name;
+    document.getElementById('remove-reason').value = '';
+    document.getElementById('remove-contact-error').classList.add('d-none');
+    _showModal('removeContactModal');
+}
+
+async function submitAddContact() {
+    const role = document.getElementById('modal-role').value;
+    const name = document.getElementById('contact-name-input').value.trim();
+    const email = document.getElementById('contact-email-input').value.trim();
+    const contactId = document.getElementById('contact-id-input').value;
+    const errEl = document.getElementById('add-contact-error');
+    const spinner = document.getElementById('add-contact-spinner');
+
+    errEl.classList.add('d-none');
+    if (!name || !email) {
+        _showBanner('Name and email are required', 'error', 'add-contact-error');
+        return;
+    }
+
+    spinner.classList.remove('d-none');
+    try {
+        const body = contactId ? { contact_id: parseInt(contactId), role } : { name, email, role };
+        const { method, href } = API_URLS.projects.contacts.new(projectPk);
+        await apiFetch(href, { method, body: JSON.stringify(body) });
+        _hideModal('addContactModal');
+        showFlash('Contact added.', 'success');
+        renderContacts(role);
+    } catch (e) {
+        _showBanner(e.message || 'Failed to add contact', 'error', 'add-contact-error');
+    } finally {
+        spinner.classList.add('d-none');
+    }
+}
+
+async function submitRemoveContact() {
+    const pcId = document.getElementById('remove-pc-id').value;
+    const reason = document.getElementById('remove-reason').value.trim();
+    const errEl = document.getElementById('remove-contact-error');
+    const spinner = document.getElementById('remove-contact-spinner');
+
+    errEl.classList.add('d-none');
+    spinner.classList.remove('d-none');
+    try {
+        const {method, href} = API_URLS.projects.contacts.archive(projectPk, pcId);
+        await apiFetch(href, { method, body: JSON.stringify({ reason })});
+        _hideModal('removeContactModal');
+        showFlash('Contact removed.', 'success');
+        renderContacts('PROJECT');
+        renderContacts('FINANCE');
+    } catch (e) {
+        _showBanner(e.message || 'Failed to remove contact.', 'error', 'remove-contact-error');
+    } finally {
+        spinner.classList.add('d-none');
+    }
+}
+
+function hideSuggest() {
+    document.getElementById('contact-suggest-list').style.display = 'none';
+}
+
 function _showBanner(message, type = 'danger', bannerId = 'proj-detail-banner') {
     const banner = document.getElementById(bannerId);
     if (!banner) return;
@@ -2528,3 +2688,64 @@ function _extractError(err, fallback) {
     if (err?.data?.error) return err.data.error;
     return fallback;
 }
+
+document.getElementById('contact-name-input').addEventListener('input', function () {
+    const q = this.value.trim();
+    clearTimeout(_suggestTimeout);
+    _selectedContactId = null;
+    document.getElementById('contact-id-input').value = '';
+    if (q.length < 2) {
+        hideSuggest();
+        return;
+    }
+    _suggestTimeout = setTimeout(() => fetchSuggestions(q), 250);
+});
+
+document.getElementById('contact-email-input').addEventListener('input', function () {
+    _selectedContactId = null;
+    document.getElementById('contact-id-input').value = '';
+});
+
+async function fetchSuggestions(q) {
+    try {
+        const { method, href } = API_URLS.contacts.suggest;
+        const results = await apiFetch(`${href}?q=${encodeURIComponent(q)}`, { method });
+        renderSuggestions(results);
+    } catch (_) {}
+}
+
+function renderSuggestions(items) {
+    const list = document.getElementById('contact-suggest-list');
+    if (!items.length) {
+        hideSuggest();
+        return;
+    }
+    list.innerHTML = items
+        .map(
+            (c) =>
+                `<li class="list-group-item list-group-item-action" style="cursor:pointer"
+         data-id="${c.id}" data-name="${escAttr(c.name)}" data-email="${escAttr(c.email)}">
+       <strong>${escHtml(c.name)}</strong>
+       <small class="text-muted ms-2">${escHtml(c.email)}</small>
+     </li>`,
+        )
+        .join('');
+    list.style.display = 'block';
+    list.querySelectorAll('li').forEach((li) => {
+        li.addEventListener('click', () => {
+            document.getElementById('contact-name-input').value = li.dataset.name;
+            document.getElementById('contact-email-input').value = li.dataset.email;
+            document.getElementById('contact-id-input').value = li.dataset.id;
+            _selectedContactId = li.dataset.id;
+            hideSuggest();
+        });
+    });
+}
+
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#addContactModal')) hideSuggest();
+});
+
+window.submitAddContact = submitAddContact;
+window.openRemoveContactModal = openRemoveContactModal;
+window.submitRemoveContact = submitRemoveContact;

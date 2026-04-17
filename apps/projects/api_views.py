@@ -9,13 +9,23 @@ from rest_framework.response import Response
 
 from apps.core.utils import view_set_validation_details
 
-from .models import Project, ProjectBudget, ProjectEstimate, ProjectLabel
+from .models import (
+    Project,
+    ProjectBudget,
+    ProjectContact,
+    ProjectEstimate,
+    ProjectLabel,
+)
 from .serializers import (
     ProjectBudgetHistorySerializer,
     ProjectBudgetLifetimeSerializer,
     ProjectBudgetSerializer,
     ProjectCodeSerializer,
     ProjectCommentSerializer,
+    ProjectContactArchiveSerializer,
+    ProjectContactHistorySerializer,
+    ProjectContactReadSerializer,
+    ProjectContactWriteSerializer,
     ProjectEstimateHistorySerializer,
     ProjectEstimateSerializer,
     ProjectLabelSerializer,
@@ -30,6 +40,7 @@ from .services import (
     ProjectBudgetService,
     ProjectCodeService,
     ProjectCommentService,
+    ProjectContactService,
     ProjectEstimateService,
     ProjectLabelService,
     ProjectService,
@@ -1358,3 +1369,129 @@ class ProjectViewSet(viewsets.ViewSet):
                 {"error": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    # GET /projects/<id>/contacts/
+    # POST /projects/<id>/contacts/
+    @action(detail=True, methods=["get", "post"], url_path="contacts")
+    def contacts_create_or_get(self, request, pk=None):
+        if request.method == "GET":
+            role = request.query_params.get("role")
+            active_only = request.query_params.get("active", "1") != "0"
+            if active_only:
+                rows = ProjectContactService.list_active_for_project(pk, role)
+            else:
+                rows = ProjectContactService.list_for_project(pk, role)
+            return Response(ProjectContactReadSerializer(rows, many=True).data)
+
+        if request.method == "POST":
+            ser = ProjectContactWriteSerializer(data=request.data)
+            ser.is_valid(raise_exception=True)
+            d = ser.validated_data
+            try:
+                pc = ProjectContactService.add(
+                    project_id=pk,
+                    role=d["role"],
+                    contact_id=d.get("contact_id"),
+                    name=d.get("name", ""),
+                    email=d.get("email", ""),
+                )
+            except Exception as e:
+                return Response({"detail": str(e)}, status=400)
+            return Response(
+                ProjectContactReadSerializer(pc).data,
+                status=status.HTTP_201_CREATED,
+            )
+
+    # GET /projects/<id>/contacts/<id>/
+    # PATCH /projects/<id>/contacts/<id>/
+    # DELETE /projects/<id>/contacts/<id>/
+    @action(
+        detail=True,
+        methods=["get", "patch", "delete"],
+        url_path="contacts/(?P<contact_pk>[^/.]+)",
+    )
+    def contacts_patch_delete_or_get(self, request, pk=None, contact_pk=None):
+        if request.method == "GET":
+            try:
+                pc = ProjectContact.objects.select_related("contact", "project").get(
+                    pk=contact_pk, project_id=pk
+                )
+            except ProjectContact.DoesNotExist:
+                pc = None
+
+            if not pc:
+                return Response({"detail": "Not found."}, status=404)
+            return Response(ProjectContactReadSerializer(pc).data)
+
+        if request.method == "PATCH":
+            return Response(
+                {"detail": "Use /archive/ or /unarchive/ to change active state."},
+                status=status.HTTP_405_METHOD_NOT_ALLOWED,
+            )
+
+        if request.method == "DELETE":
+            reason = request.data.get("reason", "")
+            try:
+                ProjectContactService.remove(contact_pk, reason)
+            except ProjectContact.DoesNotExist:
+                return Response({"detail": "Not found."}, status=404)
+            except Exception as e:
+                return Response({"detail": str(e)}, status=400)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+    # PATCH /projects/<id>/contacts/<id>/archive/
+    @action(
+        detail=True,
+        methods=["get", "patch", "delete"],
+        url_path="contacts/(?P<contact_pk>[^/.]+)/archive",
+    )
+    def contact_archive(self, request, pk=None, contact_pk=None):
+        ser = ProjectContactArchiveSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        try:
+            pc = ProjectContactService.archive(
+                contact_pk, ser.validated_data.get("reason", "")
+            )
+        except Exception as e:
+            return Response({"detail": str(e)}, status=400)
+        return Response(ProjectContactReadSerializer(pc).data)
+
+    # PATCH /projects/<id>/contacts/<id>/unarchive/
+    @action(
+        detail=True,
+        methods=["get", "patch", "delete"],
+        url_path="contacts/(?P<contact_pk>[^/.]+)/unarchive",
+    )
+    def contact_unarchive(self, request, pk=None, contact_pk=None):
+        try:
+            pc = ProjectContactService.unarchive(contact_pk)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=400)
+        return Response(ProjectContactReadSerializer(pc).data)
+
+    # GET /projects/<id>/contacts/history/
+    @action(detail=True, methods=["get"], url_path="contacts/history")
+    def contacts_history(self, request, pk=None):
+        history = ProjectContactService.history(pk)
+        return Response(ProjectContactHistorySerializer(history, many=True).data)
+
+    # GET /projects/<id>/contacts/stats/
+    @action(detail=True, methods=["get"], url_path="contacts/stats")
+    def contacts_stats(self, request, pk=None):
+        project_count = ProjectContact.objects.filter(
+            project_id=pk,
+            role=ProjectContact.ROLE_PROJECT,
+            is_active=True,
+        ).count()
+        finance_count = ProjectContact.objects.filter(
+            project_id=pk,
+            role=ProjectContact.ROLE_FINANCE,
+            is_active=True,
+        ).count()
+        return Response(
+            {
+                "project_count": project_count,
+                "finance_count": finance_count,
+                "max_per_role": 10,
+            }
+        )

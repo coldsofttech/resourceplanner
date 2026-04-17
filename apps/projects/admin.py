@@ -1,6 +1,11 @@
 from django.contrib import admin
 
-from .models import Project, ProjectCollaborator
+from .models import (
+    Project,
+    ProjectCollaborator,
+    ProjectContact,
+    ProjectContactHistory,
+)
 
 
 class ProjectCollaboratorInline(admin.TabularInline):
@@ -48,3 +53,28 @@ class ProjectCollaboratorAdmin(admin.ModelAdmin):
     search_fields = ["project__name", "team__name"]
     readonly_fields = ["added_at"]
     autocomplete_fields = ["project", "team"]
+
+
+@admin.register(ProjectContact)
+class ProjectContactAdmin(admin.ModelAdmin):
+    list_display = ["project", "contact", "role", "is_active", "created_at"]
+    list_filter = ["role", "is_active"]
+    search_fields = ["contact__name", "contact__email", "project__name"]
+    raw_id_fields = ["project", "contact"]
+
+
+@admin.register(ProjectContactHistory)
+class ProjectContactHistoryAdmin(admin.ModelAdmin):
+    list_display = ["contact", "project", "role", "action", "created_at"]
+    list_filter = ["role", "action"]
+    search_fields = ["contact__name", "project__name"]
+    readonly_fields = ["project", "contact", "role", "action", "reason", "created_at"]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

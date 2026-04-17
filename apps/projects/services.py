@@ -19,6 +19,8 @@ from .models import (
     ProjectCode,
     ProjectCollaborator,
     ProjectComment,
+    ProjectContact,
+    ProjectContactHistory,
     ProjectEstimate,
     ProjectEstimateHistory,
     ProjectLabel,
@@ -27,7 +29,6 @@ from .models import (
 )
 
 logger = logging.getLogger(__name__)
-SENTINEL = object()
 
 
 class ProjectService:
@@ -1561,7 +1562,7 @@ class ProjectBudgetService:
     def _enrich(budget):
         if budget is None:
             return None
-        
+
         actual = budget.actual_budget
         cost = (
             Decimal(str(budget.estimate_version.total_cost))
@@ -1836,3 +1837,182 @@ class ProjectBudgetService:
                 e,
             )
             raise
+
+
+class ProjectContactService:
+    MAX_PER_ROLE = 10
+
+    @staticmethod
+    def list_for_project(project_id: int, role: str | None = None):
+        qs = (
+            ProjectContact.objects.filter(project_id=project_id)
+            .select_related("contact")
+            .order_by("role", "contact__name")
+        )
+        if role:
+            qs = qs.filter(role=role)
+        return list(qs)
+
+    @staticmethod
+    def list_active_for_project(project_id: int, role: str | None = None):
+        qs = (
+            ProjectContact.objects.filter(project_id=project_id, is_active=True)
+            .select_related("contact")
+            .order_by("role", "contact__name")
+        )
+        if role:
+            qs = qs.filter(role=role)
+        return list(qs)
+
+    @staticmethod
+    @transaction.atomic
+    def add(
+        project_id: int,
+        role: str,
+        contact_id: int | None = None,
+        name: str = "",
+        email: str = "",
+    ) -> ProjectContact:
+        """
+        Add contact to project-role. contact_id takes priority.
+        If not supplied, get_or_create from name+email.
+        Raises ValueError on cap or duplicate active.
+        """
+        from apps.contacts.models import Contact
+        from apps.contacts.services import ContactService
+
+        project = Project.objects.get(pk=project_id)
+
+        if contact_id:
+            contact = Contact.objects.get(pk=contact_id)
+        else:
+            if not name or not email:
+                raise ValueError(
+                    "name and email required when contact_id not provided."
+                )
+            contact = ContactService.create_contact({
+                "name": name,
+                "email": email,
+            })
+            # contact, _ = ContactService.get_or_create(name, email)
+
+        if not contact.is_active:
+            raise ValueError("Contact is inactive. Reactivate before assigning.")
+
+        # max cap per role
+        active_count = ProjectContact.objects.filter(
+            project=project, role=role, is_active=True
+        ).count()
+        if active_count >= ProjectContactService.MAX_PER_ROLE:
+            raise ValueError(
+                f"Max {ProjectContactService.MAX_PER_ROLE} contacts per role reached."
+            )
+
+        # unique_together — may already exist (inactive → reactivate row)
+        pc, created = ProjectContact.objects.get_or_create(
+            project=project,
+            contact=contact,
+            role=role,
+            defaults={"is_active": True},
+        )
+        if not created:
+            if pc.is_active:
+                raise ValueError("Contact already active in this role.")
+            pc.is_active = True
+            pc.save(update_fields=["is_active", "updated_at"])
+
+        ProjectContactHistory.objects.create(
+            project=project,
+            contact=contact,
+            role=role,
+            action=ProjectContactHistory.ACTION_ADDED,
+        )
+        return pc
+
+    @staticmethod
+    @transaction.atomic
+    def remove(
+        project_contact_id: int,
+        reason: str = "",
+    ) -> ProjectContact:
+        pc = ProjectContact.objects.select_related("contact", "project").get(
+            pk=project_contact_id
+        )
+        if not pc.is_active:
+            raise ValueError("Already inactive.")
+        pc.is_active = False
+        pc.save(update_fields=["is_active", "updated_at"])
+        ProjectContactHistory.objects.create(
+            project=pc.project,
+            contact=pc.contact,
+            role=pc.role,
+            action=ProjectContactHistory.ACTION_REMOVED,
+            reason=reason or "",
+        )
+        return pc
+
+    @staticmethod
+    def history(project_id: int) -> list[ProjectContactHistory]:
+        return list(
+            ProjectContactHistory.objects.filter(project_id=project_id)
+            .select_related("contact")
+            .order_by("-created_at")
+        )
+
+    @staticmethod
+    def get(project_contact_id: int) -> ProjectContact:
+        return ProjectContact.objects.select_related("contact", "project").get(
+            pk=project_contact_id
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def archive(project_contact_id: int, reason: str = "") -> ProjectContact:
+        return ProjectContactService.remove(project_contact_id, reason)
+
+    @staticmethod
+    @transaction.atomic
+    def unarchive(project_contact_id: int) -> ProjectContact:
+        pc = ProjectContact.objects.select_related("contact", "project").get(
+            pk=project_contact_id
+        )
+        if pc.is_active:
+            raise ValueError("Already active.")
+        if not pc.contact.is_active:
+            raise ValueError("Contact is inactive in pool. Reactivate contact first.")
+
+        active_count = ProjectContact.objects.filter(
+            project=pc.project, role=pc.role, is_active=True
+        ).count()
+        if active_count >= ProjectContactService.MAX_PER_ROLE:
+            raise ValueError(
+                f"Max {ProjectContactService.MAX_PER_ROLE} contacts per role reached."
+            )
+
+        pc.is_active = True
+        pc.save(update_fields=["is_active", "updated_at"])
+        ProjectContactHistory.objects.create(
+            project=pc.project,
+            contact=pc.contact,
+            role=pc.role,
+            action=ProjectContactHistory.ACTION_ADDED,
+        )
+        return pc
+
+    # ── contact detail page helpers ────────────────────────────────────────────
+
+    @staticmethod
+    def assignments_for_contact(contact_id: int) -> list[ProjectContact]:
+        return list(
+            ProjectContact.objects.filter(contact_id=contact_id)
+            .select_related("project")
+            .order_by("role", "project__name")
+        )
+
+    @staticmethod
+    def history_for_contact(contact_id: int) -> list[ProjectContactHistory]:
+        return list(
+            ProjectContactHistory.objects.filter(contact_id=contact_id)
+            .select_related("project")
+            .order_by("-created_at")
+        )

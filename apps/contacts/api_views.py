@@ -13,7 +13,11 @@ from rest_framework.response import Response
 from apps.core.utils import view_set_validation_details
 
 from .models import Contact
-from .serializers import ContactSerializer, ContactExportSerializer
+from .serializers import (
+    ContactSerializer,
+    ContactExportSerializer,
+    ContactSuggestSerializer,
+)
 from .services import ContactService
 
 logger = logging.getLogger(__name__)
@@ -107,6 +111,9 @@ class ContactViewSet(viewsets.ViewSet):
     # GET /contacts/<id>/
     def retrieve(self, request, pk=None):
         try:
+            if pk.lower() == "suggest":
+                return self.suggest(request)
+            
             contact = ContactService.get_contact(pk)
             return Response(ContactSerializer(contact).data, status=status.HTTP_200_OK)
         except Contact.DoesNotExist:
@@ -167,6 +174,12 @@ class ContactViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    @action(detail=True, methods=["get"], url_path="suggest")
+    def suggest(self, request):
+        q = request.query_params.get("q", "")
+        contacts = ContactService.suggest(q)
+        return Response(ContactSuggestSerializer(contacts, many=True).data)
+
     def _perform_update(self, request, pk, partial=False):
         try:
             try:
@@ -176,6 +189,9 @@ class ContactViewSet(viewsets.ViewSet):
                 return Response(
                     {"error": "Contact not found."}, status=status.HTTP_404_NOT_FOUND
                 )
+            
+            is_active = request.data.get("is_active")
+            self.reactivate(request, pk) if is_active else self.deactivate(request, pk)
 
             serializer = ContactSerializer(instance, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
@@ -242,6 +258,25 @@ class ContactViewSet(viewsets.ViewSet):
                 {"error": "An unexpected error occurred. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    @action(detail=False, methods=["patch"], url_path="deactivate")
+    def deactivate(self, request, pk=None):
+        reason = request.data.get("reason", "")
+        try:
+            ContactService.deactivate(pk, reason)
+        except Contact.DoesNotExist:
+            return Response({"detail": "Not found."}, status=404)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=400)
+        return Response({"detail": "Contact deactivated."})
+
+    @action(detail=False, methods=["patch"], url_path="reactivate")
+    def reactivate(self, request, pk=None):
+        try:
+            c = ContactService.reactivate(pk)
+        except Contact.DoesNotExist:
+            return Response({"detail": "Not found."}, status=404)
+        return Response(ContactSerializer(c).data)
 
     # GET /contacts/import/specifications/
     @action(detail=False, methods=["get"], url_path="import/specifications")

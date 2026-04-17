@@ -22,6 +22,14 @@ class ContactSerializer(serializers.ModelSerializer):
         return value.strip().lower()
 
 
+class ContactSuggestSerializer(serializers.ModelSerializer):
+    """Lightweight — for typeahead."""
+
+    class Meta:
+        model = Contact
+        fields = ["id", "name", "email"]
+
+
 class ContactExportSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contact
