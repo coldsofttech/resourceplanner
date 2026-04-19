@@ -15,6 +15,7 @@ from .models import (
     ProjectContact,
     ProjectEstimate,
     ProjectLabel,
+    ProjectLink,
 )
 from .serializers import (
     ProjectBudgetHistorySerializer,
@@ -29,6 +30,8 @@ from .serializers import (
     ProjectEstimateHistorySerializer,
     ProjectEstimateSerializer,
     ProjectLabelSerializer,
+    ProjectLinkSerializer,
+    ProjectLinkWriteSerializer,
     ProjectSerializer,
     ProjectOperationalSerializer,
     ProjectStatusHistorySerializer,
@@ -43,6 +46,7 @@ from .services import (
     ProjectContactService,
     ProjectEstimateService,
     ProjectLabelService,
+    ProjectLinkService,
     ProjectService,
     ProjectStatusHistoryService,
     ProjectTagService,
@@ -1495,3 +1499,160 @@ class ProjectViewSet(viewsets.ViewSet):
                 "max_per_role": 10,
             }
         )
+
+    # GET /projects/<id>/links/
+    # POST /projects/<id>/links/
+    @action(detail=True, methods=["get", "post"], url_path="links")
+    def links_create_or_get(self, request, pk=None):
+        try:
+            try:
+                page = int(request.query_params.get("page", 1))
+                page_size = min(int(request.query_params.get("page_size", 20)), 100)
+            except (ValueError, TypeError):
+                page, page_size = 1, 20
+
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                result = ProjectLinkService.list_links(
+                    instance.pk,
+                    request.query_params.get("search") or None,
+                    page,
+                    page_size,
+                )
+                serializer = ProjectLinkSerializer(result["results"], many=True)
+                return Response(
+                    {
+                        "results": serializer.data,
+                        "pagination": {
+                            "total_count": result["total_count"],
+                            "total_pages": result["total_pages"],
+                            "current_page": result["current_page"],
+                            "page_size": result["page_size"],
+                            "has_next": result["has_next"],
+                            "has_previous": result["has_previous"],
+                        },
+                    },
+                    status=status.HTTP_200_OK,
+                )
+
+            if request.method == "POST":
+                serializer = ProjectLinkWriteSerializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                print(serializer.validated_data)
+                link = ProjectLinkService.create_link(
+                    instance.pk,
+                    title=serializer.validated_data["title"],
+                    url=serializer.validated_data["url"],
+                )
+                return Response(
+                    ProjectLinkSerializer(link).data,
+                    status=status.HTTP_201_CREATED,
+                )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in links_create_or_get: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in links_create_or_get: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /projects/<id>/links/<id>/
+    # PATCH /projects/<id>/links/<id>/
+    # DELETE /projects/<id>/links/<id>/
+    @action(
+        detail=True,
+        methods=["get", "patch", "delete"],
+        url_path="links/(?P<link_pk>[^/.]+)",
+    )
+    def links_patch_delete_or_get(self, request, pk=None, link_pk=None):
+        try:
+            try:
+                instance = ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                logger.warning("Project %s does not exist.", pk)
+                return Response(
+                    {"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND
+                )
+
+            if request.method == "GET":
+                link = ProjectLinkService.get_link(pk, link_pk)
+                return Response(
+                    ProjectLinkSerializer(link).data, status=status.HTTP_200_OK
+                )
+
+            if request.method == "PATCH":
+                try:
+                    link = ProjectLinkService.get_link(pk, link_pk)
+                except ProjectLink.DoesNotExist:
+                    logger.warning("Project link %s does not exist.", pk)
+                    return Response(
+                        {"error": "Project link not found."},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                serializer = ProjectLinkWriteSerializer(
+                    link, data=request.data, partial=True
+                )
+                serializer.is_valid(raise_exception=True)
+
+                link = ProjectLinkService.update_link(
+                    link,
+                    title=serializer.validated_data.get("title"),
+                    url=serializer.validated_data.get("url"),
+                )
+                return Response(ProjectLinkSerializer(link).data)
+
+            if request.method == "DELETE":
+                try:
+                    link = ProjectLinkService.get_link(pk, link_pk)
+                except ProjectLink.DoesNotExist:
+                    logger.warning("Project link %s does not exist.", pk)
+                    return Response(
+                        {"error": "Project link not found."},
+                        status=status.HTTP_404_NOT_FOUND,
+                    )
+
+                ProjectLinkService.delete_link(link)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+        except (ValueError, ProjectEstimate.DoesNotExist) as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in links_patch_delete_or_get: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in links_patch_delete_or_get: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

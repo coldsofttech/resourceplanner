@@ -513,6 +513,24 @@ export const API_URLS = {
                 href: `${API_BASE}projects/${projectId}/contacts/${contactId}/archive/`,
             }),
         },
+        links: {
+            list: (projectId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/links/`,
+            }),
+            new: (projectId) => ({
+                method: 'POST',
+                href: `${API_BASE}projects/${projectId}/links/`,
+            }),
+            update: (projectId, linkId) => ({
+                method: 'PATCH',
+                href: `${API_BASE}projects/${projectId}/links/${linkId}/`,
+            }),
+            delete: (projectId, linkId) => ({
+                method: 'DELETE',
+                href: `${API_BASE}projects/${projectId}/links/${linkId}/`,
+            }),
+        },
     },
     configurations: {
         list: { method: 'GET', href: `${API_BASE}configurations/` },

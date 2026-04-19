@@ -11,6 +11,7 @@ from .models import (
     ProjectEstimate,
     ProjectEstimateHistory,
     ProjectLabel,
+    ProjectLink,
     ProjectStatusHistory,
     ProjectTag,
 )
@@ -532,3 +533,28 @@ class ProjectContactHistorySerializer(serializers.ModelSerializer):
             "reason",
             "created_at",
         ]
+
+
+class ProjectLinkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectLink
+        fields = ["id", "project", "title", "url", "created_at", "updated_at"]
+        read_only_fields = ["id", "project", "created_at", "updated_at"]
+
+
+class ProjectLinkWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectLink
+        fields = ["title", "url"]
+
+    def validate_url(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("URL is required.")
+        return value
+
+    def validate_title(self, value):
+        value = value.strip()
+        if not value:
+            raise serializers.ValidationError("Title is required.")
+        return value

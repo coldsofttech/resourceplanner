@@ -5,6 +5,7 @@ from .models import (
     ProjectCollaborator,
     ProjectContact,
     ProjectContactHistory,
+    ProjectLink,
 )
 
 
@@ -78,3 +79,11 @@ class ProjectContactHistoryAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(ProjectLink)
+class ProjectLinkAdmin(admin.ModelAdmin):
+    list_display = ["title", "project", "url", "updated_at"]
+    list_filter = ["project"]
+    search_fields = ["title", "url"]
+    readonly_fields = ["created_at", "updated_at"]

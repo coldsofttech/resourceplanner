@@ -554,3 +554,21 @@ class ProjectContactHistory(models.Model):
 
     def delete(self, *args, **kwargs):
         raise ValueError("History records cannot be deleted.")
+
+
+class ProjectLink(models.Model):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="links",
+    )
+    title = models.CharField(max_length=200)
+    url = models.URLField(max_length=2000)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["title"]
+
+    def __str__(self):
+        return f"{self.title} ({self.project})"

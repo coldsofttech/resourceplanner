@@ -24,6 +24,7 @@ from .models import (
     ProjectEstimate,
     ProjectEstimateHistory,
     ProjectLabel,
+    ProjectLink,
     ProjectStatusHistory,
     ProjectTag,
 )
@@ -1890,10 +1891,12 @@ class ProjectContactService:
                 raise ValueError(
                     "name and email required when contact_id not provided."
                 )
-            contact = ContactService.create_contact({
-                "name": name,
-                "email": email,
-            })
+            contact = ContactService.create_contact(
+                {
+                    "name": name,
+                    "email": email,
+                }
+            )
             # contact, _ = ContactService.get_or_create(name, email)
 
         if not contact.is_active:
@@ -2016,3 +2019,124 @@ class ProjectContactService:
             .select_related("project")
             .order_by("-created_at")
         )
+
+
+class ProjectLinkService:
+    @staticmethod
+    def list_links(project_id: int, search=None, page=1, page_size=20):
+        qs = ProjectLink.objects.filter(project_id=project_id)
+        if search:
+            qs = qs.filter(Q(title__icontains=search) | Q(url__icontains=search))
+        qs.order_by("title")
+
+        paginator = Paginator(qs, page_size)
+        try:
+            page_obj = paginator.page(page)
+        except PageNotAnInteger:
+            page_obj = paginator.page(1)
+        except EmptyPage:
+            page_obj = paginator.page(paginator.num_pages)
+
+        return {
+            "results": page_obj.object_list,
+            "total_count": paginator.count,
+            "total_pages": paginator.num_pages,
+            "current_page": page_obj.number,
+            "has_next": page_obj.has_next(),
+            "has_previous": page_obj.has_previous(),
+            "page_size": page_size,
+        }
+    
+    @staticmethod
+    def get_link(project_id: int, link_id: int):
+        return ProjectLink.objects.get(pk=link_id, project_id=project_id)
+
+    @staticmethod
+    @transaction.atomic
+    def create_link(project_id, title, url):
+        project = Project.objects.get(pk=project_id)
+        if not project:
+            raise ValidationError(f"Project '{project_id}' does not exist.")
+
+        try:
+            return ProjectLink.objects.create(
+                project_id=project_id,
+                title=title.strip(),
+                url=url.strip(),
+            )
+        except IntegrityError as e:
+            logger.error(
+                "IntegrityError creating project link '%s': %s", project_id, e
+            )
+            raise ValidationError(
+                f"Project link for project '{project_id}' could not be created due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError creating project link '%s': %s", project_id, e
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when creating project link '%s': %s",
+                project_id,
+                e,
+            )
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def update_link(link, *, title=None, url=None):
+        if title is not None:
+            link.title = title.strip()
+        if url is not None:
+            link.url = url.strip()
+
+        try:
+            link.save()
+            return link
+        except IntegrityError as e:
+            logger.error(
+                "IntegrityError updating project link %s: %s", link, e
+            )
+            raise ValidationError(
+                "Project could not be updated due to a conflict."
+            ) from e
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError updating project link %s: %s", link, e
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when updating project link '%s': %s",
+                link,
+                e,
+            )
+            raise
+
+    @staticmethod
+    @transaction.atomic
+    def delete_link(link):
+        try:
+            link.delete()
+        except DatabaseError as e:
+            logger.exception(
+                "DatabaseError deleting project link %s: %s", link, e
+            )
+            raise RuntimeError(
+                "A database error occurred. Please try again later."
+            ) from e
+        except Exception as e:
+            logger.exception(
+                "Unexpected error when deleting project link '%s': %s",
+                link,
+                e,
+            )
+            raise
+
+

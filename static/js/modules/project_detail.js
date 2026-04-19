@@ -27,6 +27,7 @@ let _allSubStatuses = [];
 let commentPage = 1;
 let codesPage = 1;
 let estimatesTableFetcher = null;
+let linksTableFetcher = null;
 let _estimateHistoryPage = 1;
 let _currentHistoryEstimateId = null;
 let _budgetHistoryPage = 1;
@@ -77,6 +78,9 @@ function bindTabEvents() {
     document.getElementById('tab-contacts').addEventListener('shown.bs.tab', function () {
         renderContacts('PROJECT');
         renderContacts('FINANCE');
+    });
+    document.getElementById('tab-links').addEventListener('shown.bs.tab', function () {
+        renderLinks();
     });
 }
 
@@ -1215,6 +1219,189 @@ function renderContactRow(pc) {
   </tr>`;
 }
 
+async function renderLinks() {
+    try {
+        exitEditMode('links');
+
+        const renderer = initRenderer({
+            tbodyId: 'links-tbody',
+            colspan: 3,
+            itemLabel: 'links',
+            rowTemplate: renderLinkRow,
+            emptyState: {
+                message: 'No links yet.',
+                link: {
+                    href: '#',
+                    label: 'Create the first one.',
+                    onclick: '_showModal("projAddEstimateModal")',
+                },
+            },
+            filterEmptyState: {},
+            paginationBarId: 'links-pagination-bar',
+            paginationInfoId: 'links-pagination-info',
+            paginationControlsId: 'links-pagination-controls',
+            onPageChange: (page) => linksTableFetcher.goToPage(page),
+        });
+
+        linksTableFetcher = initFetch({
+            apiUrl: API_URLS.projects.links.list(projectPk).href,
+            pageSize: 20,
+            searchInputId: '',
+            filters: [],
+            onLoadStart: () => renderer.renderLoading('Loading project links...'),
+            onSuccess: ({ results, pagination, state }) => {
+                const hasFilters = !!state.search || Object.keys(state.filters).length > 0;
+                renderer.renderRows(results, hasFilters);
+                renderer.renderPagination(pagination);
+            },
+            onError: () =>
+                renderer.renderError('Failed to load project links. Please refresh the page.'),
+        });
+
+        initSorting({
+            tableId: 'links-table',
+            fetcher: linksTableFetcher,
+        });
+
+        linksTableFetcher.refresh();
+    } catch (err) {
+        _showBanner('Failed to load project information. Please refresh the page.', 'error');
+        console.error('[renderLinks] Failed to load project links information.', err);
+    }
+}
+
+function renderLinkRow(link) {
+    return `
+        <tr data-link-id="${link.id}">
+            <td>${escHtml(link.title)}</td>
+            <td>
+                <a href="${escHtml(link.url)}" target="_blank" rel="noopener noreferrer"
+                class="rp-link text-truncate d-block" style="max-width:420px;" onclick="event.stopPropagation()">
+                ${escHtml(link.url)}</a>
+            </td>
+            <td>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-ghost-icon js-edit-link" data-id="${link.id}" data-title="${link.title}" data-url="${link.url}" title="Edit">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-ghost-icon js-delete-link" data-id="${link.id}" data-title="${link.title}" title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `;
+}
+
+function _bindLinkTableActions() {
+    const tbody = document.getElementById('links-tbody');
+    if (!tbody) return;
+
+    tbody.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.js-edit-link');
+        const deleteBtn = e.target.closest('.js-delete-link');
+
+        if (editBtn) {
+            openEditLinkModal(editBtn.dataset.id, editBtn.dataset.title, editBtn.dataset.url);
+        }
+        if (deleteBtn) {
+            openDeleteLinkModal(deleteBtn.dataset.id, deleteBtn.dataset.title);
+        }
+    });
+}
+
+function openAddLinkModal() {
+    document.getElementById('link-title').value = '';
+    document.getElementById('link-url').value = '';
+    document.getElementById('link-id').value = '';
+    document.getElementById('link-form-error').classList.add('d-none');
+    document.getElementById('link-save-btn').dataset.mode = 'add';
+    _showModal('linkModal');
+}
+
+function openEditLinkModal(id, title, url) {
+    document.getElementById('linkModalLabel').textContent = id ? 'Edit Link' : 'Add Link';
+    document.getElementById('link-title').value = title;
+    document.getElementById('link-url').value = url;
+    document.getElementById('link-id').value = id;
+    document.getElementById('link-form-error').classList.add('d-none');
+    _showModal('linkModal');
+    document.getElementById('link-save-btn').dataset.mode = 'edit';
+    document.getElementById('link-title').focus();
+}
+
+function openDeleteLinkModal(id, title) {
+    document.getElementById('link-delete-title').textContent = title;
+    document.getElementById('link-delete-btn').dataset.id = id;
+    _showModal('linkDeleteModal');
+}
+
+async function saveLink() {
+    const btn = document.getElementById('link-save-btn');
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    const payload = {
+        title: document.getElementById('link-title').value,
+        url: document.getElementById('link-url').value,
+    };
+
+    try {
+        if (btn.dataset.mode == 'add') {
+            const { method, href } = API_URLS.projects.links.new(projectPk);
+            const body = JSON.stringify(payload);
+            await apiFetch(href, { method, body });
+            showFlash('Project link created.', 'success');
+        } else if (btn.dataset.mode == 'edit') {
+            const { method, href } = API_URLS.projects.links.update(
+                projectPk,
+                document.getElementById('link-id').value,
+            );
+            const body = JSON.stringify(payload);
+            await apiFetch(href, { method, body });
+            showFlash('Project link updated.', 'success');
+        }
+        _hideModal('linkModal');
+        await renderLinks();
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to create/update link.');
+        const banner = document.getElementById('link-form-error');
+        if (banner) {
+            banner.textContent = msg;
+            banner.classList.remove('d-none');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
+async function deleteLink() {
+    const btn = document.getElementById('link-delete-btn');
+    const prevText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Deleting...';
+
+    try {
+        const { method, href } = API_URLS.projects.links.delete(projectPk, btn.dataset.id);
+        await apiFetch(href, { method });
+        showFlash('Project link deleted.', 'success');
+        _hideModal('linkDeleteModal');
+        await renderLinks();
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to delete link.');
+        const banner = document.getElementById('link-form-error');
+        if (banner) {
+            banner.textContent = msg;
+            banner.classList.remove('d-none');
+        }
+    } finally {
+        btn.disabled = false;
+        btn.textContent = prevText;
+    }
+}
+
 async function renderStatusHistory() {
     try {
         exitEditMode('history');
@@ -1581,6 +1768,13 @@ function bindEditButtons() {
     document
         .getElementById('btn-add-finance-contact')
         ?.addEventListener('click', openAddFinanceContactModal);
+
+    // Links tab
+    document.getElementById('btn-add-link')?.addEventListener('click', openAddLinkModal);
+    document.getElementById('link-save-btn')?.addEventListener('click', saveLink);
+    document.getElementById('link-delete-btn')?.addEventListener('click', deleteLink);
+
+    _bindLinkTableActions();
 }
 
 function _showModal(id) {
@@ -2654,8 +2848,8 @@ async function submitRemoveContact() {
     errEl.classList.add('d-none');
     spinner.classList.remove('d-none');
     try {
-        const {method, href} = API_URLS.projects.contacts.archive(projectPk, pcId);
-        await apiFetch(href, { method, body: JSON.stringify({ reason })});
+        const { method, href } = API_URLS.projects.contacts.archive(projectPk, pcId);
+        await apiFetch(href, { method, body: JSON.stringify({ reason }) });
         _hideModal('removeContactModal');
         showFlash('Contact removed.', 'success');
         renderContacts('PROJECT');
