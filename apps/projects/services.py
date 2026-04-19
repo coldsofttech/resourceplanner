@@ -674,6 +674,31 @@ class ProjectService:
 class ProjectLabelService:
     @staticmethod
     def suggest_label(project: Project):
+        """
+        Return a suggested label string for *project*.
+
+        When AI_ENABLED=true, delegates to ProjectLabelAI which calls the
+        configured provider and falls back here on any failure.
+        When AI_ENABLED=false, runs the deterministic engine directly.
+        """
+        from apps.configurations.services import ConfigurationService
+
+        ai_enabled = ConfigurationService.get_bool("AI_ENABLED", False)
+
+        if ai_enabled:
+            from .ai import ProjectLabelAI
+
+            return ProjectLabelAI.suggest(project)
+
+        return ProjectLabelService._suggest_deterministic(project)
+
+    @staticmethod
+    def _suggest_deterministic(project: Project):
+        """
+        Rule-based label generation — the original logic, preserved here
+        as the canonical deterministic implementation.  Called directly
+        when AI is disabled, and by ProjectLabelAI as its fallback.
+        """
         programme_name = None
         if hasattr(project, "programme") and project.programme:
             programme_name = project.programme.name

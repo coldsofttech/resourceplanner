@@ -1,2 +1,4 @@
 django~=6.0.3
 djangorestframework~=3.17.1
+boto3~=1.42.91
+anthropic~=0.96.0

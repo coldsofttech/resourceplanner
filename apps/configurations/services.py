@@ -142,6 +142,84 @@ CONFIGURATION_DEFAULTS = {
             "Default 1.00%."
         ),
     },
+    # AI
+    "AI_ENABLED": {
+        "label": "AI Enabled",
+        "value": "false",
+        "description": (
+            "Master switch for AI-powered features. "
+            "Set to 'true' to enable. When false, all features fall back to "
+            "their deterministic implementations. Accepted values: true, false."
+        ),
+    },
+    "AI_PROVIDER": {
+        "label": "AI Provider",
+        "value": "anthropic",
+        "description": (
+            "AI provider to use. "
+            "Accepted values: 'anthropic' (Anthropic API), 'bedrock' (AWS Bedrock). "
+            "When set to 'bedrock', the AI_BEDROCK_* configs are also required."
+        ),
+    },
+    "AI_MODEL": {
+        "label": "AI Model",
+        "value": "",
+        "description": (
+            "Model identifier string. "
+            "Anthropic example: claude-sonnet-4-20250514. "
+            "Bedrock example: anthropic.claude-3-5-sonnet-20241022-v2:0 "
+            "(full Bedrock model ID including version suffix)."
+        ),
+    },
+    "AI_ANTHROPIC_API_KEY": {
+        "label": "Anthropic API Key",
+        "value": "",
+        "description": (
+            "Anthropic API key (sk-ant-...). "
+            "Required only when AI_PROVIDER=anthropic. "
+            "Treat as a secret — do not commit to source control."
+        ),
+    },
+    "AI_BEDROCK_REGION": {
+        "label": "Bedrock Region",
+        "value": "us-east-1",
+        "description": (
+            "AWS region for Bedrock API calls. "
+            "Required when AI_PROVIDER=bedrock. "
+            "Must be a region where the chosen model is available. "
+            "Examples: us-east-1, eu-west-2, ap-southeast-1."
+        ),
+    },
+    "AI_BEDROCK_AUTH_MODE": {
+        "label": "Bedrock Auth Mode",
+        "value": "role",
+        "description": (
+            "Authentication mode for AWS Bedrock. "
+            "'role' — no credentials stored; boto3 resolves via instance profile, "
+            "ECS task role, or AWS_* environment variables. "
+            "'user' — explicit IAM user credentials stored in AI_BEDROCK_IAM_KEY "
+            "and AI_BEDROCK_IAM_SECRET. Use 'user' for local or on-premise deployments."
+        ),
+    },
+    "AI_BEDROCK_IAM_KEY": {
+        "label": "Bedrock IAM Access Key ID",
+        "value": "",
+        "description": (
+            "AWS IAM user access key ID. "
+            "Required only when AI_PROVIDER=bedrock and AI_BEDROCK_AUTH_MODE=user. "
+            "The IAM user must have bedrock:InvokeModel permission on the chosen model. "
+            "Treat as a secret — do not commit to source control."
+        ),
+    },
+    "AI_BEDROCK_IAM_SECRET": {
+        "label": "Bedrock IAM Secret Access Key",
+        "value": "",
+        "description": (
+            "AWS IAM user secret access key. "
+            "Required only when AI_PROVIDER=bedrock and AI_BEDROCK_AUTH_MODE=user. "
+            "Treat as a secret — do not commit to source control."
+        ),
+    },
     # Add future built-in configs as below
     # "CODE": {
     #   "label": "Human readable label for the config.",
