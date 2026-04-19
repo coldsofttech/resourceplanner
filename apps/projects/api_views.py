@@ -16,6 +16,7 @@ from .models import (
     ProjectEstimate,
     ProjectLabel,
     ProjectLink,
+    ProjectView,
 )
 from .serializers import (
     ProjectBudgetHistorySerializer,
@@ -38,6 +39,7 @@ from .serializers import (
     ProjectTagSerializer,
     ProjectTeamsSerializer,
     ProjectExportSerializer,
+    ProjectViewSerializer,
 )
 from .services import (
     ProjectBudgetService,
@@ -50,6 +52,7 @@ from .services import (
     ProjectService,
     ProjectStatusHistoryService,
     ProjectTagService,
+    ProjectViewService,
 )
 
 logger = logging.getLogger(__name__)
@@ -1652,6 +1655,158 @@ class ProjectViewSet(viewsets.ViewSet):
             )
         except Exception as e:
             logger.exception("Unexpected error in links_patch_delete_or_get: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+
+class ProjectViewViewSet(viewsets.ViewSet):
+    # GET /project-views/
+    def list(self, request):
+        try:
+            views = ProjectViewService.list_all()
+            serializer = ProjectViewSerializer(views, many=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except DatabaseError as e:
+            logger.exception("DatabaseError in list: %s", e)
+            return Response(
+                {"error": "A database error occurred. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in list: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # POST /project-views/
+    def create(self, request):
+        try:
+            data = request.data
+            view = ProjectViewService.create(
+                name=data.get("name", ""),
+                filters=data.get("filters", {}),
+                columns=data.get("columns", []),
+                ordering=data.get("ordering", "-created_at"),
+                is_default=data.get("is_default", False),
+            )
+
+            serializer = ProjectViewSerializer(view)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in create: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in create: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # GET /project-views/<id>/
+    def retrieve(self, request, pk=None):
+        try:
+            view = ProjectViewService.get(pk=pk)
+            return Response(ProjectViewSerializer(view).data, status=status.HTTP_200_OK)
+        except ProjectView.DoesNotExist:
+            return Response(
+                {"error": "Project view not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in retrieve: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in retrieve: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # PATCH /project-views/<id>/
+    def partial_update(self, request, pk=None):
+        try:
+            try:
+                view = ProjectViewService.get(pk=pk)
+            except ProjectView.DoesNotExist:
+                return Response(
+                    {"error": "Project view not found."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            allowed = {"name", "filters", "columns", "ordering", "is_default"}
+            kwargs = {k: v for k, v in request.data.items() if k in allowed}
+            view = ProjectViewService.update(pk, **kwargs)
+            return Response(ProjectViewSerializer(view).data, status=status.HTTP_200_OK)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in update: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in update: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # DELETE /project-views/<id>/
+    def destroy(self, request, pk=None):
+        try:
+            ProjectViewService.delete(pk)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except ProjectView.DoesNotExist:
+            return Response(
+                {"error": "Project view not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {
+                    "error": "Invalid parameters.",
+                    "details": view_set_validation_details(e),
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logger.exception("DatabaseError in destroy: %s", e)
+            return Response(
+                {"error": "A database error occurred."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in destroy: %s", e)
             return Response(
                 {"error": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

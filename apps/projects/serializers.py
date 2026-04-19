@@ -14,6 +14,7 @@ from .models import (
     ProjectLink,
     ProjectStatusHistory,
     ProjectTag,
+    ProjectView,
 )
 
 
@@ -558,3 +559,19 @@ class ProjectLinkWriteSerializer(serializers.ModelSerializer):
         if not value:
             raise serializers.ValidationError("Title is required.")
         return value
+
+
+class ProjectViewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectView
+        fields = [
+            "id",
+            "name",
+            "filters",
+            "columns",
+            "ordering",
+            "is_default",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["id", "created_at", "updated_at"]

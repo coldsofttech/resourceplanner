@@ -572,3 +572,19 @@ class ProjectLink(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.project})"
+
+
+class ProjectView(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    filters = models.JSONField(default=dict, blank=True)
+    columns = models.JSONField(default=list, blank=True)
+    ordering = models.CharField(max_length=50, blank=True, default="-created_at")
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name

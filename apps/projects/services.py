@@ -27,6 +27,7 @@ from .models import (
     ProjectLink,
     ProjectStatusHistory,
     ProjectTag,
+    ProjectView,
 )
 
 logger = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ class ProjectService:
                     | Q(programme__name__icontains=search)
                     | Q(codes__code__icontains=search)
                     | Q(project_tags__tag__name__icontains=search)
-                )
+                ).distinct()
 
             def _vals(key):
                 raw = filters.get(key) or ""
@@ -2046,7 +2047,7 @@ class ProjectLinkService:
             "has_previous": page_obj.has_previous(),
             "page_size": page_size,
         }
-    
+
     @staticmethod
     def get_link(project_id: int, link_id: int):
         return ProjectLink.objects.get(pk=link_id, project_id=project_id)
@@ -2065,9 +2066,7 @@ class ProjectLinkService:
                 url=url.strip(),
             )
         except IntegrityError as e:
-            logger.error(
-                "IntegrityError creating project link '%s': %s", project_id, e
-            )
+            logger.error("IntegrityError creating project link '%s': %s", project_id, e)
             raise ValidationError(
                 f"Project link for project '{project_id}' could not be created due to a conflict."
             ) from e
@@ -2098,16 +2097,12 @@ class ProjectLinkService:
             link.save()
             return link
         except IntegrityError as e:
-            logger.error(
-                "IntegrityError updating project link %s: %s", link, e
-            )
+            logger.error("IntegrityError updating project link %s: %s", link, e)
             raise ValidationError(
                 "Project could not be updated due to a conflict."
             ) from e
         except DatabaseError as e:
-            logger.exception(
-                "DatabaseError updating project link %s: %s", link, e
-            )
+            logger.exception("DatabaseError updating project link %s: %s", link, e)
             raise RuntimeError(
                 "A database error occurred. Please try again later."
             ) from e
@@ -2125,9 +2120,7 @@ class ProjectLinkService:
         try:
             link.delete()
         except DatabaseError as e:
-            logger.exception(
-                "DatabaseError deleting project link %s: %s", link, e
-            )
+            logger.exception("DatabaseError deleting project link %s: %s", link, e)
             raise RuntimeError(
                 "A database error occurred. Please try again later."
             ) from e
@@ -2140,3 +2133,94 @@ class ProjectLinkService:
             raise
 
 
+class ProjectViewService:
+
+    VALID_ORDER_FIELDS = {
+        "name",
+        "-name",
+        "created_at",
+        "-created_at",
+        "updated_at",
+        "-updated_at",
+    }
+
+    @staticmethod
+    def list_all():
+        return ProjectView.objects.all().order_by("name")
+
+    @staticmethod
+    def get(pk):
+        try:
+            return ProjectView.objects.get(pk=pk)
+        except ProjectView.DoesNotExist:
+            raise ProjectView.DoesNotExist
+
+    @staticmethod
+    def create(
+        name, filters=None, columns=None, ordering="-created_at", is_default=False
+    ):
+        name = (name or "").strip()
+        if not name:
+            raise ValidationError({"name": "Name is required."})
+        if ProjectView.objects.filter(name__iexact=name).exists():
+            raise ValidationError({"name": f'A view named "{name}" already exists.'})
+
+        view = ProjectView(
+            name=name,
+            filters=filters or {},
+            columns=columns or [],
+            ordering=ordering or "-created_at",
+            is_default=bool(is_default),
+        )
+        if view.is_default:
+            ProjectView.objects.filter(is_default=True).update(is_default=False)
+        view.save()
+        return view
+
+    @staticmethod
+    def update(pk, **kwargs):
+        try:
+            view = ProjectView.objects.get(pk=pk)
+        except ProjectView.DoesNotExist:
+            raise
+
+        if "name" in kwargs:
+            name = (kwargs["name"] or "").strip()
+            if not name:
+                raise ValidationError({"name": "Name is required."})
+            if ProjectView.objects.filter(name__iexact=name).exclude(pk=pk).exists():
+                raise ValidationError(
+                    {"name": f'A view named "{name}" already exists.'}
+                )
+            view.name = name
+
+        if "filters" in kwargs and kwargs["filters"] is not None:
+            view.filters = kwargs["filters"]
+
+        if "columns" in kwargs and kwargs["columns"] is not None:
+            view.columns = kwargs["columns"]
+
+        if "ordering" in kwargs:
+            view.ordering = kwargs["ordering"] or "-created_at"
+
+        if "is_default" in kwargs:
+            view.is_default = bool(kwargs["is_default"])
+            if view.is_default:
+                ProjectView.objects.filter(is_default=True).exclude(pk=pk).update(
+                    is_default=False
+                )
+
+        view.save()
+        return view
+
+    @staticmethod
+    def delete(pk):
+        try:
+            view = ProjectView.objects.get(pk=pk)
+        except ProjectView.DoesNotExist:
+            raise
+        view.delete()
+
+    @staticmethod
+    def get_default():
+        return ProjectView.objects.filter(is_default=True).first()

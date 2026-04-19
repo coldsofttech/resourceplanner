@@ -29,7 +29,7 @@ from apps.office_locations.api_views import OfficeLocationViewSet
 from apps.programmes.api_views import ProgrammeViewSet
 from apps.project_sub_statuses.api_views import ProjectSubStatusViewSet
 from apps.project_types.api_views import ProjectTypeViewSet
-from apps.projects.api_views import ProjectViewSet
+from apps.projects.api_views import ProjectViewSet, ProjectViewViewSet
 from apps.public_holidays.api_views import PublicHolidayViewSet
 from apps.skills.api_views import SkillViewSet
 from apps.sprint_capacity.api_views import SprintCapacityViewSet
@@ -58,6 +58,7 @@ router.register(
 router.register(r"programmes", ProgrammeViewSet, basename="programme")
 router.register(r"contacts", ContactViewSet, basename="contact")
 router.register(r"projects", ProjectViewSet, basename="project")
+router.register(r"project-views", ProjectViewViewSet, basename="project-view")
 router.register(r"tags", TagViewSet, basename="tag")
 
 urlpatterns = [

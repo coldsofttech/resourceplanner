@@ -355,38 +355,86 @@ export const API_URLS = {
     projects: {
         list: { method: 'GET', href: `${API_BASE}projects/` },
         new: { method: 'POST', href: `${API_BASE}projects/` },
-        get: (pk) => ({ method: 'GET', href: `${API_BASE}projects/${pk}/` }),
-        detail: (pk) => ({ method: 'GET', href: `${API_BASE}projects/${pk}/` }),
-        get_operational: (pk) => ({
+        get: (projectId) => ({
             method: 'GET',
-            href: `${API_BASE}projects/${pk}/operational/`,
+            href: `${API_BASE}projects/${projectId}/`,
         }),
-        get_teams: (pk) => ({ method: 'GET', href: `${API_BASE}projects/${pk}/teams/` }),
-        list_labels: (pk) => ({ method: 'GET', href: `${API_BASE}projects/${pk}/labels/` }),
-        suggest_label: (pk) => ({
+        detail: (projectId) => ({
             method: 'GET',
-            href: `${API_BASE}projects/${pk}/labels/suggest/`,
+            href: `${API_BASE}projects/${projectId}/`,
         }),
-        create_label: (pk) => ({ method: 'POST', href: `${API_BASE}projects/${pk}/labels/` }),
-        edit_label: (pk, labelPk) => ({
+        get_operational: (projectId) => ({
+            method: 'GET',
+            href: `${API_BASE}projects/${projectId}/operational/`,
+        }),
+        get_teams: (projectId) => ({
+            method: 'GET',
+            href: `${API_BASE}projects/${projectId}/teams/`,
+        }),
+        list_labels: (projectId) => ({
+            method: 'GET',
+            href: `${API_BASE}projects/${projectId}/labels/`,
+        }),
+        suggest_label: (projectId) => ({
+            method: 'GET',
+            href: `${API_BASE}projects/${projectId}/labels/suggest/`,
+        }),
+        create_label: (projectId) => ({
+            method: 'POST',
+            href: `${API_BASE}projects/${projectId}/labels/`,
+        }),
+        edit_label: (projectId, labelId) => ({
             method: 'PATCH',
-            href: `${API_BASE}projects/${pk}/labels/${labelPk}/`,
+            href: `${API_BASE}projects/${projectId}/labels/${labelId}/`,
         }),
-        delete_label: (pk, labelPk) => ({
+        delete_label: (projectId, labelId) => ({
             method: 'DELETE',
-            href: `${API_BASE}projects/${pk}/labels/${labelPk}/`,
+            href: `${API_BASE}projects/${projectId}/labels/${labelId}/`,
         }),
-        edit: (pk) => ({ method: 'PUT', href: `${API_BASE}projects/${pk}/` }),
-        partial_edit: (pk) => ({ method: 'PATCH', href: `${API_BASE}projects/${pk}/` }),
-        edit_operational: (pk) => ({ method: 'PATCH', href: `${API_BASE}projects/${pk}/teams/` }),
-        edit_teams: (pk) => ({ method: 'PATCH', href: `${API_BASE}projects/${pk}/teams/` }),
-        delete: (pk) => ({ method: 'DELETE', href: `${API_BASE}projects/${pk}/` }),
-        stats: { method: 'GET', href: `${API_BASE}projects/stats/` },
-        options: { method: 'GET', href: `${API_BASE}projects/options/` },
-        import_spec: { method: 'GET', href: `${API_BASE}projects/import/specifications/` },
-        import_sample: { method: 'GET', href: `${API_BASE}projects/import/sample/` },
-        import: { method: 'POST', href: `${API_BASE}projects/import/` },
-        export: { method: 'GET', href: `${API_BASE}projects/export/` },
+        edit: (projectId) => ({
+            method: 'PUT',
+            href: `${API_BASE}projects/${projectId}/`,
+        }),
+        partial_edit: (projectId) => ({
+            method: 'PATCH',
+            href: `${API_BASE}projects/${projectId}/`,
+        }),
+        edit_operational: (projectId) => ({
+            method: 'PATCH',
+            href: `${API_BASE}projects/${projectId}/teams/`,
+        }),
+        edit_teams: (projectId) => ({
+            method: 'PATCH',
+            href: `${API_BASE}projects/${projectId}/teams/`,
+        }),
+        delete: (projectId) => ({
+            method: 'DELETE',
+            href: `${API_BASE}projects/${projectId}/`,
+        }),
+        stats: {
+            method: 'GET',
+            href: `${API_BASE}projects/stats/`,
+        },
+        options: {
+            method: 'GET',
+            href: `${API_BASE}projects/options/`,
+        },
+        import_spec: {
+            method: 'GET',
+            href: `${API_BASE}projects/import/specifications/`,
+        },
+        import_sample: {
+            method: 'GET',
+            href: `${API_BASE}projects/import/sample/`,
+        },
+        import: {
+            method: 'POST',
+            href: `${API_BASE}projects/import/`,
+        },
+        export: {
+            method: 'GET',
+            href: `${API_BASE}projects/export/`,
+        },
         status: {
             history: (projectId) => ({
                 method: 'GET',
@@ -529,6 +577,24 @@ export const API_URLS = {
             delete: (projectId, linkId) => ({
                 method: 'DELETE',
                 href: `${API_BASE}projects/${projectId}/links/${linkId}/`,
+            }),
+        },
+        views: {
+            list: {
+                method: 'GET',
+                href: `${API_BASE}project-views/`,
+            },
+            new: {
+                method: 'POST',
+                href: `${API_BASE}project-views/`,
+            },
+            update: (viewId) => ({
+                method: 'PATCH',
+                href: `${API_BASE}project-views/${viewId}/`,
+            }),
+            delete: (viewId) => ({
+                method: 'DELETE',
+                href: `${API_BASE}project-views/${viewId}/`,
             }),
         },
     },

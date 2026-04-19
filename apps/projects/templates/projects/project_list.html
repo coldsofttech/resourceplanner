@@ -76,8 +76,36 @@
     </div>
 </div>
 
+<!-- Saved Views Bar -->
+<div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+    <span class="text-secondary small fw-500" style="white-space: nowrap">
+        <i class="bi bi-layout-text-window-reverse me-1"></i>Views:
+    </span>
+    <div id="proj-views-bar" class="d-flex align-items-center gap-1 flex-wrap flex-grow-1">
+        <span class="text-secondary small fst-italic">Loading…</span>
+    </div>
+    <div class="d-flex gap-1 ms-auto">
+        <button
+            class="btn btn-ghost-icon"
+            id="save-view-btn"
+            title="Save current filters &amp; columns as a new view"
+            style="width: 28px; height: 28px; font-size: 13px"
+        >
+            <i class="bi bi-bookmark-plus"></i>
+        </button>
+        <button
+            class="btn btn-ghost-icon"
+            id="manage-views-btn"
+            title="Manage saved views"
+            style="width: 28px; height: 28px; font-size: 13px"
+        >
+            <i class="bi bi-sliders2"></i>
+        </button>
+    </div>
+</div>
+
 <!-- Search & Filters -->
-<div class="rp-toolbar d-flex gap-3 mb-3 flex-wrap">
+<div class="rp-toolbar d-flex gap-2 mb-3 flex-wrap align-items-center">
     <div class="rp-search flex-grow-1">
         <i class="bi bi-search rp-search-icon"></i>
         <input
@@ -86,6 +114,35 @@
             class="form-control rp-search-input"
             placeholder="Search projects by name, programme, code or tags..."
         />
+    </div>
+
+    <!-- Column picker -->
+    <div class="position-relative">
+        <button
+            class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1"
+            id="col-picker-btn"
+            title="Show/hide columns"
+        >
+            <i class="bi bi-layout-three-columns"></i>
+            <span class="d-none d-sm-inline">Columns</span>
+        </button>
+        <div
+            id="col-picker-panel"
+            class="rp-col-picker-panel d-none"
+        >
+            <div class="px-3 pt-3 pb-1">
+                <p class="text-secondary small fw-500 mb-2">Toggle columns</p>
+                <div class="col-picker-items d-flex flex-column gap-1"></div>
+            </div>
+            <div class="px-3 py-2 border-top d-flex align-items-center justify-content-between gap-2" style="font-size:11px">
+                <span class="text-secondary">Name, Status &amp; Actions are always visible.</span>
+                <button class="btn btn-ghost-icon col-picker-reset d-none"
+                    title="Reset to default columns"
+                    style="width:22px;height:22px;font-size:11px;color:var(--color-text-2)">
+                    <i class="bi bi-arrow-counterclockwise"></i>
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -224,40 +281,41 @@
 
 <!-- Table -->
 <div class="rp-table-wrap" style="overflow-x: auto">
-    <table class="table rp-table" id="proj-table" style="min-width: 1100px">
+    <table class="table rp-table" id="proj-table" style="min-width: 900px">
         <thead>
             <tr>
-                <th data-sort="name" class="sortable">
+                <th data-sort="name" data-col="name" class="sortable">
                     Name <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th data-sort="project_type" class="sortable">
+                <th data-sort="project_type" data-col="project_type" class="sortable">
                     Project Type <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th data-sort="programme_id" class="sortable">
+                <th data-sort="programme_id" data-col="programme" class="sortable">
                     Programme <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th data-sort="code" class="sortable">
+                <th data-sort="code" data-col="code" class="sortable">
                     Code <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th data-sort="status" class="sortable">
+                <th data-sort="status" data-col="status" class="sortable">
                     Status <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th data-sort="sub_status" class="sortable">
+                <th data-sort="sub_status" data-col="sub_status" class="sortable">
                     Sub-Status <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th data-sort="assigned_team" class="sortable">
+                <th data-sort="assigned_team" data-col="assigned_team" class="sortable">
                     Assigned Team <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th data-sort="confidence" class="sortable">
+                <th data-sort="confidence" data-col="confidence" class="sortable">
                     Confidence <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th data-sort="priority" class="sortable">
+                <th data-sort="priority" data-col="priority" class="sortable">
                     Priority <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th data-sort="is_active" class="sortable">
+                <th data-sort="is_active" data-col="is_active" class="sortable">
                     Active <i class="bi bi-chevron-expand rp-sort-icon"></i>
                 </th>
-                <th class="text-center" style="min-width: 110px">Actions</th>
+                <th data-col="budget_risk">Budget Risk</th>
+                <th class="text-center" data-col="actions" style="min-width: 110px">Actions</th>
             </tr>
         </thead>
         <tbody id="proj-tbody"></tbody>
@@ -493,6 +551,79 @@
                 </button>
                 <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-btn">
                     Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Save View Modal -->
+<div class="modal fade" id="saveViewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 420px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Save View</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="save-view-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <div class="rp-field mb-3">
+                    <label class="rp-label" for="save-view-name">
+                        View name <span class="rp-required">*</span>
+                    </label>
+                    <input
+                        type="text"
+                        id="save-view-name"
+                        class="rp-input form-control"
+                        placeholder="e.g. Active high-priority"
+                        maxlength="100"
+                    />
+                    <div class="invalid-feedback" id="save-view-name-err"></div>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="save-view-default" />
+                    <label class="form-check-label small" for="save-view-default">
+                        Set as default view
+                    </label>
+                </div>
+                <p class="rp-hint mt-2">
+                    Saves the current search, filters, visible columns, and sort order.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" id="confirm-save-view-btn">
+                    Save view
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manage View Modal -->
+<div class="modal fade" id="manageViewsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 480px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Manage Views</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary small mb-3">
+                    Click <i class="bi bi-star"></i> to set a view as the default. The default view
+                    loads automatically when you open the Projects page.
+                </p>
+                <div id="manage-views-list"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                    Close
                 </button>
             </div>
         </div>
