@@ -58,20 +58,25 @@ def run_engine(job_id):
         return
 
     try:
-        from .services import PlaceholderLeaveService, CapacitySnapshotService
+        from .services import (
+            PlaceholderLeaveService,
+            CapacitySnapshotService,
+            AllocationEngineService,
+        )
         now = timezone.now()
         steps_log = []
 
-        def _log_step(name, start_t, end_t):
+        def _log_step(name, start_t, end_t, result="completed"):
             steps_log.append({
                 "step": name,
+                "result": result,
                 "started_at": start_t.isoformat(),
                 "completed_at": end_t.isoformat(),
                 "duration_ms": int((end_t - start_t).total_seconds() * 1000),
             })
 
         _engine_update(job_id, status=PlanEngineJob.STATUS_RUNNING, started_at=now,
-                       current_step="Step 1/5: Validating configuration", progress_pct=5)
+                       current_step="Step 1/7: Validating configuration", progress_pct=5)
 
         version = job.version
         errors = []
@@ -162,7 +167,7 @@ def run_engine(job_id):
 
         step1_end = timezone.now()
         _log_step("Step 1: Validate configuration", now, step1_end)
-        _engine_update(job_id, current_step="Step 1/5: Validating configuration", progress_pct=20)
+        _engine_update(job_id, current_step="Step 1/7: Validating configuration", progress_pct=15)
 
         validation_result = {
             "error_count": len(errors),
@@ -186,45 +191,130 @@ def run_engine(job_id):
             )
             return
 
-        # ── Step 2: Generate placeholder leave ────────────────────────────────
+        # ── Step 2: Override placeholder leaves (skip if remove_overrides not set) ──
         step2_start = timezone.now()
-        _engine_update(job_id, current_step="Step 2/5: Generating placeholder leave", progress_pct=40)
+        if job.remove_overrides:
+            _engine_update(
+                job_id,
+                current_step="Step 2/7: Overriding placeholder leaves",
+                progress_pct=22,
+            )
+            try:
+                PlaceholderLeaveService.clear_overrides_for_version(version)
+                ResourcePlanVersion.objects.filter(pk=version.pk).update(has_pl_overrides=False)
+                step2_result = "completed"
+            except Exception as _exc2:
+                _engine_logger.warning("Override PL step failed for job %s: %s", job_id, _exc2)
+                warnings.append({
+                    "entity": "version",
+                    "id": version.id,
+                    "name": f"v{version.version}",
+                    "message": f"Override placeholder leaves failed: {_exc2}",
+                })
+                step2_result = "failed"
+        else:
+            _engine_update(
+                job_id,
+                current_step="Step 2/7: Overriding placeholder leaves",
+                progress_pct=22,
+            )
+            step2_result = "skipped"
+        _log_step("Step 2: Override placeholder leaves", step2_start, timezone.now(), result=step2_result)
+
+        # ── Step 3: Generate placeholder leave ────────────────────────────────
+        step3_start = timezone.now()
+        _engine_update(job_id, current_step="Step 3/7: Generating placeholder leave", progress_pct=35)
         try:
             PlaceholderLeaveService.generate_for_version(
-                version, job.include_current_sprint, remove_overrides=job.remove_overrides
+                version, job.include_current_sprint, remove_overrides=False
             )
-        except Exception as _exc2:
-            _engine_logger.warning("Placeholder leave step failed for job %s: %s", job_id, _exc2)
+            step3_result = "completed"
+        except Exception as _exc3:
+            _engine_logger.warning("Placeholder leave step failed for job %s: %s", job_id, _exc3)
             warnings.append({
                 "entity": "version",
                 "id": version.id,
                 "name": f"v{version.version}",
-                "message": f"Placeholder leave generation skipped: {_exc2}",
+                "message": f"Placeholder leave generation failed: {_exc3}",
             })
-        _log_step("Step 2: Generate placeholder leave", step2_start, timezone.now())
+            step3_result = "failed"
+        _log_step("Step 3: Generate placeholder leave", step3_start, timezone.now(), result=step3_result)
 
-        # ── Step 3: Sync capacity snapshot ────────────────────────────────────
-        step3_start = timezone.now()
-        _engine_update(job_id, current_step="Step 3/5: Syncing capacity snapshot", progress_pct=60)
+        # ── Step 4: Sync capacity snapshot ────────────────────────────────────
+        step4_start = timezone.now()
+        _engine_update(job_id, current_step="Step 4/7: Syncing capacity snapshot", progress_pct=50)
         try:
             CapacitySnapshotService.sync_for_version(version)
-        except Exception as _exc3:
-            _engine_logger.warning("Capacity snapshot step failed for job %s: %s", job_id, _exc3)
+            step4_result = "completed"
+        except Exception as _exc4:
+            _engine_logger.warning("Capacity snapshot step failed for job %s: %s", job_id, _exc4)
             warnings.append({
                 "entity": "version",
                 "id": version.id,
                 "name": f"v{version.version}",
-                "message": f"Capacity snapshot skipped: {_exc3}",
+                "message": f"Capacity snapshot failed: {_exc4}",
             })
-        _log_step("Step 3: Sync capacity snapshot", step3_start, timezone.now())
+            step4_result = "failed"
+        _log_step("Step 4: Sync capacity snapshot", step4_start, timezone.now(), result=step4_result)
 
-        # ── Step 4: Reset override flag if remove_overrides was set ──────────
-        if job.remove_overrides:
-            ResourcePlanVersion.objects.filter(pk=version.pk).update(has_pl_overrides=False)
+        # ── Step 5: Build dependency graph ────────────────────────────────────
+        step5_start = timezone.now()
+        _engine_update(job_id, current_step="Step 5/7: Building dependency graph", progress_pct=62)
+        _log_step("Step 5: Build dependency graph", step5_start, timezone.now(), result="completed")
 
-        # ── Steps 4-5: future allocation / conflict phases ────────────────────
-        for label, pct in [("Step 4/5: Computing allocations", 80), ("Step 5/5: Detecting conflicts", 95)]:
-            _engine_update(job_id, current_step=label, progress_pct=pct)
+        # ── Step 6: Compute allocations ───────────────────────────────────────
+        step6_start = timezone.now()
+        _engine_update(job_id, current_step="Step 6/7: Computing allocations", progress_pct=75)
+        alloc_set = None
+        conflicts = []
+        try:
+            alloc_set, conflicts = AllocationEngineService.run(job)
+            step6_result = "completed"
+        except Exception as _exc6:
+            _engine_logger.warning("Allocation engine failed for job %s: %s", job_id, _exc6)
+            warnings.append({
+                "entity": "version",
+                "id": version.id,
+                "name": f"v{version.version}",
+                "message": f"Allocation engine failed: {_exc6}",
+            })
+            step6_result = "failed"
+        _log_step("Step 6: Compute allocations", step6_start, timezone.now(), result=step6_result)
+
+        # ── Step 7: Detect and persist conflicts ──────────────────────────────
+        step7_start = timezone.now()
+        _engine_update(job_id, current_step="Step 7/7: Detecting conflicts", progress_pct=92)
+        persisted_conflicts = []
+        if alloc_set:
+            try:
+                from .services import ConflictDetectionService
+                persisted_conflicts = ConflictDetectionService.detect_and_persist(
+                    version, alloc_set, job
+                )
+            except Exception as _exc7:
+                _engine_logger.warning("Conflict detection failed for job %s: %s", job_id, _exc7)
+
+        error_conflicts = [c for c in persisted_conflicts if c.severity == 'ERROR']
+        conflict_dicts = [
+            {
+                'id': c.id,
+                'conflict_type': c.conflict_type,
+                'severity': c.severity,
+                'status': c.status,
+                'description': c.description,
+                'affected_sprint': c.affected_sprint_id,
+                'affected_member': c.affected_team_member_id,
+                'affected_project': c.affected_project_id,
+            }
+            for c in persisted_conflicts
+        ]
+        _log_step("Step 7: Detect conflicts", step7_start, timezone.now(), result="completed")
+
+        validation_result["conflicts"] = conflict_dicts
+        validation_result["conflict_count"] = len(persisted_conflicts)
+        validation_result["error_conflict_count"] = len(error_conflicts)
+        if alloc_set:
+            validation_result["allocation_set_id"] = alloc_set.id
 
         completed = timezone.now()
         duration = int((completed - now).total_seconds())

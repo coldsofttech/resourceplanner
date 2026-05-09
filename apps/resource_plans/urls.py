@@ -9,4 +9,5 @@ urlpatterns = [
     path("<int:plan_pk>/versions/<int:version_pk>/", views.VersionConfigureView.as_view(), name="version_configure"),
     path("<int:plan_pk>/versions/<int:version_pk>/grid/", views.AllocationGridView.as_view(), name="allocation_grid"),
     path("<int:plan_pk>/versions/<int:version_pk>/placeholder-leaves/", views.PlaceholderLeavesView.as_view(), name="placeholder_leaves"),
+    path("<int:plan_pk>/versions/<int:version_pk>/conflicts/", views.ConflictsView.as_view(), name="conflicts"),
 ]

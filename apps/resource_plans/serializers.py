@@ -16,6 +16,11 @@ from .models import (
     PlanAssignment,
     PlanEngineJob,
     PlaceholderLeave,
+    ResourcePlanPlaceholderEngineer,
+    ResourcePlanAllocationSet,
+    ResourcePlanAllocation,
+    Conflict,
+    ManpowerRequest,
 )
 
 
@@ -38,6 +43,7 @@ class ResourcePlanVersionSerializer(serializers.ModelSerializer):
             "status",
             "threshold_pct",
             "has_pl_overrides",
+            "has_allocation_overrides",
             "cloned_from",
             "cloned_from_plan_name",
             "project_count",
@@ -349,7 +355,7 @@ class PlanPhaseSerializer(serializers.ModelSerializer):
             "start_sprint", "start_sprint_name", "end_sprint", "end_sprint_name",
             "max_days_per_sprint", "ramp_pattern",
             "allow_multiple_engineers", "split_mode", "is_split_incomplete",
-            "notes", "segment_count", "dependency_count", "pause_count", "assignment_count",
+            "notes", "days_effort", "segment_count", "dependency_count", "pause_count", "assignment_count",
         ]
         read_only_fields = ["id"]
 
@@ -485,3 +491,136 @@ class PlaceholderLeaveSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         ]
         read_only_fields = ["id", "version", "team_member", "sprint", "is_auto", "created_at", "updated_at"]
+
+
+class ResourcePlanPlaceholderEngineerSerializer(serializers.ModelSerializer):
+    team_name = serializers.CharField(source="team.name", read_only=True)
+    phase_name = serializers.CharField(source="phase.name", read_only=True)
+
+    class Meta:
+        model = ResourcePlanPlaceholderEngineer
+        fields = [
+            "id", "version", "team", "team_name", "phase", "phase_name",
+            "slot_number", "name", "assignment_type",
+        ]
+        read_only_fields = fields
+
+
+class ResourcePlanAllocationSetSerializer(serializers.ModelSerializer):
+    allocation_count = serializers.SerializerMethodField()
+    conflict_count = serializers.SerializerMethodField()
+    open_error_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ResourcePlanAllocationSet
+        fields = [
+            "id", "version", "engine_job", "status",
+            "activated_at", "notes",
+            "created_at", "updated_at",
+            "allocation_count", "conflict_count", "open_error_count",
+        ]
+        read_only_fields = [
+            "id", "version", "engine_job", "status",
+            "activated_at", "created_at", "updated_at",
+            "allocation_count", "conflict_count", "open_error_count",
+        ]
+
+    def get_allocation_count(self, obj):
+        return obj.allocations.count()
+
+    def get_conflict_count(self, obj):
+        return obj.conflicts.count()
+
+    def get_open_error_count(self, obj):
+        return obj.conflicts.filter(severity=Conflict.SEVERITY_ERROR, status=Conflict.STATUS_OPEN).count()
+
+
+class ResourcePlanAllocationSerializer(serializers.ModelSerializer):
+    member_name = serializers.SerializerMethodField()
+    project_name = serializers.CharField(source="project.name", read_only=True)
+    team_name = serializers.CharField(source="team.name", read_only=True)
+    sprint_number = serializers.IntegerField(source="sprint.sprint_number", read_only=True)
+    effective_days = serializers.DecimalField(
+        max_digits=6, decimal_places=2, read_only=True
+    )
+
+    class Meta:
+        model = ResourcePlanAllocation
+        fields = [
+            "id", "allocation_set", "programme", "project", "project_name",
+            "team", "team_name", "team_member", "member_name",
+            "placeholder_engineer", "sprint", "sprint_number",
+            "phase", "assignment", "assignment_type", "includes_in_budget",
+            "engine_days", "override_days", "override_notes", "overridden_at",
+            "effective_days",
+        ]
+        read_only_fields = [
+            "id", "allocation_set", "programme", "project", "team",
+            "team_member", "placeholder_engineer", "sprint", "phase",
+            "assignment", "assignment_type", "includes_in_budget",
+            "engine_days", "overridden_at", "effective_days",
+            "project_name", "team_name", "member_name", "sprint_number",
+        ]
+
+    def get_member_name(self, obj):
+        if obj.team_member:
+            return obj.team_member.display_name
+        if obj.placeholder_engineer:
+            return obj.placeholder_engineer.name
+        return None
+
+
+class ConflictSerializer(serializers.ModelSerializer):
+    affected_project_name = serializers.SerializerMethodField()
+    affected_phase_name = serializers.SerializerMethodField()
+    affected_member_name = serializers.SerializerMethodField()
+    affected_sprint_name = serializers.SerializerMethodField()
+    affected_team_name = serializers.SerializerMethodField()
+    allowed_resolutions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Conflict
+        fields = [
+            'id', 'allocation_set', 'engine_job', 'conflict_type', 'severity',
+            'status', 'affected_project', 'affected_project_name', 'affected_phase',
+            'affected_phase_name', 'affected_team_member', 'affected_member_name',
+            'affected_sprint', 'affected_sprint_name', 'affected_team', 'affected_team_name',
+            'description', 'engine_data', 'resolution_type', 'resolution_notes',
+            'resolved_at', 'created_at', 'allowed_resolutions',
+        ]
+
+    def get_affected_project_name(self, obj):
+        return obj.affected_project.name if obj.affected_project else None
+
+    def get_affected_phase_name(self, obj):
+        return obj.affected_phase.name if obj.affected_phase else None
+
+    def get_affected_member_name(self, obj):
+        return obj.affected_team_member.display_name if obj.affected_team_member else None
+
+    def get_affected_sprint_name(self, obj):
+        return obj.affected_sprint.sprint_name if obj.affected_sprint else None
+
+    def get_affected_team_name(self, obj):
+        return obj.affected_team.name if obj.affected_team else None
+
+    def get_allowed_resolutions(self, obj):
+        from .services import ConflictResolutionService
+        return ConflictResolutionService.ALLOWED_RESOLUTIONS.get(obj.conflict_type, [Conflict.RES_DISMISSED])
+
+
+class ManpowerRequestSerializer(serializers.ModelSerializer):
+    team_name = serializers.CharField(source='team.name', read_only=True)
+    phase_name = serializers.SerializerMethodField()
+    conflict_type = serializers.CharField(source='conflict.conflict_type', read_only=True)
+
+    class Meta:
+        model = ManpowerRequest
+        fields = [
+            'id', 'allocation_set', 'conflict', 'conflict_type', 'team', 'team_name',
+            'phase', 'phase_name', 'sprints_needed', 'days_needed',
+            'status', 'resolution_notes', 'resolved_at', 'created_at',
+        ]
+
+    def get_phase_name(self, obj):
+        return obj.phase.name if obj.phase else None

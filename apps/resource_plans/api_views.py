@@ -21,6 +21,8 @@ from .models import (
     PlanPhasePause,
     PlanAssignment,
     PlanEngineJob,
+    Conflict,
+    ManpowerRequest,
 )
 from .serializers import (
     ResourcePlanSerializer,
@@ -40,6 +42,9 @@ from .serializers import (
     PlanEngineJobSerializer,
     PlanEngineJobStatusSerializer,
     PlaceholderLeaveSerializer,
+    ResourcePlanAllocationSetSerializer,
+    ConflictSerializer,
+    ManpowerRequestSerializer,
 )
 from .services import (
     ResourcePlanService,
@@ -53,6 +58,11 @@ from .services import (
     PlaceholderLeaveService,
     CapacityService,
     CapacitySnapshotService,
+    AllocationSetService,
+    CellUpdateService,
+    ConflictService,
+    ConflictResolutionService,
+    ManpowerRequestService,
 )
 
 logger = logging.getLogger(__name__)
@@ -1020,6 +1030,215 @@ class AllocationGridViewSet(viewsets.ViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    # ── Allocation sets ───────────────────────────────────────────────────────
+
+    def allocation_sets(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        sets = AllocationSetService.list_sets(version)
+        return Response(ResourcePlanAllocationSetSerializer(sets, many=True).data)
+
+    def allocation_set_detail(self, request, plan_pk, pk, set_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        alloc_set = AllocationSetService.get_set(version, set_pk)
+        if not alloc_set:
+            return Response({"detail": "Allocation set not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if request.method == "PATCH":
+            notes = request.data.get("notes")
+            updated = AllocationSetService.update_notes(alloc_set, notes)
+            return Response(ResourcePlanAllocationSetSerializer(updated).data)
+
+        return Response(ResourcePlanAllocationSetSerializer(alloc_set).data)
+
+    def allocation_set_activate(self, request, plan_pk, pk, set_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        alloc_set = AllocationSetService.get_set(version, set_pk)
+        if not alloc_set:
+            return Response({"detail": "Allocation set not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            activated = AllocationSetService.activate(alloc_set)
+            return Response(ResourcePlanAllocationSetSerializer(activated).data)
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_409_CONFLICT)
+
+    # ── Allocation grid endpoints (Tables 3 & 4) ──────────────────────────────
+
+    def grid_allocations(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        def _int(val):
+            try:
+                return int(val) if val else None
+            except (ValueError, TypeError):
+                return None
+
+        allocation_set_id = _int(request.query_params.get("allocation_set"))
+        team_id = _int(request.query_params.get("team"))
+        return Response(AllocationSetService.get_allocations_grid(version, allocation_set_id, team_id))
+
+    def grid_allocated_capacity(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        def _int(val):
+            try:
+                return int(val) if val else None
+            except (ValueError, TypeError):
+                return None
+
+        allocation_set_id = _int(request.query_params.get("allocation_set"))
+        team_id = _int(request.query_params.get("team"))
+        return Response(AllocationSetService.get_allocated_capacity_grid(version, allocation_set_id, team_id))
+
+    def grid_cell_update(self, request, plan_pk, pk, alloc_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        days = request.data.get("days")
+        if days is None:
+            return Response({"days": "This field is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            result = CellUpdateService.update_cell(version, alloc_pk, days)
+            return Response(result, status=status.HTTP_200_OK)
+        except DjangoValidationError as exc:
+            return Response(
+                exc.message_dict if hasattr(exc, "message_dict") else {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ── Conflict endpoints ────────────────────────────────────────────────────
+
+    def conflict_summary(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        alloc_set_id = request.query_params.get('allocation_set')
+        try:
+            alloc_set_id = int(alloc_set_id) if alloc_set_id else None
+        except (ValueError, TypeError):
+            alloc_set_id = None
+        summary = ConflictService.get_summary(version, alloc_set_id)
+        return Response(summary)
+
+    def conflict_list(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        def _int(v): return int(v) if v else None
+        try:
+            qs = ConflictService.list_conflicts(
+                version,
+                allocation_set_id=_int(request.query_params.get('allocation_set')),
+                severity=request.query_params.get('severity'),
+                status=request.query_params.get('status'),
+                conflict_type=request.query_params.get('conflict_type'),
+            )
+            return Response(ConflictSerializer(qs, many=True).data)
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def conflict_detail(self, request, plan_pk, pk, conflict_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        conflict = ConflictService.get_conflict(version, conflict_pk)
+        if not conflict:
+            return Response({"detail": "Conflict not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ConflictSerializer(conflict).data)
+
+    def conflict_resolve(self, request, plan_pk, pk, conflict_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        conflict = ConflictService.get_conflict(version, conflict_pk)
+        if not conflict:
+            return Response({"detail": "Conflict not found."}, status=status.HTTP_404_NOT_FOUND)
+        resolution_type = request.data.get('resolution_type')
+        notes = request.data.get('notes', '')
+        extra_data = request.data.get('extra_data', {})
+        if not resolution_type:
+            return Response({"resolution_type": "This field is required."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            updated = ConflictResolutionService.resolve(conflict, resolution_type, notes, extra_data)
+            return Response(ConflictSerializer(updated).data)
+        except DjangoValidationError as exc:
+            return Response(
+                exc.message_dict if hasattr(exc, 'message_dict') else {'detail': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    # ── Manpower request endpoints ────────────────────────────────────────────
+
+    def manpower_list(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        def _int(v): return int(v) if v else None
+        qs = ConflictService.list_manpower_requests(
+            version,
+            allocation_set_id=_int(request.query_params.get('allocation_set')),
+            status=request.query_params.get('status'),
+        )
+        return Response(ManpowerRequestSerializer(qs, many=True).data)
+
+    def manpower_detail(self, request, plan_pk, pk, mp_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        mp = ConflictService.get_manpower_request(version, mp_pk)
+        if not mp:
+            return Response({"detail": "Manpower request not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ManpowerRequestSerializer(mp).data)
+
+    def manpower_hire(self, request, plan_pk, pk, mp_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        mp = ConflictService.get_manpower_request(version, mp_pk)
+        if not mp:
+            return Response({"detail": "Manpower request not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            ManpowerRequestService.hire(mp, notes=request.data.get('notes'))
+            return Response(ManpowerRequestSerializer(mp).data)
+        except DjangoValidationError as exc:
+            return Response(
+                exc.message_dict if hasattr(exc, 'message_dict') else {'detail': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def manpower_rebalance(self, request, plan_pk, pk, mp_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        mp = ConflictService.get_manpower_request(version, mp_pk)
+        if not mp:
+            return Response({"detail": "Manpower request not found."}, status=status.HTTP_404_NOT_FOUND)
+        ManpowerRequestService.rebalance(mp, notes=request.data.get('notes'))
+        return Response(ManpowerRequestSerializer(mp).data)
+
+    def manpower_dismiss(self, request, plan_pk, pk, mp_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        mp = ConflictService.get_manpower_request(version, mp_pk)
+        if not mp:
+            return Response({"detail": "Manpower request not found."}, status=status.HTTP_404_NOT_FOUND)
+        ManpowerRequestService.dismiss(mp, notes=request.data.get('notes'))
+        return Response(ManpowerRequestSerializer(mp).data)
 
 
 class PlanPhaseViewSet(viewsets.ViewSet):

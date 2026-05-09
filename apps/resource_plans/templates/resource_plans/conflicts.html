@@ -1,0 +1,190 @@
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3"
+    id="cf-page-header">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/grid/" class="btn btn-ghost-icon" title="Back to grid">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <div class="small text-secondary mb-1" id="cf-breadcrumb">Resource Plans</div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2 flex-wrap">
+                <span id="cf-plan-name">Loading…</span>
+                <span id="cf-version-badge"></span>
+                <span class="badge bg-danger" id="cf-error-count-badge" style="font-size:.75rem;"></span>
+            </h1>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/grid/"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-grid me-1"></i>Allocation Grid
+        </a>
+    </div>
+</div>
+{% endblock %} {% block content %}
+
+<div id="cf-banner" class="alert d-none mb-3" role="alert"></div>
+
+<!-- Summary chips -->
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center" id="cf-summary-chips">
+    <div class="spinner-border spinner-border-sm text-secondary" id="cf-summary-loading"></div>
+</div>
+
+<!-- Filter buttons -->
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+    <span class="small text-secondary me-1">Show:</span>
+    <button class="btn btn-sm btn-outline-secondary cf-filter-btn active" data-filter="">All</button>
+    <button class="btn btn-sm btn-outline-danger cf-filter-btn" data-filter="ERROR">
+        <i class="bi bi-x-circle me-1"></i>Errors
+    </button>
+    <button class="btn btn-sm btn-outline-warning cf-filter-btn" data-filter="WARNING">
+        <i class="bi bi-exclamation-triangle me-1"></i>Warnings
+    </button>
+    <button class="btn btn-sm btn-outline-info cf-filter-btn" data-filter="INFO">
+        <i class="bi bi-info-circle me-1"></i>Info
+    </button>
+    <div class="vr mx-1"></div>
+    <button class="btn btn-sm btn-outline-secondary cf-status-btn active" data-status="">All Statuses</button>
+    <button class="btn btn-sm btn-outline-secondary cf-status-btn" data-status="OPEN">Open</button>
+    <button class="btn btn-sm btn-outline-secondary cf-status-btn" data-status="RESOLVED">Resolved</button>
+    <button class="btn btn-sm btn-outline-secondary cf-status-btn" data-status="DISMISSED">Dismissed</button>
+</div>
+
+<!-- Conflict cards -->
+<div id="cf-loading" class="text-center py-5">
+    <div class="spinner-border text-secondary me-2"></div> Loading conflicts…
+</div>
+<div id="cf-empty" class="text-center py-5 text-secondary d-none">
+    <i class="bi bi-check-circle-fill text-success fs-2 d-block mb-2"></i>
+    No conflicts found.
+</div>
+<div id="cf-list" class="d-none"></div>
+
+<!-- Manpower requests section -->
+<div id="cf-mp-section" class="d-none mt-4">
+    <h6 class="fw-semibold mb-2"><i class="bi bi-people me-1"></i>Manpower Requests</h6>
+    <div id="cf-mp-list"></div>
+</div>
+
+<!-- Resolution modal -->
+<div class="modal fade" id="cfResolveModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold" id="cf-resolve-title">Resolve Conflict</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="cf-resolve-desc" class="alert alert-secondary py-2 px-3 mb-3" style="font-size:.83rem;"></div>
+                <div id="cf-resolve-form">
+                    <p class="small text-secondary mb-2">Select a resolution type:</p>
+                    <div id="cf-resolve-options" class="mb-3"></div>
+                    <div class="mb-3">
+                        <label class="rp-label form-label-sm mb-1">Notes <span class="text-secondary">(optional)</span></label>
+                        <textarea class="form-control form-control-sm" id="cf-resolve-notes" rows="2" placeholder="Describe how this was resolved…"></textarea>
+                    </div>
+                    <div id="cf-resolve-err" class="alert alert-danger d-none py-2 px-3" style="font-size:.83rem;"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger fw-semibold" id="cf-resolve-submit">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="cf-resolve-spinner"></span>
+                    Apply Resolution
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_css %}
+<style>
+/* ── Conflict cards ───────────────────────────────────────────────────────── */
+.cf-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: .5rem;
+    margin-bottom: .75rem;
+    overflow: hidden;
+    transition: opacity .2s;
+}
+.cf-card.cf-resolved, .cf-card.cf-dismissed { opacity: .55; }
+.cf-card-header {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .6rem 1rem;
+    background: var(--bs-tertiary-bg, #f8f9fa);
+    border-bottom: 1px solid var(--bs-border-color);
+    flex-wrap: wrap;
+}
+.cf-card-body { padding: .75rem 1rem; font-size: .85rem; }
+.cf-badge-error   { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+.cf-badge-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+.cf-badge-info    { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+.cf-severity-badge {
+    font-size: .7rem;
+    padding: 2px 6px;
+    border-radius: 20px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+}
+.cf-type-label {
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+}
+.cf-status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    flex-shrink: 0;
+}
+.cf-status-dot.open     { background: #ef4444; }
+.cf-status-dot.resolved { background: #22c55e; }
+.cf-status-dot.dismissed { background: #9ca3af; }
+.cf-affected { font-size: .8rem; color: var(--bs-secondary-color); }
+.cf-resolve-btn { font-size: .78rem; }
+
+/* ── Summary chips ────────────────────────────────────────────────────────── */
+.cf-summary-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: .8rem;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+/* ── Resolution radio ────────────────────────────────────────────────────── */
+.cf-res-option {
+    border: 1px solid var(--bs-border-color);
+    border-radius: .375rem;
+    padding: .4rem .75rem;
+    margin-bottom: .4rem;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+.cf-res-option:hover { border-color: #3b82f6; background: #eff6ff; }
+.cf-res-option.selected { border-color: #2563eb; background: #dbeafe; }
+.cf-res-label { font-size: .82rem; font-weight: 500; }
+
+/* ── Manpower cards ──────────────────────────────────────────────────────── */
+.cf-mp-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: .5rem;
+    padding: .75rem 1rem;
+    margin-bottom: .5rem;
+    font-size: .84rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/conflicts.js' %}"></script>
+{% endblock %}
+{% endblock %}

@@ -2007,11 +2007,32 @@ def _deep_copy_version_config(source_version, target_version):
                     },
                 )
 
+    # Copy manual PlaceholderLeave overrides (is_auto=False) so that manual edits survive cloning
+    pl_to_copy = PlaceholderLeave.objects.filter(version=source_version, is_auto=False)
+    if pl_to_copy.exists():
+        PlaceholderLeave.objects.bulk_create([
+            PlaceholderLeave(
+                version=target_version,
+                team_member=pl.team_member,
+                sprint=pl.sprint,
+                days=pl.days,
+                is_auto=False,
+                notes=pl.notes,
+            )
+            for pl in pl_to_copy
+        ], ignore_conflicts=True)
+        ResourcePlanVersion.objects.filter(pk=target_version.pk).update(has_pl_overrides=True)
+
 
 # ── Engine Job (logic lives in engine.py) ──────────────────────────────────────
 
 
 class PlaceholderLeaveService:
+
+    @staticmethod
+    def clear_overrides_for_version(version):
+        """Delete all placeholder leaves for version, including manual overrides."""
+        PlaceholderLeave.objects.filter(version=version).delete()
 
     @staticmethod
     def generate_for_version(version, include_current_sprint=False, remove_overrides=False):
@@ -2188,9 +2209,17 @@ class CapacityService:
 
         members = list(
             TeamMember.objects.filter(team_id__in=dt_ids, is_active=True)
+            .select_related('team')
             .order_by('last_name', 'first_name')
         )
-        return {m.id: m for m in members}
+        return {
+            m.id: {
+                'member': m,
+                'team_id': m.team_id,
+                'team_name': m.team.name if m.team_id else '',
+            }
+            for m in members
+        }
 
     @staticmethod
     def get_capacity_grid(version, team_id=None):
@@ -2224,7 +2253,8 @@ class CapacityService:
         }
 
         rows = []
-        for member_id, member in sorted(member_map.items(), key=lambda x: (x[1].last_name, x[1].first_name)):
+        for member_id, minfo in sorted(member_map.items(), key=lambda x: (x[1]['member'].last_name, x[1]['member'].first_name)):
+            member = minfo['member']
             cells = []
             for sprint in sprint_list:
                 rc = snap_lookup.get((member_id, sprint.id))
@@ -2246,7 +2276,13 @@ class CapacityService:
                         'placeholder_days': '0',
                         'net_capacity': None,
                     })
-            rows.append({'member_id': member_id, 'member_name': member.display_name, 'cells': cells})
+            rows.append({
+                'member_id': member_id,
+                'member_name': member.display_name,
+                'team_id': minfo['team_id'],
+                'team_name': minfo['team_name'],
+                'cells': cells,
+            })
 
         return {'sprints': sprint_meta, 'rows': rows}
 
@@ -2282,7 +2318,8 @@ class CapacityService:
         }
 
         rows = []
-        for member_id, member in sorted(member_map.items(), key=lambda x: (x[1].last_name, x[1].first_name)):
+        for member_id, minfo in sorted(member_map.items(), key=lambda x: (x[1]['member'].last_name, x[1]['member'].first_name)):
+            member = minfo['member']
             cells = []
             for sprint in sprint_list:
                 rc = snap_lookup.get((member_id, sprint.id))
@@ -2303,7 +2340,13 @@ class CapacityService:
                         'placeholder_days': '0',
                         'total_absence': None,
                     })
-            rows.append({'member_id': member_id, 'member_name': member.display_name, 'cells': cells})
+            rows.append({
+                'member_id': member_id,
+                'member_name': member.display_name,
+                'team_id': minfo['team_id'],
+                'team_name': minfo['team_name'],
+                'cells': cells,
+            })
 
         return {'sprints': sprint_meta, 'rows': rows}
 
@@ -2457,3 +2500,1148 @@ class PlanEngineJobService:
         t = threading.Thread(target=run_engine, args=(job.pk,), daemon=True)
         t.start()
         return job
+
+
+# ── Phase 7: Allocation Engine Services ───────────────────────────────────────
+
+
+class RampDistributionService:
+    """Pure computation — no DB access. Distributes total_days across sprint_count slots."""
+
+    @staticmethod
+    def distribute(total_days, sprint_count, ramp_pattern='FLAT', segments=None, max_days_per_sprint=None):
+        if sprint_count <= 0 or not total_days:
+            return []
+        from decimal import Decimal as D, ROUND_HALF_UP
+        total = D(str(total_days))
+        weights = RampDistributionService._compute_weights(sprint_count, ramp_pattern, segments)
+        w_sum = sum(weights) or 1.0
+        normalised = [w / w_sum for w in weights]
+        raw = [total * D(str(n)) for n in normalised]
+
+        if max_days_per_sprint is not None:
+            cap = D(str(max_days_per_sprint))
+            capped = [min(d, cap) for d in raw]
+            excess = sum(r - c for r, c in zip(raw, capped))
+            raw = capped
+            if excess > 0:
+                for i, d in enumerate(raw):
+                    if excess <= 0:
+                        break
+                    if d < cap:
+                        add = min(excess, cap - d)
+                        raw[i] += add
+                        excess -= add
+
+        rounded = [d.quantize(D('0.01'), rounding=ROUND_HALF_UP) for d in raw]
+        diff = total - sum(rounded)
+        if rounded and diff:
+            rounded[-1] = (rounded[-1] + diff).quantize(D('0.01'), rounding=ROUND_HALF_UP)
+        return rounded
+
+    @staticmethod
+    def _compute_weights(n, ramp_pattern, segments):
+        if segments:
+            return RampDistributionService._weights_from_segments(n, segments)
+        patterns = {
+            'FLAT':         lambda n: [1.0] * n,
+            'RAMP_UP':      lambda n: [float(i + 1) for i in range(n)],
+            'RAMP_DOWN':    lambda n: [float(n - i) for i in range(n)],
+            'RAMP_UP_DOWN': RampDistributionService._ramp_up_down,
+            'RAMP_UP_STEADY': RampDistributionService._ramp_up_steady,
+            'STEADY_DOWN':  RampDistributionService._steady_down,
+            'STEPPED':      RampDistributionService._stepped,
+        }
+        fn = patterns.get(ramp_pattern, patterns['FLAT'])
+        return fn(n)
+
+    @staticmethod
+    def _ramp_up_down(n):
+        mid = max(1, n // 2)
+        up = [float(i + 1) for i in range(mid)]
+        down = [float(n - mid - i) for i in range(n - mid)]
+        return up + down
+
+    @staticmethod
+    def _ramp_up_steady(n):
+        ramp = max(1, n // 3)
+        peak = float(ramp)
+        return [float(i + 1) for i in range(ramp)] + [peak] * (n - ramp)
+
+    @staticmethod
+    def _steady_down(n):
+        steady = max(1, (2 * n) // 3)
+        drop = n - steady
+        peak = float(drop + 1) if drop else 1.0
+        return [peak] * steady + [float(drop - i) for i in range(drop)]
+
+    @staticmethod
+    def _stepped(n, steps=3):
+        return [float(int(i / (n / steps)) + 1) for i in range(n)]
+
+    @staticmethod
+    def _weights_from_segments(n, segments):
+        import math
+        total_dur = sum(s.duration for s in segments) or 1
+        weights = []
+        for i in range(n):
+            pos = (i / n) * total_dur
+            cursor = 0
+            w = 0.01
+            for seg in segments:
+                seg_end = cursor + seg.duration
+                if pos < seg_end or seg == segments[-1]:
+                    t = (pos - cursor) / seg.duration if seg.duration else 0.0
+                    t = max(0.0, min(1.0, t))
+                    s0 = float(seg.start_pct) / 100.0
+                    s1 = float(seg.end_pct) / 100.0
+                    prog = seg.progression
+                    if seg.segment_type == 'FLAT':
+                        w = (s0 + s1) / 2.0
+                    elif prog == 'LINEAR':
+                        w = s0 + (s1 - s0) * t
+                    elif prog == 'EXPONENTIAL':
+                        w = s0 + (s1 - s0) * (t ** 2)
+                    elif prog == 'LOGARITHMIC':
+                        w = s0 + (s1 - s0) * (math.log1p(t * (math.e - 1)))
+                    elif prog == 'STEPPED':
+                        steps = seg.step_count or 3
+                        w = s0 + (s1 - s0) * (int(t * steps) / steps)
+                    else:
+                        w = (s0 + s1) / 2.0
+                    break
+                cursor = seg_end
+            weights.append(max(0.001, w))
+        return weights
+
+
+class DependencyGraphService:
+    PRIORITY_RANK = {'VERY_HIGH': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}
+    CONFIDENCE_RANK = {'VERY_HIGH': 0, 'HIGH': 1, 'MEDIUM': 2, 'LOW': 3}
+
+    @staticmethod
+    def topological_sort(phases, proj_by_phase_id):
+        """Kahn's algorithm with priority-based tie-breaking."""
+        if not phases:
+            return []
+        import heapq
+        phase_ids = {ph.id for ph in phases}
+        in_deg = {ph.id: 0 for ph in phases}
+        successors = {ph.id: [] for ph in phases}
+
+        for ph in phases:
+            for dep in ph.dependencies.all():
+                pred_id = dep.predecessor_phase_id
+                if pred_id in phase_ids:
+                    in_deg[ph.id] += 1
+                    successors[pred_id].append(ph.id)
+
+        phase_by_id = {ph.id: ph for ph in phases}
+        PR = DependencyGraphService.PRIORITY_RANK
+        CR = DependencyGraphService.CONFIDENCE_RANK
+
+        def _key(ph_id):
+            ph = phase_by_id[ph_id]
+            proj = proj_by_phase_id.get(ph.plan_project_team.plan_project_id)
+            dates_strict = 0 if (proj and proj.dates_strict) else 1
+            pri = PR.get(proj.effective_priority if proj else None, 4)
+            con = CR.get(proj.effective_confidence if proj else None, 4)
+            end_pos = ph.end_sprint.sprint_number if ph.end_sprint else 9999
+            disp = proj.display_order if proj else 0
+            return (dates_strict, pri, con, end_pos, disp, ph.sequence_order)
+
+        heap = []
+        for ph_id, deg in in_deg.items():
+            if deg == 0:
+                heapq.heappush(heap, (_key(ph_id), ph_id))
+
+        result = []
+        while heap:
+            _, ph_id = heapq.heappop(heap)
+            result.append(phase_by_id[ph_id])
+            for succ_id in successors[ph_id]:
+                in_deg[succ_id] -= 1
+                if in_deg[succ_id] == 0:
+                    heapq.heappush(heap, (_key(succ_id), succ_id))
+
+        seen = {ph.id for ph in result}
+        for ph in phases:
+            if ph.id not in seen:
+                result.append(ph)
+        return result
+
+    @staticmethod
+    def earliest_start(phase, completed, sprint_nums):
+        """Return the earliest sprint_number this phase can start after its dependencies."""
+        base = phase.start_sprint.sprint_number if phase.start_sprint else (sprint_nums[0] if sprint_nums else 1)
+        for dep in phase.dependencies.all():
+            info = completed.get(dep.predecessor_phase_id, {})
+            lag = dep.lag_sprints
+            dep_type = dep.dependency_type
+            if dep_type == 'FS':
+                base = max(base, info.get('end', 0) + 1 + lag)
+            elif dep_type == 'SS':
+                base = max(base, info.get('start', 0) + lag)
+        return base
+
+
+class AutoAssignService:
+    @staticmethod
+    def select_member(team_members, sprint_nums, member_alloc):
+        """Return team member with lowest total allocated days across given sprints."""
+        def _load(m):
+            return sum(member_alloc[m.id].get(sn, Decimal('0')) for sn in sprint_nums)
+        return min(team_members, key=_load)
+
+
+class AllocationSetService:
+
+    @staticmethod
+    def list_sets(version):
+        from .models import ResourcePlanAllocationSet
+        return list(
+            ResourcePlanAllocationSet.objects.filter(version=version)
+            .select_related('engine_job')
+            .order_by('-created_at')
+        )
+
+    @staticmethod
+    def get_set(version, set_pk):
+        from .models import ResourcePlanAllocationSet
+        try:
+            return ResourcePlanAllocationSet.objects.select_related('version', 'engine_job').get(
+                pk=set_pk, version=version
+            )
+        except ResourcePlanAllocationSet.DoesNotExist:
+            return None
+
+    @staticmethod
+    @transaction.atomic
+    def activate(alloc_set):
+        from .models import ResourcePlanAllocationSet
+        version = alloc_set.version
+        ResourcePlanAllocationSet.objects.filter(
+            version=version, status__in=[
+                ResourcePlanAllocationSet.STATUS_ACTIVE,
+                ResourcePlanAllocationSet.STATUS_DRAFT,
+            ]
+        ).exclude(pk=alloc_set.pk).update(status=ResourcePlanAllocationSet.STATUS_SUPERSEDED)
+
+        alloc_set.status = ResourcePlanAllocationSet.STATUS_ACTIVE
+        alloc_set.activated_at = timezone.now()
+        alloc_set.save(update_fields=['status', 'activated_at', 'updated_at'])
+        return alloc_set
+
+    @staticmethod
+    @transaction.atomic
+    def update_notes(alloc_set, notes):
+        alloc_set.notes = notes or None
+        alloc_set.save(update_fields=['notes', 'updated_at'])
+        return alloc_set
+
+    @staticmethod
+    def get_allocations_grid(version, allocation_set_id=None, team_id=None):
+        """Table 3: flat allocation rows (programme, project, team, member, phase) per sprint."""
+        from apps.sprints.models import Sprint
+        from .models import ResourcePlanAllocationSet, ResourcePlanAllocation
+
+        scope = ResourcePlanScope.objects.filter(
+            plan_group=version.plan_group
+        ).select_related('financial_year').first()
+        sprint_list = (
+            list(Sprint.objects.filter(financial_year=scope.financial_year).order_by('sprint_number'))
+            if scope else []
+        )
+        sprint_meta = [{'id': s.id, 'name': s.sprint_name, 'month': s.month} for s in sprint_list]
+
+        if not allocation_set_id:
+            aset = ResourcePlanAllocationSet.objects.filter(
+                version=version, status=ResourcePlanAllocationSet.STATUS_ACTIVE
+            ).order_by('-created_at').first()
+            if not aset:
+                aset = ResourcePlanAllocationSet.objects.filter(
+                    version=version
+                ).order_by('-created_at').first()
+        else:
+            try:
+                aset = ResourcePlanAllocationSet.objects.get(pk=allocation_set_id, version=version)
+            except ResourcePlanAllocationSet.DoesNotExist:
+                return {'sprints': sprint_meta, 'rows': [], 'allocation_set_id': None}
+
+        if not aset:
+            return {'sprints': sprint_meta, 'rows': [], 'allocation_set_id': None}
+
+        alloc_qs = (
+            ResourcePlanAllocation.objects.filter(allocation_set=aset)
+            .select_related(
+                'programme', 'project', 'team',
+                'team_member', 'placeholder_engineer', 'sprint', 'phase',
+            )
+        )
+        if team_id:
+            alloc_qs = alloc_qs.filter(team_id=team_id)
+
+        sprint_index = {s.id: i for i, s in enumerate(sprint_list)}
+
+        # Flat grouping: (prog_id, proj_id, team_id, eng_key, phase_id) → row data
+        row_key_map = {}
+        for alloc in alloc_qs:
+            if alloc.sprint_id not in sprint_index:
+                continue
+
+            prog_name = alloc.programme.name if alloc.programme else 'Unassigned'
+            proj_name = alloc.project.name if alloc.project else '—'
+            team_name = alloc.team.name if alloc.team else '—'
+            phase_name = alloc.phase.name if alloc.phase else '—'
+
+            if alloc.team_member_id:
+                eng_key = ('member', alloc.team_member_id)
+                member_name = alloc.team_member.display_name
+                member_id = alloc.team_member_id
+                member_type = 'member'
+            else:
+                eng_key = ('placeholder', alloc.placeholder_engineer_id)
+                member_name = alloc.placeholder_engineer.name if alloc.placeholder_engineer else 'Auto'
+                member_id = alloc.placeholder_engineer_id
+                member_type = 'placeholder'
+
+            row_key = (alloc.programme_id, alloc.project_id, alloc.team_id, eng_key, alloc.phase_id)
+            if row_key not in row_key_map:
+                row_key_map[row_key] = {
+                    'programme_name': prog_name,
+                    'project_id': alloc.project_id,
+                    'project_name': proj_name,
+                    'team_id': alloc.team_id,
+                    'team_name': team_name,
+                    'member_id': member_id,
+                    'member_type': member_type,
+                    'member_name': member_name,
+                    'phase_name': phase_name,
+                    'cells': {},
+                }
+            sid = alloc.sprint_id
+            existing = row_key_map[row_key]['cells'].get(sid)
+            if existing is None:
+                row_key_map[row_key]['cells'][sid] = {
+                    'days': float(alloc.effective_days),
+                    'allocation_id': alloc.id,
+                    'is_override': alloc.override_days is not None,
+                    'multi': False,
+                }
+            else:
+                existing['days'] += float(alloc.effective_days)
+                existing['allocation_id'] = None
+                existing['multi'] = True
+
+        flat_rows = []
+        for (rk, row_data) in sorted(
+            row_key_map.items(),
+            key=lambda kv: (
+                kv[1]['programme_name'], kv[1]['project_name'],
+                kv[1]['team_name'], kv[1]['member_name'], kv[1]['phase_name']
+            )
+        ):
+            cells = []
+            for s in sprint_list:
+                cd = row_data['cells'].get(s.id)
+                if cd:
+                    cells.append({
+                        'sprint_id': s.id,
+                        'days': round(cd['days'], 2),
+                        'allocation_id': cd['allocation_id'],
+                        'is_override': cd['is_override'],
+                        'multi': cd['multi'],
+                    })
+                else:
+                    cells.append({
+                        'sprint_id': s.id,
+                        'days': 0.0,
+                        'allocation_id': None,
+                        'is_override': False,
+                        'multi': False,
+                    })
+            flat_rows.append({
+                'programme_name': row_data['programme_name'],
+                'project_id': row_data['project_id'],
+                'project_name': row_data['project_name'],
+                'team_id': row_data['team_id'],
+                'team_name': row_data['team_name'],
+                'member_id': row_data['member_id'],
+                'member_type': row_data['member_type'],
+                'member_name': row_data['member_name'],
+                'phase_name': row_data['phase_name'],
+                'cells': cells,
+                'total_days': round(sum(c['days'] for c in cells), 2),
+            })
+
+        return {'sprints': sprint_meta, 'rows': flat_rows, 'allocation_set_id': aset.id}
+
+    @staticmethod
+    def get_allocated_capacity_grid(version, allocation_set_id=None, team_id=None):
+        """Table 4: allocated days + capacity per engineer per sprint."""
+        from apps.sprints.models import Sprint
+        from .models import ResourcePlanAllocationSet, ResourcePlanAllocation, ResourcePlanMemberCapacity
+
+        scope = ResourcePlanScope.objects.filter(
+            plan_group=version.plan_group
+        ).select_related('financial_year').first()
+        sprint_list = (
+            list(Sprint.objects.filter(financial_year=scope.financial_year).order_by('sprint_number'))
+            if scope else []
+        )
+        sprint_meta = [{'id': s.id, 'name': s.sprint_name, 'month': s.month} for s in sprint_list]
+
+        if not allocation_set_id:
+            aset = ResourcePlanAllocationSet.objects.filter(
+                version=version, status=ResourcePlanAllocationSet.STATUS_ACTIVE
+            ).order_by('-created_at').first()
+            if not aset:
+                aset = ResourcePlanAllocationSet.objects.filter(version=version).order_by('-created_at').first()
+        else:
+            try:
+                aset = ResourcePlanAllocationSet.objects.get(pk=allocation_set_id, version=version)
+            except ResourcePlanAllocationSet.DoesNotExist:
+                return {'sprints': sprint_meta, 'rows': [], 'allocation_set_id': None}
+
+        if not aset:
+            return {'sprints': sprint_meta, 'rows': [], 'allocation_set_id': None}
+
+        alloc_qs = (
+            ResourcePlanAllocation.objects.filter(allocation_set=aset)
+            .select_related('team_member', 'placeholder_engineer', 'team', 'sprint')
+        )
+        if team_id:
+            alloc_qs = alloc_qs.filter(team_id=team_id)
+
+        alloc_by_member = {}
+        for alloc in alloc_qs:
+            if alloc.team_member_id:
+                key = ('member', alloc.team_member_id)
+                label = alloc.team_member.display_name
+            else:
+                key = ('placeholder', alloc.placeholder_engineer_id)
+                label = alloc.placeholder_engineer.name if alloc.placeholder_engineer else 'Auto'
+            if key not in alloc_by_member:
+                alloc_by_member[key] = {'name': label, 'team_id': alloc.team_id, 'team_name': alloc.team.name, 'days': {}}
+            sid = alloc.sprint_id
+            alloc_by_member[key]['days'][sid] = alloc_by_member[key]['days'].get(sid, 0.0) + float(alloc.effective_days)
+
+        member_ids = [k[1] for k in alloc_by_member if k[0] == 'member']
+        sprint_ids = [s.id for s in sprint_list]
+        cap_lookup = {}
+        if member_ids:
+            for rc in ResourcePlanMemberCapacity.objects.filter(
+                version=version, team_member_id__in=member_ids, sprint_id__in=sprint_ids
+            ):
+                cap_lookup[(rc.team_member_id, rc.sprint_id)] = rc
+
+        rows = []
+        for (mtype, mid), mdata in sorted(alloc_by_member.items(), key=lambda x: x[1]['name']):
+            cells = []
+            for sprint in sprint_list:
+                allocated = round(mdata['days'].get(sprint.id, 0.0), 2)
+                rc = cap_lookup.get((mid, sprint.id)) if mtype == 'member' else None
+                net = float(rc.net_capacity) if rc else None
+                cells.append({
+                    'sprint_id': sprint.id,
+                    'allocated_days': allocated,
+                    'net_capacity': net,
+                    'utilization_pct': round((allocated / net * 100), 1) if net else None,
+                    'is_over': (allocated > net) if net is not None else False,
+                    'holiday_days': float(rc.holiday_days) if rc else None,
+                    'leave_days': float(rc.leave_days) if rc else None,
+                    'placeholder_days': float(rc.placeholder_days) if rc else None,
+                })
+            rows.append({
+                'member_id': mid if mtype == 'member' else None,
+                'placeholder_id': mid if mtype == 'placeholder' else None,
+                'member_name': mdata['name'],
+                'team_id': mdata['team_id'],
+                'team_name': mdata['team_name'],
+                'cells': cells,
+            })
+
+        return {'sprints': sprint_meta, 'rows': rows, 'allocation_set_id': aset.id}
+
+
+class CellUpdateService:
+    """Validates and persists override_days for a single ResourcePlanAllocation cell."""
+
+    @staticmethod
+    @transaction.atomic
+    def update_cell(version, alloc_pk, days):
+        from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+        from .models import ResourcePlanAllocation, ResourcePlanAllocationSet, ResourcePlanVersionProject
+
+        try:
+            raw = Decimal(str(days))
+        except (InvalidOperation, TypeError, ValueError):
+            raise ValidationError({"days": "Invalid value."})
+
+        d = raw.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        if d < Decimal('0') or d > Decimal('10'):
+            raise ValidationError({"days": "Value must be between 0 and 10."})
+
+        try:
+            alloc = ResourcePlanAllocation.objects.select_related(
+                'allocation_set__engine_job', 'project', 'sprint',
+                'team_member', 'placeholder_engineer',
+            ).get(pk=alloc_pk, allocation_set__version=version)
+        except ResourcePlanAllocation.DoesNotExist:
+            raise ValidationError({"detail": "Allocation not found."})
+
+        if alloc.allocation_set.status == ResourcePlanAllocationSet.STATUS_ACTIVE:
+            raise ValidationError({"detail": "Cannot edit cells in an ACTIVE allocation set."})
+
+        if d == alloc.engine_days:
+            alloc.override_days = None
+            alloc.overridden_at = None
+        else:
+            alloc.override_days = d
+            alloc.overridden_at = timezone.now()
+        alloc.save(update_fields=['override_days', 'overridden_at'])
+
+        if alloc.override_days is not None:
+            ResourcePlanVersion.objects.filter(pk=version.pk).update(has_allocation_overrides=True)
+
+        project_total = round(sum(
+            float(a.effective_days)
+            for a in ResourcePlanAllocation.objects.filter(
+                allocation_set=alloc.allocation_set, project=alloc.project
+            )
+        ), 2)
+
+        if alloc.team_member_id:
+            eng_sprint_qs = ResourcePlanAllocation.objects.filter(
+                allocation_set=alloc.allocation_set,
+                sprint=alloc.sprint,
+                team_member_id=alloc.team_member_id,
+            )
+        else:
+            eng_sprint_qs = ResourcePlanAllocation.objects.filter(
+                allocation_set=alloc.allocation_set,
+                sprint=alloc.sprint,
+                placeholder_engineer_id=alloc.placeholder_engineer_id,
+            )
+        eng_sprint_allocated = round(sum(float(a.effective_days) for a in eng_sprint_qs), 2)
+
+        plan_project = ResourcePlanVersionProject.objects.filter(
+            version=version, project=alloc.project
+        ).first()
+        threshold_info = None
+        if plan_project:
+            threshold_info = {
+                'project_id': alloc.project_id,
+                'project_name': alloc.project.name,
+                'is_over_threshold': plan_project.is_over_threshold,
+                'is_under_threshold': plan_project.is_under_threshold,
+                'threshold_pct': float(version.threshold_pct or 0),
+            }
+
+        conflict_count = 0
+        if alloc.allocation_set.engine_job and alloc.allocation_set.engine_job.validation_result:
+            conflict_count = alloc.allocation_set.engine_job.validation_result.get('conflict_count', 0)
+
+        return {
+            'allocation_id': alloc.pk,
+            'sprint_id': alloc.sprint_id,
+            'project_id': alloc.project_id,
+            'member_id': alloc.team_member_id,
+            'member_type': 'member' if alloc.team_member_id else 'placeholder',
+            'effective_days': float(alloc.effective_days),
+            'is_override': alloc.override_days is not None,
+            'project_total': project_total,
+            'engineer_sprint_allocated': eng_sprint_allocated,
+            'threshold_info': threshold_info,
+            'conflict_count': conflict_count,
+        }
+
+
+class AllocationEngineService:
+    """Orchestrates Steps 5-8 of the engine: dependency sort, ramp distribution, auto-assign, conflicts."""
+
+    @staticmethod
+    def run(job):
+        """Create a ResourcePlanAllocationSet and populate ResourcePlanAllocation rows."""
+        from .models import (
+            ResourcePlanAllocationSet, ResourcePlanAllocation,
+            ResourcePlanPlaceholderEngineer,
+        )
+        from collections import defaultdict
+
+        version = job.version
+        scope = ResourcePlanScope.objects.filter(plan_group=version.plan_group).select_related('financial_year').first()
+        if not scope:
+            return None, []
+
+        from apps.sprints.models import Sprint
+        sprints = list(Sprint.objects.filter(financial_year=scope.financial_year).order_by('sprint_number'))
+        sprint_nums = [s.sprint_number for s in sprints]
+        sprints_by_num = {s.sprint_number: s for s in sprints}
+
+        # Determine the minimum sprint number based on the active sprint
+        active_sprint_obj = Sprint.objects.filter(is_active=True).first()
+        if active_sprint_obj and active_sprint_obj.sprint_number in sprint_nums:
+            if job.include_current_sprint:
+                min_sprint_num = active_sprint_obj.sprint_number
+            else:
+                min_sprint_num = active_sprint_obj.sprint_number + 1
+        else:
+            min_sprint_num = sprint_nums[0] if sprint_nums else 1
+
+        projects = list(
+            ResourcePlanVersionProject.objects.filter(version=version)
+            .select_related('project__programme', 'start_sprint', 'end_sprint')
+            .prefetch_related(
+                'teams__team',
+                'teams__phases__segments',
+                'teams__phases__dependencies',
+                'teams__phases__pauses',
+                'teams__phases__assignments__team_member',
+            )
+        )
+
+        all_phases = []
+        proj_by_phase_id = {}
+        team_entry_by_phase_id = {}
+        phases_per_team_entry = defaultdict(list)
+
+        for proj in projects:
+            for te in proj.teams.all():
+                for ph in te.phases.all():
+                    all_phases.append(ph)
+                    proj_by_phase_id[ph.id] = proj
+                    team_entry_by_phase_id[ph.id] = te
+                    phases_per_team_entry[te.id].append(ph.id)
+
+        if not all_phases or not sprints:
+            return None, []
+
+        sorted_phases = DependencyGraphService.topological_sort(all_phases, proj_by_phase_id)
+
+        alloc_set = ResourcePlanAllocationSet.objects.create(
+            version=version,
+            engine_job=job,
+            status=ResourcePlanAllocationSet.STATUS_DRAFT,
+        )
+
+        member_alloc = defaultdict(lambda: defaultdict(Decimal))
+        completed = {}
+        to_create = []
+        placeholder_slots = defaultdict(int)
+        conflicts = []
+
+        for phase in sorted_phases:
+            proj = proj_by_phase_id[phase.id]
+            te = team_entry_by_phase_id[phase.id]
+            programme = proj.project.programme
+
+            earliest = DependencyGraphService.earliest_start(phase, completed, sprint_nums)
+            phase_start = max(earliest, min_sprint_num)
+            if phase.start_sprint:
+                phase_start = max(phase_start, phase.start_sprint.sprint_number)
+
+            if phase.end_sprint:
+                phase_end = phase.end_sprint.sprint_number
+            elif proj.end_sprint:
+                phase_end = proj.end_sprint.sprint_number
+            else:
+                phase_end = sprint_nums[-1] if sprint_nums else 1
+
+            phase_start = max(phase_start, min_sprint_num)
+            phase_end = min(phase_end, sprint_nums[-1] if sprint_nums else 9999)
+
+            if phase_start > phase_end:
+                completed[phase.id] = {'start': phase_start, 'end': phase_start}
+                continue
+
+            paused_nums = set()
+            for pause in phase.pauses.all():
+                if pause.resume_sprint:
+                    paused_nums.update(range(pause.pause_from.sprint_number, pause.resume_sprint.sprint_number))
+                elif pause.pause_sprint_count:
+                    p_from = pause.pause_from.sprint_number
+                    paused_nums.update(range(p_from, p_from + pause.pause_sprint_count))
+
+            active_nums = [sn for sn in sprint_nums if phase_start <= sn <= phase_end and sn not in paused_nums]
+            if not active_nums:
+                completed[phase.id] = {'start': phase_start, 'end': phase_end}
+                continue
+
+            assignments = list(phase.assignments.all())
+            if not assignments:
+                completed[phase.id] = {'start': phase_start, 'end': phase_end}
+                continue
+
+            if hasattr(phase, 'days_effort') and phase.days_effort is not None:
+                phase_total = Decimal(str(phase.days_effort))
+            else:
+                n_phases = len(phases_per_team_entry.get(te.id, [1]))
+                team_days = te.allocated_days or Decimal('0')
+                phase_total = team_days / max(n_phases, 1)
+
+            segments = None
+            if phase.ramp_pattern == PlanPhase.RAMP_CUSTOM:
+                segments = list(phase.segments.order_by('segment_order'))
+
+            named = [a for a in assignments if not a.auto_assign and a.team_member_id]
+            auto = [a for a in assignments if a.auto_assign]
+            n_total = len(assignments) or 1
+
+            for asgn in assignments:
+                if phase.split_mode == PlanPhase.SPLIT_DAYS and asgn.split_value:
+                    alloc_nums = active_nums
+                    sprint_days = [asgn.split_value] * len(alloc_nums)
+                else:
+                    if phase.split_mode == PlanPhase.SPLIT_PERCENT and asgn.split_value:
+                        share = Decimal(str(asgn.split_value)) / Decimal('100')
+                    elif phase.split_mode == PlanPhase.SPLIT_EQUAL:
+                        share = Decimal('1') / Decimal(str(n_total))
+                    else:
+                        share = Decimal('1') / Decimal(str(n_total))
+                    phase_share = phase_total * share
+
+                    # "Complete early": trim active_nums to fewest sprints needed.
+                    # If max_days_per_sprint not set, default to 10d (full sprint) so
+                    # days are concentrated rather than spread across the entire FY.
+                    alloc_nums = active_nums
+                    if phase_share > Decimal('0'):
+                        effective_max = (
+                            Decimal(str(phase.max_days_per_sprint))
+                            if phase.max_days_per_sprint
+                            else Decimal('10')
+                        )
+                        if effective_max > 0:
+                            needed = max(1, int(_ceil(float(phase_share) / float(effective_max))))
+                            alloc_nums = active_nums[:needed]
+
+                    sprint_days = RampDistributionService.distribute(
+                        phase_share, len(alloc_nums), phase.ramp_pattern, segments, phase.max_days_per_sprint
+                    )
+
+                # Sprints in the active range that won't receive allocated days —
+                # create 0-day records so the grid can show them as editable.
+                _alloc_set = set(alloc_nums)
+                zero_nums = [sn for sn in active_nums if sn not in _alloc_set]
+
+                if asgn.auto_assign:
+                    from apps.team_members.models import TeamMember
+                    team_members = list(TeamMember.objects.filter(team=te.team, is_active=True))
+                    if team_members:
+                        member = AutoAssignService.select_member(team_members, alloc_nums, member_alloc)
+                        for sn, d in zip(alloc_nums, sprint_days):
+                            member_alloc[member.id][sn] += d
+                            to_create.append(ResourcePlanAllocation(
+                                allocation_set=alloc_set, programme=programme,
+                                project=proj.project, team=te.team, team_member=member,
+                                sprint=sprints_by_num[sn], phase=phase, assignment=asgn,
+                                assignment_type=asgn.assignment_type,
+                                includes_in_budget=asgn.includes_in_budget, engine_days=d,
+                            ))
+                        for sn in zero_nums:
+                            to_create.append(ResourcePlanAllocation(
+                                allocation_set=alloc_set, programme=programme,
+                                project=proj.project, team=te.team, team_member=member,
+                                sprint=sprints_by_num[sn], phase=phase, assignment=asgn,
+                                assignment_type=asgn.assignment_type,
+                                includes_in_budget=asgn.includes_in_budget, engine_days=Decimal('0'),
+                            ))
+                    else:
+                        key = (version.id, te.team_id, phase.id)
+                        placeholder_slots[key] += 1
+                        pe = ResourcePlanPlaceholderEngineer.objects.create(
+                            version=version, team=te.team, phase=phase,
+                            slot_number=placeholder_slots[key],
+                            name=f'Auto #{placeholder_slots[key]}',
+                            assignment_type=asgn.assignment_type,
+                        )
+                        for sn, d in zip(alloc_nums, sprint_days):
+                            to_create.append(ResourcePlanAllocation(
+                                allocation_set=alloc_set, programme=programme,
+                                project=proj.project, team=te.team, placeholder_engineer=pe,
+                                sprint=sprints_by_num[sn], phase=phase, assignment=asgn,
+                                assignment_type=asgn.assignment_type,
+                                includes_in_budget=asgn.includes_in_budget, engine_days=d,
+                            ))
+                        for sn in zero_nums:
+                            to_create.append(ResourcePlanAllocation(
+                                allocation_set=alloc_set, programme=programme,
+                                project=proj.project, team=te.team, placeholder_engineer=pe,
+                                sprint=sprints_by_num[sn], phase=phase, assignment=asgn,
+                                assignment_type=asgn.assignment_type,
+                                includes_in_budget=asgn.includes_in_budget, engine_days=Decimal('0'),
+                            ))
+                else:
+                    member = asgn.team_member
+                    for sn, d in zip(alloc_nums, sprint_days):
+                        member_alloc[member.id][sn] += d
+                        to_create.append(ResourcePlanAllocation(
+                            allocation_set=alloc_set, programme=programme,
+                            project=proj.project, team=te.team, team_member=member,
+                            sprint=sprints_by_num[sn], phase=phase, assignment=asgn,
+                            assignment_type=asgn.assignment_type,
+                            includes_in_budget=asgn.includes_in_budget, engine_days=d,
+                        ))
+                    for sn in zero_nums:
+                        to_create.append(ResourcePlanAllocation(
+                            allocation_set=alloc_set, programme=programme,
+                            project=proj.project, team=te.team, team_member=member,
+                            sprint=sprints_by_num[sn], phase=phase, assignment=asgn,
+                            assignment_type=asgn.assignment_type,
+                            includes_in_budget=asgn.includes_in_budget, engine_days=Decimal('0'),
+                        ))
+
+            completed[phase.id] = {'start': phase_start, 'end': phase_end}
+
+        ResourcePlanAllocation.objects.bulk_create(to_create, batch_size=500)
+
+        conflicts = AllocationEngineService._detect_conflicts(version, alloc_set, member_alloc, sprints)
+        return alloc_set, conflicts
+
+    @staticmethod
+    def _detect_conflicts(version, alloc_set, member_alloc, sprints):
+        from .models import ResourcePlanMemberCapacity
+        conflicts = []
+        sprint_by_num = {s.sprint_number: s for s in sprints}
+        member_ids = list(member_alloc.keys())
+        if not member_ids:
+            return conflicts
+
+        cap_lookup = {
+            (rc.team_member_id, rc.sprint_id): rc.net_capacity
+            for rc in ResourcePlanMemberCapacity.objects.filter(
+                version=version, team_member_id__in=member_ids
+            )
+        }
+
+        for member_id, sprint_data in member_alloc.items():
+            for sprint_num, days in sprint_data.items():
+                sprint = sprint_by_num.get(sprint_num)
+                if not sprint:
+                    continue
+                net = cap_lookup.get((member_id, sprint.id))
+                if net is not None and days > net:
+                    conflicts.append({
+                        'severity': 'ERROR',
+                        'entity': 'member',
+                        'member_id': member_id,
+                        'sprint_id': sprint.id,
+                        'sprint_name': sprint.sprint_name,
+                        'allocated_days': float(days),
+                        'net_capacity': float(net),
+                        'message': f'Over-capacity: {float(days):.1f}d allocated vs {float(net):.1f}d available.',
+                    })
+        return conflicts
+
+
+class ConflictDetectionService:
+    """Detects all conflict types during engine run and persists Conflict records."""
+
+    @staticmethod
+    @transaction.atomic
+    def detect_and_persist(version, alloc_set, job):
+        from .models import (
+            Conflict, ResourcePlanMemberCapacity, ResourcePlanVersionProject,
+            ResourcePlanAllocation, ResourcePlanScope,
+        )
+        from collections import defaultdict
+        from django.db.models import Sum
+        from apps.sprints.models import Sprint
+
+        Conflict.objects.filter(allocation_set=alloc_set).delete()
+
+        conflicts_to_create = []
+
+        # Build member_alloc from existing ResourcePlanAllocation records
+        member_alloc = defaultdict(lambda: defaultdict(Decimal))
+        alloc_qs_members = ResourcePlanAllocation.objects.filter(
+            allocation_set=alloc_set
+        ).select_related('sprint', 'team_member')
+        for alloc in alloc_qs_members:
+            if alloc.team_member_id:
+                member_alloc[alloc.team_member_id][alloc.sprint.sprint_number] += alloc.engine_days
+
+        # Get sprints from scope
+        scope = ResourcePlanScope.objects.filter(
+            plan_group=version.plan_group
+        ).select_related('financial_year').first()
+        sprints = list(
+            Sprint.objects.filter(financial_year=scope.financial_year).order_by('sprint_number')
+        ) if scope else []
+
+        sprint_by_num = {s.sprint_number: s for s in sprints}
+        sprint_by_id  = {s.id: s for s in sprints}
+
+        # ── 1. CAPACITY_EXCEEDED ──────────────────────────────────────────────
+        member_ids = list(member_alloc.keys())
+        sprint_ids = [s.id for s in sprints]
+        cap_lookup = {}
+        if member_ids:
+            for rc in ResourcePlanMemberCapacity.objects.filter(
+                version=version, team_member_id__in=member_ids, sprint_id__in=sprint_ids
+            ):
+                cap_lookup[(rc.team_member_id, rc.sprint_id)] = rc
+
+        for member_id, sprint_data in member_alloc.items():
+            for sprint_num, days in sprint_data.items():
+                sprint = sprint_by_num.get(sprint_num)
+                if not sprint:
+                    continue
+                rc = cap_lookup.get((member_id, sprint.id))
+                if rc is not None and days > rc.net_capacity:
+                    over_by = float(days - rc.net_capacity)
+                    conflicts_to_create.append(Conflict(
+                        allocation_set=alloc_set,
+                        engine_job=job,
+                        conflict_type=Conflict.CAPACITY_EXCEEDED,
+                        severity=Conflict.SEVERITY_ERROR,
+                        affected_team_member_id=member_id,
+                        affected_sprint=sprint,
+                        description=(
+                            f'Over-capacity in {sprint.sprint_name}: '
+                            f'{float(days):.2f}d allocated vs {float(rc.net_capacity):.2f}d available.'
+                        ),
+                        engine_data={
+                            'over_by': round(over_by, 2),
+                            'allocated_days': round(float(days), 2),
+                            'net_capacity': round(float(rc.net_capacity), 2),
+                            'sprint_name': sprint.sprint_name,
+                        },
+                    ))
+
+        # ── 2. THRESHOLD_BREACH (over & under) ────────────────────────────────
+        from django.db.models import Q
+        alloc_project_qs = (
+            ResourcePlanAllocation.objects.filter(allocation_set=alloc_set)
+            .values('project_id')
+            .annotate(total=Sum('engine_days'))
+        )
+        project_totals = {row['project_id']: Decimal(str(row['total'])) for row in alloc_project_qs}
+
+        for vp in ResourcePlanVersionProject.objects.filter(version=version).select_related('project'):
+            if not vp.days_required:
+                continue
+            req = Decimal(str(vp.days_required))
+            threshold = Decimal(str(version.threshold_pct or 10))
+            total = project_totals.get(vp.project_id, Decimal('0'))
+            pct_diff = ((total - req) / req * 100) if req else Decimal('0')
+
+            if abs(pct_diff) > threshold:
+                direction = 'over' if pct_diff > 0 else 'under'
+                conflicts_to_create.append(Conflict(
+                    allocation_set=alloc_set,
+                    engine_job=job,
+                    conflict_type=Conflict.THRESHOLD_BREACH,
+                    severity=Conflict.SEVERITY_WARNING,
+                    affected_project=vp.project,
+                    description=(
+                        f'{vp.project.name}: {float(total):.1f}d allocated is '
+                        f'{abs(float(pct_diff)):.1f}% {direction} the required {float(req):.1f}d.'
+                    ),
+                    engine_data={
+                        'allocated': float(total),
+                        'required': float(req),
+                        'pct_diff': round(float(pct_diff), 1),
+                        'direction': direction,
+                        'threshold_pct': float(threshold),
+                    },
+                ))
+
+        Conflict.objects.bulk_create(conflicts_to_create)
+        return list(Conflict.objects.filter(allocation_set=alloc_set))
+
+
+class ConflictResolutionService:
+    """Routes conflict resolution by resolution_type and marks conflicts resolved."""
+
+    ALLOWED_RESOLUTIONS = {
+        'CAPACITY_EXCEEDED':   ['DEPRIORITISED', 'ENGINEER_SWAPPED', 'TEAM_CHANGED', 'MANPOWER_RAISED', 'REBALANCED', 'DISMISSED'],
+        'THRESHOLD_BREACH':    ['REBALANCED', 'DEPRIORITISED', 'DISMISSED'],
+        'UNRESOLVABLE_GAP':    ['MANPOWER_RAISED', 'REBALANCED', 'DISMISSED'],
+        'COMPETING_PRIORITY':  ['DEPRIORITISED', 'REBALANCED', 'DISMISSED'],
+        'TIMELINE_BREACH':     ['TIMELINE_SHIFTED', 'MANPOWER_RAISED', 'DISMISSED'],
+        'BUDGET_EXCEEDED':     ['DEPRIORITISED', 'REBALANCED', 'DISMISSED'],
+        'DEPENDENCY_VIOLATED': ['TIMELINE_SHIFTED', 'DISMISSED'],
+    }
+
+    @staticmethod
+    @transaction.atomic
+    def resolve(conflict, resolution_type, notes=None, extra_data=None):
+        from .models import Conflict
+        extra_data = extra_data or {}
+
+        allowed = ConflictResolutionService.ALLOWED_RESOLUTIONS.get(conflict.conflict_type, ['DISMISSED'])
+        if resolution_type not in allowed:
+            raise ValidationError({'resolution_type': f'Resolution type {resolution_type!r} not allowed for {conflict.conflict_type}.'})
+
+        conflict.resolution_type = resolution_type
+        conflict.resolution_notes = notes or ''
+        conflict.status = Conflict.STATUS_DISMISSED if resolution_type == Conflict.RES_DISMISSED else Conflict.STATUS_RESOLVED
+        conflict.resolved_at = timezone.now()
+        conflict.save(update_fields=['resolution_type', 'resolution_notes', 'status', 'resolved_at'])
+
+        if resolution_type == Conflict.RES_MANPOWER_RAISED:
+            ManpowerRequestService.create_from_conflict(conflict, extra_data)
+
+        return conflict
+
+
+class ManpowerRequestService:
+    """Manages manpower requests arising from UNRESOLVABLE_GAP or MANPOWER_RAISED resolution."""
+
+    @staticmethod
+    @transaction.atomic
+    def create_from_conflict(conflict, extra_data=None):
+        from .models import ManpowerRequest
+        extra_data = extra_data or {}
+
+        team_id  = extra_data.get('team_id') or (conflict.affected_team_id)
+        phase_id = extra_data.get('phase_id') or (conflict.affected_phase_id)
+        ed = conflict.engine_data or {}
+
+        return ManpowerRequest.objects.create(
+            allocation_set=conflict.allocation_set,
+            conflict=conflict,
+            team_id=team_id,
+            phase_id=phase_id,
+            sprints_needed=extra_data.get('sprints_needed') or ed.get('sprints_needed', 1),
+            days_needed=extra_data.get('days_needed') or ed.get('days_needed') or ed.get('over_by', 0),
+            status=ManpowerRequest.STATUS_OPEN,
+        )
+
+    @staticmethod
+    @transaction.atomic
+    def hire(manpower_request, notes=None):
+        """Create a placeholder engineer stub for this manpower request."""
+        from .models import ManpowerRequest, ResourcePlanPlaceholderEngineer
+        if not manpower_request.team_id:
+            raise ValidationError({'detail': 'Team is required for hiring.'})
+
+        version = manpower_request.allocation_set.version
+        existing = ResourcePlanPlaceholderEngineer.objects.filter(
+            version=version, team_id=manpower_request.team_id,
+            phase=manpower_request.phase,
+        ).count()
+
+        pe = ResourcePlanPlaceholderEngineer.objects.create(
+            version=version,
+            team_id=manpower_request.team_id,
+            phase=manpower_request.phase,
+            slot_number=existing + 1,
+            name=f'Hire #{existing + 1}',
+            assignment_type='ENGINEER',
+        )
+
+        manpower_request.status = ManpowerRequest.STATUS_HIRING
+        manpower_request.resolution_notes = notes or ''
+        manpower_request.resolved_at = timezone.now()
+        manpower_request.save(update_fields=['status', 'resolution_notes', 'resolved_at'])
+        return pe
+
+    @staticmethod
+    @transaction.atomic
+    def rebalance(manpower_request, notes=None):
+        from .models import ManpowerRequest
+        manpower_request.status = ManpowerRequest.STATUS_REBALANCED
+        manpower_request.resolution_notes = notes or ''
+        manpower_request.resolved_at = timezone.now()
+        manpower_request.save(update_fields=['status', 'resolution_notes', 'resolved_at'])
+        return manpower_request
+
+    @staticmethod
+    @transaction.atomic
+    def dismiss(manpower_request, notes=None):
+        from .models import ManpowerRequest
+        manpower_request.status = ManpowerRequest.STATUS_DISMISSED
+        manpower_request.resolution_notes = notes or ''
+        manpower_request.resolved_at = timezone.now()
+        manpower_request.save(update_fields=['status', 'resolution_notes', 'resolved_at'])
+        return manpower_request
+
+
+class ConflictService:
+    """List/detail CRUD helpers for Conflict and ManpowerRequest."""
+
+    @staticmethod
+    def list_conflicts(version, allocation_set_id=None, severity=None, status=None, conflict_type=None):
+        from .models import Conflict, ResourcePlanAllocationSet
+        if allocation_set_id:
+            qs = Conflict.objects.filter(allocation_set_id=allocation_set_id, allocation_set__version=version)
+        else:
+            qs = Conflict.objects.filter(allocation_set__version=version)
+        if severity:
+            qs = qs.filter(severity=severity)
+        if status:
+            qs = qs.filter(status=status)
+        if conflict_type:
+            qs = qs.filter(conflict_type=conflict_type)
+        return qs.select_related(
+            'allocation_set', 'engine_job', 'affected_project',
+            'affected_phase', 'affected_team_member', 'affected_sprint', 'affected_team',
+        ).order_by('status', 'severity', 'conflict_type', '-created_at')
+
+    @staticmethod
+    def get_conflict(version, conflict_id):
+        from .models import Conflict
+        try:
+            return Conflict.objects.select_related(
+                'allocation_set', 'engine_job', 'affected_project',
+                'affected_phase', 'affected_team_member', 'affected_sprint', 'affected_team',
+            ).get(pk=conflict_id, allocation_set__version=version)
+        except Conflict.DoesNotExist:
+            return None
+
+    @staticmethod
+    def get_summary(version, allocation_set_id=None):
+        from .models import Conflict, ResourcePlanAllocationSet
+        from django.db.models import Q, Count
+        if allocation_set_id:
+            qs = Conflict.objects.filter(allocation_set_id=allocation_set_id, allocation_set__version=version)
+        else:
+            # Use latest alloc set
+            latest = ResourcePlanAllocationSet.objects.filter(version=version).order_by('-created_at').first()
+            qs = Conflict.objects.filter(allocation_set=latest) if latest else Conflict.objects.none()
+
+        totals = qs.aggregate(
+            total=Count('id'),
+            errors=Count('id', filter=Q(severity='ERROR')),
+            warnings=Count('id', filter=Q(severity='WARNING')),
+            infos=Count('id', filter=Q(severity='INFO')),
+            open=Count('id', filter=Q(status='OPEN')),
+            resolved=Count('id', filter=Q(status='RESOLVED')),
+            dismissed=Count('id', filter=Q(status='DISMISSED')),
+            open_errors=Count('id', filter=Q(severity='ERROR', status='OPEN')),
+        )
+        return {
+            'total': totals['total'],
+            'errors': totals['errors'],
+            'warnings': totals['warnings'],
+            'infos': totals['infos'],
+            'open': totals['open'],
+            'resolved': totals['resolved'],
+            'dismissed': totals['dismissed'],
+            'open_errors': totals['open_errors'],
+            'has_blocking_errors': totals['open_errors'] > 0,
+        }
+
+    @staticmethod
+    def list_manpower_requests(version, allocation_set_id=None, status=None):
+        from .models import ManpowerRequest
+        if allocation_set_id:
+            qs = ManpowerRequest.objects.filter(allocation_set_id=allocation_set_id, allocation_set__version=version)
+        else:
+            qs = ManpowerRequest.objects.filter(allocation_set__version=version)
+        if status:
+            qs = qs.filter(status=status)
+        return qs.select_related('allocation_set', 'conflict', 'team', 'phase')
+
+    @staticmethod
+    def get_manpower_request(version, request_id):
+        from .models import ManpowerRequest
+        try:
+            return ManpowerRequest.objects.select_related(
+                'allocation_set', 'conflict', 'team', 'phase'
+            ).get(pk=request_id, allocation_set__version=version)
+        except ManpowerRequest.DoesNotExist:
+            return None

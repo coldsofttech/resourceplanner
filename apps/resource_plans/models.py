@@ -71,6 +71,7 @@ class ResourcePlanVersion(models.Model):
     )
     threshold_pct = models.DecimalField(max_digits=5, decimal_places=2, default=10.0)
     has_pl_overrides = models.BooleanField(default=False)
+    has_allocation_overrides = models.BooleanField(default=False)
 
     class Meta:
         unique_together = [("plan_group", "version")]
@@ -307,6 +308,10 @@ class PlanPhase(models.Model):
     split_mode = models.CharField(max_length=10, choices=SPLIT_CHOICES, default=SPLIT_AUTO)
     is_split_incomplete = models.BooleanField(default=False)
     notes = models.TextField(null=True, blank=True)
+    days_effort = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True,
+        help_text="Override: total days this phase should consume (overrides team total ÷ n_phases)."
+    )
 
     class Meta:
         ordering = ["sequence_order"]
@@ -576,3 +581,232 @@ class PlanEngineJob(models.Model):
 
     def __str__(self):
         return f"EngineJob #{self.pk} [{self.mode}] {self.status} – {self.plan.name}"
+
+
+class ResourcePlanPlaceholderEngineer(models.Model):
+    """
+    A virtual engineer slot created by the engine for auto-assigned phases.
+    Replaced by a real TeamMember once a hire is confirmed.
+    """
+
+    version = models.ForeignKey(
+        ResourcePlanVersion, on_delete=models.CASCADE, related_name="placeholder_engineers"
+    )
+    team = models.ForeignKey(
+        "delivery_teams.DeliveryTeam", on_delete=models.PROTECT, related_name="+"
+    )
+    phase = models.ForeignKey(
+        PlanPhase, on_delete=models.PROTECT, null=True, blank=True, related_name="placeholder_engineers"
+    )
+    slot_number = models.PositiveIntegerField(default=1)
+    name = models.CharField(max_length=100)
+    assignment_type = models.CharField(
+        max_length=20,
+        choices=PlanAssignment.ASSIGN_CHOICES,
+        default=PlanAssignment.ASSIGN_ENGINEER,
+    )
+
+    class Meta:
+        unique_together = [("version", "team", "phase", "slot_number")]
+        ordering = ["team__name", "slot_number"]
+
+    def __str__(self):
+        return f"{self.name} (placeholder — {self.team.name})"
+
+
+class ResourcePlanAllocationSet(models.Model):
+    STATUS_DRAFT = "DRAFT"
+    STATUS_ACTIVE = "ACTIVE"
+    STATUS_SUPERSEDED = "SUPERSEDED"
+    STATUS_CHOICES = [
+        (STATUS_DRAFT, "Draft"),
+        (STATUS_ACTIVE, "Active"),
+        (STATUS_SUPERSEDED, "Superseded"),
+    ]
+
+    version = models.ForeignKey(
+        ResourcePlanVersion, on_delete=models.CASCADE, related_name="allocation_sets"
+    )
+    engine_job = models.ForeignKey(
+        PlanEngineJob, on_delete=models.PROTECT, null=True, blank=True, related_name="allocation_sets"
+    )
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_DRAFT)
+    activated_at = models.DateTimeField(null=True, blank=True)
+    notes = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"AllocationSet #{self.pk} [{self.status}] v{self.version.version}"
+
+
+class ResourcePlanAllocation(models.Model):
+    """
+    Atomic allocation cell: one engineer (or placeholder) × project × sprint.
+    Exactly one of team_member / placeholder_engineer must be set.
+    """
+
+    allocation_set = models.ForeignKey(
+        ResourcePlanAllocationSet, on_delete=models.CASCADE, related_name="allocations"
+    )
+    programme = models.ForeignKey(
+        "programmes.Programme", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    project = models.ForeignKey(
+        "projects.Project", on_delete=models.PROTECT, related_name="+"
+    )
+    team = models.ForeignKey(
+        "delivery_teams.DeliveryTeam", on_delete=models.PROTECT, related_name="+"
+    )
+    team_member = models.ForeignKey(
+        "team_members.TeamMember", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    placeholder_engineer = models.ForeignKey(
+        ResourcePlanPlaceholderEngineer, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    sprint = models.ForeignKey(
+        "sprints.Sprint", on_delete=models.PROTECT, related_name="+"
+    )
+    phase = models.ForeignKey(
+        PlanPhase, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    assignment = models.ForeignKey(
+        PlanAssignment, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    assignment_type = models.CharField(max_length=20, choices=PlanAssignment.ASSIGN_CHOICES)
+    includes_in_budget = models.BooleanField(default=True)
+    engine_days = models.DecimalField(max_digits=6, decimal_places=2, default=0)
+    override_days = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    override_notes = models.TextField(null=True, blank=True)
+    overridden_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["sprint__sprint_number"]
+
+    @property
+    def effective_days(self):
+        return self.override_days if self.override_days is not None else self.engine_days
+
+    def __str__(self):
+        who = (
+            self.team_member.display_name
+            if self.team_member
+            else (self.placeholder_engineer.name if self.placeholder_engineer else "?")
+        )
+        return f"{who} — {self.project.name} — {self.sprint} ({self.effective_days}d)"
+
+
+class Conflict(models.Model):
+    # Conflict types
+    CAPACITY_EXCEEDED    = 'CAPACITY_EXCEEDED'
+    COMPETING_PRIORITY   = 'COMPETING_PRIORITY'
+    TIMELINE_BREACH      = 'TIMELINE_BREACH'
+    BUDGET_EXCEEDED      = 'BUDGET_EXCEEDED'
+    DEPENDENCY_VIOLATED  = 'DEPENDENCY_VIOLATED'
+    UNRESOLVABLE_GAP     = 'UNRESOLVABLE_GAP'
+    THRESHOLD_BREACH     = 'THRESHOLD_BREACH'
+    CONFLICT_TYPE_CHOICES = [
+        (CAPACITY_EXCEEDED,   'Capacity Exceeded'),
+        (COMPETING_PRIORITY,  'Competing Priority'),
+        (TIMELINE_BREACH,     'Timeline Breach'),
+        (BUDGET_EXCEEDED,     'Budget Exceeded'),
+        (DEPENDENCY_VIOLATED, 'Dependency Violated'),
+        (UNRESOLVABLE_GAP,    'Unresolvable Gap'),
+        (THRESHOLD_BREACH,    'Threshold Breach'),
+    ]
+
+    # Severity
+    SEVERITY_ERROR   = 'ERROR'
+    SEVERITY_WARNING = 'WARNING'
+    SEVERITY_INFO    = 'INFO'
+    SEVERITY_CHOICES = [
+        (SEVERITY_ERROR,   'Error'),
+        (SEVERITY_WARNING, 'Warning'),
+        (SEVERITY_INFO,    'Info'),
+    ]
+
+    # Status
+    STATUS_OPEN      = 'OPEN'
+    STATUS_RESOLVED  = 'RESOLVED'
+    STATUS_DISMISSED = 'DISMISSED'
+    STATUS_CHOICES   = [
+        (STATUS_OPEN,      'Open'),
+        (STATUS_RESOLVED,  'Resolved'),
+        (STATUS_DISMISSED, 'Dismissed'),
+    ]
+
+    # Resolution types
+    RES_DEPRIORITISED    = 'DEPRIORITISED'
+    RES_TIMELINE_SHIFTED = 'TIMELINE_SHIFTED'
+    RES_ENGINEER_SWAPPED = 'ENGINEER_SWAPPED'
+    RES_TEAM_CHANGED     = 'TEAM_CHANGED'
+    RES_MANPOWER_RAISED  = 'MANPOWER_RAISED'
+    RES_REBALANCED       = 'REBALANCED'
+    RES_DISMISSED        = 'DISMISSED'
+    RESOLUTION_TYPE_CHOICES = [
+        (RES_DEPRIORITISED,    'Deprioritised'),
+        (RES_TIMELINE_SHIFTED, 'Timeline Shifted'),
+        (RES_ENGINEER_SWAPPED, 'Engineer Swapped'),
+        (RES_TEAM_CHANGED,     'Team Changed'),
+        (RES_MANPOWER_RAISED,  'Manpower Raised'),
+        (RES_REBALANCED,       'Rebalanced'),
+        (RES_DISMISSED,        'Dismissed'),
+    ]
+
+    allocation_set     = models.ForeignKey(ResourcePlanAllocationSet, on_delete=models.CASCADE, related_name='conflicts')
+    engine_job         = models.ForeignKey(PlanEngineJob, on_delete=models.CASCADE, null=True, blank=True, related_name='conflicts')
+    conflict_type      = models.CharField(max_length=30, choices=CONFLICT_TYPE_CHOICES)
+    severity           = models.CharField(max_length=10, choices=SEVERITY_CHOICES, default=SEVERITY_ERROR)
+    status             = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    affected_project   = models.ForeignKey('projects.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    affected_phase     = models.ForeignKey(PlanPhase, on_delete=models.SET_NULL, null=True, blank=True, related_name='conflicts')
+    affected_team_member = models.ForeignKey('team_members.TeamMember', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    affected_sprint    = models.ForeignKey('sprints.Sprint', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    affected_team      = models.ForeignKey('delivery_teams.DeliveryTeam', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    description        = models.TextField()
+    engine_data        = models.JSONField(default=dict)
+    resolution_type    = models.CharField(max_length=30, choices=RESOLUTION_TYPE_CHOICES, null=True, blank=True)
+    resolution_notes   = models.TextField(null=True, blank=True)
+    resolved_at        = models.DateTimeField(null=True, blank=True)
+    created_at         = models.DateTimeField(auto_now_add=True)
+
+    SEVERITY_ORDER = {SEVERITY_ERROR: 0, SEVERITY_WARNING: 1, SEVERITY_INFO: 2}
+
+    class Meta:
+        ordering = ['status', 'severity', 'conflict_type', '-created_at']
+
+    def __str__(self):
+        return f'{self.conflict_type} [{self.severity}] — {self.allocation_set}'
+
+
+class ManpowerRequest(models.Model):
+    STATUS_OPEN       = 'OPEN'
+    STATUS_HIRING     = 'HIRING'
+    STATUS_REBALANCED = 'REBALANCED'
+    STATUS_DISMISSED  = 'DISMISSED'
+    STATUS_CHOICES    = [
+        (STATUS_OPEN,       'Open'),
+        (STATUS_HIRING,     'Hiring'),
+        (STATUS_REBALANCED, 'Rebalanced'),
+        (STATUS_DISMISSED,  'Dismissed'),
+    ]
+
+    allocation_set   = models.ForeignKey(ResourcePlanAllocationSet, on_delete=models.CASCADE, related_name='manpower_requests')
+    conflict         = models.ForeignKey(Conflict, on_delete=models.CASCADE, related_name='manpower_requests')
+    team             = models.ForeignKey('delivery_teams.DeliveryTeam', on_delete=models.PROTECT, related_name='+')
+    phase            = models.ForeignKey(PlanPhase, on_delete=models.SET_NULL, null=True, blank=True, related_name='manpower_requests')
+    sprints_needed   = models.PositiveIntegerField()
+    days_needed      = models.DecimalField(max_digits=6, decimal_places=2)
+    status           = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_OPEN)
+    resolution_notes = models.TextField(null=True, blank=True)
+    resolved_at      = models.DateTimeField(null=True, blank=True)
+    created_at       = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'ManpowerRequest {self.team.name} — {self.days_needed}d [{self.status}]'

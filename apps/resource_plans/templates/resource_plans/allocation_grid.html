@@ -7,52 +7,73 @@
         </a>
         <div>
             <div class="small text-secondary mb-1" id="ag-breadcrumb">Resource Plans</div>
-            <h1 class="rp-page-title d-flex align-items-center gap-2">
+            <h1 class="rp-page-title d-flex align-items-center gap-2 flex-wrap">
                 <span id="ag-plan-name">Loading…</span>
                 <span id="ag-version-badge"></span>
+                <span id="ag-override-badge" class="d-none">
+                    <span class="badge bg-warning text-dark" title="This version has manual placeholder leave overrides">
+                        <i class="bi bi-pencil-fill me-1"></i>Overrides
+                    </span>
+                </span>
             </h1>
         </div>
     </div>
     <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/conflicts/"
+           class="btn btn-sm btn-outline-danger" id="ag-conflicts-link">
+            <i class="bi bi-exclamation-triangle me-1"></i>Conflicts
+            <span id="ag-header-conflict-badge" class="badge bg-danger ms-1 d-none"></span>
+        </a>
         <a id="ag-pl-link" href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/placeholder-leaves/"
            class="btn btn-sm btn-outline-warning">
             <i class="bi bi-bookmark-fill me-1"></i>Placeholder Leaves
         </a>
-        <div class="btn-group btn-group-sm" role="group">
-            <input type="radio" class="btn-check" name="ag-col-mode" id="ag-mode-sprint" value="sprint" autocomplete="off" checked>
-            <label class="btn btn-outline-secondary" for="ag-mode-sprint">Sprint</label>
-            <input type="radio" class="btn-check" name="ag-col-mode" id="ag-mode-month" value="month" autocomplete="off">
-            <label class="btn btn-outline-secondary" for="ag-mode-month">Month</label>
-        </div>
-        <div id="ag-merge-wrap" class="d-none d-flex align-items-center">
-            <div class="form-check form-switch mb-0">
-                <input class="form-check-input" type="checkbox" id="ag-merge-toggle" role="switch">
-                <label class="form-check-label small text-secondary" for="ag-merge-toggle">Merge</label>
-            </div>
-        </div>
+        <button class="btn btn-sm btn-warning fw-semibold" id="ag-run-engine">
+            <i class="bi bi-cpu me-1"></i>Run Engine
+        </button>
     </div>
 </div>
 {% endblock %} {% block content %}
 <div id="ag-banner" class="alert d-none mb-3" role="alert"></div>
 
-<!-- Legend -->
-<div class="ag-legend d-flex flex-wrap align-items-center gap-3 mb-3 px-1">
-    <span class="ag-legend-label">Capacity:</span>
-    <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-full"></span>&nbsp;=10d</span>
-    <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-good"></span>&nbsp;&gt;8d</span>
-    <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-fair"></span>&nbsp;&gt;5d</span>
-    <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-ok"></span>&nbsp;&gt;3d</span>
-    <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-low"></span>&nbsp;&gt;0d</span>
-    <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-zero"></span>&nbsp;0d</span>
-    <span class="vr mx-1"></span>
-    <span class="ag-legend-label">Absences:</span>
-    <span class="ag-legend-item"><i class="bi bi-balloon-fill text-primary"></i>&nbsp;Holidays</span>
-    <span class="ag-legend-item"><i class="bi bi-person-x-fill text-warning"></i>&nbsp;Leave</span>
-    <span class="ag-legend-item"><i class="bi bi-bookmark-fill text-info"></i>&nbsp;Placeholder</span>
+<!-- Allocation Set + Legend row -->
+<div class="d-flex flex-wrap align-items-center gap-3 mb-3 px-1">
+    <div class="d-flex align-items-center gap-1 flex-shrink-0">
+        <span class="ag-legend-label text-nowrap">Allocation Set:</span>
+        <select class="form-select form-select-sm" id="ag-alloc-set-select" style="max-width:200px;">
+            <option value="">— None —</option>
+        </select>
+        <button class="btn btn-sm btn-outline-success d-none" id="ag-alloc-set-activate" title="Activate this set">
+            <i class="bi bi-check-circle me-1"></i>Activate
+        </button>
+    </div>
+    <!-- Active set read-only banner (shown when selected set has status=ACTIVE) -->
+    <div id="ag-active-set-banner" class="alert alert-info alert-sm py-1 px-3 mb-0 d-none flex-grow-1" role="alert" style="font-size:.82rem;"></div>
+    <div class="vr d-none d-sm-block"></div>
+    <div class="ag-legend d-flex flex-wrap align-items-center gap-3">
+        <span class="ag-legend-label">Capacity:</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-full"></span>&nbsp;=10d</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-good"></span>&nbsp;&gt;8d</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-fair"></span>&nbsp;&gt;5d</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-ok"></span>&nbsp;&gt;3d</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-low"></span>&nbsp;&gt;0d</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-cell-zero"></span>&nbsp;0d</span>
+        <span class="vr mx-1"></span>
+        <span class="ag-legend-label">Absences:</span>
+        <span class="ag-legend-item"><i class="bi bi-balloon-fill text-primary"></i>&nbsp;Holidays</span>
+        <span class="ag-legend-item"><i class="bi bi-person-x-fill text-warning"></i>&nbsp;Leave</span>
+        <span class="ag-legend-item"><i class="bi bi-bookmark-fill text-info"></i>&nbsp;Placeholder</span>
+        <span class="vr mx-1"></span>
+        <span class="ag-legend-label">Utilisation:</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-over"></span>&nbsp;&gt;100%</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-high"></span>&nbsp;&gt;80%</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-mid"></span>&nbsp;&gt;50%</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-low"></span>&nbsp;&le;50%</span>
+    </div>
 </div>
 
 <!-- Team tabs -->
-<div id="ag-team-tabs-wrap" class="mb-4">
+<div id="ag-team-tabs-wrap" class="mb-3">
     <ul class="rp-tabs" id="ag-team-tabs" role="tablist">
         <li class="nav-item" role="presentation">
             <button class="nav-link active" type="button" role="tab" data-team-id="">
@@ -62,49 +83,268 @@
     </ul>
 </div>
 
-<!-- Ghost scrollbar — synced horizontally with both tables -->
-<div id="ag-hscroll" class="ag-hscroll-bar mb-1 d-none">
+
+<!-- Control bar -->
+<div class="ag-control-bar d-flex align-items-center justify-content-between py-2 px-3 mb-2 rounded">
+    <div class="d-flex align-items-center gap-3">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Column mode">
+            <input type="radio" class="btn-check" name="ag-col-mode" id="ag-mode-sprint" value="sprint" autocomplete="off" checked>
+            <label class="btn btn-outline-light" for="ag-mode-sprint">Sprint</label>
+            <input type="radio" class="btn-check" name="ag-col-mode" id="ag-mode-month" value="month" autocomplete="off">
+            <label class="btn btn-outline-light" for="ag-mode-month">Month</label>
+        </div>
+        <div id="ag-merge-wrap" class="d-none d-flex align-items-center">
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input" type="checkbox" id="ag-merge-toggle" role="switch">
+                <label class="form-check-label small text-light" for="ag-merge-toggle">Merge</label>
+            </div>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-outline-light btn-sm" id="ag-expand-all" title="Expand all sections">
+            <i class="bi bi-arrows-expand me-1"></i>Expand All
+        </button>
+        <button class="btn btn-outline-light btn-sm" id="ag-collapse-all" title="Collapse all sections">
+            <i class="bi bi-arrows-collapse me-1"></i>Collapse All
+        </button>
+    </div>
+</div>
+
+<!-- Ghost scrollbar — synced horizontally with all tables -->
+<div id="ag-hscroll" class="ag-hscroll-bar mb-2 d-none">
     <div id="ag-hscroll-inner"></div>
 </div>
 
-<!-- Table 1: Capacity -->
-<div class="mb-2 d-flex align-items-center gap-2">
-    <h6 class="mb-0 fw-semibold"><i class="bi bi-speedometer2 me-1 text-primary"></i>Capacity</h6>
-    <span class="text-muted small">Net capacity (working − holidays − leave − placeholder) per sprint</span>
-</div>
-<div id="ag-capacity-loading" class="text-center py-4">
-    <div class="spinner-border spinner-border-sm text-secondary me-2"></div>Loading…
-</div>
-<div id="ag-capacity-empty" class="text-secondary small py-3 d-none">
-    No members found for this team. Check team configuration.
-</div>
-<div id="ag-capacity-grid-wrap" class="d-none mb-4 ag-grid-outer">
-    <table class="table table-bordered table-sm ag-grid-table mb-0" id="ag-capacity-table">
-        <thead id="ag-capacity-head"></thead>
-        <tbody id="ag-capacity-body"></tbody>
-    </table>
+<!-- Accordion sections -->
+<div id="ag-accordion">
+
+    <!-- Section 0: Filters -->
+    <div class="ag-section mb-2">
+        <button class="ag-section-btn collapsed" type="button" data-bs-toggle="collapse"
+                data-bs-target="#ag-body-filters" aria-expanded="false" aria-controls="ag-body-filters">
+            <i class="bi bi-funnel text-secondary"></i>
+            <span class="fw-semibold">Filters</span>
+            <span class="ag-section-desc">Filter rows by team, member, programme or project</span>
+            <span id="ag-filter-active-badge" class="badge bg-primary ms-2 d-none">active</span>
+            <i class="bi bi-chevron-down ag-section-chevron ms-auto"></i>
+        </button>
+        <div id="ag-body-filters" class="collapse">
+            <div class="d-flex flex-wrap align-items-end gap-3 p-3" id="ag-filters">
+                <div id="ag-filter-team-wrap" class="d-none">
+                    <label class="form-label small text-secondary mb-1">Team</label>
+                    <select class="form-select form-select-sm ag-filter-select" id="ag-filter-team" multiple style="min-width:140px;max-width:200px;height:auto;max-height:90px;"></select>
+                </div>
+                <div>
+                    <label class="form-label small text-secondary mb-1">Member</label>
+                    <select class="form-select form-select-sm ag-filter-select" id="ag-filter-member" multiple style="min-width:140px;max-width:200px;height:auto;max-height:90px;"></select>
+                </div>
+                <div>
+                    <label class="form-label small text-secondary mb-1">Programme</label>
+                    <select class="form-select form-select-sm ag-filter-select" id="ag-filter-programme" multiple style="min-width:140px;max-width:200px;height:auto;max-height:90px;"></select>
+                </div>
+                <div>
+                    <label class="form-label small text-secondary mb-1">Project</label>
+                    <select class="form-select form-select-sm ag-filter-select" id="ag-filter-project" multiple style="min-width:140px;max-width:220px;height:auto;max-height:90px;"></select>
+                </div>
+                <div class="align-self-end">
+                    <button class="btn btn-sm btn-outline-secondary" id="ag-filter-clear">
+                        <i class="bi bi-x-lg me-1"></i>Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 1: Capacity -->
+    <div class="ag-section mb-2">
+        <button class="ag-section-btn" type="button" data-bs-toggle="collapse"
+                data-bs-target="#ag-body-capacity" aria-expanded="true" aria-controls="ag-body-capacity">
+            <i class="bi bi-speedometer2 text-primary"></i>
+            <span class="fw-semibold">Capacity</span>
+            <span class="ag-section-desc">Net capacity (working − holidays − leave − placeholder) per sprint</span>
+            <i class="bi bi-chevron-down ag-section-chevron ms-auto"></i>
+        </button>
+        <div id="ag-body-capacity" class="collapse show">
+            <div id="ag-capacity-loading" class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-secondary me-2"></div>Loading…
+            </div>
+            <div id="ag-capacity-empty" class="text-secondary small py-3 px-3 d-none">
+                No members found for this team. Check team configuration.
+            </div>
+            <div id="ag-capacity-grid-wrap" class="d-none ag-grid-outer">
+                <table class="table table-bordered table-sm ag-grid-table mb-0" id="ag-capacity-table">
+                    <thead id="ag-capacity-head"></thead>
+                    <tbody id="ag-capacity-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 2: Absences -->
+    <div class="ag-section mb-2">
+        <button class="ag-section-btn" type="button" data-bs-toggle="collapse"
+                data-bs-target="#ag-body-absences" aria-expanded="true" aria-controls="ag-body-absences">
+            <i class="bi bi-calendar-x text-warning"></i>
+            <span class="fw-semibold">Absences</span>
+            <span class="ag-section-desc">Total absence per sprint with breakdown by type</span>
+            <i class="bi bi-chevron-down ag-section-chevron ms-auto"></i>
+        </button>
+        <div id="ag-body-absences" class="collapse show">
+            <div id="ag-absences-loading" class="text-center py-4">
+                <div class="spinner-border spinner-border-sm text-secondary me-2"></div>Loading…
+            </div>
+            <div id="ag-absences-empty" class="text-secondary small py-3 px-3 d-none">
+                No members found for this team.
+            </div>
+            <div id="ag-absences-grid-wrap" class="d-none ag-grid-outer">
+                <table class="table table-bordered table-sm ag-grid-table mb-0" id="ag-absences-table">
+                    <thead id="ag-absences-head"></thead>
+                    <tbody id="ag-absences-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Allocated Capacity -->
+    <div class="ag-section mb-2">
+        <button class="ag-section-btn" type="button" data-bs-toggle="collapse"
+                data-bs-target="#ag-body-util" aria-expanded="true" aria-controls="ag-body-util">
+            <i class="bi bi-bar-chart-fill text-danger"></i>
+            <span class="fw-semibold">Allocated Capacity</span>
+            <span class="ag-section-desc">Engineer allocated days vs net capacity per sprint</span>
+            <i class="bi bi-chevron-down ag-section-chevron ms-auto"></i>
+        </button>
+        <div id="ag-body-util" class="collapse show">
+            <div id="ag-util-no-set" class="text-secondary small py-3 px-3">
+                Select an allocation set above to view utilisation.
+            </div>
+            <div id="ag-util-loading" class="text-center py-4 d-none">
+                <div class="spinner-border spinner-border-sm text-secondary me-2"></div>Loading utilisation…
+            </div>
+            <div id="ag-util-empty" class="text-secondary small py-3 px-3 d-none">
+                No data found for this set.
+            </div>
+            <div id="ag-util-grid-wrap" class="d-none ag-grid-outer">
+                <table class="table table-bordered table-sm ag-grid-table mb-0" id="ag-util-table">
+                    <thead id="ag-util-head"></thead>
+                    <tbody id="ag-util-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 4: Allocations (flat: programme, project, team, member, phase) -->
+    <div class="ag-section mb-2">
+        <button class="ag-section-btn" type="button" data-bs-toggle="collapse"
+                data-bs-target="#ag-body-alloc" aria-expanded="true" aria-controls="ag-body-alloc">
+            <i class="bi bi-diagram-3 text-success"></i>
+            <span class="fw-semibold">Allocations</span>
+            <span id="ag-conflict-badge" class="badge d-none ms-2"></span>
+            <span class="ag-section-desc">Days allocated per engineer per sprint by programme, project and phase</span>
+            <i class="bi bi-chevron-down ag-section-chevron ms-auto"></i>
+        </button>
+        <div id="ag-body-alloc" class="collapse show">
+            <div id="ag-alloc-no-set" class="text-secondary small py-3 px-3">
+                Select an allocation set above to view allocations.
+            </div>
+            <div id="ag-alloc-loading" class="text-center py-4 d-none">
+                <div class="spinner-border spinner-border-sm text-secondary me-2"></div>Loading allocations…
+            </div>
+            <div id="ag-alloc-empty" class="text-secondary small py-3 px-3 d-none">
+                No allocations found for this set.
+            </div>
+            <div id="ag-alloc-grid-wrap" class="d-none ag-grid-outer">
+                <table class="table table-bordered table-sm ag-grid-table mb-0" id="ag-alloc-table">
+                    <thead id="ag-alloc-head"></thead>
+                    <tbody id="ag-alloc-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
 </div>
 
-<!-- Table 2: Absences -->
-<div class="mb-2 d-flex align-items-center gap-2">
-    <h6 class="mb-0 fw-semibold"><i class="bi bi-calendar-x me-1 text-warning"></i>Absences</h6>
-    <span class="text-muted small">Total absence per sprint with breakdown by type</span>
-</div>
-<div id="ag-absences-loading" class="text-center py-4">
-    <div class="spinner-border spinner-border-sm text-secondary me-2"></div>Loading…
-</div>
-<div id="ag-absences-empty" class="text-secondary small py-3 d-none">
-    No members found for this team.
-</div>
-<div id="ag-absences-grid-wrap" class="d-none ag-grid-outer">
-    <table class="table table-bordered table-sm ag-grid-table mb-0" id="ag-absences-table">
-        <thead id="ag-absences-head"></thead>
-        <tbody id="ag-absences-body"></tbody>
-    </table>
+<!-- Run Engine Modal (pre-set to current plan + version) -->
+<div class="modal fade" id="gridEngineModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold">
+                    <i class="bi bi-cpu me-2"></i>Run Engine
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" id="ag-engine-close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="ag-engine-form">
+                    <div class="mb-3">
+                        <label class="rp-label form-label-sm d-block mb-2">Run Mode</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="ag-engine-mode" id="ag-mode-validate" value="VALIDATE" checked />
+                            <label class="form-check-label" for="ag-mode-validate">
+                                <strong>Validate Only</strong>
+                                <span class="d-block text-secondary" style="font-size:.8rem">Check configuration — no data written</span>
+                            </label>
+                        </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="radio" name="ag-engine-mode" id="ag-mode-full-run" value="FULL" />
+                            <label class="form-check-label" for="ag-mode-full-run">
+                                <strong>Full Run</strong>
+                                <span class="d-block text-secondary" style="font-size:.8rem">Validate + generate capacity &amp; allocations</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="ag-engine-include-current" />
+                        <label class="form-check-label rp-label" for="ag-engine-include-current">
+                            Include current sprint
+                        </label>
+                        <div class="rp-hint">When checked, the current (in-progress) sprint is included in capacity calculations.</div>
+                    </div>
+                    <div id="ag-engine-overrides-section" class="d-none mb-3">
+                        <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:.82rem">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                            This version has manual placeholder leave overrides.
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="ag-engine-remove-overrides" />
+                            <label class="form-check-label rp-label" for="ag-engine-remove-overrides">
+                                Remove overrides and regenerate from scratch
+                            </label>
+                            <div class="rp-hint">Deletes all placeholder leaves (including manual edits) and rebuilds from auto-generation.</div>
+                        </div>
+                    </div>
+                    <div id="ag-engine-err" class="alert alert-danger d-none mb-0"></div>
+                </div>
+                <div id="ag-engine-progress" class="d-none">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span id="ag-engine-status-badge"></span>
+                        <span class="text-secondary small" id="ag-engine-step">Initialising…</span>
+                    </div>
+                    <div class="progress mb-3" style="height:8px">
+                        <div class="progress-bar" id="ag-engine-progress-bar" role="progressbar"
+                             style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div id="ag-engine-result" class="d-none"></div>
+                    <div id="ag-engine-error-section" class="d-none">
+                        <h6 class="text-danger mb-1" style="font-size:.85rem"><i class="bi bi-exclamation-triangle me-1"></i>Error Log</h6>
+                        <pre id="ag-engine-error-log" class="text-danger p-2 rounded" style="font-size:.78rem;background:#fff5f5;max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-warning fw-semibold" id="ag-engine-submit">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="ag-engine-spinner"></span>
+                    Run
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 {% block extra_css %}
 <style>
+/* ── Legend ──────────────────────────────────────────────────────────────── */
 .ag-legend { font-size: .8rem; color: var(--bs-secondary-color); }
 .ag-legend-label { font-weight: 600; color: var(--bs-body-color); }
 .ag-legend-item { display: inline-flex; align-items: center; gap: 2px; }
@@ -113,13 +353,66 @@
     border-radius: 2px; border: 1px solid rgba(0,0,0,.15);
     vertical-align: middle;
 }
+
+/* ── Control bar ─────────────────────────────────────────────────────────── */
+.ag-control-bar {
+    background: #2d3748;
+    color: #f8fafc;
+}
+
+/* ── Accordion sections ──────────────────────────────────────────────────── */
+.ag-section {
+    border: 2px solid #495057;
+    border-radius: .375rem;
+    overflow: hidden;
+}
+.ag-section-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .5rem 1rem;
+    background: var(--bs-tertiary-bg, #f8f9fa);
+    border: none;
+    border-bottom: 1px solid transparent;
+    text-align: left;
+    cursor: pointer;
+    font-size: .875rem;
+    transition: background .15s;
+}
+.ag-section-btn:hover { background: var(--bs-secondary-bg, #e9ecef); }
+.ag-section-btn[aria-expanded="false"] {
+    border-bottom-color: transparent;
+}
+.ag-section-btn[aria-expanded="true"] {
+    border-bottom: 1px solid #495057;
+}
+.ag-section-desc {
+    color: var(--bs-secondary-color);
+    font-size: .78rem;
+    font-weight: 400;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ag-section-chevron {
+    transition: transform .2s ease;
+    flex-shrink: 0;
+    color: var(--bs-secondary-color);
+}
+.ag-section-btn.collapsed .ag-section-chevron {
+    transform: rotate(-90deg);
+}
+
+/* ── Grid outer wrapper ──────────────────────────────────────────────────── */
 .ag-grid-outer {
     overflow-x: auto;
     overflow-y: auto;
     max-height: 55vh;
-    border: 1px solid var(--bs-border-color);
-    border-radius: .375rem;
+    border-top: none;
 }
+
+/* ── Grid table ──────────────────────────────────────────────────────────── */
 .ag-grid-table {
     font-size: .78rem;
     white-space: nowrap;
@@ -133,45 +426,110 @@
     background: var(--bs-body-bg, #fff);
     vertical-align: bottom;
     text-align: center;
-    min-width: 62px;
+    min-width: 70px;
     padding: 4px 6px;
-    border-bottom: 2px solid var(--bs-border-color);
+    border-bottom: 2px solid #495057 !important;
+}
+.ag-grid-table thead th.ag-col-member,
+.ag-grid-table thead th.ag-col-team {
+    text-align: left;
 }
 .ag-grid-table thead th.ag-col-member {
     left: 0;
     z-index: 3;
-    text-align: left;
     min-width: 160px;
-    max-width: 200px;
+    max-width: 220px;
 }
+.ag-grid-table thead th.ag-col-team {
+    left: 160px;
+    z-index: 3;
+    min-width: 110px;
+    max-width: 150px;
+}
+/* Sticky member cell */
 .ag-grid-table td.ag-col-member {
     position: sticky;
     left: 0;
     z-index: 1;
     background: var(--bs-body-bg, #fff);
     font-weight: 500;
-    max-width: 200px;
+    min-width: 160px;
+    max-width: 220px;
     overflow: hidden;
     text-overflow: ellipsis;
-    border-right: 2px solid var(--bs-border-color);
+    border-right: 1px solid var(--bs-border-color);
     padding: 3px 8px;
+    text-align: left;
+}
+/* Team column (sticky when visible, colspan=4 in all-teams view) */
+.ag-grid-table td.ag-col-team,
+.ag-grid-table th.ag-col-team {
+    position: sticky;
+    left: 160px;
+    z-index: 1;
+    background: var(--bs-body-bg, #fff);
+    min-width: 110px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-right: 2px solid #495057 !important;
+    padding: 3px 8px;
+    text-align: left;
+    font-size: .74rem;
+    color: var(--bs-secondary-color);
 }
 .ag-grid-table td {
     padding: 3px 5px;
     text-align: center;
     vertical-align: middle;
 }
+/* Right border of member when no team column */
+.ag-no-team-col td.ag-col-member {
+    border-right: 2px solid #495057 !important;
+}
+
+/* ── Capacity cells ──────────────────────────────────────────────────────── */
 .ag-cell-full  { background: #065f46; color: #fff; }
 .ag-cell-good  { background: #d1fae5; }
 .ag-cell-fair  { background: #b45309; color: #fff; }
 .ag-cell-ok    { background: #fef3c7; }
 .ag-cell-low   { background: #fee2e2; }
 .ag-cell-zero  { background: #f3f4f6; color: #9ca3af; }
-.ag-col-sep { border-left: 2px solid var(--bs-border-color) !important; }
+
+/* ── Utilisation cells ───────────────────────────────────────────────────── */
+.ag-util-over  { background: #fee2e2; }
+.ag-util-high  { background: #fef3c7; }
+.ag-util-mid   { background: #d1fae5; }
+.ag-util-low   { background: #f3f4f6; color: #9ca3af; }
+
+/* ── Column separators ───────────────────────────────────────────────────── */
+.ag-col-sep { border-left: 2px solid #495057 !important; }
+
+/* ── Absence cells ───────────────────────────────────────────────────────── */
 .ag-abs-cell { padding: 2px 4px !important; line-height: 1.25; }
 .ag-abs-total { font-weight: 600; font-size: .8rem; }
 .ag-abs-icons { font-size: .68rem; color: var(--bs-secondary-color); }
 .ag-abs-icons i { font-size: .7rem; }
+
+/* ── Utilisation bar ─────────────────────────────────────────────────────── */
+.ag-util-cell { padding: 3px 5px !important; min-width: 80px; }
+.ag-util-days { font-size: .73rem; font-weight: 600; text-align: center; line-height: 1.2; }
+.ag-util-bar-wrap { display: flex; align-items: center; }
+.ag-util-bar { height: 5px; border-radius: 2px; width: 100%; background: var(--bs-border-color); margin-top: 2px; }
+.ag-util-bar-fill { height: 100%; border-radius: 2px; }
+.ag-util-bar-fill.over  { background: #ef4444; }
+.ag-util-bar-fill.high  { background: #f59e0b; }
+.ag-util-bar-fill.mid   { background: #22c55e; }
+.ag-util-bar-fill.low   { background: #9ca3af; }
+
+/* ── Allocation flat table columns ───────────────────────────────────────── */
+.ag-col-prog  { min-width: 120px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; text-align: left !important; padding: 3px 6px !important; font-size: .75rem; color: var(--bs-secondary-color); }
+.ag-col-proj  { min-width: 130px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; text-align: left !important; padding: 3px 6px !important; font-weight: 500; }
+.ag-col-alloc-team { min-width: 100px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; text-align: left !important; padding: 3px 6px !important; font-size: .75rem; color: var(--bs-secondary-color); }
+.ag-col-alloc-member { min-width: 140px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; text-align: left !important; padding: 3px 6px !important; }
+.ag-col-phase { min-width: 100px; max-width: 140px; overflow: hidden; text-overflow: ellipsis; text-align: left !important; padding: 3px 6px !important; font-size: .75rem; font-style: italic; }
+.ag-col-total { min-width: 52px; font-weight: 600; border-left: 2px solid #495057 !important; }
+
+/* ── Ghost scrollbar ─────────────────────────────────────────────────────── */
 .ag-hscroll-bar {
     overflow-x: auto;
     overflow-y: hidden;
@@ -184,6 +542,100 @@
 .ag-hscroll-bar::-webkit-scrollbar-track { background: transparent; }
 .ag-hscroll-bar::-webkit-scrollbar-thumb { background: var(--bs-border-color); border-radius: 5px; }
 #ag-hscroll-inner { height: 1px; }
+
+/* ── Filter multi-select ─────────────────────────────────────────────────── */
+.ag-filter-select {
+    font-size: .8rem;
+    padding: 2px 4px;
+    overflow-y: auto;
+}
+.ag-filter-select option {
+    padding: 2px 4px;
+    cursor: pointer;
+}
+
+/* ── Editable allocation cells ───────────────────────────────────────────── */
+td.editable-cell {
+    cursor: cell;
+    position: relative;
+}
+td.editable-cell:hover {
+    background: #fffbeb !important;
+    outline: 1px solid #f59e0b;
+}
+td.editable-cell:focus-within {
+    outline: 2px solid #3b82f6;
+    outline-offset: -1px;
+}
+td.editable-cell::after {
+    content: '\F4C9';   /* Bootstrap icons pencil \F4C9 = bi-pencil */
+    font-family: "bootstrap-icons";
+    font-size: .55rem;
+    color: #9ca3af;
+    position: absolute;
+    top: 1px;
+    right: 2px;
+    line-height: 1;
+    opacity: 0;
+    transition: opacity .12s;
+    pointer-events: none;
+}
+td.editable-cell:hover::after {
+    opacity: 1;
+}
+
+/* ── Inline cell input ───────────────────────────────────────────────────── */
+.ag-cell-input {
+    width: 100%;
+    min-width: 52px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: .78rem;
+    font-family: inherit;
+    text-align: center;
+    padding: 0;
+    -moz-appearance: textfield;
+}
+.ag-cell-input::-webkit-outer-spin-button,
+.ag-cell-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* ── Override indicator (purple dot) ─────────────────────────────────────── */
+.ag-override-dot {
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #7c3aed;
+    vertical-align: super;
+    margin-right: 2px;
+    flex-shrink: 0;
+}
+
+/* ── Inline cell error ───────────────────────────────────────────────────── */
+.ag-cell-error {
+    position: absolute;
+    top: 0;
+    right: 0;
+    font-size: .7rem;
+    color: #dc2626;
+    cursor: default;
+    line-height: 1;
+    padding: 1px;
+}
+
+/* ── Threshold badges on project cells ───────────────────────────────────── */
+.ag-thresh-badge {
+    font-size: .65rem;
+    padding: 1px 3px;
+    vertical-align: middle;
+}
+.ag-proj-cell {
+    position: relative;
+}
 </style>
 {% endblock %}
 

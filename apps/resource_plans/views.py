@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.views.generic import View
+from django.views.generic import View, TemplateView
 
 
 class ResourcePlanListView(View):
@@ -44,3 +44,13 @@ class PlaceholderLeavesView(View):
             "plan_pk": plan_pk,
             "version_pk": version_pk,
         })
+
+
+class ConflictsView(TemplateView):
+    template_name = "resource_plans/conflicts.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx['plan_pk'] = self.kwargs['plan_pk']
+        ctx['version_pk'] = self.kwargs['version_pk']
+        return ctx

@@ -14,6 +14,66 @@ router.register(r"resource-plans", ResourcePlanViewSet, basename="resource-plan"
 # Specific patterns must appear before more-general ones to avoid shadowing.
 _vc_patterns = [
     re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/grid/cell/(?P<alloc_pk>\d+)/$',
+        GV.as_view({'post': 'grid_cell_update'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/conflicts/summary/$',
+        GV.as_view({'get': 'conflict_summary'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/conflicts/(?P<conflict_pk>\d+)/resolve/$',
+        GV.as_view({'post': 'conflict_resolve'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/conflicts/(?P<conflict_pk>\d+)/$',
+        GV.as_view({'get': 'conflict_detail'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/conflicts/$',
+        GV.as_view({'get': 'conflict_list'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/manpower-requests/(?P<mp_pk>\d+)/hire/$',
+        GV.as_view({'post': 'manpower_hire'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/manpower-requests/(?P<mp_pk>\d+)/rebalance/$',
+        GV.as_view({'post': 'manpower_rebalance'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/manpower-requests/(?P<mp_pk>\d+)/dismiss/$',
+        GV.as_view({'post': 'manpower_dismiss'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/manpower-requests/(?P<mp_pk>\d+)/$',
+        GV.as_view({'get': 'manpower_detail'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/manpower-requests/$',
+        GV.as_view({'get': 'manpower_list'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/allocation-sets/(?P<set_pk>\d+)/activate/$',
+        GV.as_view({'post': 'allocation_set_activate'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/allocation-sets/(?P<set_pk>\d+)/$',
+        GV.as_view({'get': 'allocation_set_detail', 'patch': 'allocation_set_detail'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/allocation-sets/$',
+        GV.as_view({'get': 'allocation_sets'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/grid/allocations/$',
+        GV.as_view({'get': 'grid_allocations'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/grid/allocated-capacity/$',
+        GV.as_view({'get': 'grid_allocated_capacity'}),
+    ),
+    re_path(
         r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/grid/teams/$',
         GV.as_view({'get': 'grid_teams'}),
     ),

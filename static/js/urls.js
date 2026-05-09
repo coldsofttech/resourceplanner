@@ -719,10 +719,32 @@ export const API_URLS = {
     },
     rp_versions: {
         detail: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/` }),
+        allocation_sets: {
+            list: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/allocation-sets/` }),
+            detail: (planPk, versionPk, setId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/allocation-sets/${setId}/` }),
+            update: (planPk, versionPk, setId) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/allocation-sets/${setId}/` }),
+            activate: (planPk, versionPk, setId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/allocation-sets/${setId}/activate/` }),
+        },
         grid: {
             teams: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/teams/` }),
             capacity: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/capacity/` }),
             absences: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/absences/` }),
+            allocations: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/allocations/` }),
+            allocated_capacity: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/allocated-capacity/` }),
+            cell_update: (planPk, versionPk, allocId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/cell/${allocId}/` }),
+        },
+        conflicts: {
+            list:    (planPk, versionPk) => ({ method: 'GET',  href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/conflicts/` }),
+            summary: (planPk, versionPk) => ({ method: 'GET',  href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/conflicts/summary/` }),
+            detail:  (planPk, versionPk, conflictPk) => ({ method: 'GET',  href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/conflicts/${conflictPk}/` }),
+            resolve: (planPk, versionPk, conflictPk) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/conflicts/${conflictPk}/resolve/` }),
+        },
+        manpower: {
+            list:      (planPk, versionPk) => ({ method: 'GET',  href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/manpower-requests/` }),
+            detail:    (planPk, versionPk, mpPk) => ({ method: 'GET',  href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/manpower-requests/${mpPk}/` }),
+            hire:      (planPk, versionPk, mpPk) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/manpower-requests/${mpPk}/hire/` }),
+            rebalance: (planPk, versionPk, mpPk) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/manpower-requests/${mpPk}/rebalance/` }),
+            dismiss:   (planPk, versionPk, mpPk) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/manpower-requests/${mpPk}/dismiss/` }),
         },
         placeholder_leaves: {
             list: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-leaves/` }),
@@ -920,5 +942,6 @@ export const URLS = {
         detail: (planId) => `/resource-plans/${planId}`,
         allocation_grid: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/grid/`,
         placeholder_leaves: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/placeholder-leaves/`,
+        conflicts: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/conflicts/`,
     },
 };
