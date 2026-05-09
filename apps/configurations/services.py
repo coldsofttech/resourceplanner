@@ -18,6 +18,14 @@ CONFIGURATION_DEFAULTS = {
             "Used as the baseline when calculating available capacity in sprint planning."
         ),
     },
+    "DEFAULT_HOLIDAYS_PER_SPRINT": {
+        "label": "Default holidays per sprint (placeholder engineers)",
+        "value": "0",
+        "description": (
+            "Number of holiday/absence days applied per sprint when generating absence records "
+            "for hire placeholder engineers. Defaults to 0 (no absences generated)."
+        ),
+    },
     # Financial Years
     "FY_EXPIRY_WARNING_DAYS": {
         "label": "FY Expiry Warning (days)",

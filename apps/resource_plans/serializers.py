@@ -21,6 +21,8 @@ from .models import (
     ResourcePlanAllocation,
     Conflict,
     ManpowerRequest,
+    PlaceholderEngineer,
+    PlaceholderEngineerAbsence,
 )
 
 
@@ -613,14 +615,62 @@ class ManpowerRequestSerializer(serializers.ModelSerializer):
     team_name = serializers.CharField(source='team.name', read_only=True)
     phase_name = serializers.SerializerMethodField()
     conflict_type = serializers.CharField(source='conflict.conflict_type', read_only=True)
+    engine_suggested_sprint_id = serializers.SerializerMethodField()
+    engine_suggested_sprint_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ManpowerRequest
         fields = [
             'id', 'allocation_set', 'conflict', 'conflict_type', 'team', 'team_name',
             'phase', 'phase_name', 'sprints_needed', 'days_needed',
+            'engine_suggested_sprint_id', 'engine_suggested_sprint_name',
             'status', 'resolution_notes', 'resolved_at', 'created_at',
         ]
 
     def get_phase_name(self, obj):
         return obj.phase.name if obj.phase else None
+
+    def get_engine_suggested_sprint_id(self, obj):
+        ed = (obj.conflict.engine_data or {}) if obj.conflict else {}
+        return ed.get('engine_suggested_sprint_id')
+
+    def get_engine_suggested_sprint_name(self, obj):
+        ed = (obj.conflict.engine_data or {}) if obj.conflict else {}
+        return ed.get('engine_suggested_sprint_name')
+
+
+class PlaceholderEngineerSerializer(serializers.ModelSerializer):
+    team_name = serializers.CharField(source='team.name', read_only=True)
+    onboard_sprint_name = serializers.CharField(source='onboard_sprint.sprint_name', read_only=True, default=None)
+    engine_suggested_sprint_name = serializers.CharField(source='engine_suggested_sprint.sprint_name', read_only=True, default=None)
+    replaced_by_name = serializers.CharField(source='replaced_by.display_name', read_only=True, default=None)
+    manpower_request_id = serializers.IntegerField(source='manpower_request.id', read_only=True, default=None)
+
+    class Meta:
+        model = PlaceholderEngineer
+        fields = [
+            'id', 'version_id', 'sequence_number', 'display_name',
+            'team_id', 'team_name',
+            'manpower_request_id',
+            'onboard_sprint_id', 'onboard_sprint_name',
+            'engine_suggested_sprint_id', 'engine_suggested_sprint_name',
+            'capacity_days_per_sprint',
+            'replaced_by_id', 'replaced_by_name', 'replaced_at',
+            'created_at',
+        ]
+
+
+class PlaceholderEngineerAbsenceSerializer(serializers.ModelSerializer):
+    sprint_name = serializers.CharField(source='sprint.sprint_name', read_only=True)
+    effective_days = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PlaceholderEngineerAbsence
+        fields = [
+            'id', 'placeholder_engineer_id', 'sprint_id', 'sprint_name',
+            'days', 'is_engine_generated', 'override_days', 'override_notes',
+            'effective_days',
+        ]
+
+    def get_effective_days(self, obj):
+        return float(obj.effective_days)

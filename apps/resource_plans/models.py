@@ -810,3 +810,67 @@ class ManpowerRequest(models.Model):
 
     def __str__(self):
         return f'ManpowerRequest {self.team.name} — {self.days_needed}d [{self.status}]'
+
+
+class PlaceholderEngineer(models.Model):
+    """
+    A user-initiated hire placeholder created from a ManpowerRequest.
+    Represents a future engineer slot from onboard_sprint onwards.
+    """
+    version = models.ForeignKey(
+        ResourcePlanVersion, on_delete=models.CASCADE, related_name='hire_placeholders'
+    )
+    sequence_number = models.PositiveIntegerField()
+    display_name = models.CharField(max_length=50)
+    team = models.ForeignKey(
+        'delivery_teams.DeliveryTeam', on_delete=models.PROTECT, related_name='+'
+    )
+    manpower_request = models.ForeignKey(
+        ManpowerRequest, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='placeholder_engineers'
+    )
+    onboard_sprint = models.ForeignKey(
+        'sprints.Sprint', on_delete=models.PROTECT, related_name='+',
+        null=True, blank=True,
+    )
+    engine_suggested_sprint = models.ForeignKey(
+        'sprints.Sprint', on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    capacity_days_per_sprint = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    replaced_by = models.ForeignKey(
+        'team_members.TeamMember', on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+    replaced_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('version', 'sequence_number')]
+        ordering = ['sequence_number']
+
+    def __str__(self):
+        return f'{self.display_name} ({self.team.name})'
+
+
+class PlaceholderEngineerAbsence(models.Model):
+    """Per-sprint absence for a hire placeholder. effective_days = override_days if set, else days."""
+    placeholder_engineer = models.ForeignKey(
+        PlaceholderEngineer, on_delete=models.CASCADE, related_name='absences'
+    )
+    sprint = models.ForeignKey(
+        'sprints.Sprint', on_delete=models.PROTECT, related_name='+'
+    )
+    days = models.DecimalField(max_digits=4, decimal_places=2, default=0)
+    is_engine_generated = models.BooleanField(default=True)
+    override_days = models.DecimalField(max_digits=4, decimal_places=2, null=True, blank=True)
+    override_notes = models.TextField(null=True, blank=True)
+
+    class Meta:
+        unique_together = [('placeholder_engineer', 'sprint')]
+        ordering = ['sprint__sprint_number']
+
+    @property
+    def effective_days(self):
+        return self.override_days if self.override_days is not None else self.days
+
+    def __str__(self):
+        return f'{self.placeholder_engineer.display_name} — {self.sprint}: {self.effective_days}d'

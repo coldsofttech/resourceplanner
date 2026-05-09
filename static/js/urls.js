@@ -731,6 +731,7 @@ export const API_URLS = {
             absences: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/absences/` }),
             allocations: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/allocations/` }),
             allocated_capacity: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/allocated-capacity/` }),
+            cell_create: (planPk, versionPk) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/cell/` }),
             cell_update: (planPk, versionPk, allocId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/cell/${allocId}/` }),
         },
         conflicts: {
@@ -750,6 +751,16 @@ export const API_URLS = {
             list: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-leaves/` }),
             update: (planPk, versionPk, plPk) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-leaves/${plPk}/` }),
             delete: (planPk, versionPk, plPk) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-leaves/${plPk}/` }),
+        },
+        placeholder_engineers: {
+            list: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-engineers/` }),
+            detail: (planPk, versionPk, phPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-engineers/${phPk}/` }),
+            update: (planPk, versionPk, phPk) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-engineers/${phPk}/` }),
+            replace: (planPk, versionPk, phPk) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-engineers/${phPk}/replace/` }),
+            absences: {
+                list: (planPk, versionPk, phPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-engineers/${phPk}/absences/` }),
+                update: (planPk, versionPk, phPk, absencePk) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-engineers/${phPk}/absences/${absencePk}/` }),
+            },
         },
         projects: {
             list: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/` }),

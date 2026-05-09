@@ -2284,6 +2284,7 @@ class CapacityService:
                 'cells': cells,
             })
 
+        rows += PlaceholderEngineerService.get_placeholder_capacity(version, team_id)
         return {'sprints': sprint_meta, 'rows': rows}
 
     @staticmethod
@@ -2348,6 +2349,7 @@ class CapacityService:
                 'cells': cells,
             })
 
+        rows += PlaceholderEngineerService.get_placeholder_absences(version, team_id)
         return {'sprints': sprint_meta, 'rows': rows}
 
 
@@ -2533,10 +2535,8 @@ class RampDistributionService:
                         raw[i] += add
                         excess -= add
 
-        rounded = [d.quantize(D('0.01'), rounding=ROUND_HALF_UP) for d in raw]
-        diff = total - sum(rounded)
-        if rounded and diff:
-            rounded[-1] = (rounded[-1] + diff).quantize(D('0.01'), rounding=ROUND_HALF_UP)
+        QUARTER = D('0.25')
+        rounded = [(d / QUARTER).quantize(D('1'), rounding=ROUND_HALF_UP) * QUARTER for d in raw]
         return rounded
 
     @staticmethod
@@ -2775,7 +2775,9 @@ class AllocationSetService:
             ResourcePlanAllocation.objects.filter(allocation_set=aset)
             .select_related(
                 'programme', 'project', 'team',
-                'team_member', 'placeholder_engineer', 'sprint', 'phase',
+                'team_member', 'team_member__employment_type',
+                'placeholder_engineer', 'sprint', 'phase',
+                'phase__plan_project_team__plan_project',
             )
         )
         if team_id:
@@ -2794,16 +2796,29 @@ class AllocationSetService:
             team_name = alloc.team.name if alloc.team else '—'
             phase_name = alloc.phase.name if alloc.phase else '—'
 
+            # Priority/confidence from the plan project linked via the phase
+            phase_priority = None
+            phase_confidence = None
+            if alloc.phase and alloc.phase.plan_project_team_id:
+                plan_proj = alloc.phase.plan_project_team.plan_project
+                phase_priority = plan_proj.effective_priority
+                phase_confidence = plan_proj.effective_confidence
+
             if alloc.team_member_id:
                 eng_key = ('member', alloc.team_member_id)
                 member_name = alloc.team_member.display_name
                 member_id = alloc.team_member_id
                 member_type = 'member'
+                member_employment_type = (
+                    alloc.team_member.employment_type.name
+                    if alloc.team_member.employment_type_id else None
+                )
             else:
                 eng_key = ('placeholder', alloc.placeholder_engineer_id)
                 member_name = alloc.placeholder_engineer.name if alloc.placeholder_engineer else 'Auto'
                 member_id = alloc.placeholder_engineer_id
                 member_type = 'placeholder'
+                member_employment_type = None
 
             row_key = (alloc.programme_id, alloc.project_id, alloc.team_id, eng_key, alloc.phase_id)
             if row_key not in row_key_map:
@@ -2813,10 +2828,14 @@ class AllocationSetService:
                     'project_name': proj_name,
                     'team_id': alloc.team_id,
                     'team_name': team_name,
+                    'phase_id': alloc.phase_id,
                     'member_id': member_id,
                     'member_type': member_type,
                     'member_name': member_name,
+                    'member_employment_type': member_employment_type,
                     'phase_name': phase_name,
+                    'phase_priority': phase_priority,
+                    'phase_confidence': phase_confidence,
                     'cells': {},
                 }
             sid = alloc.sprint_id
@@ -2866,10 +2885,14 @@ class AllocationSetService:
                 'project_name': row_data['project_name'],
                 'team_id': row_data['team_id'],
                 'team_name': row_data['team_name'],
+                'phase_id': row_data.get('phase_id'),
                 'member_id': row_data['member_id'],
                 'member_type': row_data['member_type'],
                 'member_name': row_data['member_name'],
+                'member_employment_type': row_data.get('member_employment_type'),
                 'phase_name': row_data['phase_name'],
+                'phase_priority': row_data.get('phase_priority'),
+                'phase_confidence': row_data.get('phase_confidence'),
                 'cells': cells,
                 'total_days': round(sum(c['days'] for c in cells), 2),
             })
@@ -2918,11 +2941,21 @@ class AllocationSetService:
             if alloc.team_member_id:
                 key = ('member', alloc.team_member_id)
                 label = alloc.team_member.display_name
+                mid_val = alloc.team_member_id
             else:
-                key = ('placeholder', alloc.placeholder_engineer_id)
-                label = alloc.placeholder_engineer.name if alloc.placeholder_engineer else 'Auto'
+                pe = alloc.placeholder_engineer
+                slot = pe.slot_number if pe else 1
+                key = ('placeholder', alloc.team_id, slot)
+                label = f'Auto #{slot}' if pe else 'Auto'
+                mid_val = None
             if key not in alloc_by_member:
-                alloc_by_member[key] = {'name': label, 'team_id': alloc.team_id, 'team_name': alloc.team.name, 'days': {}}
+                alloc_by_member[key] = {
+                    'name': label,
+                    'team_id': alloc.team_id,
+                    'team_name': alloc.team.name,
+                    'days': {},
+                    'mid': mid_val,
+                }
             sid = alloc.sprint_id
             alloc_by_member[key]['days'][sid] = alloc_by_member[key]['days'].get(sid, 0.0) + float(alloc.effective_days)
 
@@ -2936,7 +2969,9 @@ class AllocationSetService:
                 cap_lookup[(rc.team_member_id, rc.sprint_id)] = rc
 
         rows = []
-        for (mtype, mid), mdata in sorted(alloc_by_member.items(), key=lambda x: x[1]['name']):
+        for key, mdata in sorted(alloc_by_member.items(), key=lambda x: x[1]['name']):
+            mtype = key[0]
+            mid   = mdata['mid']
             cells = []
             for sprint in sprint_list:
                 allocated = round(mdata['days'].get(sprint.id, 0.0), 2)
@@ -2954,7 +2989,7 @@ class AllocationSetService:
                 })
             rows.append({
                 'member_id': mid if mtype == 'member' else None,
-                'placeholder_id': mid if mtype == 'placeholder' else None,
+                'placeholder_id': True if mtype == 'placeholder' else None,
                 'member_name': mdata['name'],
                 'team_id': mdata['team_id'],
                 'team_name': mdata['team_name'],
@@ -2993,6 +3028,23 @@ class CellUpdateService:
 
         if alloc.allocation_set.status == ResourcePlanAllocationSet.STATUS_ACTIVE:
             raise ValidationError({"detail": "Cannot edit cells in an ACTIVE allocation set."})
+
+        # Task 4: validate total allocated days ≤ 10 per engineer per sprint
+        if alloc.team_member_id:
+            from django.db.models import Sum, Case, When, F as DbF
+            others_total = (
+                ResourcePlanAllocation.objects.filter(
+                    allocation_set=alloc.allocation_set,
+                    team_member=alloc.team_member,
+                    sprint=alloc.sprint,
+                ).exclude(pk=alloc.pk)
+                .aggregate(total=Sum(Case(
+                    When(override_days__isnull=False, then=DbF('override_days')),
+                    default=DbF('engine_days'),
+                )))['total'] or Decimal('0')
+            )
+            if others_total + d > Decimal('10'):
+                raise ValidationError({"days": f"Total for this sprint would be {float(others_total + d):.2f}d — engineer cannot exceed 10d per sprint."})
 
         if d == alloc.engine_days:
             alloc.override_days = None
@@ -3043,6 +3095,12 @@ class CellUpdateService:
         if alloc.allocation_set.engine_job and alloc.allocation_set.engine_job.validation_result:
             conflict_count = alloc.allocation_set.engine_job.validation_result.get('conflict_count', 0)
 
+        # Re-evaluate threshold breaches when effective days change
+        try:
+            ConflictDetectionService.refresh_threshold_for_alloc_set(alloc.allocation_set)
+        except Exception:
+            pass
+
         return {
             'allocation_id': alloc.pk,
             'sprint_id': alloc.sprint_id,
@@ -3055,6 +3113,147 @@ class CellUpdateService:
             'engineer_sprint_allocated': eng_sprint_allocated,
             'threshold_info': threshold_info,
             'conflict_count': conflict_count,
+        }
+
+
+class CellCreateService:
+    """Creates a new ResourcePlanAllocation row for a cell that has no engine allocation."""
+
+    @staticmethod
+    @transaction.atomic
+    def create_cell(version, data):
+        from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+        from .models import (
+            ResourcePlanAllocation, ResourcePlanAllocationSet,
+            PlanPhase, PlanAssignment, ResourcePlanPlaceholderEngineer,
+        )
+        from apps.sprints.models import Sprint
+
+        try:
+            raw = Decimal(str(data.get('days', 0)))
+        except (InvalidOperation, TypeError, ValueError):
+            raise ValidationError({"days": "Invalid value."})
+
+        d = raw.quantize(Decimal('0.25'), rounding=ROUND_HALF_UP)
+        if d < Decimal('0') or d > Decimal('10'):
+            raise ValidationError({"days": "Value must be between 0 and 10."})
+
+        if d == Decimal('0'):
+            return {'allocation_id': None, 'effective_days': 0.0, 'is_override': False,
+                    'project_total': 0.0, 'engineer_sprint_allocated': 0.0}
+
+        aset_id = data.get('allocation_set_id')
+        try:
+            aset = ResourcePlanAllocationSet.objects.get(pk=aset_id, version=version)
+        except ResourcePlanAllocationSet.DoesNotExist:
+            raise ValidationError({"detail": "Allocation set not found."})
+        if aset.status == ResourcePlanAllocationSet.STATUS_ACTIVE:
+            raise ValidationError({"detail": "Cannot edit cells in an ACTIVE allocation set."})
+
+        phase_id = data.get('phase_id')
+        try:
+            phase = PlanPhase.objects.select_related(
+                'plan_project_team__plan_project__project__programme',
+                'plan_project_team__team',
+            ).get(pk=phase_id, plan_project_team__plan_project__version=version)
+        except PlanPhase.DoesNotExist:
+            raise ValidationError({"detail": "Phase not found."})
+
+        plan_proj_team = phase.plan_project_team
+        plan_proj = plan_proj_team.plan_project
+        project = plan_proj.project
+        team = plan_proj_team.team
+        programme = getattr(project, 'programme', None)
+
+        sprint_id = data.get('sprint_id')
+        try:
+            sprint = Sprint.objects.get(pk=sprint_id)
+        except Sprint.DoesNotExist:
+            raise ValidationError({"detail": "Sprint not found."})
+
+        member_id = data.get('member_id')
+        member_type = data.get('member_type', 'member')
+        team_member = None
+        placeholder_engineer = None
+
+        if member_type == 'member':
+            from apps.team_members.models import TeamMember
+            try:
+                team_member = TeamMember.objects.get(pk=member_id)
+            except TeamMember.DoesNotExist:
+                raise ValidationError({"detail": "Team member not found."})
+        else:
+            try:
+                placeholder_engineer = ResourcePlanPlaceholderEngineer.objects.get(pk=member_id)
+            except ResourcePlanPlaceholderEngineer.DoesNotExist:
+                raise ValidationError({"detail": "Placeholder engineer not found."})
+
+        if team_member:
+            from django.db.models import Sum, Case, When, F as DbF
+            existing_total = (
+                ResourcePlanAllocation.objects.filter(
+                    allocation_set=aset,
+                    team_member=team_member,
+                    sprint=sprint,
+                )
+                .aggregate(total=Sum(Case(
+                    When(override_days__isnull=False, then=DbF('override_days')),
+                    default=DbF('engine_days'),
+                )))['total'] or Decimal('0')
+            )
+            if existing_total + d > Decimal('10'):
+                raise ValidationError({"days": f"Total for this sprint would be {float(existing_total + d):.2f}d — engineer cannot exceed 10d per sprint."})
+
+        alloc = ResourcePlanAllocation.objects.create(
+            allocation_set=aset,
+            programme=programme,
+            project=project,
+            team=team,
+            team_member=team_member,
+            placeholder_engineer=placeholder_engineer,
+            sprint=sprint,
+            phase=phase,
+            assignment=None,
+            assignment_type=PlanAssignment.ASSIGN_ENGINEER,
+            includes_in_budget=True,
+            engine_days=Decimal('0'),
+            override_days=d,
+            overridden_at=timezone.now(),
+        )
+        ResourcePlanVersion.objects.filter(pk=version.pk).update(has_allocation_overrides=True)
+
+        project_total = round(sum(
+            float(a.effective_days)
+            for a in ResourcePlanAllocation.objects.filter(
+                allocation_set=aset, project=project
+            )
+        ), 2)
+
+        if team_member:
+            eng_sprint_qs = ResourcePlanAllocation.objects.filter(
+                allocation_set=aset, sprint=sprint, team_member=team_member,
+            )
+        else:
+            eng_sprint_qs = ResourcePlanAllocation.objects.filter(
+                allocation_set=aset, sprint=sprint, placeholder_engineer=placeholder_engineer,
+            )
+        eng_sprint_allocated = round(sum(float(a.effective_days) for a in eng_sprint_qs), 2)
+
+        try:
+            ConflictDetectionService.refresh_threshold_for_alloc_set(aset)
+        except Exception:
+            pass
+
+        return {
+            'allocation_id': alloc.pk,
+            'sprint_id': alloc.sprint_id,
+            'project_id': alloc.project_id,
+            'member_id': alloc.team_member_id,
+            'member_type': 'member' if team_member else 'placeholder',
+            'effective_days': float(alloc.effective_days),
+            'is_override': True,
+            'project_total': project_total,
+            'engineer_sprint_allocated': eng_sprint_allocated,
         }
 
 
@@ -3171,8 +3370,16 @@ class AllocationEngineService:
 
             assignments = list(phase.assignments.all())
             if not assignments:
-                completed[phase.id] = {'start': phase_start, 'end': phase_end}
-                continue
+                from types import SimpleNamespace
+                assignments = [SimpleNamespace(
+                    pk=None,
+                    auto_assign=True,
+                    team_member_id=None,
+                    team_member=None,
+                    split_value=None,
+                    assignment_type=PlanAssignment.ASSIGN_ENGINEER,
+                    includes_in_budget=True,
+                )]
 
             if hasattr(phase, 'days_effort') and phase.days_effort is not None:
                 phase_total = Decimal(str(phase.days_effort))
@@ -3193,6 +3400,8 @@ class AllocationEngineService:
                 if phase.split_mode == PlanPhase.SPLIT_DAYS and asgn.split_value:
                     alloc_nums = active_nums
                     sprint_days = [asgn.split_value] * len(alloc_nums)
+                    effective_max = Decimal('10')
+                    _do_cap = False  # user-specified days per sprint; never override
                 else:
                     if phase.split_mode == PlanPhase.SPLIT_PERCENT and asgn.split_value:
                         share = Decimal(str(asgn.split_value)) / Decimal('100')
@@ -3206,19 +3415,19 @@ class AllocationEngineService:
                     # If max_days_per_sprint not set, default to 10d (full sprint) so
                     # days are concentrated rather than spread across the entire FY.
                     alloc_nums = active_nums
-                    if phase_share > Decimal('0'):
-                        effective_max = (
-                            Decimal(str(phase.max_days_per_sprint))
-                            if phase.max_days_per_sprint
-                            else Decimal('10')
-                        )
-                        if effective_max > 0:
-                            needed = max(1, int(_ceil(float(phase_share) / float(effective_max))))
-                            alloc_nums = active_nums[:needed]
+                    effective_max = (
+                        Decimal(str(phase.max_days_per_sprint))
+                        if phase.max_days_per_sprint
+                        else Decimal('10')
+                    )
+                    if phase_share > Decimal('0') and effective_max > 0:
+                        needed = max(1, int(_ceil(float(phase_share) / float(effective_max))))
+                        alloc_nums = active_nums[:needed]
 
                     sprint_days = RampDistributionService.distribute(
-                        phase_share, len(alloc_nums), phase.ramp_pattern, segments, phase.max_days_per_sprint
+                        phase_share, len(alloc_nums), phase.ramp_pattern, segments, effective_max
                     )
+                    _do_cap = True
 
                 # Sprints in the active range that won't receive allocated days —
                 # create 0-day records so the grid can show them as editable.
@@ -3228,14 +3437,20 @@ class AllocationEngineService:
                 if asgn.auto_assign:
                     from apps.team_members.models import TeamMember
                     team_members = list(TeamMember.objects.filter(team=te.team, is_active=True))
+                    _asgn_fk = asgn if asgn.pk else None
                     if team_members:
                         member = AutoAssignService.select_member(team_members, alloc_nums, member_alloc)
+                        if _do_cap:
+                            sprint_days = [
+                                max(Decimal('0'), min(d, effective_max - member_alloc[member.id][sn]))
+                                for sn, d in zip(alloc_nums, sprint_days)
+                            ]
                         for sn, d in zip(alloc_nums, sprint_days):
                             member_alloc[member.id][sn] += d
                             to_create.append(ResourcePlanAllocation(
                                 allocation_set=alloc_set, programme=programme,
                                 project=proj.project, team=te.team, team_member=member,
-                                sprint=sprints_by_num[sn], phase=phase, assignment=asgn,
+                                sprint=sprints_by_num[sn], phase=phase, assignment=_asgn_fk,
                                 assignment_type=asgn.assignment_type,
                                 includes_in_budget=asgn.includes_in_budget, engine_days=d,
                             ))
@@ -3243,24 +3458,26 @@ class AllocationEngineService:
                             to_create.append(ResourcePlanAllocation(
                                 allocation_set=alloc_set, programme=programme,
                                 project=proj.project, team=te.team, team_member=member,
-                                sprint=sprints_by_num[sn], phase=phase, assignment=asgn,
+                                sprint=sprints_by_num[sn], phase=phase, assignment=_asgn_fk,
                                 assignment_type=asgn.assignment_type,
                                 includes_in_budget=asgn.includes_in_budget, engine_days=Decimal('0'),
                             ))
                     else:
                         key = (version.id, te.team_id, phase.id)
                         placeholder_slots[key] += 1
-                        pe = ResourcePlanPlaceholderEngineer.objects.create(
+                        pe, _ = ResourcePlanPlaceholderEngineer.objects.get_or_create(
                             version=version, team=te.team, phase=phase,
                             slot_number=placeholder_slots[key],
-                            name=f'Auto #{placeholder_slots[key]}',
-                            assignment_type=asgn.assignment_type,
+                            defaults={
+                                'name': f'Auto #{placeholder_slots[key]}',
+                                'assignment_type': asgn.assignment_type,
+                            },
                         )
                         for sn, d in zip(alloc_nums, sprint_days):
                             to_create.append(ResourcePlanAllocation(
                                 allocation_set=alloc_set, programme=programme,
                                 project=proj.project, team=te.team, placeholder_engineer=pe,
-                                sprint=sprints_by_num[sn], phase=phase, assignment=asgn,
+                                sprint=sprints_by_num[sn], phase=phase, assignment=_asgn_fk,
                                 assignment_type=asgn.assignment_type,
                                 includes_in_budget=asgn.includes_in_budget, engine_days=d,
                             ))
@@ -3268,12 +3485,17 @@ class AllocationEngineService:
                             to_create.append(ResourcePlanAllocation(
                                 allocation_set=alloc_set, programme=programme,
                                 project=proj.project, team=te.team, placeholder_engineer=pe,
-                                sprint=sprints_by_num[sn], phase=phase, assignment=asgn,
+                                sprint=sprints_by_num[sn], phase=phase, assignment=_asgn_fk,
                                 assignment_type=asgn.assignment_type,
                                 includes_in_budget=asgn.includes_in_budget, engine_days=Decimal('0'),
                             ))
                 else:
                     member = asgn.team_member
+                    if _do_cap:
+                        sprint_days = [
+                            max(Decimal('0'), min(d, effective_max - member_alloc[member.id][sn]))
+                            for sn, d in zip(alloc_nums, sprint_days)
+                        ]
                     for sn, d in zip(alloc_nums, sprint_days):
                         member_alloc[member.id][sn] += d
                         to_create.append(ResourcePlanAllocation(
@@ -3344,6 +3566,7 @@ class ConflictDetectionService:
         from .models import (
             Conflict, ResourcePlanMemberCapacity, ResourcePlanVersionProject,
             ResourcePlanAllocation, ResourcePlanScope,
+            ResourcePlanPlaceholderEngineer, ManpowerRequest,
         )
         from collections import defaultdict
         from django.db.models import Sum
@@ -3411,18 +3634,25 @@ class ConflictDetectionService:
                     ))
 
         # ── 2. THRESHOLD_BREACH (over & under) ────────────────────────────────
-        from django.db.models import Q
+        from django.db.models import Q, Case, When, F
         alloc_project_qs = (
             ResourcePlanAllocation.objects.filter(allocation_set=alloc_set)
             .values('project_id')
-            .annotate(total=Sum('engine_days'))
+            .annotate(total=Sum(
+                Case(When(override_days__isnull=False, then=F('override_days')), default=F('engine_days'))
+            ))
         )
-        project_totals = {row['project_id']: Decimal(str(row['total'])) for row in alloc_project_qs}
+        project_totals = {row['project_id']: Decimal(str(row['total'] or 0)) for row in alloc_project_qs}
 
-        for vp in ResourcePlanVersionProject.objects.filter(version=version).select_related('project'):
-            if not vp.days_required:
-                continue
-            req = Decimal(str(vp.days_required))
+        for vp in ResourcePlanVersionProject.objects.filter(version=version).select_related('project').prefetch_related('teams'):
+            # Use sum of configured team allocated_days as the reference (not basis/days_required)
+            # This avoids false-positive breaches when some teams lack phases
+            team_days_total = sum(te.allocated_days or Decimal('0') for te in vp.teams.all())
+            if not team_days_total:
+                if not vp.days_required:
+                    continue
+                team_days_total = Decimal(str(vp.days_required))
+            req = team_days_total
             threshold = Decimal(str(version.threshold_pct or 10))
             total = project_totals.get(vp.project_id, Decimal('0'))
             pct_diff = ((total - req) / req * 100) if req else Decimal('0')
@@ -3437,7 +3667,8 @@ class ConflictDetectionService:
                     affected_project=vp.project,
                     description=(
                         f'{vp.project.name}: {float(total):.1f}d allocated is '
-                        f'{abs(float(pct_diff)):.1f}% {direction} the required {float(req):.1f}d.'
+                        f'{abs(float(pct_diff)):.1f}% {direction} the required {float(req):.1f}d '
+                        f'(threshold {float(threshold):.0f}%).'
                     ),
                     engine_data={
                         'allocated': float(total),
@@ -3448,8 +3679,207 @@ class ConflictDetectionService:
                     },
                 ))
 
+        # ── 3. TIMELINE_BREACH: phases that produced no allocation rows ───────────
+        # Engine now defaults no-assignment phases to auto-assign ENGINEER, so any
+        # phase with zero rows was skipped entirely (expired sprint window, all
+        # sprints paused, or phase_start > phase_end after clamping to active sprint).
+        phase_ids_with_rows = set(
+            ResourcePlanAllocation.objects.filter(
+                allocation_set=alloc_set,
+            ).values_list('phase_id', flat=True).distinct()
+        )
+        for _vp in (
+            ResourcePlanVersionProject.objects.filter(version=version)
+            .select_related('project')
+            .prefetch_related('teams__phases', 'teams__team')
+        ):
+            for _te in _vp.teams.all():
+                for _ph in _te.phases.all():
+                    if _ph.id not in phase_ids_with_rows:
+                        conflicts_to_create.append(Conflict(
+                            allocation_set=alloc_set,
+                            engine_job=job,
+                            conflict_type=Conflict.TIMELINE_BREACH,
+                            severity=Conflict.SEVERITY_ERROR,
+                            affected_project=_vp.project,
+                            affected_phase=_ph,
+                            affected_team=_te.team,
+                            description=(
+                                f'{_vp.project.name} · {_ph.name} ({_te.team.name}): '
+                                f'assignments are configured but no allocations were '
+                                f'created — the phase or project end sprint is likely '
+                                f'before the current active sprint.'
+                            ),
+                            engine_data={},
+                        ))
+
         Conflict.objects.bulk_create(conflicts_to_create)
+
+        # ── 4. UNRESOLVABLE_GAP: auto-placeholder engineers ──────────────────────
+        # For each engine-created placeholder (no real members available), auto-create
+        # an UNRESOLVABLE_GAP conflict and a ManpowerRequest so the Conflicts page
+        # shows Hire/Dismiss actions for them.
+        from django.db.models import Sum as _Sum, Count as _Count
+        ph_alloc_data = list(
+            ResourcePlanAllocation.objects.filter(
+                allocation_set=alloc_set,
+                placeholder_engineer__isnull=False,
+            )
+            .values('placeholder_engineer_id')
+            .annotate(
+                total_days=_Sum('engine_days'),
+                sprint_count=_Count('sprint_id', distinct=True),
+            )
+        )
+        if ph_alloc_data:
+            pe_ids = [r['placeholder_engineer_id'] for r in ph_alloc_data]
+            ph_map = {
+                pe.id: pe
+                for pe in ResourcePlanPlaceholderEngineer.objects.filter(
+                    id__in=pe_ids
+                ).select_related('team', 'phase')
+            }
+            first_sprint_map = {}
+            for _a in (
+                ResourcePlanAllocation.objects.filter(
+                    allocation_set=alloc_set,
+                    placeholder_engineer_id__in=pe_ids,
+                    engine_days__gt=0,
+                )
+                .select_related('sprint')
+                .order_by('placeholder_engineer_id', 'sprint__sprint_number')
+            ):
+                if _a.placeholder_engineer_id not in first_sprint_map:
+                    first_sprint_map[_a.placeholder_engineer_id] = _a.sprint
+
+            # Group entries by (team_id, slot_number) to create one ManpowerRequest per slot
+            from collections import defaultdict
+            slot_groups = defaultdict(list)
+            for row in ph_alloc_data:
+                pe_id = row['placeholder_engineer_id']
+                pe = ph_map.get(pe_id)
+                if not pe:
+                    continue
+                slot_key = (pe.team_id, pe.slot_number)
+                slot_groups[slot_key].append((row, pe))
+
+            for slot_key, entries in slot_groups.items():
+                # Sort entries by first_sprint.sprint_number ascending
+                def _entry_sort_key(item):
+                    _, _pe = item
+                    fs = first_sprint_map.get(_pe.id)
+                    return fs.sprint_number if fs else 999999
+                entries_sorted = sorted(entries, key=_entry_sort_key)
+
+                # Accumulate totals across all phases for this slot
+                total_days_sum = Decimal('0')
+                sprint_count_sum = 0
+                earliest_conflict = None
+
+                for row, pe in entries_sorted:
+                    total_days = Decimal(str(row['total_days'] or 0))
+                    sprint_count = row['sprint_count'] or 1
+                    first_sprint = first_sprint_map.get(pe.id)
+                    phase_name = pe.phase.name if pe.phase else 'phase'
+                    conflict = Conflict.objects.create(
+                        allocation_set=alloc_set,
+                        engine_job=job,
+                        conflict_type=Conflict.UNRESOLVABLE_GAP,
+                        severity=Conflict.SEVERITY_ERROR,
+                        affected_team=pe.team,
+                        affected_phase=pe.phase,
+                        affected_sprint=first_sprint,
+                        description=(
+                            f'{pe.team.name}: no available engineer for "{phase_name}" — '
+                            f'{pe.name} auto-assigned ({float(total_days):.1f}d over '
+                            f'{sprint_count} sprint{"s" if sprint_count != 1 else ""}). '
+                            f'Hire from {first_sprint.sprint_name if first_sprint else "the required sprint"}.'
+                        ),
+                        engine_data={
+                            'placeholder_name': pe.name,
+                            'days_needed': float(total_days),
+                            'sprints_needed': sprint_count,
+                            'engine_suggested_sprint_id': first_sprint.id if first_sprint else None,
+                            'engine_suggested_sprint_name': first_sprint.sprint_name if first_sprint else None,
+                        },
+                    )
+                    total_days_sum += total_days
+                    sprint_count_sum += sprint_count
+                    if earliest_conflict is None:
+                        earliest_conflict = conflict
+
+                # Create ONE ManpowerRequest per slot, linked to earliest-sprint conflict
+                if earliest_conflict is not None:
+                    ManpowerRequest.objects.create(
+                        allocation_set=alloc_set,
+                        conflict=earliest_conflict,
+                        team=earliest_conflict.affected_team,
+                        phase=None,
+                        sprints_needed=sprint_count_sum,
+                        days_needed=total_days_sum,
+                    )
+
         return list(Conflict.objects.filter(allocation_set=alloc_set))
+
+    @staticmethod
+    @transaction.atomic
+    def refresh_threshold_for_alloc_set(alloc_set):
+        """Re-run only THRESHOLD_BREACH detection for an allocation set after manual overrides."""
+        from .models import (
+            Conflict, ResourcePlanAllocation, ResourcePlanVersionProject, ResourcePlanAllocationSet,
+        )
+        from django.db.models import Sum, Case, When, F, Q
+
+        Conflict.objects.filter(
+            allocation_set=alloc_set,
+            conflict_type=Conflict.THRESHOLD_BREACH,
+            status=Conflict.STATUS_OPEN,
+        ).delete()
+
+        version = alloc_set.version
+        alloc_project_qs = (
+            ResourcePlanAllocation.objects.filter(allocation_set=alloc_set)
+            .values('project_id')
+            .annotate(total=Sum(
+                Case(When(override_days__isnull=False, then=F('override_days')), default=F('engine_days'))
+            ))
+        )
+        project_totals = {row['project_id']: Decimal(str(row['total'] or 0)) for row in alloc_project_qs}
+
+        threshold = Decimal(str(version.threshold_pct or 10))
+        to_create = []
+        for vp in ResourcePlanVersionProject.objects.filter(version=version).select_related('project').prefetch_related('teams'):
+            team_days_total = sum(te.allocated_days or Decimal('0') for te in vp.teams.all())
+            if not team_days_total:
+                if not vp.days_required:
+                    continue
+                team_days_total = Decimal(str(vp.days_required))
+            req = team_days_total
+            total = project_totals.get(vp.project_id, Decimal('0'))
+            pct_diff = ((total - req) / req * 100) if req else Decimal('0')
+            if abs(pct_diff) > threshold:
+                direction = 'over' if pct_diff > 0 else 'under'
+                to_create.append(Conflict(
+                    allocation_set=alloc_set,
+                    engine_job=alloc_set.engine_job,
+                    conflict_type=Conflict.THRESHOLD_BREACH,
+                    severity=Conflict.SEVERITY_WARNING,
+                    affected_project=vp.project,
+                    description=(
+                        f'{vp.project.name}: {float(total):.1f}d allocated is '
+                        f'{abs(float(pct_diff)):.1f}% {direction} the required {float(req):.1f}d '
+                        f'(threshold {float(threshold):.0f}%).'
+                    ),
+                    engine_data={
+                        'allocated': float(total),
+                        'required': float(req),
+                        'pct_diff': round(float(pct_diff), 1),
+                        'direction': direction,
+                        'threshold_pct': float(threshold),
+                    },
+                ))
+        if to_create:
+            Conflict.objects.bulk_create(to_create)
 
 
 class ConflictResolutionService:
@@ -3482,7 +3912,9 @@ class ConflictResolutionService:
         conflict.save(update_fields=['resolution_type', 'resolution_notes', 'status', 'resolved_at'])
 
         if resolution_type == Conflict.RES_MANPOWER_RAISED:
-            ManpowerRequestService.create_from_conflict(conflict, extra_data)
+            from .models import ManpowerRequest as _MR
+            if not _MR.objects.filter(conflict=conflict).exists():
+                ManpowerRequestService.create_from_conflict(conflict, extra_data)
 
         return conflict
 
@@ -3512,32 +3944,22 @@ class ManpowerRequestService:
 
     @staticmethod
     @transaction.atomic
-    def hire(manpower_request, notes=None):
-        """Create a placeholder engineer stub for this manpower request."""
-        from .models import ManpowerRequest, ResourcePlanPlaceholderEngineer
+    def hire(manpower_request, onboard_sprint_id=None, notes=None):
+        """Create a PlaceholderEngineer from this manpower request."""
+        from .models import ManpowerRequest, PlaceholderEngineer
         if not manpower_request.team_id:
             raise ValidationError({'detail': 'Team is required for hiring.'})
 
         version = manpower_request.allocation_set.version
-        existing = ResourcePlanPlaceholderEngineer.objects.filter(
-            version=version, team_id=manpower_request.team_id,
-            phase=manpower_request.phase,
-        ).count()
-
-        pe = ResourcePlanPlaceholderEngineer.objects.create(
-            version=version,
-            team_id=manpower_request.team_id,
-            phase=manpower_request.phase,
-            slot_number=existing + 1,
-            name=f'Hire #{existing + 1}',
-            assignment_type='ENGINEER',
+        ph = PlaceholderEngineerService.create_from_manpower_request(
+            manpower_request, onboard_sprint_id=onboard_sprint_id
         )
 
         manpower_request.status = ManpowerRequest.STATUS_HIRING
         manpower_request.resolution_notes = notes or ''
         manpower_request.resolved_at = timezone.now()
         manpower_request.save(update_fields=['status', 'resolution_notes', 'resolved_at'])
-        return pe
+        return ph
 
     @staticmethod
     @transaction.atomic
@@ -3569,7 +3991,8 @@ class ConflictService:
         if allocation_set_id:
             qs = Conflict.objects.filter(allocation_set_id=allocation_set_id, allocation_set__version=version)
         else:
-            qs = Conflict.objects.filter(allocation_set__version=version)
+            latest = ResourcePlanAllocationSet.objects.filter(version=version).order_by('-created_at').first()
+            qs = Conflict.objects.filter(allocation_set=latest) if latest else Conflict.objects.none()
         if severity:
             qs = qs.filter(severity=severity)
         if status:
@@ -3627,11 +4050,12 @@ class ConflictService:
 
     @staticmethod
     def list_manpower_requests(version, allocation_set_id=None, status=None):
-        from .models import ManpowerRequest
+        from .models import ManpowerRequest, ResourcePlanAllocationSet
         if allocation_set_id:
             qs = ManpowerRequest.objects.filter(allocation_set_id=allocation_set_id, allocation_set__version=version)
         else:
-            qs = ManpowerRequest.objects.filter(allocation_set__version=version)
+            latest = ResourcePlanAllocationSet.objects.filter(version=version).order_by('-created_at').first()
+            qs = ManpowerRequest.objects.filter(allocation_set=latest) if latest else ManpowerRequest.objects.none()
         if status:
             qs = qs.filter(status=status)
         return qs.select_related('allocation_set', 'conflict', 'team', 'phase')
@@ -3645,3 +4069,257 @@ class ConflictService:
             ).get(pk=request_id, allocation_set__version=version)
         except ManpowerRequest.DoesNotExist:
             return None
+
+
+class PlaceholderEngineerService:
+    """Manages user-initiated hire placeholders (Phase 10)."""
+
+    @staticmethod
+    @transaction.atomic
+    def create_from_manpower_request(manpower_request, onboard_sprint_id=None):
+        from .models import PlaceholderEngineer, ResourcePlanScope
+        from apps.sprints.models import Sprint
+
+        version = manpower_request.allocation_set.version
+
+        # Auto-assign sequence number: MAX within plan + 1
+        from django.db.models import Max
+        max_seq = PlaceholderEngineer.objects.filter(version=version).aggregate(m=Max('sequence_number'))['m'] or 0
+        seq = max_seq + 1
+        display_name = f'ENGINEER {seq}'
+
+        # Determine engine-suggested sprint (first sprint after manpower request created_at)
+        scope = ResourcePlanScope.objects.filter(plan_group=version.plan_group).select_related('financial_year').first()
+        suggested_sprint = None
+        if scope:
+            suggested_sprint = Sprint.objects.filter(
+                financial_year=scope.financial_year,
+                start_date__gte=manpower_request.created_at.date() if hasattr(manpower_request.created_at, 'date') else None,
+            ).order_by('sprint_number').first()
+
+        onboard_sprint = None
+        if onboard_sprint_id:
+            try:
+                onboard_sprint = Sprint.objects.get(pk=onboard_sprint_id)
+            except Sprint.DoesNotExist:
+                pass
+        if not onboard_sprint:
+            onboard_sprint = suggested_sprint
+
+        ph = PlaceholderEngineer.objects.create(
+            version=version,
+            sequence_number=seq,
+            display_name=display_name,
+            team_id=manpower_request.team_id,
+            manpower_request=manpower_request,
+            onboard_sprint=onboard_sprint,
+            engine_suggested_sprint=suggested_sprint,
+        )
+
+        if onboard_sprint and scope:
+            PlaceholderEngineerAbsenceService.generate_absences(ph, scope)
+
+        return ph
+
+    @staticmethod
+    @transaction.atomic
+    def update_onboard_sprint(ph, onboard_sprint_id):
+        from .models import PlaceholderEngineerAbsence, ResourcePlanScope
+        from apps.sprints.models import Sprint
+
+        try:
+            new_sprint = Sprint.objects.get(pk=onboard_sprint_id)
+        except Sprint.DoesNotExist:
+            raise ValidationError({'onboard_sprint': 'Sprint not found.'})
+
+        ph.onboard_sprint = new_sprint
+        ph.save(update_fields=['onboard_sprint'])
+
+        # Delete and regenerate absences
+        ph.absences.all().delete()
+        scope = ResourcePlanScope.objects.filter(plan_group=ph.version.plan_group).select_related('financial_year').first()
+        if scope:
+            PlaceholderEngineerAbsenceService.generate_absences(ph, scope)
+        return ph
+
+    @staticmethod
+    @transaction.atomic
+    def replace_with_hire(ph, team_member_id):
+        from .models import PlaceholderEngineer, ResourcePlanAllocation
+        from apps.team_members.models import TeamMember
+
+        if ph.replaced_by_id:
+            raise ValidationError({'detail': 'Placeholder already replaced.'})
+
+        try:
+            member = TeamMember.objects.get(pk=team_member_id)
+        except TeamMember.DoesNotExist:
+            raise ValidationError({'team_member': 'Team member not found.'})
+
+        # Find allocation rows for the phase linked to the manpower request
+        phase = ph.manpower_request.phase if ph.manpower_request_id else None
+        if phase:
+            ResourcePlanAllocation.objects.filter(
+                allocation_set__version=ph.version,
+                phase=phase,
+                placeholder_engineer__isnull=False,
+            ).update(team_member=member, placeholder_engineer=None)
+
+        ph.replaced_by = member
+        ph.replaced_at = timezone.now()
+        ph.save(update_fields=['replaced_by', 'replaced_at'])
+        return ph
+
+    @staticmethod
+    def get_placeholder_capacity(version, team_id=None):
+        """Return capacity rows for PlaceholderEngineers in a version (for grid integration)."""
+        from .models import PlaceholderEngineer, PlaceholderEngineerAbsence, ResourcePlanScope
+        from apps.sprints.models import Sprint
+
+        scope = ResourcePlanScope.objects.filter(plan_group=version.plan_group).select_related('financial_year').first()
+        if not scope:
+            return []
+
+        sprint_list = list(Sprint.objects.filter(financial_year=scope.financial_year).order_by('sprint_number'))
+
+        qs = PlaceholderEngineer.objects.filter(version=version, replaced_by__isnull=True)
+        if team_id:
+            qs = qs.filter(team_id=team_id)
+
+        rows = []
+        for ph in qs.select_related('team', 'onboard_sprint'):
+            absence_map = {
+                a.sprint_id: a.effective_days
+                for a in ph.absences.all()
+            }
+            onboard_num = ph.onboard_sprint.sprint_number if ph.onboard_sprint else None
+            cap_per_sprint = ph.capacity_days_per_sprint or Decimal('10')
+
+            cells = []
+            for sprint in sprint_list:
+                if onboard_num and sprint.sprint_number >= onboard_num:
+                    abs_days = absence_map.get(sprint.id, Decimal('0'))
+                    net = max(Decimal('0'), cap_per_sprint - abs_days)
+                    cells.append({
+                        'sprint_id': sprint.id,
+                        'working_days': str(cap_per_sprint),
+                        'holiday_days': str(abs_days),
+                        'leave_days': '0',
+                        'placeholder_days': '0',
+                        'net_capacity': str(net),
+                    })
+                else:
+                    cells.append({
+                        'sprint_id': sprint.id,
+                        'working_days': None,
+                        'holiday_days': None,
+                        'leave_days': None,
+                        'placeholder_days': '0',
+                        'net_capacity': None,
+                    })
+            rows.append({
+                'hire_placeholder_id': ph.id,
+                'member_name': ph.display_name,
+                'team_id': ph.team_id,
+                'team_name': ph.team.name,
+                'cells': cells,
+            })
+        return rows
+
+    @staticmethod
+    def get_placeholder_absences(version, team_id=None):
+        """Return absence rows for PlaceholderEngineers in a version (for grid integration)."""
+        from .models import PlaceholderEngineer, ResourcePlanScope
+        from apps.sprints.models import Sprint
+
+        scope = ResourcePlanScope.objects.filter(plan_group=version.plan_group).select_related('financial_year').first()
+        if not scope:
+            return []
+        sprint_list = list(Sprint.objects.filter(financial_year=scope.financial_year).order_by('sprint_number'))
+
+        qs = PlaceholderEngineer.objects.filter(version=version, replaced_by__isnull=True)
+        if team_id:
+            qs = qs.filter(team_id=team_id)
+
+        rows = []
+        for ph in qs.select_related('team', 'onboard_sprint'):
+            absence_map = {a.sprint_id: a for a in ph.absences.all()}
+            onboard_num = ph.onboard_sprint.sprint_number if ph.onboard_sprint else None
+            cells = []
+            for sprint in sprint_list:
+                if onboard_num and sprint.sprint_number >= onboard_num:
+                    ab = absence_map.get(sprint.id)
+                    hol = ab.effective_days if ab else Decimal('0')
+                    cells.append({
+                        'sprint_id': sprint.id,
+                        'holiday_days': str(hol),
+                        'leave_days': '0',
+                        'placeholder_days': '0',
+                        'total_absence': str(hol),
+                    })
+                else:
+                    cells.append({
+                        'sprint_id': sprint.id,
+                        'holiday_days': None,
+                        'leave_days': None,
+                        'placeholder_days': '0',
+                        'total_absence': None,
+                    })
+            rows.append({
+                'hire_placeholder_id': ph.id,
+                'member_name': ph.display_name,
+                'team_id': ph.team_id,
+                'team_name': ph.team.name,
+                'cells': cells,
+            })
+        return rows
+
+
+class PlaceholderEngineerAbsenceService:
+
+    @staticmethod
+    def generate_absences(ph, scope):
+        from .models import PlaceholderEngineerAbsence
+        from apps.sprints.models import Sprint
+        from apps.configurations.models import Configuration
+
+        try:
+            cfg = Configuration.objects.get(code='DEFAULT_HOLIDAYS_PER_SPRINT')
+            default_days = Decimal(str(cfg.value))
+        except Exception:
+            default_days = Decimal('0')
+
+        if not ph.onboard_sprint:
+            return
+
+        sprints = Sprint.objects.filter(
+            financial_year=scope.financial_year,
+            sprint_number__gte=ph.onboard_sprint.sprint_number,
+        ).order_by('sprint_number')
+
+        to_create = []
+        for sprint in sprints:
+            to_create.append(PlaceholderEngineerAbsence(
+                placeholder_engineer=ph,
+                sprint=sprint,
+                days=default_days,
+                is_engine_generated=True,
+            ))
+        PlaceholderEngineerAbsence.objects.bulk_create(to_create, ignore_conflicts=True)
+
+    @staticmethod
+    @transaction.atomic
+    def override_absence(absence, override_days, notes=None):
+        from decimal import Decimal, InvalidOperation
+        try:
+            d = Decimal(str(override_days))
+        except (InvalidOperation, TypeError):
+            raise ValidationError({'override_days': 'Invalid value.'})
+        if d == absence.days:
+            absence.override_days = None
+            absence.override_notes = None
+        else:
+            absence.override_days = d
+            absence.override_notes = notes or ''
+        absence.save(update_fields=['override_days', 'override_notes'])
+        return absence

@@ -64,11 +64,13 @@
         <span class="ag-legend-item"><i class="bi bi-person-x-fill text-warning"></i>&nbsp;Leave</span>
         <span class="ag-legend-item"><i class="bi bi-bookmark-fill text-info"></i>&nbsp;Placeholder</span>
         <span class="vr mx-1"></span>
-        <span class="ag-legend-label">Utilisation:</span>
-        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-over"></span>&nbsp;&gt;100%</span>
-        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-high"></span>&nbsp;&gt;80%</span>
-        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-mid"></span>&nbsp;&gt;50%</span>
-        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-low"></span>&nbsp;&le;50%</span>
+        <span class="ag-legend-label">Allocated Capacity:</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-full"></span>&nbsp;&ge;10d</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-high"></span>&nbsp;&ge;8d</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-mid"></span>&nbsp;&ge;5d</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-low"></span>&nbsp;&ge;3d</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-vlow"></span>&nbsp;&gt;0d</span>
+        <span class="ag-legend-item"><span class="ag-legend-swatch ag-util-zero"></span>&nbsp;0d</span>
     </div>
 </div>
 
@@ -145,6 +147,10 @@
                 <div>
                     <label class="form-label small text-secondary mb-1">Project</label>
                     <select class="form-select form-select-sm ag-filter-select" id="ag-filter-project" multiple style="min-width:140px;max-width:220px;height:auto;max-height:90px;"></select>
+                </div>
+                <div>
+                    <label class="form-label small text-secondary mb-1">Employment Type</label>
+                    <select class="form-select form-select-sm ag-filter-select" id="ag-filter-employment-type" multiple style="min-width:140px;max-width:200px;height:auto;max-height:90px;"></select>
                 </div>
                 <div class="align-self-end">
                     <button class="btn btn-sm btn-outline-secondary" id="ag-filter-clear">
@@ -495,11 +501,14 @@
 .ag-cell-low   { background: #fee2e2; }
 .ag-cell-zero  { background: #f3f4f6; color: #9ca3af; }
 
-/* ── Utilisation cells ───────────────────────────────────────────────────── */
-.ag-util-over  { background: #fee2e2; }
-.ag-util-high  { background: #fef3c7; }
-.ag-util-mid   { background: #d1fae5; }
-.ag-util-low   { background: #f3f4f6; color: #9ca3af; }
+/* ── Utilisation cells — colour by allocated days ────────────────────────── */
+.ag-util-full  { background: #15803d; color: #fff; }   /* ≥10d dark green */
+.ag-util-high  { background: #4ade80; color: #14532d; } /* ≥8d  light green */
+.ag-util-mid   { background: #f59e0b; color: #fff; }   /* ≥5d  amber */
+.ag-util-low   { background: #ef4444; color: #fff; }   /* ≥3d  red */
+.ag-util-vlow  { background: #991b1b; color: #fff; }   /* >0d  dark red */
+.ag-util-zero  { background: #f3f4f6; color: #9ca3af; } /* 0d   grey */
+.ag-util-over  { background: #fee2e2; }                /* legacy: over 100% pct */
 
 /* ── Column separators ───────────────────────────────────────────────────── */
 .ag-col-sep { border-left: 2px solid #495057 !important; }

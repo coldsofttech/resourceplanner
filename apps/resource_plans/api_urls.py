@@ -14,6 +14,10 @@ router.register(r"resource-plans", ResourcePlanViewSet, basename="resource-plan"
 # Specific patterns must appear before more-general ones to avoid shadowing.
 _vc_patterns = [
     re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/grid/cell/$',
+        GV.as_view({'post': 'grid_cell_create'}),
+    ),
+    re_path(
         r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/grid/cell/(?P<alloc_pk>\d+)/$',
         GV.as_view({'post': 'grid_cell_update'}),
     ),
@@ -92,6 +96,26 @@ _vc_patterns = [
     re_path(
         r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/placeholder-leaves/$',
         GV.as_view({'get': 'placeholder_leaves'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/placeholder-engineers/(?P<ph_pk>\d+)/replace/$',
+        GV.as_view({'post': 'placeholder_engineer_replace'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/placeholder-engineers/(?P<ph_pk>\d+)/absences/(?P<absence_pk>\d+)/$',
+        GV.as_view({'patch': 'placeholder_engineer_absence_update'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/placeholder-engineers/(?P<ph_pk>\d+)/absences/$',
+        GV.as_view({'get': 'placeholder_engineer_absence_list'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/placeholder-engineers/(?P<ph_pk>\d+)/$',
+        GV.as_view({'get': 'placeholder_engineer_detail', 'patch': 'placeholder_engineer_update'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/placeholder-engineers/$',
+        GV.as_view({'get': 'placeholder_engineer_list'}),
     ),
     re_path(
         r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/$',

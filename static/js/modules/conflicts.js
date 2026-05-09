@@ -9,7 +9,7 @@ const versionPk = getPkFromUrl('versions');
 let _conflicts        = [];
 let _manpowerRequests = [];
 let _severityFilter   = '';
-let _statusFilter     = '';
+let _statusFilter     = 'OPEN';
 let _activeConflict   = null;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -123,9 +123,10 @@ const RESOLUTION_LABELS = {
 };
 
 function _renderCards() {
-    const loading = document.getElementById('cf-loading');
-    const empty   = document.getElementById('cf-empty');
-    const list    = document.getElementById('cf-list');
+    const loading   = document.getElementById('cf-loading');
+    const empty     = document.getElementById('cf-empty');
+    const list      = document.getElementById('cf-list');
+    const tableBody = document.getElementById('cf-table-body');
     if (!list) return;
 
     loading?.classList.add('d-none');
@@ -143,49 +144,51 @@ function _renderCards() {
     }
 
     empty?.classList.add('d-none');
-    list.innerHTML = visible.map(_buildCard).join('');
+    if (tableBody) {
+        tableBody.innerHTML = visible.map(_buildRow).join('');
+    }
     list.classList.remove('d-none');
 }
 
+function _buildRow(c) {
+    const sevIcon   = { ERROR: '<i class="bi bi-x-circle-fill text-danger" title="Error"></i>', WARNING: '<i class="bi bi-exclamation-triangle-fill text-warning" title="Warning"></i>', INFO: '<i class="bi bi-info-circle-fill text-info" title="Info"></i>' }[c.severity] ?? '';
+    const typeLabel = CONFLICT_TYPE_LABELS[c.conflict_type] ?? c.conflict_type;
+    const dotClass  = c.status.toLowerCase();
+
+    const desc = c.description ?? '';
+    const shortDesc = desc.length > 80 ? desc.slice(0, 80) + '…' : desc;
+
+    const affected = [];
+    if (c.affected_project_name) affected.push(`<i class="bi bi-kanban" title="${escHtml(c.affected_project_name)}"></i>`);
+    if (c.affected_phase_name)   affected.push(`<i class="bi bi-layers" title="${escHtml(c.affected_phase_name)}"></i>`);
+    if (c.affected_team_name)    affected.push(`<i class="bi bi-people" title="${escHtml(c.affected_team_name)}"></i>`);
+    if (c.affected_member_name)  affected.push(`<i class="bi bi-person" title="${escHtml(c.affected_member_name)}"></i>`);
+    if (c.affected_sprint_name)  affected.push(`<i class="bi bi-calendar3" title="${escHtml(c.affected_sprint_name)}"></i>`);
+
+    const resolveBtn = c.status === 'OPEN'
+        ? `<button class="btn btn-sm btn-outline-primary cf-resolve-btn p-1" data-conflict-id="${c.id}" title="Resolve">
+               <i class="bi bi-check2-square"></i>
+           </button>`
+        : '';
+
+    return `<tr data-conflict-id="${c.id}" data-severity="${c.severity}" data-status="${c.status}">
+    <td class="text-center">${sevIcon}</td>
+    <td><span class="cf-type-label" style="font-size:.75rem;">${escHtml(typeLabel)}</span></td>
+    <td title="${escHtml(desc)}" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(shortDesc)}</td>
+    <td class="text-secondary" style="font-size:.78rem;">${affected.join(' ')}</td>
+    <td><span class="cf-status-dot ${dotClass} d-inline-block" title="${c.status}"></span></td>
+    <td class="text-center">${resolveBtn}</td>
+</tr>`.trim();
+}
+
+// Keep _buildCard for backward compatibility (not actively used)
 function _buildCard(c) {
     const sevClass  = { ERROR: 'cf-badge-error', WARNING: 'cf-badge-warning', INFO: 'cf-badge-info' }[c.severity] ?? '';
     const dotClass  = c.status.toLowerCase();
     const typeLabel = CONFLICT_TYPE_LABELS[c.conflict_type] ?? c.conflict_type;
-
-    const affected = [];
-    if (c.affected_project_name) affected.push(`<i class="bi bi-kanban me-1"></i>${escHtml(c.affected_project_name)}`);
-    if (c.affected_phase_name)   affected.push(`<i class="bi bi-layers me-1"></i>${escHtml(c.affected_phase_name)}`);
-    if (c.affected_team_name)    affected.push(`<i class="bi bi-people me-1"></i>${escHtml(c.affected_team_name)}`);
-    if (c.affected_member_name)  affected.push(`<i class="bi bi-person me-1"></i>${escHtml(c.affected_member_name)}`);
-    if (c.affected_sprint_name)  affected.push(`<i class="bi bi-calendar3 me-1"></i>${escHtml(c.affected_sprint_name)}`);
-
-    const resolvedInfo = c.status !== 'OPEN'
-        ? `<div class="mt-2 pt-2 border-top small text-secondary">
-               <i class="bi bi-check2 me-1"></i>
-               <strong>${escHtml(RESOLUTION_LABELS[c.resolution_type] ?? c.resolution_type ?? 'Dismissed')}</strong>
-               ${c.resolution_notes ? ` — ${escHtml(c.resolution_notes)}` : ''}
-           </div>`
-        : '';
-
-    const resolveBtn = c.status === 'OPEN'
-        ? `<button class="btn btn-sm btn-outline-primary cf-resolve-btn" data-conflict-id="${c.id}">
-               <i class="bi bi-check2-square me-1"></i>Resolve
-           </button>`
-        : `<span class="badge ${c.status === 'RESOLVED' ? 'bg-success-subtle text-success-emphasis' : 'bg-secondary-subtle text-secondary-emphasis'}">${c.status}</span>`;
-
-    return `
-<div class="cf-card cf-card-${dotClass}" data-conflict-id="${c.id}" data-severity="${c.severity}" data-status="${c.status}">
-    <div class="cf-card-header">
-        <span class="cf-status-dot ${dotClass}"></span>
-        <span class="cf-severity-badge ${sevClass}">${c.severity}</span>
-        <span class="cf-type-label">${escHtml(typeLabel)}</span>
-        <span class="ms-auto">${resolveBtn}</span>
-    </div>
-    <div class="cf-card-body">
-        <div>${escHtml(c.description)}</div>
-        ${affected.length ? `<div class="cf-affected d-flex flex-wrap gap-3 mt-2">${affected.join('')}</div>` : ''}
-        ${resolvedInfo}
-    </div>
+    return `<div class="cf-card cf-card-${dotClass}" data-conflict-id="${c.id}">
+    <div class="cf-card-header"><span class="cf-status-dot ${dotClass}"></span><span class="cf-severity-badge ${sevClass}">${c.severity}</span><span class="cf-type-label">${escHtml(typeLabel)}</span></div>
+    <div class="cf-card-body">${escHtml(c.description)}</div>
 </div>`.trim();
 }
 
@@ -212,9 +215,12 @@ function _renderManpowerRequests() {
         const badgeClass = MP_STATUS_BADGE[mp.status] ?? 'bg-secondary-subtle text-secondary-emphasis';
         const isActive   = mp.status === 'OPEN' || mp.status === 'HIRING';
 
+        const suggestedSprintId   = mp.engine_suggested_sprint_id   ?? '';
+        const suggestedSprintName = mp.engine_suggested_sprint_name ?? '';
+
         const actions = isActive ? `
             <div class="d-flex gap-2 flex-shrink-0">
-                ${mp.status === 'OPEN' ? `<button class="btn btn-sm btn-outline-success mp-hire-btn" data-mp-id="${mp.id}"><i class="bi bi-person-plus me-1"></i>Hire</button>` : ''}
+                ${mp.status === 'OPEN' ? `<button class="btn btn-sm btn-outline-success mp-hire-btn" data-mp-id="${mp.id}" data-suggested-sprint="${suggestedSprintId}"><i class="bi bi-person-plus me-1"></i>Hire</button>` : ''}
                 <button class="btn btn-sm btn-outline-secondary mp-rebalance-btn" data-mp-id="${mp.id}"><i class="bi bi-arrow-left-right me-1"></i>Rebalance</button>
                 <button class="btn btn-sm btn-outline-secondary mp-dismiss-btn" data-mp-id="${mp.id}"><i class="bi bi-x me-1"></i>Dismiss</button>
             </div>` : '';
@@ -228,6 +234,7 @@ function _renderManpowerRequests() {
         <span class="text-secondary ms-2 small">
             ${mp.sprints_needed} sprint${mp.sprints_needed !== 1 ? 's' : ''} · ${mp.days_needed}d needed
         </span>
+        ${suggestedSprintName ? `<span class="text-secondary ms-2 small"><i class="bi bi-calendar3 me-1"></i>From ${escHtml(suggestedSprintName)}</span>` : ''}
     </div>
     ${actions}
 </div>`.trim();
@@ -236,14 +243,18 @@ function _renderManpowerRequests() {
     section.classList.remove('d-none');
 
     mpList.querySelectorAll('.mp-hire-btn').forEach(btn =>
-        btn.addEventListener('click', () => _mpAction('hire', btn.dataset.mpId)));
+        btn.addEventListener('click', () => _mpAction('hire', btn.dataset.mpId, btn.dataset.suggestedSprint ?? '')));
     mpList.querySelectorAll('.mp-rebalance-btn').forEach(btn =>
         btn.addEventListener('click', () => _mpAction('rebalance', btn.dataset.mpId)));
     mpList.querySelectorAll('.mp-dismiss-btn').forEach(btn =>
         btn.addEventListener('click', () => _mpAction('dismiss', btn.dataset.mpId)));
 }
 
-async function _mpAction(action, mpId) {
+async function _mpAction(action, mpId, suggestedSprintId = '') {
+    if (action === 'hire') {
+        await _openHireModal(mpId, suggestedSprintId);
+        return;
+    }
     const urlFn = API_URLS.rp_versions.manpower[action];
     if (!urlFn) return;
     try {
@@ -254,9 +265,71 @@ async function _mpAction(action, mpId) {
     }
 }
 
+let _activeHireMpId = null;
+
+async function _openHireModal(mpId, suggestedSprintId = '') {
+    _activeHireMpId = mpId;
+    document.getElementById('cf-hire-err')?.classList.add('d-none');
+    document.getElementById('cf-hire-sprint').value = '';
+
+    // Load sprint options
+    try {
+        const { apiFetch: _af } = await import('./../main.js').catch(() => ({ apiFetch }));
+        const sprints = await apiFetch(`/api/v1/sprints/?page_size=100`);
+        const sel = document.getElementById('cf-hire-sprint');
+        sel.innerHTML = '<option value="">Select onboard sprint…</option>';
+        const list = Array.isArray(sprints) ? sprints : (sprints.results ?? []);
+        list.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.sprint_name;
+            if (suggestedSprintId && String(s.id) === String(suggestedSprintId)) {
+                opt.selected = true;
+            }
+            sel.appendChild(opt);
+        });
+    } catch (_) {}
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('cfHireModal')).show();
+}
+
+async function _submitHire() {
+    const sprintId = document.getElementById('cf-hire-sprint').value;
+    const btn = document.getElementById('cf-hire-submit');
+    const spinner = document.getElementById('cf-hire-spinner');
+    spinner?.classList.remove('d-none');
+    btn.disabled = true;
+    try {
+        const body = sprintId ? JSON.stringify({ onboard_sprint: sprintId }) : '{}';
+        await apiFetch(
+            API_URLS.rp_versions.manpower.hire(planPk, versionPk, _activeHireMpId).href,
+            { method: 'POST', body }
+        );
+        bootstrap.Modal.getInstance(document.getElementById('cfHireModal'))?.hide();
+        await _loadManpowerRequests();
+        _showBanner('Placeholder engineer created.', 'success');
+    } catch (e) {
+        const msg = e?.data?.detail ?? 'Failed to create placeholder.';
+        const el = document.getElementById('cf-hire-err');
+        if (el) { el.textContent = msg; el.classList.remove('d-none'); }
+    } finally {
+        spinner?.classList.add('d-none');
+        btn.disabled = false;
+    }
+}
+
 // ── Filter buttons ────────────────────────────────────────────────────────────
 
 function _bindFilterButtons() {
+    // Mark "Open" status button as active on load (matching default _statusFilter = 'OPEN')
+    document.querySelectorAll('.cf-status-btn').forEach(btn => {
+        if ((btn.dataset.status ?? '') === _statusFilter) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
     document.querySelectorAll('.cf-filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.cf-filter-btn').forEach(b => b.classList.remove('active'));
@@ -279,14 +352,17 @@ function _bindFilterButtons() {
 // ── Resolution modal ──────────────────────────────────────────────────────────
 
 function _bindModal() {
-    document.getElementById('cf-list')?.addEventListener('click', e => {
+    const _resolveClickHandler = e => {
         const btn = e.target.closest('.cf-resolve-btn');
         if (!btn) return;
         const conflict = _conflicts.find(c => String(c.id) === String(btn.dataset.conflictId));
         if (conflict) _openResolveModal(conflict);
-    });
+    };
+
+    document.getElementById('cf-list')?.addEventListener('click', _resolveClickHandler);
 
     document.getElementById('cf-resolve-submit')?.addEventListener('click', _submitResolve);
+    document.getElementById('cf-hire-submit')?.addEventListener('click', _submitHire);
 }
 
 function _openResolveModal(conflict) {

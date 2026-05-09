@@ -23,6 +23,8 @@ from .models import (
     PlanEngineJob,
     Conflict,
     ManpowerRequest,
+    PlaceholderEngineer,
+    PlaceholderEngineerAbsence,
 )
 from .serializers import (
     ResourcePlanSerializer,
@@ -45,6 +47,8 @@ from .serializers import (
     ResourcePlanAllocationSetSerializer,
     ConflictSerializer,
     ManpowerRequestSerializer,
+    PlaceholderEngineerSerializer,
+    PlaceholderEngineerAbsenceSerializer,
 )
 from .services import (
     ResourcePlanService,
@@ -60,9 +64,12 @@ from .services import (
     CapacitySnapshotService,
     AllocationSetService,
     CellUpdateService,
+    CellCreateService,
     ConflictService,
     ConflictResolutionService,
     ManpowerRequestService,
+    PlaceholderEngineerService,
+    PlaceholderEngineerAbsenceService,
 )
 
 logger = logging.getLogger(__name__)
@@ -1120,6 +1127,22 @@ class AllocationGridViewSet(viewsets.ViewSet):
         except Exception as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+    def grid_cell_create(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            result = CellCreateService.create_cell(version, request.data)
+            return Response(result, status=status.HTTP_201_CREATED)
+        except DjangoValidationError as exc:
+            return Response(
+                exc.message_dict if hasattr(exc, "message_dict") else {"detail": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except Exception as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
     # ── Conflict endpoints ────────────────────────────────────────────────────
 
     def conflict_summary(self, request, plan_pk, pk):
@@ -1212,7 +1235,11 @@ class AllocationGridViewSet(viewsets.ViewSet):
         if not mp:
             return Response({"detail": "Manpower request not found."}, status=status.HTTP_404_NOT_FOUND)
         try:
-            ManpowerRequestService.hire(mp, notes=request.data.get('notes'))
+            ManpowerRequestService.hire(
+                mp,
+                onboard_sprint_id=request.data.get('onboard_sprint'),
+                notes=request.data.get('notes'),
+            )
             return Response(ManpowerRequestSerializer(mp).data)
         except DjangoValidationError as exc:
             return Response(
@@ -1239,6 +1266,91 @@ class AllocationGridViewSet(viewsets.ViewSet):
             return Response({"detail": "Manpower request not found."}, status=status.HTTP_404_NOT_FOUND)
         ManpowerRequestService.dismiss(mp, notes=request.data.get('notes'))
         return Response(ManpowerRequestSerializer(mp).data)
+
+    # ── Placeholder engineers (Phase 10) ─────────────────────────────────────
+
+    def placeholder_engineer_list(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        qs = PlaceholderEngineer.objects.filter(version=version).select_related(
+            'team', 'manpower_request', 'onboard_sprint', 'engine_suggested_sprint', 'replaced_by'
+        )
+        return Response(PlaceholderEngineerSerializer(qs, many=True).data)
+
+    def placeholder_engineer_detail(self, request, plan_pk, pk, ph_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            ph = PlaceholderEngineer.objects.select_related(
+                'team', 'manpower_request', 'onboard_sprint', 'engine_suggested_sprint', 'replaced_by'
+            ).get(pk=ph_pk, version=version)
+        except PlaceholderEngineer.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(PlaceholderEngineerSerializer(ph).data)
+
+    def placeholder_engineer_update(self, request, plan_pk, pk, ph_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            ph = PlaceholderEngineer.objects.get(pk=ph_pk, version=version)
+        except PlaceholderEngineer.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        onboard_sprint_id = request.data.get('onboard_sprint')
+        if onboard_sprint_id:
+            try:
+                ph = PlaceholderEngineerService.update_onboard_sprint(ph, onboard_sprint_id)
+                return Response(PlaceholderEngineerSerializer(ph).data)
+            except DjangoValidationError as exc:
+                return Response(exc.message_dict if hasattr(exc, 'message_dict') else {'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(PlaceholderEngineerSerializer(ph).data)
+
+    def placeholder_engineer_replace(self, request, plan_pk, pk, ph_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            ph = PlaceholderEngineer.objects.get(pk=ph_pk, version=version)
+        except PlaceholderEngineer.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        team_member_id = request.data.get('team_member')
+        if not team_member_id:
+            return Response({'team_member': 'This field is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            ph = PlaceholderEngineerService.replace_with_hire(ph, team_member_id)
+            return Response(PlaceholderEngineerSerializer(ph).data)
+        except DjangoValidationError as exc:
+            return Response(exc.message_dict if hasattr(exc, 'message_dict') else {'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    def placeholder_engineer_absence_list(self, request, plan_pk, pk, ph_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            ph = PlaceholderEngineer.objects.get(pk=ph_pk, version=version)
+        except PlaceholderEngineer.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        absences = ph.absences.select_related('sprint').all()
+        return Response(PlaceholderEngineerAbsenceSerializer(absences, many=True).data)
+
+    def placeholder_engineer_absence_update(self, request, plan_pk, pk, ph_pk, absence_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            ph = PlaceholderEngineer.objects.get(pk=ph_pk, version=version)
+            absence = PlaceholderEngineerAbsence.objects.get(pk=absence_pk, placeholder_engineer=ph)
+        except (PlaceholderEngineer.DoesNotExist, PlaceholderEngineerAbsence.DoesNotExist):
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        override_days = request.data.get('override_days')
+        notes = request.data.get('override_notes', '')
+        try:
+            absence = PlaceholderEngineerAbsenceService.override_absence(absence, override_days, notes)
+            return Response(PlaceholderEngineerAbsenceSerializer(absence).data)
+        except DjangoValidationError as exc:
+            return Response(exc.message_dict if hasattr(exc, 'message_dict') else {'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PlanPhaseViewSet(viewsets.ViewSet):

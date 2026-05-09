@@ -44,13 +44,13 @@
         <i class="bi bi-info-circle me-1"></i>Info
     </button>
     <div class="vr mx-1"></div>
-    <button class="btn btn-sm btn-outline-secondary cf-status-btn active" data-status="">All Statuses</button>
     <button class="btn btn-sm btn-outline-secondary cf-status-btn" data-status="OPEN">Open</button>
     <button class="btn btn-sm btn-outline-secondary cf-status-btn" data-status="RESOLVED">Resolved</button>
     <button class="btn btn-sm btn-outline-secondary cf-status-btn" data-status="DISMISSED">Dismissed</button>
+    <button class="btn btn-sm btn-outline-secondary cf-status-btn" data-status="">All Statuses</button>
 </div>
 
-<!-- Conflict cards -->
+<!-- Conflict table -->
 <div id="cf-loading" class="text-center py-5">
     <div class="spinner-border text-secondary me-2"></div> Loading conflicts…
 </div>
@@ -58,7 +58,21 @@
     <i class="bi bi-check-circle-fill text-success fs-2 d-block mb-2"></i>
     No conflicts found.
 </div>
-<div id="cf-list" class="d-none"></div>
+<div id="cf-list" class="d-none">
+  <table class="table table-sm table-hover align-middle" id="cf-table">
+    <thead id="cf-table-head">
+      <tr>
+        <th style="width:2rem"></th>
+        <th style="width:7rem">Type</th>
+        <th>Description</th>
+        <th style="width:12rem">Affected</th>
+        <th style="width:5rem">Status</th>
+        <th style="width:3rem"></th>
+      </tr>
+    </thead>
+    <tbody id="cf-table-body"></tbody>
+  </table>
+</div>
 
 <!-- Manpower requests section -->
 <div id="cf-mp-section" class="d-none mt-4">
@@ -91,6 +105,33 @@
                 <button type="button" class="btn btn-sm btn-danger fw-semibold" id="cf-resolve-submit">
                     <span class="spinner-border spinner-border-sm me-1 d-none" id="cf-resolve-spinner"></span>
                     Apply Resolution
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hire modal -->
+<div class="modal fade" id="cfHireModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold">Create Placeholder Engineer</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <p class="small text-secondary mb-2">Select the sprint this engineer is expected to onboard. The engine suggestion is pre-selected when available.</p>
+                <div class="mb-3">
+                    <label class="rp-label form-label-sm mb-1">Onboard Sprint</label>
+                    <select class="form-select form-select-sm" id="cf-hire-sprint"></select>
+                </div>
+                <div id="cf-hire-err" class="alert alert-danger d-none py-2 px-3" style="font-size:.83rem;"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-success fw-semibold" id="cf-hire-submit">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="cf-hire-spinner"></span>
+                    Confirm Hire
                 </button>
             </div>
         </div>

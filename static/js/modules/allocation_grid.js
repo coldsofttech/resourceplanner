@@ -25,10 +25,11 @@ let _allocData    = null;
 let _utilData     = null;
 
 let _filters = {
-    members:    [],   // selected member names (multi-select)
-    programmes: [],   // selected programme names (multi-select)
-    projects:   [],   // selected project names (multi-select)
-    teams:      [],   // selected team IDs (multi-select)
+    members:         [],   // selected member names (multi-select)
+    programmes:      [],   // selected programme names (multi-select)
+    projects:        [],   // selected project names (multi-select)
+    teams:           [],   // selected team IDs (multi-select)
+    employmentTypes: [],   // selected employment type names (multi-select)
 };
 
 // Editing state
@@ -181,12 +182,14 @@ function _bindFilters() {
     const memberEl = document.getElementById('ag-filter-member');
     const progEl   = document.getElementById('ag-filter-programme');
     const projEl   = document.getElementById('ag-filter-project');
+    const empEl    = document.getElementById('ag-filter-employment-type');
 
     const _onChange = () => {
-        _filters.members    = _getMultiSelectValues(memberEl);
-        _filters.programmes = _getMultiSelectValues(progEl);
-        _filters.projects   = _getMultiSelectValues(projEl);
-        _filters.teams      = _activeTeamId === null ? _getMultiSelectValues(teamEl) : [];
+        _filters.members         = _getMultiSelectValues(memberEl);
+        _filters.programmes      = _getMultiSelectValues(progEl);
+        _filters.projects        = _getMultiSelectValues(projEl);
+        _filters.teams           = _activeTeamId === null ? _getMultiSelectValues(teamEl) : [];
+        _filters.employmentTypes = _getMultiSelectValues(empEl);
         _updateFilterBadge();
         _rerender();
     };
@@ -195,13 +198,15 @@ function _bindFilters() {
     progEl?.addEventListener('change', _onChange);
     projEl?.addEventListener('change', _onChange);
     teamEl?.addEventListener('change', _onChange);
+    empEl?.addEventListener('change', _onChange);
 
     clearEl?.addEventListener('click', () => {
         if (memberEl) Array.from(memberEl.options).forEach(o => o.selected = false);
         if (progEl)   Array.from(progEl.options).forEach(o => o.selected = false);
         if (projEl)   Array.from(projEl.options).forEach(o => o.selected = false);
         if (teamEl)   Array.from(teamEl.options).forEach(o => o.selected = false);
-        _filters = { members: [], programmes: [], projects: [], teams: [] };
+        if (empEl)    Array.from(empEl.options).forEach(o => o.selected = false);
+        _filters = { members: [], programmes: [], projects: [], teams: [], employmentTypes: [] };
         _updateFilterBadge();
         _rerender();
     });
@@ -217,23 +222,27 @@ function _populateFilterOptions(allocData) {
     const progEl   = document.getElementById('ag-filter-programme');
     const projEl   = document.getElementById('ag-filter-project');
     const teamEl   = document.getElementById('ag-filter-team');
+    const empEl    = document.getElementById('ag-filter-employment-type');
 
-    const members    = new Set();
-    const programmes = new Set();
-    const projects   = new Set();
-    const teams      = new Map(); // id → name
+    const members         = new Set();
+    const programmes      = new Set();
+    const projects        = new Set();
+    const teams           = new Map(); // id → name
+    const employmentTypes = new Set();
 
     (allocData.rows ?? []).forEach(r => {
-        if (r.member_name)    members.add(r.member_name);
-        if (r.programme_name) programmes.add(r.programme_name);
-        if (r.project_name)   projects.add(r.project_name);
+        if (r.member_name)              members.add(r.member_name);
+        if (r.programme_name)           programmes.add(r.programme_name);
+        if (r.project_name)             projects.add(r.project_name);
         if (r.team_id != null && r.team_name) teams.set(String(r.team_id), r.team_name);
+        if (r.member_employment_type)   employmentTypes.add(r.member_employment_type);
     });
 
     _refillSelect(memberEl, [...members].sort());
     _refillSelect(progEl,   [...programmes].sort());
     _refillSelect(projEl,   [...projects].sort());
     _refillTeamSelect(teamEl, [...teams.entries()].sort((a, b) => a[1].localeCompare(b[1])));
+    _refillSelect(empEl,    [...employmentTypes].sort());
 }
 
 function _refillTeamSelect(sel, entries) {
@@ -266,7 +275,8 @@ function _updateFilterBadge() {
     const badge = document.getElementById('ag-filter-active-badge');
     if (!badge) return;
     const hasFilters = _filters.members.length > 0 || _filters.programmes.length > 0
-        || _filters.projects.length > 0 || _filters.teams.length > 0;
+        || _filters.projects.length > 0 || _filters.teams.length > 0
+        || _filters.employmentTypes.length > 0;
     badge.classList.toggle('d-none', !hasFilters);
 }
 
@@ -293,7 +303,7 @@ async function _loadConflictSummary() {
 
 function _filterMemberRows(rows) {
     return rows.filter(r => {
-        if (_filters.members.length > 0 && !_filters.members.includes(r.member_name)) return false;
+        if (_filters.members.length > 0 && r.member_id != null && !_filters.members.includes(r.member_name)) return false;
         if (_filters.teams.length > 0   && !_filters.teams.includes(String(r.team_id ?? ''))) return false;
         return true;
     });
@@ -301,10 +311,11 @@ function _filterMemberRows(rows) {
 
 function _filterAllocRows(rows) {
     return rows.filter(r => {
-        if (_filters.members.length > 0    && !_filters.members.includes(r.member_name))       return false;
-        if (_filters.programmes.length > 0 && !_filters.programmes.includes(r.programme_name)) return false;
-        if (_filters.projects.length > 0   && !_filters.projects.includes(r.project_name))     return false;
-        if (_filters.teams.length > 0      && !_filters.teams.includes(String(r.team_id ?? ''))) return false;
+        if (_filters.members.length > 0         && !_filters.members.includes(r.member_name))       return false;
+        if (_filters.programmes.length > 0      && !_filters.programmes.includes(r.programme_name)) return false;
+        if (_filters.projects.length > 0        && !_filters.projects.includes(r.project_name))     return false;
+        if (_filters.teams.length > 0           && !_filters.teams.includes(String(r.team_id ?? ''))) return false;
+        if (_filters.employmentTypes.length > 0 && !_filters.employmentTypes.includes(r.member_employment_type ?? '')) return false;
         return true;
     });
 }
@@ -754,6 +765,15 @@ function _utilCls(pct) {
     return 'ag-util-low';
 }
 
+function _allocDayCls(days) {
+    if (days >= 10) return 'ag-util-full';
+    if (days >= 8)  return 'ag-util-high';
+    if (days >= 5)  return 'ag-util-mid';
+    if (days >= 3)  return 'ag-util-low';
+    if (days > 0)   return 'ag-util-vlow';
+    return 'ag-util-zero';
+}
+
 function _utilBarCls(pct) {
     if (pct > 100) return 'over';
     if (pct > 80)  return 'high';
@@ -807,21 +827,26 @@ function _renderUtilTable(data) {
         for (let i = 0; i < cols.length; i++) {
             const sep = i > 0 ? ' ag-col-sep' : '';
             if (merged) {
-                let sumAlloc = 0, sumNet = 0;
+                let sumAlloc = 0, sumNet = 0; let hasNet = false;
                 for (const s of cols[i].sprints) {
                     const c = cm[s.id] ?? {};
                     sumAlloc += parseFloat(c.allocated_days ?? 0);
-                    sumNet   += parseFloat(c.net_capacity   ?? 0);
+                    if (c.net_capacity != null) { sumNet += parseFloat(c.net_capacity); hasNet = true; }
                 }
-                const pct    = sumNet > 0 ? Math.round((sumAlloc / sumNet) * 100) : 0;
-                const cls    = _utilCls(pct);
-                const barCls = _utilBarCls(pct);
-                const barW   = Math.min(pct, 100);
-                html += `<td class="${cls}${sep} ag-util-cell">
-                    <div class="ag-util-days">${sumAlloc.toFixed(1)}d</div>
-                    <div class="ag-util-bar-wrap"><div class="ag-util-bar">
-                        <div class="ag-util-bar-fill ${barCls}" style="width:${barW}%"></div>
-                    </div></div></td>`;
+                const cls = _allocDayCls(sumAlloc);
+                if (hasNet) {
+                    const pct    = sumNet > 0 ? Math.round((sumAlloc / sumNet) * 100) : 0;
+                    const barCls = _utilBarCls(pct);
+                    const barW   = Math.min(pct, 100);
+                    html += `<td class="${cls}${sep} ag-util-cell">
+                        <div class="ag-util-days">${sumAlloc.toFixed(2)}d</div>
+                        <div class="ag-util-bar-wrap"><div class="ag-util-bar">
+                            <div class="ag-util-bar-fill ${barCls}" style="width:${barW}%"></div>
+                        </div></div></td>`;
+                } else {
+                    html += `<td class="${cls}${sep} ag-util-cell">
+                        <div class="ag-util-days">${sumAlloc > 0 ? sumAlloc.toFixed(2) + 'd' : '—'}</div></td>`;
+                }
             } else {
                 for (let si = 0; si < cols[i].sprints.length; si++) {
                     const sprint = cols[i].sprints[si];
@@ -830,24 +855,50 @@ function _renderUtilTable(data) {
                     const alloc  = parseFloat(c.allocated_days   ?? 0);
                     const net    = parseFloat(c.net_capacity     ?? 0);
                     const hasData = c.net_capacity != null;
-                    const cls    = hasData ? _utilCls(pct) : '';
+                    const cls    = _allocDayCls(alloc);
                     const barCls = _utilBarCls(pct);
                     const barW   = Math.min(pct, 100);
                     const s      = si === 0 ? sep : '';
-                    const tip    = `${escHtml(sprint.name)}: ${alloc}d / ${net}d (${pct.toFixed(1)}%)`;
+                    const tip    = `${escHtml(sprint.name)}: ${alloc}d / ${net}d (${pct.toFixed(2)}%)`;
                     html += hasData
                         ? `<td class="${cls}${s} ag-util-cell" data-sprint-id="${sprint.id}" data-net-capacity="${net}" data-alloc-days="${alloc}" title="${tip}">
-                            <div class="ag-util-days">${alloc.toFixed(1)}d</div>
+                            <div class="ag-util-days">${alloc.toFixed(2)}d</div>
                             <div class="ag-util-bar-wrap"><div class="ag-util-bar">
                                 <div class="ag-util-bar-fill ${barCls}" style="width:${barW}%"></div>
                             </div></div></td>`
-                        : `<td class="${s}" data-sprint-id="${sprint.id}">—</td>`;
+                        : `<td class="${cls}${s} ag-util-cell" data-sprint-id="${sprint.id}"><div class="ag-util-days">${alloc > 0 ? alloc.toFixed(2) + 'd' : '—'}</div></td>`;
                 }
             }
         }
         html += '</tr>';
     }
     body.innerHTML = html;
+}
+
+// ── Priority / Confidence indicator helpers ───────────────────────────────────
+
+function _priorityDot(priority) {
+    if (!priority) return '';
+    const map = {
+        VERY_HIGH: ['bg-danger',  'VH', 'Very High Priority'],
+        HIGH:      ['bg-warning text-dark', 'H', 'High Priority'],
+        MEDIUM:    ['bg-secondary', 'M', 'Medium Priority'],
+        LOW:       ['bg-success',  'L', 'Low Priority'],
+    };
+    const [cls, , tip] = map[priority] ?? ['bg-secondary', priority, priority];
+    return ` <span class="badge ${cls} ag-priority-dot" title="${tip}" style="width:.55rem;height:.55rem;border-radius:50%;padding:0;vertical-align:middle;display:inline-block;"></span>`;
+}
+
+function _confidenceBadge(confidence) {
+    if (!confidence) return '';
+    const map = {
+        VERY_HIGH: ['bg-success-subtle text-success-emphasis', 'VH'],
+        HIGH:      ['bg-primary-subtle text-primary-emphasis', 'H'],
+        MEDIUM:    ['bg-secondary-subtle text-secondary-emphasis', 'M'],
+        LOW:       ['bg-warning-subtle text-warning-emphasis', 'L'],
+    };
+    const [cls, label] = map[confidence] ?? ['bg-secondary-subtle text-secondary-emphasis', confidence];
+    return ` <span class="badge ${cls} ag-conf-badge" title="Confidence: ${confidence}" style="font-size:.6rem;padding:1px 4px;vertical-align:middle;">${label}</span>`;
 }
 
 // ── Allocations table (Table 4) — editable ────────────────────────────────────
@@ -937,13 +988,16 @@ function _renderAllocTable(data) {
         const projectId  = row.project_id  ?? '';
         const memberId   = row.member_id   ?? '';
         const memberType = row.member_type ?? 'member';
+        const phaseId    = row.phase_id    ?? '';
 
-        html += `<tr data-row-idx="${rowIdx}" data-project-id="${projectId}" data-member-id="${memberId}" data-member-type="${memberType}">`;
+        html += `<tr data-row-idx="${rowIdx}" data-project-id="${projectId}" data-member-id="${memberId}" data-member-type="${memberType}" data-phase-id="${phaseId}">`;
         html += `<td class="ag-col-prog"  title="${escHtml(row.programme_name)}">${escHtml(row.programme_name ?? '—')}</td>`;
         html += `<td class="ag-col-proj ag-proj-cell" title="${escHtml(row.project_name)}">${escHtml(row.project_name ?? '—')}</td>`;
         html += `<td class="ag-col-alloc-team" title="${escHtml(row.team_name)}">${escHtml(row.team_name ?? '—')}</td>`;
         html += `<td class="ag-col-alloc-member" title="${escHtml(row.member_name)}">${escHtml(row.member_name ?? '—')}</td>`;
-        html += `<td class="ag-col-phase" title="${escHtml(row.phase_name)}">${escHtml(row.phase_name ?? '—')}</td>`;
+        const priorityDot = _priorityDot(row.phase_priority);
+        const confBadge   = _confidenceBadge(row.phase_confidence);
+        html += `<td class="ag-col-phase" title="${escHtml(row.phase_name)}">${escHtml(row.phase_name ?? '—')}${priorityDot}${confBadge}</td>`;
 
         let colIdx = 0;
         for (let i = 0; i < cols.length; i++) {
@@ -963,7 +1017,7 @@ function _renderAllocTable(data) {
                     const isOverride = !!cell.is_override;
                     const isMulti    = !!cell.multi;
 
-                    const canEdit = !_isActiveSet && allocId && !isMulti;
+                    const canEdit = !_isActiveSet && !isMulti;
                     const editCls = canEdit ? ' editable-cell' : '';
                     const overrideDot = isOverride ? '<span class="ag-override-dot" title="Manual override"></span>' : '';
 
@@ -1003,15 +1057,15 @@ function _bindCellEditing() {
 }
 
 function _startEdit(td) {
-    const allocId   = td.dataset.allocId;
-    if (!allocId) return;
-    const currentVal = parseFloat(td.dataset.days ?? '0');
-    const displayVal = currentVal > 0 ? currentVal.toFixed(2) : '';
+    const currentVal  = parseFloat(td.dataset.days ?? '0');
+    const wasOverride = td.querySelector('.ag-override-dot') !== null;
+    const displayVal  = currentVal > 0 ? currentVal.toFixed(2) : '';
 
     td.innerHTML = `<input type="number" class="ag-cell-input"
         value="${displayVal}"
         min="0" max="10" step="0.25"
-        data-orig-val="${currentVal}">`;
+        data-orig-val="${currentVal}"
+        data-orig-override="${wasOverride}">`;
     const inp = td.querySelector('input');
     _editingTd = td;
     inp.focus();
@@ -1055,9 +1109,10 @@ function _commitEdit(td, inp, afterFn) {
 }
 
 function _cancelEdit(td, inp) {
-    const origVal = parseFloat(inp.dataset.origVal ?? '0');
+    const origVal    = parseFloat(inp.dataset.origVal ?? '0');
+    const wasOverride = inp.dataset.origOverride === 'true';
     _editingTd = null;
-    _restoreCellDisplay(td, origVal, !!td.querySelector('.ag-override-dot'));
+    _restoreCellDisplay(td, origVal, wasOverride);
 }
 
 function _cancelCurrentEdit() {
@@ -1068,8 +1123,12 @@ function _cancelCurrentEdit() {
 }
 
 async function _saveCell(td, days, afterFn) {
-    const allocId = td.dataset.allocId;
-    if (!allocId) { _saving = false; afterFn?.(); return; }
+    const allocId    = td.dataset.allocId;
+    const sprintId   = td.dataset.sprintId;
+    const tr         = td.closest('tr');
+    const phaseId    = tr?.dataset.phaseId;
+    const memberId   = tr?.dataset.memberId;
+    const memberType = tr?.dataset.memberType;
 
     // Inline validation before hitting server
     const rounded = Math.round(days / 0.25) * 0.25;
@@ -1082,10 +1141,45 @@ async function _saveCell(td, days, afterFn) {
     }
 
     try {
-        const result = await apiFetch(
-            API_URLS.rp_versions.grid.cell_update(planPk, versionPk, allocId).href,
-            { method: 'POST', body: JSON.stringify({ days: rounded }) }
-        );
+        let result;
+        if (allocId) {
+            result = await apiFetch(
+                API_URLS.rp_versions.grid.cell_update(planPk, versionPk, allocId).href,
+                { method: 'POST', body: JSON.stringify({ days: rounded }) }
+            );
+        } else {
+            if (rounded === 0) {
+                _restoreCellDisplay(td, 0, false);
+                _saving = false;
+                afterFn?.();
+                return;
+            }
+            result = await apiFetch(
+                API_URLS.rp_versions.grid.cell_create(planPk, versionPk).href,
+                {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        days: rounded,
+                        allocation_set_id: _activeAllocSetId,
+                        phase_id: phaseId ? parseInt(phaseId, 10) : null,
+                        sprint_id: sprintId ? parseInt(sprintId, 10) : null,
+                        member_id: memberId ? parseInt(memberId, 10) : null,
+                        member_type: memberType ?? 'member',
+                    })
+                }
+            );
+            if (result.allocation_id) {
+                td.dataset.allocId = result.allocation_id;
+                // Update in-memory cell so next edit goes through update path
+                const rowIdx = parseInt(tr?.dataset.rowIdx ?? '-1', 10);
+                if (_allocData && rowIdx >= 0) {
+                    const filteredRows = _filterAllocRows(_allocData.rows ?? []);
+                    const spId = parseInt(sprintId, 10);
+                    const cell = (filteredRows[rowIdx]?.cells ?? []).find(c => c.sprint_id === spId);
+                    if (cell) cell.allocation_id = result.allocation_id;
+                }
+            }
+        }
         _onCellSaved(result, td);
     } catch (err) {
         const msg = err?.data?.days?.[0] ?? err?.data?.detail ?? err?.message ?? 'Save failed';
@@ -1166,18 +1260,18 @@ function _updateUtilCell(memberId, memberType, sprintId, allocatedDays) {
     const pct    = net > 0 ? Math.round((alloc / net) * 100) : 0;
     const barW   = Math.min(pct, 100);
     const barCls = _utilBarCls(pct);
-    const cls    = net > 0 ? _utilCls(pct) : '';
+    const cls    = _allocDayCls(alloc);
 
     // Update data attributes
     cell.dataset.allocDays = alloc;
 
     // Update class
-    ['ag-util-over', 'ag-util-high', 'ag-util-mid', 'ag-util-low'].forEach(c => cell.classList.remove(c));
+    ['ag-util-full', 'ag-util-high', 'ag-util-mid', 'ag-util-low', 'ag-util-vlow', 'ag-util-zero', 'ag-util-over'].forEach(c => cell.classList.remove(c));
     if (cls) cell.classList.add(cls);
 
     // Update text
     const daysDiv = cell.querySelector('.ag-util-days');
-    if (daysDiv) daysDiv.textContent = `${alloc.toFixed(1)}d`;
+    if (daysDiv) daysDiv.textContent = `${alloc.toFixed(2)}d`;
 
     // Update bar
     const barFill = cell.querySelector('.ag-util-bar-fill');
