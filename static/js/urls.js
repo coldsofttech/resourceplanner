@@ -615,6 +615,180 @@ export const API_URLS = {
         export: { method: 'GET', href: `${API_BASE}configurations/export/` },
         reset: (pk) => ({ method: 'POST', href: `${API_BASE}configurations/${pk}/reset/` }),
     },
+    resource_plans: {
+        list: {
+            method: 'GET',
+            href: `${API_BASE}resource-plans/`,
+        },
+        detail: (planId) => ({
+            method: 'GET',
+            href: `${API_BASE}resource-plans/${planId}/`,
+        }),
+        partial_edit: (planId) => ({
+            method: 'PATCH',
+            href: `${API_BASE}resource-plans/${planId}/`,
+        }),
+        options: {
+            method: 'GET',
+            href: `${API_BASE}resource-plans/options/`,
+        },
+        create: {
+            method: 'POST',
+            href: `${API_BASE}resource-plans/`,
+        },
+        clone: (planId) => ({
+            method: 'POST',
+            href: `${API_BASE}resource-plans/${planId}/clone/`,
+        }),
+        archive: (planId) => ({
+            method: 'POST',
+            href: `${API_BASE}resource-plans/${planId}/archive/`,
+        }),
+        unarchive: (planId) => ({
+            method: 'POST',
+            href: `${API_BASE}resource-plans/${planId}/unarchive/`,
+        }),
+        delete: (planId) => ({
+            method: 'DELETE',
+            href: `${API_BASE}resource-plans/${planId}/`,
+        }),
+        stats: {
+            method: 'GET',
+            href: `${API_BASE}resource-plans/stats/`,
+        },
+        versions: (planId) => ({
+            method: 'GET',
+            href: `${API_BASE}resource-plans/${planId}/versions/`,
+        }),
+        version_edit: (versionPlanId) => ({
+            method: 'PATCH',
+            href: `${API_BASE}resource-plans/${versionPlanId}/`,
+        }),
+        version_activate: (versionPlanId) => ({
+            method: 'POST',
+            href: `${API_BASE}resource-plans/${versionPlanId}/activate/`,
+        }),
+        version_lock: (versionPlanId) => ({
+            method: 'POST',
+            href: `${API_BASE}resource-plans/${versionPlanId}/lock/`,
+        }),
+        version_clone: (versionPlanId) => ({
+            method: 'POST',
+            href: `${API_BASE}resource-plans/${versionPlanId}/clone/`,
+        }),
+        version_delete: (versionPlanId) => ({
+            method: 'DELETE',
+            href: `${API_BASE}resource-plans/${versionPlanId}/`,
+        }),
+        new_version: (planId) => ({
+            method: 'POST',
+            href: `${API_BASE}resource-plans/${planId}/new-version/`,
+        }),
+        restore: (planId, sourcePk) => ({
+            method: 'POST',
+            href: `${API_BASE}resource-plans/${planId}/restore/${sourcePk}/`,
+        }),
+        comments: {
+            list: (planId) => ({
+                method: 'GET',
+                href: `${API_BASE}resource-plans/${planId}/comments/`,
+            }),
+            create: (planId) => ({
+                method: 'POST',
+                href: `${API_BASE}resource-plans/${planId}/comments/`,
+            }),
+        },
+        engine: {
+            run: (planId) => ({
+                method: 'POST',
+                href: `${API_BASE}resource-plans/${planId}/engine/run/`,
+            }),
+            jobs: (planId) => ({
+                method: 'GET',
+                href: `${API_BASE}resource-plans/${planId}/engine/jobs/`,
+            }),
+            job_detail: (planId, jobId) => ({
+                method: 'GET',
+                href: `${API_BASE}resource-plans/${planId}/engine/jobs/${jobId}/`,
+            }),
+            job_status: (planId, jobId) => ({
+                method: 'GET',
+                href: `${API_BASE}resource-plans/${planId}/engine/jobs/${jobId}/status/`,
+            }),
+        },
+    },
+    rp_versions: {
+        detail: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/` }),
+        grid: {
+            teams: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/teams/` }),
+            capacity: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/capacity/` }),
+            absences: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/absences/` }),
+        },
+        placeholder_leaves: {
+            list: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-leaves/` }),
+            update: (planPk, versionPk, plPk) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-leaves/${plPk}/` }),
+            delete: (planPk, versionPk, plPk) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/placeholder-leaves/${plPk}/` }),
+        },
+        projects: {
+            list: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/` }),
+            create: (planPk, versionPk) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/` }),
+            unmapped: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/unmapped/` }),
+            options: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/options/` }),
+            detail: (planPk, versionPk, entryId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/` }),
+            update: (planPk, versionPk, entryId) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/` }),
+            delete: (planPk, versionPk, entryId) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/` }),
+            resync: (planPk, versionPk, entryId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/resync/` }),
+            reorder: (planPk, versionPk, entryId) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/reorder/` }),
+        },
+        teams: {
+            list: (planPk, versionPk, entryId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/teams/` }),
+            create: (planPk, versionPk, entryId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/teams/` }),
+            options: (planPk, versionPk, entryId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/teams/options/` }),
+            update: (planPk, versionPk, entryId, teamEntryId) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/teams/${teamEntryId}/` }),
+            delete: (planPk, versionPk, entryId, teamEntryId) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/teams/${teamEntryId}/` }),
+        },
+        releases: {
+            list: (planPk, versionPk, entryId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/budget-releases/` }),
+            create: (planPk, versionPk, entryId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/budget-releases/` }),
+            update: (planPk, versionPk, entryId, releaseId) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/budget-releases/${releaseId}/` }),
+            delete: (planPk, versionPk, entryId, releaseId) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/budget-releases/${releaseId}/` }),
+        },
+        phases: {
+            list: (planPk, versionPk, entryId, teamEntryId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/teams/${teamEntryId}/phases/` }),
+            create: (planPk, versionPk, entryId, teamEntryId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/projects/${entryId}/teams/${teamEntryId}/phases/` }),
+            options: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/options/` }),
+            detail: (planPk, versionPk, phaseId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/` }),
+            update: (planPk, versionPk, phaseId) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/` }),
+            delete: (planPk, versionPk, phaseId) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/` }),
+            segments: {
+                list: (planPk, versionPk, phaseId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/segments/` }),
+                create: (planPk, versionPk, phaseId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/segments/` }),
+                update: (planPk, versionPk, phaseId, segId) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/segments/${segId}/` }),
+                delete: (planPk, versionPk, phaseId, segId) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/segments/${segId}/` }),
+                suggest: (planPk, versionPk, phaseId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/segments/suggest/` }),
+                reorder: (planPk, versionPk, phaseId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/segments/reorder/` }),
+            },
+            dependencies: {
+                list: (planPk, versionPk, phaseId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/dependencies/` }),
+                create: (planPk, versionPk, phaseId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/dependencies/` }),
+                update: (planPk, versionPk, phaseId, depId) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/dependencies/${depId}/` }),
+                delete: (planPk, versionPk, phaseId, depId) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/dependencies/${depId}/` }),
+            },
+            pauses: {
+                list: (planPk, versionPk, phaseId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/pauses/` }),
+                create: (planPk, versionPk, phaseId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/pauses/` }),
+                update: (planPk, versionPk, phaseId, pauseId) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/pauses/${pauseId}/` }),
+                delete: (planPk, versionPk, phaseId, pauseId) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/pauses/${pauseId}/` }),
+            },
+            assignments: {
+                list: (planPk, versionPk, phaseId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/assignments/` }),
+                create: (planPk, versionPk, phaseId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/assignments/` }),
+                options: (planPk, versionPk, phaseId) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/assignments/options/` }),
+                update: (planPk, versionPk, phaseId, assignId) => ({ method: 'PATCH', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/assignments/${assignId}/` }),
+                delete: (planPk, versionPk, phaseId, assignId) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/phases/${phaseId}/assignments/${assignId}/` }),
+            },
+        },
+    },
 };
 
 export const URLS = {
@@ -741,5 +915,10 @@ export const URLS = {
         list: '/configurations/',
         detail: (pk) => `/configurations/${pk}/`,
         edit: (pk) => `/configurations/${pk}/edit/`,
+    },
+    resource_plans: {
+        detail: (planId) => `/resource-plans/${planId}`,
+        allocation_grid: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/grid/`,
+        placeholder_leaves: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/placeholder-leaves/`,
     },
 };

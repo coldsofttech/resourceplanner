@@ -63,7 +63,9 @@ router.register(r"tags", TagViewSet, basename="tag")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    # REST API
+    # REST API – resource plans (includes nested version-config routes)
+    path("api/v1/", include("apps.resource_plans.api_urls")),
+    # REST API – all other apps
     path("api/v1/", include(router.urls)),
     # Manage
     path("delivery-teams/", include("apps.delivery_teams.urls")),
@@ -74,6 +76,7 @@ urlpatterns = [
     # Projects
     path("programmes/", include("apps.programmes.urls")),
     path("projects/", include("apps.projects.urls")),
+    path("resource-plans/", include("apps.resource_plans.urls")),
     path("contacts/", include("apps.contacts.urls")),
     # Settings
     path("holidays/", include("apps.public_holidays.urls")),

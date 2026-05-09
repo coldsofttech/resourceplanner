@@ -1,0 +1,1076 @@
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div
+    class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3"
+    id="vc-page-header"
+>
+    <div class="d-flex align-items-center gap-3">
+        <a href="/resource-plans/{{ plan_pk }}/" class="btn btn-ghost-icon" title="Back to plan">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <div class="small text-secondary mb-1" id="vc-breadcrumb">Resource Plans</div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span id="vc-plan-name">Loading…</span>
+                <span id="vc-version-badge"></span>
+                <span id="vc-status-badge"></span>
+            </h1>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <button type="button" class="btn btn-sm btn-warning" id="vc-btn-run-engine" title="Run Engine">
+            <i class="bi bi-cpu me-1"></i>Run Engine
+        </button>
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/grid/"
+            class="btn btn-sm btn-outline-secondary" title="Allocation Grid">
+            <i class="bi bi-grid-3x3-gap me-1"></i>Allocation Grid
+        </a>
+    </div>
+</div>
+{% endblock %} {% block content %}
+<div id="vc-banner" class="alert d-none mb-3" role="alert"></div>
+
+<ul class="rp-tabs mb-3" id="vcTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-vc-general" data-bs-toggle="tab"
+            data-bs-target="#pane-vc-general" type="button" role="tab">
+            <i class="bi bi-gear"></i>General
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-vc-projects" data-bs-toggle="tab"
+            data-bs-target="#pane-vc-projects" type="button" role="tab">
+            <i class="bi bi-diagram-3"></i>Projects
+            <span class="badge bg-secondary ms-1 fw-normal" id="vc-project-count">0</span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-vc-jobs" data-bs-toggle="tab"
+            data-bs-target="#pane-vc-jobs" type="button" role="tab">
+            <i class="bi bi-cpu"></i>Jobs
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content rp-tab-content" id="vcTabContent">
+
+    <!-- ── General Tab ─────────────────────────────────────────────────────── -->
+    <div class="tab-pane fade show active" id="pane-vc-general" role="tabpanel">
+        <div class="row g-4 rp-view-layout">
+
+            <!-- Left col: unmapped projects (wider) -->
+            <div class="col-lg-8">
+                <div class="rp-view-section">
+                    <h6 class="rp-view-section-title">Unmapped Projects</h6>
+                    <div class="mb-2">
+                        <input type="text" id="unmapped-search" class="form-control form-control-sm rp-input"
+                            placeholder="Search projects…" />
+                    </div>
+                    <div id="unmapped-projects-list" style="max-height:520px;overflow-y:auto;">
+                        <p class="text-secondary small mb-0">Loading…</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right col: version settings + calculator (narrower) -->
+            <div class="col-lg-4">
+
+                <!-- Version Settings -->
+                <div class="rp-view-section mb-4">
+                    <h6 class="rp-view-section-title mb-3">Version Settings</h6>
+                    <div class="mb-3">
+                        <div class="rp-label">Sprint Point Price (£ / day)</div>
+                        <div class="d-flex align-items-center gap-2 mt-1">
+                            <span class="rp-code" id="spp-display" style="font-size:.9rem">—</span>
+                            <a href="/configurations/" class="rp-link small" title="Edit in Configurations">
+                                <i class="bi bi-box-arrow-up-right" style="font-size:.75rem"></i>
+                            </a>
+                        </div>
+                        <div class="rp-hint mt-1">
+                            Sourced from <strong>Configurations → SPRINT_POINT_PRICE</strong>.
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        <div class="rp-label">Threshold (%)</div>
+                        <div class="rp-view-value mt-1" id="threshold-display">—</div>
+                        <div class="rp-hint mt-1">Alert threshold for over/under-allocation.</div>
+                    </div>
+                </div>
+
+                <!-- Custom Days Calculator (always visible, distinct background) -->
+                <div class="rp-view-section mb-4" style="background:var(--bs-tertiary-bg,#f8f9fa);">
+                    <h6 class="rp-view-section-title mb-3">
+                        <i class="bi bi-calculator me-2"></i>Custom Days Calculator
+                    </h6>
+                    <div id="calc-body">
+                        <div class="mb-3">
+                            <label class="rp-label" for="calc-days">Days</label>
+                            <input type="number" id="calc-days" class="form-control rp-input"
+                                min="0" step="0.25" placeholder="e.g. 40" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="rp-label" for="calc-cost">Cost (£)</label>
+                            <input type="number" id="calc-cost" class="form-control rp-input"
+                                min="0" step="100" placeholder="e.g. 40000" />
+                        </div>
+                        <div class="rp-hint">Enter days or cost — the other field is auto-computed using the sprint point price.</div>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ── Projects Tab ────────────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="pane-vc-projects" role="tabpanel">
+        <div class="rp-view-section">
+            <div class="d-flex align-items-center justify-content-between mb-3 gap-2 flex-wrap">
+                <h6 class="rp-view-section-title mb-0">Configured Projects</h6>
+                <div class="d-flex align-items-center gap-2">
+                    <select id="projects-programme-filter" class="form-select form-select-sm rp-input" style="width:180px">
+                        <option value="">All Programmes</option>
+                    </select>
+                    <input type="text" id="projects-search" class="form-control form-control-sm rp-input"
+                        style="width:220px" placeholder="Search…" />
+                </div>
+            </div>
+            <div class="rp-table-wrap" style="overflow-x:auto">
+                <table class="table rp-table" id="vc-projects-table">
+                    <thead>
+                        <tr>
+                            <th>Project</th>
+                            <th>Programme</th>
+                            <th>Basis</th>
+                            <th class="text-end">Amount (£)</th>
+                            <th class="text-end">Days Req.</th>
+                            <th>Priority</th>
+                            <th>Confidence</th>
+                            <th>Flags</th>
+                            <th style="min-width:160px">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vc-projects-tbody">
+                        <tr><td colspan="9" class="text-center text-secondary py-3">Loading…</td></tr>
+                    </tbody>
+                </table>
+                <div class="rp-pagination-bar d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2"
+                    id="proj-pagination-bar">
+                    <span class="rp-pagination-info text-secondary small" id="proj-pagination-info"></span>
+                    <nav><ul class="rp-pagination-controls pagination pagination-sm mb-0" id="proj-pagination-controls"></ul></nav>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Jobs Tab ──────────────────────────────────────────────────────── -->
+    <div class="tab-pane fade" id="pane-vc-jobs" role="tabpanel">
+        <div class="rp-view-section">
+            <div id="vc-jobs-list">
+                <p class="text-secondary small">Select the Jobs tab to load.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Engine Modal (Version Configure) ──────────────────────────────────── -->
+<div class="modal fade" id="vcEngineModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold">
+                    <i class="bi bi-cpu me-2"></i>Run Engine
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" id="vc-engine-modal-close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="vc-engine-run-form">
+                    <div class="mb-3">
+                        <label class="rp-label form-label-sm d-block mb-2">Run Mode</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="vc-engine-mode" id="vc-mode-validate" value="VALIDATE" checked />
+                            <label class="form-check-label" for="vc-mode-validate">
+                                <strong>Validate Only</strong>
+                                <span class="d-block text-secondary" style="font-size:.8rem">Check configuration — no data written</span>
+                            </label>
+                        </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="radio" name="vc-engine-mode" id="vc-mode-full" value="FULL" />
+                            <label class="form-check-label" for="vc-mode-full">
+                                <strong>Full Run</strong>
+                                <span class="d-block text-secondary" style="font-size:.8rem">Validate + generate capacity &amp; allocations</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="vc-engine-include-current" />
+                        <label class="form-check-label rp-label" for="vc-engine-include-current">
+                            Include current sprint
+                        </label>
+                        <div class="rp-hint">When checked, the current (in-progress) sprint is included in capacity calculations.</div>
+                    </div>
+                    <div id="vc-engine-overrides-section" class="d-none mb-3">
+                        <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:.82rem">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                            This version has manual placeholder leave overrides.
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="vc-engine-remove-overrides" />
+                            <label class="form-check-label rp-label" for="vc-engine-remove-overrides">
+                                Remove overrides and regenerate from scratch
+                            </label>
+                            <div class="rp-hint">Deletes all placeholder leaves (including manual edits) and rebuilds from auto-generation.</div>
+                        </div>
+                    </div>
+                    <div id="vc-engine-run-err" class="alert alert-danger d-none mb-0"></div>
+                </div>
+                <!-- Progress section -->
+                <div id="vc-engine-progress-section" class="d-none">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span id="vc-engine-status-badge"></span>
+                        <span class="text-secondary small" id="vc-engine-current-step">Initialising…</span>
+                    </div>
+                    <div class="progress mb-3" style="height:8px">
+                        <div class="progress-bar" id="vc-engine-progress-bar" role="progressbar"
+                             style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                    <div id="vc-engine-result-section" class="d-none"></div>
+                    <div id="vc-engine-error-log-section" class="d-none">
+                        <h6 class="text-danger mb-1" style="font-size:.85rem"><i class="bi bi-exclamation-triangle me-1"></i>Error Log</h6>
+                        <pre id="vc-engine-error-log" class="text-danger p-2 rounded" style="font-size:.78rem;background:#fff5f5;max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-warning" id="vc-btn-engine-submit">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="vc-engine-submit-spinner"></span>
+                    Run
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Add Project Modal ──────────────────────────────────────────────────── -->
+<div class="modal fade" id="addProjectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold">Add Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="add-proj-banner" class="alert alert-danger d-none mb-3"></div>
+                <input type="hidden" id="add-proj-id" />
+                <div class="rp-view-field mb-3">
+                    <span class="rp-view-label">Project</span>
+                    <span id="add-proj-name" class="rp-view-value fw-semibold">—</span>
+                </div>
+                <div class="row g-3">
+                    <div class="col-sm-6">
+                        <label class="rp-label" for="add-proj-basis">Basis <span class="rp-required">*</span></label>
+                        <select id="add-proj-basis" class="form-select rp-input">
+                            <option value="BUDGET">Budget</option>
+                            <option value="ESTIMATE">Estimate</option>
+                            <option value="CUSTOM">Custom</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6 d-none" id="add-estimate-version-group">
+                        <label class="rp-label" for="add-estimate-version">Estimate Version</label>
+                        <select id="add-estimate-version" class="form-select rp-input">
+                            <option value="">Loading…</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6 d-none" id="add-proj-amount-group">
+                        <label class="rp-label" for="add-proj-amount">Basis Amount (£)</label>
+                        <input type="number" id="add-proj-amount" class="form-control rp-input" min="0" step="100" />
+                        <div class="invalid-feedback" id="add-proj-amount-err"></div>
+                    </div>
+                </div>
+                <!-- Prominent budget/estimate display -->
+                <div class="d-none mt-2 p-2 rounded border" id="add-basis-hint-wrap"
+                    style="background:var(--bs-tertiary-bg,#f8f9fa);">
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-currency-pound text-success" style="font-size:1.4rem"></i>
+                        <div>
+                            <div class="rp-label mb-0" id="add-basis-hint-label">Available Budget</div>
+                            <div class="fw-semibold" style="font-size:1rem" id="add-basis-hint-value">—</div>
+                        </div>
+                    </div>
+                    <div class="rp-hint mt-1" id="add-basis-hint-sub"></div>
+                </div>
+                <div class="row g-3 mt-1">
+                    <div class="col-sm-6">
+                        <label class="rp-label" for="add-proj-priority">Priority Override</label>
+                        <select id="add-proj-priority" class="form-select rp-input">
+                            <option value="">— Inherit from project —</option>
+                            <option value="VERY_HIGH">Very High</option>
+                            <option value="HIGH">High</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="LOW">Low</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="rp-label" for="add-proj-confidence">Confidence Override</label>
+                        <select id="add-proj-confidence" class="form-select rp-input">
+                            <option value="">— Inherit from project —</option>
+                            <option value="VERY_HIGH">Very High</option>
+                            <option value="HIGH">High</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="LOW">Low</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-add-proj">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="add-proj-spinner"></span>
+                    Add Project
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Edit Project Modal ─────────────────────────────────────────────────── -->
+<div class="modal fade" id="editProjectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold" id="edit-proj-title">Configure Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="edit-proj-banner" class="alert alert-danger d-none mb-3"></div>
+                <input type="hidden" id="edit-proj-entry-id" />
+
+                <ul class="rp-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="ep-tab-config" data-bs-toggle="tab" data-bs-target="#ep-pane-config" type="button" role="tab">Config</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ep-tab-teams" data-bs-toggle="tab" data-bs-target="#ep-pane-teams" type="button" role="tab">
+                            Teams <span class="badge bg-secondary ms-1 fw-normal" id="ep-team-count">0</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ep-tab-releases" data-bs-toggle="tab" data-bs-target="#ep-pane-releases" type="button" role="tab">
+                            Budget Releases <span class="badge bg-secondary ms-1 fw-normal" id="ep-release-count">0</span>
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Config Pane -->
+                    <div class="tab-pane fade show active" id="ep-pane-config">
+                        <div class="row g-3">
+                            <div class="col-sm-4">
+                                <label class="rp-label" for="ep-basis">Basis</label>
+                                <select id="ep-basis" class="form-select rp-input">
+                                    <option value="BUDGET">Budget</option>
+                                    <option value="ESTIMATE">Estimate</option>
+                                    <option value="CUSTOM">Custom</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-4 d-none" id="ep-estimate-version-group">
+                                <label class="rp-label" for="ep-estimate-version">Estimate Version</label>
+                                <select id="ep-estimate-version" class="form-select rp-input">
+                                    <option value="">Loading…</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-4" id="ep-amount-group">
+                                <label class="rp-label" for="ep-amount">Basis Amount (£)</label>
+                                <input type="number" id="ep-amount" class="form-control rp-input" min="0" step="100" />
+                                <div class="invalid-feedback" id="ep-amount-err"></div>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="rp-label">Synced At</label>
+                                <div class="rp-view-value small text-secondary mt-1" id="ep-synced-at">—</div>
+                            </div>
+                        </div>
+                        <!-- Prominent basis hint -->
+                        <div class="d-none mt-2 p-2 rounded border" id="ep-basis-hint-wrap"
+                            style="background:var(--bs-tertiary-bg,#f8f9fa);">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-currency-pound text-success" style="font-size:1.4rem"></i>
+                                <div>
+                                    <div class="rp-label mb-0" id="ep-basis-hint-label">Available Budget</div>
+                                    <div class="fw-semibold" style="font-size:1rem" id="ep-basis-hint-value">—</div>
+                                </div>
+                            </div>
+                            <div class="rp-hint mt-1" id="ep-basis-hint-sub"></div>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-sm-4">
+                                <label class="rp-label" for="ep-priority">Priority Override</label>
+                                <select id="ep-priority" class="form-select rp-input">
+                                    <option value="">— Inherit —</option>
+                                    <option value="VERY_HIGH">Very High</option>
+                                    <option value="HIGH">High</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="LOW">Low</option>
+                                </select>
+                                <div class="rp-hint" id="ep-priority-hint"></div>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="rp-label" for="ep-confidence">Confidence Override</label>
+                                <select id="ep-confidence" class="form-select rp-input">
+                                    <option value="">— Inherit —</option>
+                                    <option value="VERY_HIGH">Very High</option>
+                                    <option value="HIGH">High</option>
+                                    <option value="MEDIUM">Medium</option>
+                                    <option value="LOW">Low</option>
+                                </select>
+                                <div class="rp-hint" id="ep-confidence-hint"></div>
+                            </div>
+                        </div>
+                        <div class="row g-3 mt-1">
+                            <div class="col-sm-4">
+                                <label class="rp-label" for="ep-start-sprint">Start Sprint</label>
+                                <select id="ep-start-sprint" class="form-select rp-input">
+                                    <option value="">— None —</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="rp-label" for="ep-end-sprint">End Sprint</label>
+                                <select id="ep-end-sprint" class="form-select rp-input">
+                                    <option value="">— None —</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="form-check-label rp-label" for="ep-dates-strict">Strict Dates</label>
+                                <div class="form-check form-switch rp-switch mt-1">
+                                    <input class="form-check-input" type="checkbox" id="ep-dates-strict" />
+                                </div>
+                                <div class="rp-hint">Enforce sprint boundaries strictly.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Teams Pane -->
+                    <div class="tab-pane fade" id="ep-pane-teams">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="small" id="ep-teams-summary"></div>
+                            <button class="btn btn-primary btn-sm" id="btn-show-add-team">
+                                <i class="bi bi-plus-lg me-1"></i>Add Team
+                            </button>
+                        </div>
+                        <div id="ep-teams-warning" class="alert d-none mb-2 py-2"></div>
+                        <div id="ep-teams-list"></div>
+                        <div class="mt-3 p-3 border rounded-2 bg-light d-none" id="add-team-form">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-sm-4">
+                                    <label class="rp-label form-label-sm" for="at-team">Team</label>
+                                    <select id="at-team" class="form-select form-select-sm rp-input"></select>
+                                </div>
+                                <div class="col-sm-3">
+                                    <label class="rp-label form-label-sm" for="at-type">Type</label>
+                                    <select id="at-type" class="form-select form-select-sm rp-input">
+                                        <option value="PERCENT">% of Basis Amount</option>
+                                        <option value="DAYS">Days</option>
+                                        <option value="BUDGET">Budget (£)</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-2">
+                                    <label class="rp-label form-label-sm" for="at-value">Value</label>
+                                    <input type="number" id="at-value" class="form-control form-control-sm rp-input" min="0" step="1" />
+                                </div>
+                                <div class="col-sm-2">
+                                    <label class="rp-label form-label-sm" for="at-seq">Order</label>
+                                    <input type="number" id="at-seq" class="form-control form-control-sm rp-input" min="1" step="1" value="1" />
+                                </div>
+                            </div>
+                            <div id="at-err" class="text-danger small mt-1 d-none"></div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-confirm-add-team">Add</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-add-team">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Budget Releases Pane -->
+                    <div class="tab-pane fade" id="ep-pane-releases">
+                        <!-- Budget release mode moved here -->
+                        <div class="row g-2 mb-2 align-items-end">
+                            <div class="col-sm-4">
+                                <label class="rp-label form-label-sm" for="ep-budget-release-mode">Release Mode</label>
+                                <select id="ep-budget-release-mode" class="form-select form-select-sm rp-input">
+                                    <option value="">— None —</option>
+                                    <option value="SPRINT">Sprint</option>
+                                    <option value="MONTH">Month</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="ep-mode-change-warn" class="alert alert-warning py-2 d-none mb-2">
+                            <i class="bi bi-exclamation-triangle me-1"></i>
+                            Changing the release mode will remove all existing budget releases. This cannot be undone.
+                        </div>
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="small text-secondary" id="ep-releases-summary"></div>
+                            <button class="btn btn-primary btn-sm" id="btn-show-add-release">
+                                <i class="bi bi-plus-lg me-1"></i>Add Release
+                            </button>
+                        </div>
+                        <div id="ep-releases-warning" class="alert d-none mb-2 py-2"></div>
+                        <div id="ep-releases-list"></div>
+                        <div class="mt-3 p-3 border rounded-2 bg-light d-none" id="add-release-form">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-sm-4" id="ar-sprint-group">
+                                    <label class="rp-label form-label-sm" for="ar-sprint">Sprint</label>
+                                    <select id="ar-sprint" class="form-select form-select-sm rp-input"></select>
+                                </div>
+                                <div class="col-sm-4 d-none" id="ar-month-group">
+                                    <label class="rp-label form-label-sm" for="ar-month">Month</label>
+                                    <select id="ar-month" class="form-select form-select-sm rp-input">
+                                        <option value="Jan">Jan</option><option value="Feb">Feb</option>
+                                        <option value="Mar">Mar</option><option value="Apr">Apr</option>
+                                        <option value="May">May</option><option value="Jun">Jun</option>
+                                        <option value="Jul">Jul</option><option value="Aug">Aug</option>
+                                        <option value="Sep">Sep</option><option value="Oct">Oct</option>
+                                        <option value="Nov">Nov</option><option value="Dec">Dec</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-3">
+                                    <label class="rp-label form-label-sm" for="ar-amount">Amount (£)</label>
+                                    <input type="number" id="ar-amount" class="form-control form-control-sm rp-input" min="0.01" step="100" />
+                                </div>
+                                <div class="col-sm-5">
+                                    <label class="rp-label form-label-sm" for="ar-notes">Notes (optional)</label>
+                                    <input type="text" id="ar-notes" class="form-control form-control-sm rp-input" />
+                                </div>
+                            </div>
+                            <div id="ar-err" class="text-danger small mt-1 d-none"></div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-confirm-add-release">Add</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-add-release">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-save-edit-proj">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="edit-proj-spinner"></span>
+                    Save Config
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Delete Project Modal ───────────────────────────────────────────────── -->
+<div class="modal fade" id="deleteProjectModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold">Remove Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="del-proj-banner" class="alert alert-danger d-none mb-3"></div>
+                <input type="hidden" id="del-proj-entry-id" />
+                <p class="text-secondary mb-0">
+                    Remove <strong id="del-proj-name">this project</strong> from the plan version?
+                    All team assignments and budget releases will also be removed. This cannot be undone.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btn-confirm-del-proj">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="del-proj-spinner"></span>
+                    Remove
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Resync Confirm Modal ───────────────────────────────────────────────── -->
+<div class="modal fade" id="resyncModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold">Resync Basis</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="resync-banner" class="alert alert-danger d-none mb-3"></div>
+                <input type="hidden" id="resync-entry-id" />
+                <p class="text-secondary mb-0">
+                    Re-pull the current <strong id="resync-basis-label">budget / estimate</strong> for
+                    <strong id="resync-proj-name">this project</strong>?
+                    The basis amount, days required, and synced date will be updated.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-resync">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="resync-spinner"></span>
+                    Resync
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Phase Modal ────────────────────────────────────────────────────────── -->
+<div class="modal fade" id="phaseModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-xl">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold" id="phase-modal-title">Phase</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="phase-banner" class="alert alert-danger d-none mb-3"></div>
+                <input type="hidden" id="phase-entry-id" />
+                <input type="hidden" id="phase-team-entry-id" />
+
+                <ul class="rp-tabs mb-3" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="ph-tab-config" data-bs-toggle="tab" data-bs-target="#ph-pane-config" type="button" role="tab">Config</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ph-tab-segments" data-bs-toggle="tab" data-bs-target="#ph-pane-segments" type="button" role="tab">
+                            Segments <span class="badge bg-secondary ms-1 fw-normal" id="ph-segment-count">0</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ph-tab-deps" data-bs-toggle="tab" data-bs-target="#ph-pane-deps" type="button" role="tab">
+                            Dependencies <span class="badge bg-secondary ms-1 fw-normal" id="ph-dep-count">0</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ph-tab-pauses" data-bs-toggle="tab" data-bs-target="#ph-pane-pauses" type="button" role="tab">
+                            Pauses <span class="badge bg-secondary ms-1 fw-normal" id="ph-pause-count">0</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="ph-tab-assignments" data-bs-toggle="tab" data-bs-target="#ph-pane-assignments" type="button" role="tab">
+                            Assignments <span class="badge bg-secondary ms-1 fw-normal" id="ph-assign-count">0</span>
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content">
+                    <!-- Config Pane -->
+                    <div class="tab-pane fade show active" id="ph-pane-config">
+                        <div class="row g-3">
+                            <div class="col-sm-6">
+                                <label class="rp-label" for="ph-name">Phase Name <span class="rp-required">*</span></label>
+                                <input type="text" id="ph-name" class="form-control rp-input" maxlength="100" />
+                            </div>
+                            <div class="col-sm-3">
+                                <label class="rp-label" for="ph-sequence">Sequence Order</label>
+                                <input type="number" id="ph-sequence" class="form-control rp-input" min="1" step="1" value="1" />
+                            </div>
+                            <div class="col-sm-3">
+                                <label class="rp-label" for="ph-max-days">Max Days / Sprint</label>
+                                <input type="number" id="ph-max-days" class="form-control rp-input" min="0" step="0.5" placeholder="Unlimited" />
+                                <div class="form-text text-secondary mt-1">
+                                    Caps engineer days per sprint for this phase. Use Segments to distribute effort across sprints (e.g. ramp-up or ramp-down). Total phase effort = team allocation × segment %.
+                                </div>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="rp-label" for="ph-start-sprint">Start Sprint</label>
+                                <select id="ph-start-sprint" class="form-select rp-input">
+                                    <option value="">— None —</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="rp-label" for="ph-end-sprint">End Sprint</label>
+                                <select id="ph-end-sprint" class="form-select rp-input">
+                                    <option value="">— None —</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="rp-label" for="ph-ramp-pattern">Ramp Pattern</label>
+                                <select id="ph-ramp-pattern" class="form-select rp-input">
+                                    <option value="FLAT">Flat</option>
+                                    <option value="RAMP_UP">Ramp Up</option>
+                                    <option value="RAMP_DOWN">Ramp Down</option>
+                                    <option value="RAMP_UP_DOWN">Ramp Up/Down</option>
+                                    <option value="RAMP_UP_STEADY">Ramp Up then Steady</option>
+                                    <option value="STEADY_DOWN">Steady then Down</option>
+                                    <option value="STEPPED">Stepped</option>
+                                    <option value="CUSTOM">Custom</option>
+                                </select>
+                            </div>
+                            <div class="col-sm-4">
+                                <label class="rp-label" for="ph-split-mode">Split Mode</label>
+                                <select id="ph-split-mode" class="form-select rp-input">
+                                    <option value="AUTO">Auto</option>
+                                    <option value="PERCENT">Percent</option>
+                                    <option value="DAYS">Days</option>
+                                    <option value="EQUAL">Equal</option>
+                                </select>
+                                <div id="ph-split-mode-hint" class="form-text text-secondary mt-1"></div>
+                            </div>
+                            <div class="col-sm-4 d-flex align-items-end pb-1">
+                                <div class="form-check form-switch rp-switch">
+                                    <input class="form-check-input" type="checkbox" id="ph-multi-eng" />
+                                    <label class="form-check-label rp-label" for="ph-multi-eng">Allow Multiple Engineers</label>
+                                </div>
+                            </div>
+                            <div class="col-sm-12">
+                                <label class="rp-label" for="ph-notes">Notes</label>
+                                <textarea id="ph-notes" class="form-control rp-input" rows="2"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Segments Pane -->
+                    <div class="tab-pane fade" id="ph-pane-segments">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="small text-secondary" id="ph-segments-summary"></div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-warning btn-sm" id="btn-suggest-segments">
+                                    <i class="bi bi-magic me-1"></i>Suggest
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-preview-ramp">
+                                    <i class="bi bi-bar-chart-line me-1"></i>Preview Ramp
+                                </button>
+                                <button class="btn btn-primary btn-sm" id="btn-add-segment">
+                                    <i class="bi bi-plus-lg me-1"></i>Add Segment
+                                </button>
+                            </div>
+                        </div>
+                        <div id="ph-segments-list"></div>
+                        <!-- Chart.js preview (hidden until Preview Ramp is clicked) -->
+                        <div class="mt-3 p-2 border rounded d-none" id="ph-segments-chart-wrap">
+                            <div class="d-flex align-items-center justify-content-between mb-1">
+                                <div class="rp-label">Ramp Preview</div>
+                                <button class="btn btn-ghost-icon btn-sm" id="btn-close-ramp-preview" title="Close preview">
+                                    <i class="bi bi-x-lg" style="font-size:.8rem"></i>
+                                </button>
+                            </div>
+                            <canvas id="ph-segments-chart" height="120"></canvas>
+                        </div>
+                        <!-- Add segment inline form -->
+                        <div class="mt-3 p-3 border rounded-2 bg-light d-none" id="add-segment-form">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-sm-2">
+                                    <label class="rp-label form-label-sm" for="as-type">Type</label>
+                                    <select id="as-type" class="form-select form-select-sm rp-input">
+                                        <option value="RAMP">Ramp</option>
+                                        <option value="FLAT">Flat</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-2">
+                                    <label class="rp-label form-label-sm" for="as-start-pct">Start %</label>
+                                    <input type="number" id="as-start-pct" class="form-control form-control-sm rp-input" min="0" max="100" step="5" value="0" />
+                                </div>
+                                <div class="col-sm-2">
+                                    <label class="rp-label form-label-sm" for="as-end-pct">End %</label>
+                                    <input type="number" id="as-end-pct" class="form-control form-control-sm rp-input" min="0" max="100" step="5" value="100" />
+                                </div>
+                                <div class="col-sm-2">
+                                    <label class="rp-label form-label-sm" for="as-progression">Progression</label>
+                                    <select id="as-progression" class="form-select form-select-sm rp-input">
+                                        <option value="LINEAR">Linear</option>
+                                        <option value="EXPONENTIAL">Exponential</option>
+                                        <option value="LOGARITHMIC">Logarithmic</option>
+                                        <option value="STEPPED">Stepped</option>
+                                        <option value="FLAT">Flat</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-2">
+                                    <label class="rp-label form-label-sm" for="as-duration">Duration (sprints)</label>
+                                    <input type="number" id="as-duration" class="form-control form-control-sm rp-input" min="1" step="1" value="1" />
+                                </div>
+                                <div class="col-sm-2 d-none" id="as-step-count-group">
+                                    <label class="rp-label form-label-sm" for="as-step-count">Steps</label>
+                                    <input type="number" id="as-step-count" class="form-control form-control-sm rp-input" min="2" step="1" value="3" />
+                                </div>
+                            </div>
+                            <div id="as-err" class="text-danger small mt-1 d-none"></div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-confirm-add-segment">Add</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-add-segment">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Dependencies Pane -->
+                    <div class="tab-pane fade" id="ph-pane-deps">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="small text-secondary" id="ph-deps-summary"></div>
+                            <button class="btn btn-primary btn-sm" id="btn-add-dep">
+                                <i class="bi bi-plus-lg me-1"></i>Add Dependency
+                            </button>
+                        </div>
+                        <div id="ph-deps-list"></div>
+                        <div class="mt-3 p-3 border rounded-2 bg-light d-none" id="add-dep-form">
+                            <div class="row g-2 align-items-end">
+                                <div class="col-sm-5">
+                                    <label class="rp-label form-label-sm" for="ad-predecessor">Predecessor Phase</label>
+                                    <select id="ad-predecessor" class="form-select form-select-sm rp-input"></select>
+                                </div>
+                                <div class="col-sm-3">
+                                    <label class="rp-label form-label-sm" for="ad-type">Type</label>
+                                    <select id="ad-type" class="form-select form-select-sm rp-input">
+                                        <option value="FS">Finish-to-Start</option>
+                                        <option value="SS">Start-to-Start</option>
+                                        <option value="FF">Finish-to-Finish</option>
+                                        <option value="SF">Start-to-Finish</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-2">
+                                    <label class="rp-label form-label-sm" for="ad-lag">Lag (sprints)</label>
+                                    <input type="number" id="ad-lag" class="form-control form-control-sm rp-input" step="1" value="0" />
+                                </div>
+                            </div>
+                            <div id="ad-err" class="text-danger small mt-1 d-none"></div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-confirm-add-dep">Add</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-add-dep">Cancel</button>
+                            </div>
+                        </div>
+                        <!-- Edit dependency inline form -->
+                        <div class="mt-2 p-3 border rounded-2 bg-light d-none" id="edit-dep-form">
+                            <input type="hidden" id="ed-dep-id" />
+                            <div class="row g-2 align-items-end">
+                                <div class="col-sm-4">
+                                    <label class="rp-label form-label-sm" for="ed-dep-type">Type</label>
+                                    <select id="ed-dep-type" class="form-select form-select-sm rp-input">
+                                        <option value="FS">Finish-to-Start</option>
+                                        <option value="SS">Start-to-Start</option>
+                                        <option value="FF">Finish-to-Finish</option>
+                                        <option value="SF">Start-to-Finish</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-3">
+                                    <label class="rp-label form-label-sm" for="ed-lag">Lag (sprints)</label>
+                                    <input type="number" id="ed-lag" class="form-control form-control-sm rp-input" step="1" value="0" />
+                                </div>
+                            </div>
+                            <div id="ed-err" class="text-danger small mt-1 d-none"></div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-confirm-edit-dep">Save</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-edit-dep">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pauses Pane -->
+                    <div class="tab-pane fade" id="ph-pane-pauses">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="small text-secondary" id="ph-pauses-summary"></div>
+                            <button class="btn btn-primary btn-sm" id="btn-add-pause">
+                                <i class="bi bi-plus-lg me-1"></i>Add Pause
+                            </button>
+                        </div>
+                        <div id="ph-pauses-list"></div>
+                        <div class="mt-3 p-3 border rounded-2 bg-light d-none" id="add-pause-form">
+                            <p class="small text-secondary mb-2">
+                                <i class="bi bi-info-circle me-1"></i>
+                                <strong>Pause From</strong> and <strong>Pause Until</strong> are <em>inclusive</em> — both named sprints are included in the pause window.
+                                The <strong>Resume Sprint</strong> is automatically set to the first active sprint <em>after</em> the pause window ends.
+                            </p>
+                            <div class="row g-2 align-items-end">
+                                <div class="col-sm-3">
+                                    <label class="rp-label form-label-sm" for="ap-from">Pause From Sprint</label>
+                                    <select id="ap-from" class="form-select form-select-sm rp-input"></select>
+                                </div>
+                                <div class="col-sm-3">
+                                    <label class="rp-label form-label-sm" for="ap-mode">Input Mode</label>
+                                    <select id="ap-mode" class="form-select form-select-sm rp-input">
+                                        <option value="SPRINT">Until Sprint</option>
+                                        <option value="COUNT">Sprint Count</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-3" id="ap-until-group">
+                                    <label class="rp-label form-label-sm" for="ap-until">Pause Until Sprint</label>
+                                    <select id="ap-until" class="form-select form-select-sm rp-input"></select>
+                                </div>
+                                <div class="col-sm-3 d-none" id="ap-count-group">
+                                    <label class="rp-label form-label-sm" for="ap-count">Sprint Count</label>
+                                    <input type="number" id="ap-count" class="form-control form-control-sm rp-input" min="1" step="1" value="1" />
+                                </div>
+                            </div>
+                            <div id="ap-err" class="text-danger small mt-1 d-none"></div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-confirm-add-pause">Add</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-add-pause">Cancel</button>
+                            </div>
+                        </div>
+                        <!-- Edit pause inline form -->
+                        <div class="mt-2 p-3 border rounded-2 bg-light d-none" id="edit-pause-form">
+                            <input type="hidden" id="ep2-pause-id" />
+                            <div class="row g-2 align-items-end">
+                                <div class="col-sm-3">
+                                    <label class="rp-label form-label-sm" for="ep2-mode">Input Mode</label>
+                                    <select id="ep2-mode" class="form-select form-select-sm rp-input">
+                                        <option value="SPRINT">Until Sprint</option>
+                                        <option value="COUNT">Sprint Count</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-3" id="ep2-until-group">
+                                    <label class="rp-label form-label-sm" for="ep2-until">Pause Until Sprint</label>
+                                    <select id="ep2-until" class="form-select form-select-sm rp-input"></select>
+                                </div>
+                                <div class="col-sm-3 d-none" id="ep2-count-group">
+                                    <label class="rp-label form-label-sm" for="ep2-count">Sprint Count</label>
+                                    <input type="number" id="ep2-count" class="form-control form-control-sm rp-input" min="1" step="1" value="1" />
+                                </div>
+                            </div>
+                            <div id="ep2-err" class="text-danger small mt-1 d-none"></div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-confirm-edit-pause">Save</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-edit-pause">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Assignments Pane -->
+                    <div class="tab-pane fade" id="ph-pane-assignments">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="small text-secondary" id="ph-assign-summary"></div>
+                            <button class="btn btn-primary btn-sm" id="btn-add-assignment">
+                                <i class="bi bi-person-plus me-1"></i>Add Assignment
+                            </button>
+                        </div>
+                        <div id="ph-assign-list"></div>
+                        <!-- Add assignment form -->
+                        <div class="mt-3 p-3 border rounded-2 bg-light d-none" id="add-assign-form">
+                            <div class="row g-2">
+                                <div class="col-sm-4">
+                                    <label class="rp-label form-label-sm">Assignment Type</label>
+                                    <select id="aa-type" class="form-select form-select-sm rp-input">
+                                        <option value="ENGINEER">Engineer</option>
+                                        <option value="ARCHITECT">Architect</option>
+                                        <option value="ADHOC">Ad-hoc</option>
+                                        <option value="INTERIM">Interim</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-4" id="aa-member-group">
+                                    <label class="rp-label form-label-sm" for="aa-member">Engineer</label>
+                                    <select id="aa-member" class="form-select form-select-sm rp-input"></select>
+                                </div>
+                                <div class="col-sm-4 d-flex align-items-end pb-1" id="aa-auto-group">
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="aa-auto" />
+                                        <label class="form-check-label rp-label form-label-sm" for="aa-auto">Auto-assign</label>
+                                    </div>
+                                </div>
+                                <div class="col-sm-4 d-none" id="aa-split-group">
+                                    <label class="rp-label form-label-sm" for="aa-split-value">Split Value</label>
+                                    <input type="number" id="aa-split-value" class="form-control form-control-sm rp-input" min="0" step="0.5" />
+                                    <div id="aa-split-hint" class="form-text text-secondary"></div>
+                                </div>
+                                <!-- INTERIM fields -->
+                                <div class="col-sm-4 d-none" id="aa-replaces-group">
+                                    <label class="rp-label form-label-sm" for="aa-replaces">Replaces Engineer</label>
+                                    <select id="aa-replaces" class="form-select form-select-sm rp-input"></select>
+                                </div>
+                                <div class="col-sm-3 d-none" id="aa-interim-count-group">
+                                    <label class="rp-label form-label-sm" for="aa-interim-count">Covers (sprints)</label>
+                                    <input type="number" id="aa-interim-count" class="form-control form-control-sm rp-input" min="1" step="1" value="1" />
+                                </div>
+                                <div class="col-sm-12">
+                                    <label class="rp-label form-label-sm" for="aa-notes">Notes</label>
+                                    <input type="text" id="aa-notes" class="form-control form-control-sm rp-input" maxlength="200" />
+                                </div>
+                            </div>
+                            <div id="aa-err" class="text-danger small mt-1 d-none"></div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-confirm-add-assign">Assign</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-add-assign">Cancel</button>
+                            </div>
+                        </div>
+                        <!-- Edit assignment inline form -->
+                        <div class="mt-2 p-3 border rounded-2 bg-light d-none" id="edit-assign-form">
+                            <input type="hidden" id="ea-assign-id" />
+                            <div class="row g-2">
+                                <div class="col-sm-4">
+                                    <label class="rp-label form-label-sm">Assignment Type</label>
+                                    <select id="ea-type" class="form-select form-select-sm rp-input">
+                                        <option value="ENGINEER">Engineer</option>
+                                        <option value="ARCHITECT">Architect</option>
+                                        <option value="ADHOC">Ad-hoc</option>
+                                        <option value="INTERIM">Interim</option>
+                                    </select>
+                                </div>
+                                <div class="col-sm-4 d-none" id="ea-split-group">
+                                    <label class="rp-label form-label-sm" for="ea-split-value">Split Value</label>
+                                    <input type="number" id="ea-split-value" class="form-control form-control-sm rp-input" min="0" step="0.5" />
+                                    <div id="ea-split-hint" class="form-text text-secondary"></div>
+                                </div>
+                                <div class="col-sm-4 d-none" id="ea-replaces-group">
+                                    <label class="rp-label form-label-sm" for="ea-replaces">Replaces Engineer</label>
+                                    <select id="ea-replaces" class="form-select form-select-sm rp-input"></select>
+                                </div>
+                                <div class="col-sm-3 d-none" id="ea-interim-count-group">
+                                    <label class="rp-label form-label-sm" for="ea-interim-count">Covers (sprints)</label>
+                                    <input type="number" id="ea-interim-count" class="form-control form-control-sm rp-input" min="1" step="1" value="1" />
+                                </div>
+                                <div class="col-sm-12">
+                                    <label class="rp-label form-label-sm" for="ea-notes">Notes</label>
+                                    <input type="text" id="ea-notes" class="form-control form-control-sm rp-input" maxlength="200" />
+                                </div>
+                            </div>
+                            <div id="ea-err" class="text-danger small mt-1 d-none"></div>
+                            <div class="d-flex gap-2 mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-confirm-edit-assign">Save</button>
+                                <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-edit-assign">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-save-phase">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="save-phase-spinner"></span>
+                    Save Phase
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Edit Team Modal ───────────────────────────────────────────────────── -->
+<div class="modal fade" id="editTeamModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content rp-modal">
+            <div class="modal-header py-2 px-3">
+                <h6 class="modal-title">Edit Team Allocation</h6>
+                <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body px-3 py-3">
+                <input type="hidden" id="et-team-id" />
+                <div class="mb-2">
+                    <label class="rp-label form-label-sm" for="et-type">Allocation Type</label>
+                    <select id="et-type" class="form-select form-select-sm rp-input">
+                        <option value="PERCENT">% of Basis Amount</option>
+                        <option value="DAYS">Days</option>
+                        <option value="BUDGET">Budget (£)</option>
+                    </select>
+                </div>
+                <div class="mb-2">
+                    <label class="rp-label form-label-sm" for="et-value">Value</label>
+                    <input type="number" id="et-value" class="form-control form-control-sm rp-input"
+                        min="0" step="0.01" />
+                </div>
+                <div class="mb-2">
+                    <label class="rp-label form-label-sm" for="et-seq">Sequence Order</label>
+                    <input type="number" id="et-seq" class="form-control form-control-sm rp-input"
+                        min="1" step="1" value="1" />
+                </div>
+                <div id="et-err" class="text-danger small d-none"></div>
+            </div>
+            <div class="modal-footer py-2 px-3">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-edit-team">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %} {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script type="module" src="{% static 'js/modules/version_configure.js' %}"></script>
+{% endblock %}

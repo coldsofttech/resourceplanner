@@ -1,0 +1,121 @@
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3"
+    id="pl-page-header">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/grid/" class="btn btn-ghost-icon" title="Back to grid">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <div class="small text-secondary mb-1" id="pl-breadcrumb">Resource Plans</div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span id="pl-plan-name">Loading…</span>
+                <span id="pl-version-badge"></span>
+            </h1>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-secondary" id="pl-regenerate-btn" title="Re-run engine to regenerate auto leaves">
+            <i class="bi bi-arrow-clockwise me-1"></i>Regenerate Auto
+        </button>
+    </div>
+</div>
+{% endblock %} {% block content %}
+
+<div class="d-flex flex-wrap align-items-end gap-3 mb-3">
+    <!-- Search -->
+    <div style="min-width:220px; max-width:320px; flex:1">
+        <label class="form-label small fw-medium mb-1" for="pl-search">Search member / sprint</label>
+        <div class="input-group input-group-sm">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input type="text" class="form-control" id="pl-search" placeholder="Type to filter…">
+        </div>
+    </div>
+    <!-- Team filter -->
+    <div style="min-width:180px; max-width:260px; flex:1">
+        <label class="form-label small fw-medium mb-1" for="pl-team-filter">Team</label>
+        <select class="form-select form-select-sm" id="pl-team-filter">
+            <option value="">All Teams</option>
+        </select>
+    </div>
+    <!-- Source filter -->
+    <div style="min-width:130px">
+        <label class="form-label small fw-medium mb-1" for="pl-source-filter">Source</label>
+        <select class="form-select form-select-sm" id="pl-source-filter">
+            <option value="">All</option>
+            <option value="auto">Auto</option>
+            <option value="manual">Manual</option>
+        </select>
+    </div>
+    <div class="ms-auto text-secondary small" id="pl-count-label"></div>
+</div>
+
+<!-- Table -->
+<div id="pl-loading" class="text-center py-5">
+    <div class="spinner-border spinner-border-sm text-secondary me-2"></div>Loading…
+</div>
+<div id="pl-empty" class="text-secondary small py-4 d-none">No placeholder leaves found.</div>
+<div id="pl-table-wrap" class="d-none">
+    <div class="rp-table-wrap" style="overflow-x:auto">
+        <table class="table rp-table" id="pl-table">
+            <thead>
+                <tr>
+                    <th class="pl-col-sort" data-col="member" style="cursor:pointer">Member <i class="bi bi-arrow-down-up text-secondary" id="pl-sort-member"></i></th>
+                    <th class="pl-col-sort" data-col="sprint" style="cursor:pointer">Sprint <i class="bi bi-arrow-down-up text-secondary" id="pl-sort-sprint"></i></th>
+                    <th class="text-center pl-col-sort" data-col="days" style="cursor:pointer">Days <i class="bi bi-arrow-down-up text-secondary" id="pl-sort-days"></i></th>
+                    <th class="text-center">Source</th>
+                    <th>Notes</th>
+                    <th style="width:90px"></th>
+                </tr>
+            </thead>
+            <tbody id="pl-tbody"></tbody>
+        </table>
+    </div>
+    <!-- Pagination -->
+    <div class="rp-pagination-bar d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2">
+        <span class="rp-pagination-info text-secondary small" id="pl-page-info"></span>
+        <nav>
+            <ul class="rp-pagination-controls pagination pagination-sm mb-0" id="pl-pagination"></ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Edit modal -->
+<div class="modal fade" id="pl-edit-modal" tabindex="-1" aria-labelledby="pl-edit-title" aria-hidden="true">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="pl-edit-title">Edit Placeholder Leave</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="pl-edit-err" class="alert alert-danger d-none small py-2"></div>
+                <div class="mb-2">
+                    <label class="form-label small fw-medium mb-1">Member</label>
+                    <div id="pl-edit-member" class="text-muted small"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-medium mb-1">Sprint</label>
+                    <div id="pl-edit-sprint" class="text-muted small"></div>
+                </div>
+                <div class="mb-3">
+                    <label for="pl-edit-days" class="form-label small fw-medium mb-1">Days</label>
+                    <input type="number" class="form-control form-control-sm" id="pl-edit-days"
+                        min="0" max="14" step="0.5">
+                </div>
+                <div>
+                    <label for="pl-edit-notes" class="form-label small fw-medium mb-1">Notes</label>
+                    <textarea class="form-control form-control-sm" id="pl-edit-notes" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer gap-2">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="pl-edit-save-btn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/placeholder_leaves.js' %}"></script>
+{% endblock %}
+{% endblock %}

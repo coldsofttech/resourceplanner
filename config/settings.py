@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "apps.contacts",
     "apps.projects",
     "apps.tags",
+    "apps.resource_plans",
     "apps.import",
 ]
 

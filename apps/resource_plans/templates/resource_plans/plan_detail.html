@@ -1,0 +1,541 @@
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div
+    class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3"
+    id="plan-detail-header"
+>
+    <div class="d-flex align-items-center gap-3">
+        <a href="/resource-plans/" class="btn btn-ghost-icon" title="Back to resource plans">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span id="plan-detail-name"></span>
+                <span id="plan-active-badge"></span>
+            </h1>
+        </div>
+    </div>
+</div>
+{% endblock %} {% block content %}
+<div class="row g-4">
+    <div id="plan-detail-banner" class="alert d-none mb-3" role="alert"></div>
+
+    <ul class="rp-tabs mb-3" id="planDetailsTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link active"
+                id="tab-general"
+                data-bs-toggle="tab"
+                data-bs-target="#pane-general"
+                type="button"
+                role="tab"
+            >
+                <i class="bi bi-info-circle"></i>General
+            </button>
+        </li>
+
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                id="tab-versions"
+                data-bs-toggle="tab"
+                data-bs-target="#pane-versions"
+                type="button"
+                role="tab"
+            >
+                <i class="bi bi-layers"></i>Versions
+            </button>
+        </li>
+
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
+                id="tab-jobs"
+                data-bs-toggle="tab"
+                data-bs-target="#pane-jobs"
+                type="button"
+                role="tab"
+            >
+                <i class="bi bi-cpu"></i>Jobs
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content rp-tab-content" id="planDetailTabContent">
+        <div class="tab-pane fade show active" id="pane-general" role="tabpanel">
+            <div class="row g-4 rp-view-layout" id="general-view-mode">
+                <div class="col-lg-7 rp-view-main">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">General information</h6>
+                            <button class="btn btn-primary btn-sm" id="btn-edit-general">
+                                <i class="bi bi-pencil me-1"></i>Edit
+                            </button>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Name</span>
+                            <span class="rp-view-value" id="view-name"></span>
+                        </div>
+                        <div class="rp-view-field rp-view-field--block">
+                            <span class="rp-view-label">Description</span>
+                            <span
+                                class="rp-view-value rp-view-description"
+                                id="view-description"
+                            ></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Type</span>
+                            <span class="rp-view-value" id="view-plan-type"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Status</span>
+                            <span class="rp-view-value" id="view-plan-status"></span>
+                        </div>
+                        <div class="rp-view-field d-none" id="view-clone-block">
+                            <span class="rp-view-label">Cloned From</span>
+                            <span class="rp-view-value" id="view-clone-from"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Latest Version</span>
+                            <span class="rp-view-value" id="view-plan-latest-version"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Threshold %</span>
+                            <span class="rp-view-value" id="view-plan-threshold-pct"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="d-none" id="view-plan-fy-id"></span>
+                            <span class="rp-view-label">FY</span>
+                            <span class="rp-view-value" id="view-plan-fy"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="d-none" id="view-plan-scope-type"></span>
+                            <span class="d-none" id="view-plan-scope-id"></span>
+                            <span class="rp-view-label">Scope</span>
+                            <span class="rp-view-value" id="view-plan-scope"></span>
+                        </div>
+                    </div>
+
+                    <div class="rp-view-meta rp-view-section mt-4">
+                        <h6 class="rp-view-section-title">
+                            <i class="bi bi-clock-history me-2"></i>Metadata
+                        </h6>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Created</span>
+                            <span class="rp-view-value" id="meta-created"></span>
+                        </div>
+                        <div class="rp-view-field">
+                            <span class="rp-view-label">Last updated</span>
+                            <span class="rp-view-value" id="meta-updated"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-5 rp-view-meta">
+                    <div class="rp-view-section">
+                        <h6 class="rp-view-section-title">
+                            <i class="bi bi-chat-left-text me-2"></i>Comments
+                        </h6>
+                        <div class="mb-3">
+                            <textarea
+                                id="new-comment-input"
+                                class="form-control rp-input rp-comment-textarea"
+                                placeholder="Add a comment..."
+                                rows="3"
+                            ></textarea>
+                            <div class="d-flex justify-content-end mt-2">
+                                <button class="btn btn-primary btn-sm" id="btn-post-comment">
+                                    <i class="bi bi-send me-1"></i>Post
+                                </button>
+                            </div>
+                        </div>
+                        <div id="comments-container">
+                            <p class="text-secondary small">Loading comments...</p>
+                        </div>
+                        <div id="comments-pagination" class="mt-2"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="rp-card rp-edit-card d-none" id="general-edit-mode">
+                <div class="row g-4 mb-4">
+                    <div class="col-lg-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="edit-name">
+                                Name <span class="rp-required">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                id="edit-name"
+                                name="name"
+                                value=""
+                                class="form-control rp-input"
+                                autocomplete="off"
+                                maxlength="100"
+                                placeholder="e.g. FY26-27 Delivery plan"
+                            />
+                            <div class="invalid-feedback" id="edit-name-err"></div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6">
+                        <div class="rp-field">
+                            <label class="rp-label" for="edit-description">Description</label>
+                            <textarea
+                                id="edit-description"
+                                class="form-control rp-input"
+                                rows="3"
+                                placeholder="Optional free-text description…"
+                            ></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-lg-6">
+                        <div class="rp-field">
+                            <label class="form-check-label rp-label" for="edit-is-active">
+                                Active
+                            </label>
+                            <div class="form-check form-switch rp-switch mt-1">
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    id="edit-is-active"
+                                    name="is-active"
+                                />
+                            </div>
+                            <div class="rp-hint">Uncheck to hide this plan from the list.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary btn-sm" id="btn-save-general">
+                        Save changes
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" id="btn-cancel-general">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Versions Tab Pane -->
+        <div class="tab-pane fade" id="pane-versions" role="tabpanel">
+            <div
+                id="versions-inactive-notice"
+                class="alert alert-warning d-none mb-3"
+                role="alert"
+            >
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                This plan is inactive. Version management is disabled. Activate the plan first to
+                make changes.
+            </div>
+            <div class="row g-4 rp-view-layout">
+                <!-- Table col-lg-8 -->
+                <div class="col-lg-8 rp-view-main">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">Versions</h6>
+                            <button class="btn btn-primary btn-sm" id="btn-new-version">
+                                <i class="bi bi-plus-lg me-1"></i>Create New Version
+                            </button>
+                        </div>
+                        <div class="rp-table-wrap" style="overflow-x: auto">
+                            <table class="table rp-table" id="versions-table">
+                                <thead>
+                                    <tr>
+                                        <th>Version</th>
+                                        <th class="text-center">Threshold %</th>
+                                        <th class="text-center">Status</th>
+                                        <th class="text-center" style="min-width: 200px">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="versions-tbody"></tbody>
+                            </table>
+                            <div
+                                class="rp-pagination-bar d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2"
+                                id="versions-pagination-bar"
+                            >
+                                <span
+                                    class="rp-pagination-info text-secondary small"
+                                    id="versions-pagination-info"
+                                ></span>
+                                <nav>
+                                    <ul
+                                        class="rp-pagination-controls pagination pagination-sm mb-0"
+                                        id="versions-pagination-controls"
+                                    ></ul>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sidebar col-lg-4 -->
+                <div class="col-lg-4 rp-view-meta">
+                    <div class="rp-view-section">
+                        <h6 class="rp-view-section-title mb-3">
+                            <i class="bi bi-clock-history me-2"></i>Version History
+                        </h6>
+                        <div id="version-history-timeline" class="rp-timeline">
+                            <p class="text-secondary small mb-0">
+                                Loading version history...
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Jobs Tab Pane -->
+        <div class="tab-pane fade" id="pane-jobs" role="tabpanel">
+            <div class="row g-4 rp-view-layout">
+                <div class="col-lg-8 rp-view-main">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">Engine Job History</h6>
+                            <button class="btn btn-warning btn-sm" id="btn-run-engine" disabled>
+                                <i class="bi bi-cpu me-1"></i>Run Engine
+                            </button>
+                        </div>
+                        <div id="jobs-list">
+                            <p class="text-secondary small">Loading jobs…</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-4 rp-view-meta">
+                    <div class="rp-view-section">
+                        <h6 class="rp-view-section-title mb-3">
+                            <i class="bi bi-info-circle me-2"></i>About the Engine
+                        </h6>
+                        <p class="text-secondary" style="font-size:.85rem">
+                            The engine validates your plan configuration and (in full-run mode) generates capacity tables and allocations.
+                        </p>
+                        <p class="text-secondary" style="font-size:.85rem">
+                            <strong>Validate Only</strong> — checks for missing teams, phases, circular dependencies, and split inconsistencies. No data is written.
+                        </p>
+                        <p class="text-secondary" style="font-size:.85rem">
+                            <strong>Full Run</strong> — performs validation then generates placeholder leave, capacity, and allocation data (Phases 6–7).
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Run Engine Modal -->
+<div class="modal fade" id="runEngineModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold">
+                    <i class="bi bi-cpu me-2"></i>Run Engine
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" id="btn-engine-modal-close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="engine-run-form">
+                    <div class="mb-3">
+                        <label class="rp-label form-label-sm" for="engine-version">Version</label>
+                        <select class="form-select form-select-sm mt-1" id="engine-version">
+                            <option value="">Loading versions…</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="rp-label form-label-sm d-block mb-2">Run Mode</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="engine-mode" id="mode-validate" value="VALIDATE" checked />
+                            <label class="form-check-label" for="mode-validate">
+                                <strong>Validate Only</strong>
+                                <span class="d-block text-secondary" style="font-size:.8rem">Check configuration — no data written</span>
+                            </label>
+                        </div>
+                        <div class="form-check mt-2">
+                            <input class="form-check-input" type="radio" name="engine-mode" id="mode-full" value="FULL" />
+                            <label class="form-check-label" for="mode-full">
+                                <strong>Full Run</strong>
+                                <span class="d-block text-secondary" style="font-size:.8rem">Validate + generate capacity &amp; allocations</span>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="engine-include-current" />
+                        <label class="form-check-label rp-label" for="engine-include-current">
+                            Include current sprint
+                        </label>
+                        <div class="rp-hint">When checked, the current (in-progress) sprint is included in capacity calculations.</div>
+                    </div>
+                    <div id="engine-overrides-section" class="d-none mb-3">
+                        <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:.82rem">
+                            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                            This version has manual placeholder leave overrides.
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="engine-remove-overrides" />
+                            <label class="form-check-label rp-label" for="engine-remove-overrides">
+                                Remove overrides and regenerate from scratch
+                            </label>
+                            <div class="rp-hint">Deletes all placeholder leaves (including manual edits) and rebuilds from auto-generation.</div>
+                        </div>
+                    </div>
+                    <div id="engine-run-err" class="alert alert-danger d-none mb-0"></div>
+                </div>
+
+                <!-- Progress section (hidden until job starts) -->
+                <div id="engine-progress-section" class="d-none">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span id="engine-status-badge"></span>
+                        <span class="text-secondary small" id="engine-current-step">Initialising…</span>
+                    </div>
+                    <div class="progress mb-3" style="height:8px">
+                        <div class="progress-bar" id="engine-progress-bar" role="progressbar"
+                             style="width:0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                        </div>
+                    </div>
+                    <div id="engine-result-section" class="d-none">
+                        <!-- Validation result rendered here -->
+                    </div>
+                    <div id="engine-error-log-section" class="d-none">
+                        <h6 class="text-danger mb-1" style="font-size:.85rem"><i class="bi bi-exclamation-triangle me-1"></i>Error Log</h6>
+                        <pre id="engine-error-log" class="text-danger p-2 rounded" style="font-size:.78rem;background:#fff5f5;max-height:160px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;"></pre>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-warning" id="btn-engine-submit">
+                    <span class="spinner-border spinner-border-sm me-1 d-none" id="engine-submit-spinner"></span>
+                    Run
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Version View Modal -->
+<div class="modal fade" id="versionViewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold" id="version-view-title">Version Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div class="rp-view-field">
+                    <span class="rp-view-label">Version</span>
+                    <span class="rp-view-value" id="vv-version"></span>
+                </div>
+                <div class="rp-view-field">
+                    <span class="rp-view-label">Plan Name</span>
+                    <span class="rp-view-value" id="vv-plan-name"></span>
+                </div>
+                <div class="rp-view-field">
+                    <span class="rp-view-label">Threshold %</span>
+                    <span class="rp-view-value" id="vv-threshold"></span>
+                </div>
+                <div class="rp-view-field">
+                    <span class="rp-view-label">Status</span>
+                    <span class="rp-view-value" id="vv-status"></span>
+                </div>
+                <div class="rp-view-field d-none" id="vv-cloned-block">
+                    <span class="rp-view-label">Cloned From</span>
+                    <span class="rp-view-value" id="vv-cloned-from"></span>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Version Edit Modal -->
+<div class="modal fade" id="versionEditModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold" id="version-edit-title">Edit Version</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="version-edit-banner" class="alert alert-danger d-none mb-3"></div>
+                <input type="hidden" id="ve-plan-id" />
+                <div class="rp-field">
+                    <label class="rp-label" for="ve-threshold">Threshold %</label>
+                    <input
+                        type="number"
+                        id="ve-threshold"
+                        class="form-control rp-input"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                    />
+                    <div class="invalid-feedback" id="ve-threshold-err"></div>
+                    <div class="rp-hint">Highlight allocations above/below this % of required days.</div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-save-version-edit">
+                    <span id="ve-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                    Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Version Confirm Modal (shared: activate / lock / restore / clone / delete / new-version) -->
+<div class="modal fade" id="versionConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold" id="vconf-title">Confirm</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="vconf-banner" class="alert alert-danger d-none mb-3" role="alert"></div>
+                <p class="text-secondary mb-0" id="vconf-message"></p>
+                <input type="hidden" id="vconf-action" />
+                <input type="hidden" id="vconf-plan-id" />
+                <div id="vconf-threshold-group" class="rp-field mt-3 d-none">
+                    <label class="rp-label" for="vconf-threshold">Threshold %</label>
+                    <input
+                        type="number"
+                        id="vconf-threshold"
+                        class="form-control rp-input"
+                        min="0"
+                        max="100"
+                        step="0.5"
+                        value="10"
+                    />
+                    <div class="invalid-feedback" id="vconf-threshold-err"></div>
+                    <div class="rp-hint">Highlight allocations above/below this % of required days.</div>
+                </div>
+                <div id="vconf-include-config-group" class="mt-3 d-none">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="vconf-include-config" value="">
+                        <label class="form-check-label small" for="vconf-include-config">
+                            Also clone projects, teams, phases and assignments
+                        </label>
+                    </div>
+                    <div class="form-text text-muted small">If unchecked, only version metadata is copied.</div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-version-action">
+                    <span id="vconf-spinner" class="spinner-border spinner-border-sm me-1 d-none" role="status"></span>
+                    <span id="vconf-label">Confirm</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %} {% block extra_js %}
+<script type="module" src="{% static 'js/modules/resource_plan_detail.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,430 @@
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div
+    class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3"
+>
+    <!-- Page Title -->
+    <div>
+        <h1 class="rp-page-title">Resource Plans</h1>
+        <p class="rp-page-subtitle">Plan foundation, scope, and version management</p>
+    </div>
+    <!-- Features -->
+    <div class="d-flex gap-2 flex-wrap">
+        <!-- Import -->
+        <a href="/import/?module=resource_plans" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-upload me-1"></i>Import
+        </a>
+
+        <!-- Export dropdown -->
+        <div class="dropdown">
+            <button
+                class="btn btn-outline-secondary btn-sm dropdown-toggle"
+                id="export-dropdown-btn"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+            >
+                <i class="bi bi-download me-1"></i>Export
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <a class="dropdown-item" href="#" id="export-csv">
+                        <i class="bi bi-filetype-csv me-2"></i>CSV
+                    </a>
+                </li>
+                <li>
+                    <a class="dropdown-item" href="#" id="export-pdf">
+                        <i class="bi bi-filetype-pdf me-2"></i>PDF
+                    </a>
+                </li>
+            </ul>
+        </div>
+        <!-- Add button -->
+        <button class="btn btn-primary btn-sm" id="add-plan-btn">
+            <i class="bi bi-plus-lg me-1"></i>New Plan
+        </button>
+    </div>
+</div>
+{% endblock %} {% block content %}
+<!-- Statistics -->
+<div class="row g-3 mb-4">
+    <!-- Populated by JS -->
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Total Plans</span>
+            <span class="rp-stat-value" id="stat-total">0</span>
+        </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Active Plans</span>
+            <span class="rp-stat-value" id="stat-active">0</span>
+        </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Draft Plans</span>
+            <span class="rp-stat-value" id="stat-draft">0</span>
+        </div>
+    </div>
+
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Locked Plans</span>
+            <span class="rp-stat-value" id="stat-locked">0</span>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Filters -->
+<div class="rp-toolbar d-flex gap-3 mb-3 flex-wrap">
+    <!-- Search -->
+    <div class="rp-search flex-grow-1">
+        <i class="bi bi-search rp-search-icon"></i>
+        <input
+            type="text"
+            id="plan-search"
+            class="form-control rp-search-input"
+            placeholder="Search plans..."
+        />
+    </div>
+
+    <!-- Filters -->
+    <select id="type-filter" class="form-select rp-select" style="max-width: 160px">
+        <option value="">All types</option>
+        <!-- Populated by JS -->
+    </select>
+    <select id="status-filter" class="form-select rp-select" style="max-width: 160px">
+        <option value="">All statuses</option>
+        <!-- Populated by JS -->
+    </select>
+    <select id="fy-filter" class="form-select rp-select" style="max-width: 160px">
+        <option value="">All FYs</option>
+        <!-- Populated by JS -->
+    </select>
+    <select id="active-filter" class="form-select rp-select" style="max-width: 130px">
+        <option value="">All plans</option>
+        <option value="true">Active</option>
+        <option value="false">Inactive</option>
+    </select>
+</div>
+
+<!-- Table -->
+<div class="rp-table-wrap" style="overflow-x: auto">
+    <table class="table rp-table" id="plan-table" style="min-width: 900px">
+        <thead>
+            <tr>
+                <th data-sort="name" data-col="name" class="sortable">
+                    Name <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                </th>
+                <th data-col="description">Description</th>
+                <th data-sort="plan_type" data-col="plan_type" class="sortable text-center">
+                    Plan Type <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                </th>
+                <th
+                    data-col="financial_year"
+                    data-sort="financial_year"
+                    class="sortable text-center"
+                >
+                    FY <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                </th>
+                <th data-col="version_number" class="text-center">Latest Version</th>
+                <th data-col="threshold_pct" class="text-center">Threshold %</th>
+                <th data-sort="status" data-col="status" class="sortable text-center">
+                    Status <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                </th>
+                <th data-sort="is_active" data-col="is_active" class="sortable text-center">
+                    Active <i class="bi bi-chevron-expand rp-sort-icon"></i>
+                </th>
+                <th class="text-center" data-col="actions" style="min-width: 110px">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="plan-tbody"></tbody>
+    </table>
+
+    <div
+        class="rp-pagination-bar d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2"
+        id="plan-pagination-bar"
+        style="display: none"
+    >
+        <span class="rp-pagination-info text-secondary small" id="plan-pagination-info"></span>
+        <nav>
+            <ul
+                class="rp-pagination-controls pagination pagination-sm mb-0"
+                id="plan-pagination-controls"
+            ></ul>
+        </nav>
+    </div>
+</div>
+
+<!-- Add Modal -->
+<div
+    class="modal fade"
+    id="planAddModal"
+    tabindex="-1"
+    aria-labelledby="planAddModalLabel"
+    aria-hidden="true"
+>
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold" id="planAddModalLabel">New Resource Plan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="modal-form-errors" class="alert alert-danger d-none mb-3"></div>
+                <div class="row g-4">
+                    <!-- Left column -->
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="rp-label">Name <span class="rp-required">*</span></label>
+                            <input
+                                type="text"
+                                id="modal-name"
+                                class="form-control rp-input"
+                                placeholder="e.g. FY25-26 Delivery Plan"
+                                maxlength="100"
+                                autocomplete="off"
+                            />
+                            <div class="invalid-feedback" id="modal-name-error"></div>
+                            <div id="modal-name-unique" class="rp-hint mt-1 d-none"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="rp-label"
+                                >Plan Type <span class="rp-required">*</span></label
+                            >
+                            <select id="modal-plan-type" class="form-select rp-select">
+                                <option value="">Select type…</option>
+                            </select>
+                            <div class="invalid-feedback" id="modal-plan-type-error"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="rp-label"
+                                >Financial Year <span class="rp-required">*</span></label
+                            >
+                            <select id="modal-fy" class="form-select rp-select">
+                                <option value="">Select FY…</option>
+                            </select>
+                            <div class="invalid-feedback" id="modal-fy-error"></div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="rp-label">Threshold %</label>
+                            <input
+                                type="number"
+                                id="modal-threshold"
+                                class="form-control rp-input"
+                                value="10"
+                                min="0"
+                                max="100"
+                                step="0.5"
+                            />
+                            <div class="rp-hint">
+                                Highlight allocations above/below this % of required days.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right column -->
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="rp-label">Description</label>
+                            <textarea
+                                id="modal-description"
+                                class="form-control rp-input"
+                                rows="3"
+                                placeholder="Optional free-text description…"
+                            ></textarea>
+                        </div>
+
+                        <!-- Scope fields (show/hide by plan type) -->
+                        <div id="scope-project" class="mb-3 d-none">
+                            <label class="rp-label"
+                                >Project <span class="rp-required">*</span></label
+                            >
+                            <select id="modal-project" class="form-select rp-select">
+                                <option value="">Select project…</option>
+                            </select>
+                            <div class="invalid-feedback" id="modal-project-error"></div>
+                        </div>
+
+                        <div id="scope-programme" class="mb-3 d-none">
+                            <label class="rp-label"
+                                >Programme <span class="rp-required">*</span></label
+                            >
+                            <select id="modal-programme" class="form-select rp-select">
+                                <option value="">Select programme…</option>
+                            </select>
+                            <div class="invalid-feedback" id="modal-programme-error"></div>
+                        </div>
+
+                        <div id="scope-team" class="mb-3 d-none">
+                            <label class="rp-label">Team <span class="rp-required">*</span></label>
+                            <select id="modal-team" class="form-select rp-select">
+                                <option value="">Select team…</option>
+                            </select>
+                            <div class="invalid-feedback" id="modal-team-error"></div>
+                        </div>
+
+                        <!-- FY type hint -->
+                        <div id="scope-fy-hint" class="rp-hint d-none">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Financial Year plans cover all projects and teams within the selected
+                            FY.
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm btn-primary" id="modal-save-btn">
+                    <span
+                        id="modal-save-spinner"
+                        class="spinner-border spinner-border-sm me-1 d-none"
+                        role="status"
+                    ></span>
+                    <span id="modal-save-label">Create Plan</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Clone Modal -->
+<div class="modal fade" id="cloneModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold">Clone Plan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div id="clone-errors" class="alert alert-danger d-none mb-3"></div>
+                <p class="small text-muted mb-3">
+                    Enter a name for the cloned plan. It will be created as a new plan group with
+                    version 1.
+                </p>
+                <label class="rp-label">New Plan Name <span class="rp-required">*</span></label>
+                <input
+                    type="text"
+                    id="clone-name-input"
+                    class="form-control rp-input"
+                    maxlength="100"
+                    autocomplete="off"
+                />
+                <input type="hidden" id="clone-source-pk" />
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="clone-include-config">
+                    <label class="form-check-label small" for="clone-include-config">
+                        Also clone projects, teams, phases and assignments
+                    </label>
+                </div>
+                <div class="form-text text-muted small">If unchecked, only version metadata is copied.</div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button
+                    type="button"
+                    class="btn btn-sm btn-outline-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cancel
+                </button>
+                <button id="modal-clone-btn" type="button" class="btn btn-sm btn-primary">
+                    <span
+                        id="clone-spinner"
+                        class="spinner-border spinner-border-sm me-1 d-none"
+                        role="status"
+                    ></span>
+                    Clone
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Activate/Deactivate Modal -->
+<div class="modal fade" id="activeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="active-modal-title">Deactivate Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="active-modal-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <p class="text-secondary mb-0" id="active-message"></p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+                <button type="button" class="btn btn-sm" id="confirm-active-btn">Deactivate</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-semibold">Delete Plan</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div
+                    id="delete-modal-banner"
+                    class="alert alert-danger d-none mb-3"
+                    role="alert"
+                ></div>
+                <p class="text-secondary mb-0">
+                    <strong id="delete-name"></strong> will be permanently removed. This cannot
+                    be undone.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button
+                    type="button"
+                    class="btn btn-sm btn-secondary"
+                    data-bs-dismiss="modal"
+                >
+                    Cancel
+                </button>
+                <button
+                    type="button"
+                    class="btn btn-sm btn-danger"
+                    id="confirm-delete-btn"
+                >
+                    <span
+                        id="confirm-spinner"
+                        class="spinner-border spinner-border-sm me-1 d-none"
+                        role="status"
+                    ></span>
+                    <span id="confirm-delete-label">Confirm</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} {% block extra_js %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script type="module" src="{% static 'js/list/fetch.js' %}"></script>
+<script type="module" src="{% static 'js/list/sort.js' %}"></script>
+<script type="module" src="{% static 'js/list/render.js' %}"></script>
+<script type="module" src="{% static 'js/export.js' %}"></script>
+<script type="module" src="{% static 'js/modules/resource_plans.js' %}"></script>
+{% endblock %}
