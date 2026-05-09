@@ -814,7 +814,8 @@ function _renderUtilTable(data) {
         const cm = {};
         row.cells.forEach(c => { cm[c.sprint_id] = c; });
         const memberId   = row.member_id   ?? '';
-        const memberType = row.placeholder_id ? 'placeholder' : 'member';
+        const memberType    = row.placeholder_id ? 'placeholder' : 'member';
+        const isPlaceholder = memberType === 'placeholder';
         if (showTeam) {
             html += `<tr data-member-id="${memberId}" data-member-type="${memberType}">`;
             html += `<td class="ag-col-member" title="${escHtml(row.member_name)}">${escHtml(row.member_name)}</td>`;
@@ -833,6 +834,10 @@ function _renderUtilTable(data) {
                     sumAlloc += parseFloat(c.allocated_days ?? 0);
                     if (c.net_capacity != null) { sumNet += parseFloat(c.net_capacity); hasNet = true; }
                 }
+                if (!hasNet && isPlaceholder && sumAlloc > 0) {
+                    sumNet = 10 * cols[i].sprints.length;
+                    hasNet = true;
+                }
                 const cls = _allocDayCls(sumAlloc);
                 if (hasNet) {
                     const pct    = sumNet > 0 ? Math.round((sumAlloc / sumNet) * 100) : 0;
@@ -849,18 +854,19 @@ function _renderUtilTable(data) {
                 }
             } else {
                 for (let si = 0; si < cols[i].sprints.length; si++) {
-                    const sprint = cols[i].sprints[si];
-                    const c      = cm[sprint.id] ?? {};
-                    const pct    = parseFloat(c.utilization_pct  ?? 0);
-                    const alloc  = parseFloat(c.allocated_days   ?? 0);
-                    const net    = parseFloat(c.net_capacity     ?? 0);
-                    const hasData = c.net_capacity != null;
-                    const cls    = _allocDayCls(alloc);
-                    const barCls = _utilBarCls(pct);
-                    const barW   = Math.min(pct, 100);
-                    const s      = si === 0 ? sep : '';
-                    const tip    = `${escHtml(sprint.name)}: ${alloc}d / ${net}d (${pct.toFixed(2)}%)`;
-                    html += hasData
+                    const sprint  = cols[i].sprints[si];
+                    const c       = cm[sprint.id] ?? {};
+                    const alloc   = parseFloat(c.allocated_days ?? 0);
+                    const rawNet  = c.net_capacity != null ? parseFloat(c.net_capacity) : null;
+                    const net     = rawNet ?? (isPlaceholder ? 10 : 0);
+                    const hasBar  = rawNet != null || (isPlaceholder && alloc > 0);
+                    const pct     = net > 0 ? Math.round((alloc / net) * 100) : 0;
+                    const cls     = _allocDayCls(alloc);
+                    const barCls  = _utilBarCls(pct);
+                    const barW    = Math.min(pct, 100);
+                    const s       = si === 0 ? sep : '';
+                    const tip     = `${escHtml(sprint.name)}: ${alloc}d / ${net}d (${pct.toFixed(2)}%)`;
+                    html += hasBar
                         ? `<td class="${cls}${s} ag-util-cell" data-sprint-id="${sprint.id}" data-net-capacity="${net}" data-alloc-days="${alloc}" title="${tip}">
                             <div class="ag-util-days">${alloc.toFixed(2)}d</div>
                             <div class="ag-util-bar-wrap"><div class="ag-util-bar">
@@ -899,6 +905,20 @@ function _confidenceBadge(confidence) {
     };
     const [cls, label] = map[confidence] ?? ['bg-secondary-subtle text-secondary-emphasis', confidence];
     return ` <span class="badge ${cls} ag-conf-badge" title="Confidence: ${confidence}" style="font-size:.6rem;padding:1px 4px;vertical-align:middle;">${label}</span>`;
+}
+
+function _confRowCls(confidence) {
+    if (confidence === 'VERY_HIGH' || confidence === 'HIGH') return 'ag-conf-row-high';
+    if (confidence === 'MEDIUM') return 'ag-conf-row-mid';
+    if (confidence === 'LOW') return 'ag-conf-row-low';
+    return '';
+}
+
+function _confIndCls(confidence) {
+    if (confidence === 'VERY_HIGH' || confidence === 'HIGH') return 'ag-conf-ind-high';
+    if (confidence === 'MEDIUM') return 'ag-conf-ind-mid';
+    if (confidence === 'LOW') return 'ag-conf-ind-low';
+    return '';
 }
 
 // ── Allocations table (Table 4) — editable ────────────────────────────────────
@@ -968,6 +988,7 @@ function _renderAllocTable(data) {
     let h1 = '<tr>';
     h1 += '<th class="ag-col-prog">Programme</th>';
     h1 += '<th class="ag-col-proj">Project</th>';
+    h1 += '<th class="ag-conf-col"></th>';
     h1 += '<th class="ag-col-alloc-team">Team</th>';
     h1 += '<th class="ag-col-alloc-member">Member</th>';
     h1 += '<th class="ag-col-phase">Phase</th>';
@@ -990,9 +1011,12 @@ function _renderAllocTable(data) {
         const memberType = row.member_type ?? 'member';
         const phaseId    = row.phase_id    ?? '';
 
+        const confRowCls = _confRowCls(row.phase_confidence);
+        const confIndCls = _confIndCls(row.phase_confidence);
         html += `<tr data-row-idx="${rowIdx}" data-project-id="${projectId}" data-member-id="${memberId}" data-member-type="${memberType}" data-phase-id="${phaseId}">`;
-        html += `<td class="ag-col-prog"  title="${escHtml(row.programme_name)}">${escHtml(row.programme_name ?? '—')}</td>`;
-        html += `<td class="ag-col-proj ag-proj-cell" title="${escHtml(row.project_name)}">${escHtml(row.project_name ?? '—')}</td>`;
+        html += `<td class="ag-col-prog ${confRowCls}"  title="${escHtml(row.programme_name)}">${escHtml(row.programme_name ?? '—')}</td>`;
+        html += `<td class="ag-col-proj ag-proj-cell ${confRowCls}" title="${escHtml(row.project_name)}">${escHtml(row.project_name ?? '—')}</td>`;
+        html += `<td class="ag-conf-col ${confIndCls}"></td>`;
         html += `<td class="ag-col-alloc-team" title="${escHtml(row.team_name)}">${escHtml(row.team_name ?? '—')}</td>`;
         html += `<td class="ag-col-alloc-member" title="${escHtml(row.member_name)}">${escHtml(row.member_name ?? '—')}</td>`;
         const priorityDot = _priorityDot(row.phase_priority);

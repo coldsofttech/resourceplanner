@@ -502,13 +502,24 @@
 .ag-cell-zero  { background: #f3f4f6; color: #9ca3af; }
 
 /* ── Utilisation cells — colour by allocated days ────────────────────────── */
-.ag-util-full  { background: #15803d; color: #fff; }   /* ≥10d dark green */
-.ag-util-high  { background: #4ade80; color: #14532d; } /* ≥8d  light green */
-.ag-util-mid   { background: #f59e0b; color: #fff; }   /* ≥5d  amber */
-.ag-util-low   { background: #ef4444; color: #fff; }   /* ≥3d  red */
-.ag-util-vlow  { background: #991b1b; color: #fff; }   /* >0d  dark red */
-.ag-util-zero  { background: #f3f4f6; color: #9ca3af; } /* 0d   grey */
-.ag-util-over  { background: #fee2e2; }                /* legacy: over 100% pct */
+.ag-util-full  { background: #15803d !important; color: #fff !important; }   /* ≥10d dark green */
+.ag-util-high  { background: #4ade80 !important; color: #14532d !important; } /* ≥8d  light green */
+.ag-util-mid   { background: #f59e0b !important; color: #fff !important; }   /* ≥5d  amber */
+.ag-util-low   { background: #ef4444 !important; color: #fff !important; }   /* ≥3d  red */
+.ag-util-vlow  { background: #991b1b !important; color: #fff !important; }   /* >0d  dark red */
+.ag-util-zero  { background: #f3f4f6 !important; color: #9ca3af !important; } /* 0d   grey */
+.ag-util-over  { background: #fee2e2 !important; }
+
+/* ── Confidence row background — programme & project cells ───────────────── */
+.ag-conf-row-high { background: #dcfce7 !important; }   /* light green  — VERY_HIGH / HIGH */
+.ag-conf-row-mid  { background: #fef9c3 !important; }   /* light amber  — MEDIUM */
+.ag-conf-row-low  { background: #fee2e2 !important; }   /* light red    — LOW */
+
+/* ── Confidence indicator column (narrow stripe between Project & Team) ─── */
+.ag-conf-col      { width: 5px; min-width: 5px; max-width: 5px; padding: 0 !important; border-top: none !important; border-bottom: none !important; }
+.ag-conf-ind-high { background: #15803d !important; }   /* dark green */
+.ag-conf-ind-mid  { background: #b45309 !important; }   /* dark amber */
+.ag-conf-ind-low  { background: #991b1b !important; }   /* dark red */
 
 /* ── Column separators ───────────────────────────────────────────────────── */
 .ag-col-sep { border-left: 2px solid #495057 !important; }
