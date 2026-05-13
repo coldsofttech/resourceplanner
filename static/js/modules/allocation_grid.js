@@ -71,6 +71,13 @@ async function init() {
         if (overridesSection) overridesSection.classList.toggle('d-none', !_hasPlOverrides);
     } catch (_) {}
 
+    // Check for in-progress snapshot lock
+    try {
+        const snaps = await apiFetch(API_URLS.rp_versions.snapshots.list(planPk, versionPk).href);
+        const locked = Array.isArray(snaps) && snaps.some(s => s.status === 'PENDING' || s.status === 'IN_PROGRESS');
+        document.getElementById('ag-snap-lock-banner')?.classList.toggle('d-none', !locked);
+    } catch (_) {}
+
     await _loadTeamTabs();
     await _loadAllocationSets();
     await Promise.all([_loadAll(), _loadConflictSummary()]);

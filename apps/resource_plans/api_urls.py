@@ -14,6 +14,26 @@ router.register(r"resource-plans", ResourcePlanViewSet, basename="resource-plan"
 # Specific patterns must appear before more-general ones to avoid shadowing.
 _vc_patterns = [
     re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/snapshots/(?P<snap_pk>\d+)/compare/$',
+        GV.as_view({'get': 'snapshot_compare'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/snapshots/(?P<snap_pk>\d+)/allocations/$',
+        GV.as_view({'get': 'snapshot_allocations'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/snapshots/(?P<snap_pk>\d+)/capacity/$',
+        GV.as_view({'get': 'snapshot_capacity'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/snapshots/(?P<snap_pk>\d+)/$',
+        GV.as_view({'get': 'snapshot_detail', 'delete': 'snapshot_delete'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/snapshots/$',
+        GV.as_view({'get': 'snapshot_list', 'post': 'snapshot_create'}),
+    ),
+    re_path(
         r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/utilisation/teams/$',
         GV.as_view({'get': 'utilisation_teams'}),
     ),

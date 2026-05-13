@@ -73,6 +73,7 @@ from .services import (
     TeamUtilisationService,
     MemberUtilisationService,
     ProgrammeRollupService,
+    SnapshotService,
 )
 
 logger = logging.getLogger(__name__)
@@ -506,6 +507,10 @@ class ResourcePlanViewSet(viewsets.ViewSet):
             if not version:
                 return Response({"detail": "Plan has no versions."}, status=status.HTTP_400_BAD_REQUEST)
 
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
+
         mode = request.data.get("mode", PlanEngineJob.MODE_VALIDATE)
         if mode not in (PlanEngineJob.MODE_VALIDATE, PlanEngineJob.MODE_FULL):
             return Response({"detail": "Invalid mode."}, status=status.HTTP_400_BAD_REQUEST)
@@ -658,6 +663,9 @@ class ResourcePlanVersionConfigViewSet(viewsets.ViewSet):
             })
 
         # POST
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
         project_id = request.data.get("project")
         basis = request.data.get("basis", "").strip()
         basis_amount = request.data.get("basis_amount")
@@ -717,6 +725,10 @@ class ResourcePlanVersionConfigViewSet(viewsets.ViewSet):
 
         if request.method == "GET":
             return Response(ResourcePlanVersionProjectSerializer(entry).data)
+
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
 
         if request.method == "DELETE":
             ResourcePlanVersionConfigService.delete_project_entry(entry)
@@ -796,6 +808,9 @@ class ResourcePlanVersionConfigViewSet(viewsets.ViewSet):
             return Response(ResourcePlanVersionProjectTeamSerializer(teams, many=True).data)
 
         # POST
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
         try:
             team_entry = ResourcePlanVersionConfigService.add_team(
                 entry,
@@ -843,6 +858,10 @@ class ResourcePlanVersionConfigViewSet(viewsets.ViewSet):
             team_entry = entry.teams.get(pk=team_entry_pk)
         except ResourcePlanVersionProjectTeam.DoesNotExist:
             return Response({"detail": "Team entry not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
 
         if request.method == "DELETE":
             ResourcePlanVersionConfigService.delete_team(team_entry)
@@ -934,6 +953,22 @@ def _team_entry_not_found():
     return Response({"detail": "Team entry not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
+def _snapshot_locked(version):
+    """Return 423 Response if a snapshot job is in progress for this version, else None."""
+    from .models import ResourcePlanSnapshot
+    snap = ResourcePlanSnapshot.objects.filter(
+        version=version,
+        status__in=[ResourcePlanSnapshot.STATUS_PENDING, ResourcePlanSnapshot.STATUS_IN_PROGRESS],
+    ).first()
+    if snap:
+        return Response(
+            {'detail': 'A snapshot is in progress. All write operations are locked.',
+             'snapshot_id': snap.pk},
+            status=423,
+        )
+    return None
+
+
 class AllocationGridViewSet(viewsets.ViewSet):
     """Grid endpoints for capacity and absence data, nested under a version."""
 
@@ -1013,6 +1048,10 @@ class AllocationGridViewSet(viewsets.ViewSet):
         version = self._get_version(plan_pk, pk)
         if not version:
             return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        if request.method in ('PATCH', 'DELETE'):
+            lock = _snapshot_locked(version)
+            if lock:
+                return lock
         try:
             from .models import PlaceholderLeave
             pl = PlaceholderLeave.objects.get(pk=pl_pk, version=version)
@@ -1069,6 +1108,9 @@ class AllocationGridViewSet(viewsets.ViewSet):
         version = self._get_version(plan_pk, pk)
         if not version:
             return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
         alloc_set = AllocationSetService.get_set(version, set_pk)
         if not alloc_set:
             return Response({"detail": "Allocation set not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -1114,6 +1156,9 @@ class AllocationGridViewSet(viewsets.ViewSet):
         version = self._get_version(plan_pk, pk)
         if not version:
             return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
 
         days = request.data.get("days")
         if days is None:
@@ -1134,6 +1179,9 @@ class AllocationGridViewSet(viewsets.ViewSet):
         version = self._get_version(plan_pk, pk)
         if not version:
             return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
 
         try:
             result = CellCreateService.create_cell(version, request.data)
@@ -1314,6 +1362,9 @@ class AllocationGridViewSet(viewsets.ViewSet):
         version = self._get_version(plan_pk, pk)
         if not version:
             return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
         try:
             ph = PlaceholderEngineer.objects.get(pk=ph_pk, version=version)
         except PlaceholderEngineer.DoesNotExist:
@@ -1342,6 +1393,9 @@ class AllocationGridViewSet(viewsets.ViewSet):
         version = self._get_version(plan_pk, pk)
         if not version:
             return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
         try:
             ph = PlaceholderEngineer.objects.get(pk=ph_pk, version=version)
             absence = PlaceholderEngineerAbsence.objects.get(pk=absence_pk, placeholder_engineer=ph)
@@ -1436,6 +1490,190 @@ class AllocationGridViewSet(viewsets.ViewSet):
             project_ids=_int_list(request.query_params.get('projects')),
         ))
 
+    # ── Snapshot lock helper ──────────────────────────────────────────────────
+
+    def _snapshot_lock_check(self, version):
+        """Return 423 Response if a snapshot job is in progress, else None."""
+        from .models import ResourcePlanSnapshot
+        snap = ResourcePlanSnapshot.objects.filter(
+            version=version,
+            status__in=[ResourcePlanSnapshot.STATUS_PENDING, ResourcePlanSnapshot.STATUS_IN_PROGRESS],
+        ).first()
+        if snap:
+            return Response(
+                {'detail': 'A snapshot is in progress. All write operations are locked.',
+                 'snapshot_id': snap.pk},
+                status=423,
+            )
+        return None
+
+    # ── Snapshot endpoints (Phase 12) ─────────────────────────────────────────
+
+    def snapshot_list(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({'detail': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
+        snaps = SnapshotService.list_snapshots(version)
+        return Response([_serialise_snapshot(s) for s in snaps])
+
+    def snapshot_create(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({'detail': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
+        label = (request.data.get('label') or '').strip()
+        if not label:
+            return Response({'label': 'This field is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        notes = request.data.get('notes', '')
+        try:
+            snap = SnapshotService.create_snapshot_job(version, label, notes)
+            return Response(_serialise_snapshot(snap), status=status.HTTP_201_CREATED)
+        except DjangoValidationError as exc:
+            msg = exc.message if hasattr(exc, 'message') else str(exc)
+            return Response({'detail': msg}, status=status.HTTP_409_CONFLICT)
+
+    def snapshot_detail(self, request, plan_pk, pk, snap_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({'detail': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            snap = SnapshotService.get_snapshot(version, snap_pk)
+        except Exception:
+            return Response({'detail': 'Snapshot not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(_serialise_snapshot(snap))
+
+    def snapshot_delete(self, request, plan_pk, pk, snap_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({'detail': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            snap = SnapshotService.get_snapshot(version, snap_pk)
+        except Exception:
+            return Response({'detail': 'Snapshot not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            SnapshotService.delete_snapshot(snap)
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except DjangoValidationError as exc:
+            msg = exc.message if hasattr(exc, 'message') else str(exc)
+            return Response({'detail': msg}, status=status.HTTP_409_CONFLICT)
+
+    def snapshot_allocations(self, request, plan_pk, pk, snap_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({'detail': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            snap = SnapshotService.get_snapshot(version, snap_pk)
+        except Exception:
+            return Response({'detail': 'Snapshot not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+        except (ValueError, TypeError):
+            page = 1
+        PAGE_SIZE = 100
+        qs = snap.allocations.all()
+        total = qs.count()
+        offset = (page - 1) * PAGE_SIZE
+        rows = list(qs[offset:offset + PAGE_SIZE])
+        return Response({
+            'count': total,
+            'page': page,
+            'page_size': PAGE_SIZE,
+            'total_pages': max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE),
+            'results': [_serialise_snap_alloc(r) for r in rows],
+        })
+
+    def snapshot_capacity(self, request, plan_pk, pk, snap_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({'detail': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            snap = SnapshotService.get_snapshot(version, snap_pk)
+        except Exception:
+            return Response({'detail': 'Snapshot not found.'}, status=status.HTTP_404_NOT_FOUND)
+        try:
+            page = max(1, int(request.query_params.get('page', 1)))
+        except (ValueError, TypeError):
+            page = 1
+        PAGE_SIZE = 100
+        qs = snap.capacities.all()
+        total = qs.count()
+        offset = (page - 1) * PAGE_SIZE
+        rows = list(qs[offset:offset + PAGE_SIZE])
+        return Response({
+            'count': total,
+            'page': page,
+            'page_size': PAGE_SIZE,
+            'total_pages': max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE),
+            'results': [_serialise_snap_cap(r) for r in rows],
+        })
+
+    def snapshot_compare(self, request, plan_pk, pk, snap_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({'detail': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
+        a_id = request.query_params.get('a')
+        b_id = request.query_params.get('b')
+        if not a_id or not b_id:
+            return Response({'detail': 'Query params a and b (snapshot IDs) are required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        try:
+            snap_a = SnapshotService.get_snapshot(version, a_id)
+            snap_b = SnapshotService.get_snapshot(version, b_id)
+        except Exception:
+            return Response({'detail': 'One or both snapshots not found.'}, status=status.HTTP_404_NOT_FOUND)
+        diff = SnapshotService.compare_snapshots(snap_a, snap_b)
+        return Response({'snapshot_a': _serialise_snapshot(snap_a),
+                         'snapshot_b': _serialise_snapshot(snap_b),
+                         'diff': diff})
+
+
+def _serialise_snapshot(snap):
+    return {
+        'id': snap.pk,
+        'label': snap.label,
+        'notes': snap.notes,
+        'status': snap.status,
+        'total_allocation_days': float(snap.total_allocation_days) if snap.total_allocation_days is not None else None,
+        'total_members': snap.total_members,
+        'total_projects': snap.total_projects,
+        'total_sprints': snap.total_sprints,
+        'initiated_at': snap.initiated_at.isoformat() if snap.initiated_at else None,
+        'completed_at': snap.completed_at.isoformat() if snap.completed_at else None,
+        'error_log': snap.error_log,
+    }
+
+
+def _serialise_snap_alloc(r):
+    return {
+        'id': r.pk,
+        'sprint_number': r.sprint_number,
+        'sprint_name': r.sprint_name,
+        'member_name': r.member_name,
+        'team_name': r.team_name,
+        'project_name': r.project_name,
+        'programme_name': r.programme_name,
+        'phase_name': r.phase_name,
+        'assignment_type': r.assignment_type,
+        'includes_in_budget': r.includes_in_budget,
+        'days': float(r.days),
+        'is_override': r.is_override,
+        'is_placeholder': r.is_placeholder,
+    }
+
+
+def _serialise_snap_cap(r):
+    return {
+        'id': r.pk,
+        'sprint_number': r.sprint_number,
+        'sprint_name': r.sprint_name,
+        'member_name': r.member_name,
+        'team_name': r.team_name,
+        'working_days': float(r.working_days),
+        'holiday_days': float(r.holiday_days),
+        'leave_days': float(r.leave_days),
+        'placeholder_days': float(r.placeholder_days),
+        'net_capacity': float(r.net_capacity),
+    }
+
 
 class PlanPhaseViewSet(viewsets.ViewSet):
     """Phase endpoints nested under version config."""
@@ -1465,6 +1703,9 @@ class PlanPhaseViewSet(viewsets.ViewSet):
             return Response(PlanPhaseSerializer(phases, many=True).data)
 
         # POST
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
         try:
             phase = PlanPhaseService.create_phase(
                 team_entry,
@@ -1509,6 +1750,10 @@ class PlanPhaseViewSet(viewsets.ViewSet):
 
         if request.method == "GET":
             return Response(PlanPhaseSerializer(phase).data)
+
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
 
         if request.method == "DELETE":
             try:
@@ -1555,6 +1800,9 @@ class PlanPhaseViewSet(viewsets.ViewSet):
             segments = PlanPhaseService.list_segments(phase)
             return Response(PlanPhaseSegmentSerializer(segments, many=True).data)
 
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
         try:
             segment = PlanPhaseService.add_segment(
                 phase,
@@ -1626,6 +1874,10 @@ class PlanPhaseViewSet(viewsets.ViewSet):
         except PlanPhaseSegment.DoesNotExist:
             return Response({"detail": "Segment not found."}, status=status.HTTP_404_NOT_FOUND)
 
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
+
         if request.method == "DELETE":
             PlanPhaseService.delete_segment(segment)
             return Response(status=status.HTTP_204_NO_CONTENT)
@@ -1663,6 +1915,9 @@ class PlanPhaseViewSet(viewsets.ViewSet):
             deps = PlanPhaseService.list_dependencies(phase)
             return Response(PlanPhaseDependencySerializer(deps, many=True).data)
 
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
         try:
             dep = PlanPhaseService.add_dependency(
                 phase,
@@ -1692,6 +1947,10 @@ class PlanPhaseViewSet(viewsets.ViewSet):
             dep = phase.dependencies.get(pk=dep_pk)
         except PlanPhaseDependency.DoesNotExist:
             return Response({"detail": "Dependency not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
 
         if request.method == "DELETE":
             PlanPhaseService.delete_dependency(dep)
@@ -1726,6 +1985,9 @@ class PlanPhaseViewSet(viewsets.ViewSet):
             pauses = PlanPhaseService.list_pauses(phase)
             return Response(PlanPhasePauseSerializer(pauses, many=True).data)
 
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
         try:
             pause = PlanPhaseService.add_pause(
                 phase,
@@ -1757,6 +2019,10 @@ class PlanPhaseViewSet(viewsets.ViewSet):
             pause = phase.pauses.get(pk=pause_pk)
         except PlanPhasePause.DoesNotExist:
             return Response({"detail": "Pause not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
 
         if request.method == "DELETE":
             PlanPhaseService.delete_pause(pause)
@@ -1809,6 +2075,9 @@ class PlanPhaseViewSet(viewsets.ViewSet):
             assignments = PlanAssignmentService.list_assignments(phase)
             return Response(PlanAssignmentSerializer(assignments, many=True).data)
 
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
         try:
             assignment = PlanAssignmentService.create_assignment(
                 phase,
@@ -1842,6 +2111,10 @@ class PlanPhaseViewSet(viewsets.ViewSet):
             assignment = phase.assignments.get(pk=assign_pk)
         except PlanAssignment.DoesNotExist:
             return Response({"detail": "Assignment not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        lock = _snapshot_locked(version)
+        if lock:
+            return lock
 
         if request.method == "DELETE":
             PlanAssignmentService.delete_assignment(assignment)

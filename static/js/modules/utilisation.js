@@ -130,7 +130,7 @@ async function _loadFilterOptions() {
         teamSel.appendChild(opt);
     });
 
-    // Members from capacity grid rows
+    // Members from capacity grid rows (store team_id for cascade filter)
     const capRows  = capacityRes.status === 'fulfilled' ? (capacityRes.value?.rows ?? []) : [];
     const memberSel = document.getElementById('util-filter-members');
     capRows.forEach(r => {
@@ -138,6 +138,7 @@ async function _loadFilterOptions() {
         const opt = document.createElement('option');
         opt.value = r.member_id;
         opt.textContent = r.member_name;
+        if (r.team_id) opt.dataset.team = r.team_id;
         memberSel.appendChild(opt);
     });
 
@@ -180,6 +181,24 @@ async function _loadFilterOptions() {
 
     // Cascade: filter projects when programme changes (#11)
     progSel?.addEventListener('change', _cascadeProjectFilter);
+
+    // Cascade: filter members when team selection changes
+    teamSel?.addEventListener('change', _cascadeMemberFilter);
+}
+
+// Cascade member dropdown based on selected teams
+function _cascadeMemberFilter() {
+    const selTeams = _selectedIds('util-filter-teams');
+    const selTeamIds = selTeams ? selTeams.split(',').map(Number) : [];
+    const memberSel = document.getElementById('util-filter-members');
+    if (!memberSel) return;
+    Array.from(memberSel.options).forEach(opt => {
+        if (!opt.value) return;
+        const tid = opt.dataset.team ? Number(opt.dataset.team) : null;
+        const match = !selTeamIds.length || (tid != null && selTeamIds.includes(tid));
+        opt.style.display = match ? '' : 'none';
+        if (!match) opt.selected = false;
+    });
 }
 
 // Cascade project dropdown based on selected programmes (#11)
@@ -238,6 +257,7 @@ function _bindFilters() {
         if (allocSel) allocSel.selectedIndex = 0;
         ['util-filter-teams', 'util-filter-members', 'util-filter-programmes',
             'util-filter-projects', 'util-filter-emp-types'].forEach(_clearSelect);
+        _cascadeMemberFilter();
         _cascadeProjectFilter();
         _renderActiveTab();
     });

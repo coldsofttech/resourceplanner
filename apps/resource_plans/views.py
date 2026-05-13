@@ -64,3 +64,13 @@ class UtilisationView(View):
             "plan_pk": plan_pk,
             "version_pk": version_pk,
         })
+
+
+class SnapshotsView(View):
+    template_name = "resource_plans/snapshots.html"
+
+    def get(self, request, plan_pk, version_pk):
+        return render(request, self.template_name, {
+            "plan_pk": plan_pk,
+            "version_pk": version_pk,
+        })

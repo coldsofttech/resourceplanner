@@ -11,4 +11,5 @@ urlpatterns = [
     path("<int:plan_pk>/versions/<int:version_pk>/placeholder-leaves/", views.PlaceholderLeavesView.as_view(), name="placeholder_leaves"),
     path("<int:plan_pk>/versions/<int:version_pk>/conflicts/", views.ConflictsView.as_view(), name="conflicts"),
     path("<int:plan_pk>/versions/<int:version_pk>/utilisation/", views.UtilisationView.as_view(), name="utilisation"),
+    path("<int:plan_pk>/versions/<int:version_pk>/snapshots/", views.SnapshotsView.as_view(), name="snapshots"),
 ]

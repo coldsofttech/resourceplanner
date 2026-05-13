@@ -3485,7 +3485,7 @@ class AllocationEngineService:
                                 includes_in_budget=asgn.includes_in_budget, engine_days=Decimal('0'),
                             ))
                     else:
-                        key = (version.id, te.team_id, phase.id)
+                        key = (version.id, te.team_id)  # global per (version, team) for unique numbering
                         placeholder_slots[key] += 1
                         pe, _ = ResourcePlanPlaceholderEngineer.objects.get_or_create(
                             version=version, team=te.team, phase=phase,
@@ -4492,7 +4492,7 @@ class MemberUtilisationService:
                 mkey = ('placeholder', alloc.placeholder_engineer_id)
                 if mkey not in member_data:
                     member_data[mkey] = {
-                        'name': pe.display_name if pe else 'Auto',
+                        'name': pe.name if pe else 'Auto',
                         'team_id': alloc.team_id,
                         'team_name': alloc.team.name,
                         'member_id': alloc.placeholder_engineer_id,
@@ -4714,3 +4714,179 @@ class PlaceholderEngineerAbsenceService:
             absence.override_notes = notes or ''
         absence.save(update_fields=['override_days', 'override_notes'])
         return absence
+
+
+# ── Phase 12: Snapshot Service ────────────────────────────────────────────────
+
+
+def run_snapshot(snapshot_id):
+    """Background thread target — deep-copies allocation and capacity rows for the snapshot."""
+    from django.db import close_old_connections
+    from django.utils import timezone
+    close_old_connections()
+
+    try:
+        from .models import (
+            ResourcePlanSnapshot, ResourcePlanSnapshotAllocation,
+            ResourcePlanSnapshotCapacity, ResourcePlanAllocation,
+            ResourcePlanMemberCapacity,
+        )
+        snap = ResourcePlanSnapshot.objects.select_related('version').get(pk=snapshot_id)
+    except Exception:
+        return
+
+    try:
+        ResourcePlanSnapshot.objects.filter(pk=snapshot_id).update(
+            status=ResourcePlanSnapshot.STATUS_IN_PROGRESS,
+            started_at=timezone.now(),
+        )
+
+        version = snap.version
+        aset = _resolve_alloc_set(version, None)
+
+        alloc_rows = []
+        if aset:
+            qs = (
+                ResourcePlanAllocation.objects.filter(allocation_set=aset)
+                .select_related(
+                    'sprint', 'team', 'team_member', 'placeholder_engineer',
+                    'project', 'programme', 'phase',
+                )
+            )
+            for alloc in qs:
+                if alloc.team_member_id:
+                    who = alloc.team_member.display_name
+                elif alloc.placeholder_engineer_id:
+                    who = alloc.placeholder_engineer.name
+                else:
+                    who = 'Auto'
+                alloc_rows.append(ResourcePlanSnapshotAllocation(
+                    snapshot=snap,
+                    sprint_number=alloc.sprint.sprint_number,
+                    sprint_name=alloc.sprint.sprint_name,
+                    member_name=who,
+                    team_name=alloc.team.name,
+                    project_name=alloc.project.name,
+                    programme_name=alloc.programme.name if alloc.programme_id else None,
+                    phase_name=alloc.phase.name if alloc.phase_id else None,
+                    assignment_type=alloc.assignment_type,
+                    includes_in_budget=alloc.includes_in_budget,
+                    days=alloc.effective_days,
+                    is_override=alloc.override_days is not None,
+                    is_placeholder=alloc.placeholder_engineer_id is not None,
+                ))
+
+        cap_rows = []
+        for cap in ResourcePlanMemberCapacity.objects.filter(version=version).select_related(
+            'sprint', 'team_member', 'team_member__team',
+        ):
+            team_name = cap.team_member.team.name if cap.team_member.team_id else '—'
+            cap_rows.append(ResourcePlanSnapshotCapacity(
+                snapshot=snap,
+                sprint_number=cap.sprint.sprint_number,
+                sprint_name=cap.sprint.sprint_name,
+                member_name=cap.team_member.display_name,
+                team_name=team_name,
+                working_days=cap.working_days,
+                holiday_days=cap.holiday_days,
+                leave_days=cap.leave_days,
+                placeholder_days=cap.placeholder_days,
+                net_capacity=cap.net_capacity,
+            ))
+
+        ResourcePlanSnapshotAllocation.objects.bulk_create(alloc_rows, batch_size=500)
+        ResourcePlanSnapshotCapacity.objects.bulk_create(cap_rows, batch_size=500)
+
+        total_days = float(sum(r.days for r in alloc_rows))
+        total_members = len({r.member_name for r in alloc_rows})
+        total_projects = len({r.project_name for r in alloc_rows})
+        total_sprints = len({r.sprint_number for r in alloc_rows})
+
+        ResourcePlanSnapshot.objects.filter(pk=snapshot_id).update(
+            status=ResourcePlanSnapshot.STATUS_COMPLETE,
+            completed_at=timezone.now(),
+            total_allocation_days=round(total_days, 2),
+            total_members=total_members,
+            total_projects=total_projects,
+            total_sprints=total_sprints,
+        )
+
+    except Exception as exc:
+        ResourcePlanSnapshot.objects.filter(pk=snapshot_id).update(
+            status=ResourcePlanSnapshot.STATUS_FAILED,
+            completed_at=timezone.now(),
+            error_log=str(exc),
+        )
+
+
+class SnapshotService:
+
+    @staticmethod
+    def get_in_progress(version):
+        from .models import ResourcePlanSnapshot
+        return ResourcePlanSnapshot.objects.filter(
+            version=version,
+            status__in=[ResourcePlanSnapshot.STATUS_PENDING, ResourcePlanSnapshot.STATUS_IN_PROGRESS],
+        ).first()
+
+    @staticmethod
+    def create_snapshot_job(version, label, notes=None):
+        from .models import ResourcePlanSnapshot
+        if SnapshotService.get_in_progress(version):
+            raise ValidationError('A snapshot is already in progress for this version.')
+        snap = ResourcePlanSnapshot.objects.create(
+            version=version, label=label.strip(), notes=notes or None
+        )
+        t = threading.Thread(target=run_snapshot, args=(snap.pk,), daemon=True)
+        t.start()
+        return snap
+
+    @staticmethod
+    def list_snapshots(version):
+        from .models import ResourcePlanSnapshot
+        return list(ResourcePlanSnapshot.objects.filter(version=version))
+
+    @staticmethod
+    def get_snapshot(version, snap_pk):
+        from .models import ResourcePlanSnapshot
+        return ResourcePlanSnapshot.objects.get(pk=snap_pk, version=version)
+
+    @staticmethod
+    def delete_snapshot(snapshot):
+        from .models import ResourcePlanSnapshot
+        sibling_count = ResourcePlanSnapshot.objects.filter(
+            version__plan_group=snapshot.version.plan_group
+        ).exclude(pk=snapshot.pk).count()
+        if sibling_count == 0:
+            raise ValidationError('Cannot delete the only snapshot for this plan.')
+        snapshot.delete()
+
+    @staticmethod
+    def compare_snapshots(snap_a, snap_b):
+        def _key_days(allocs_qs):
+            d = {}
+            for a in allocs_qs:
+                k = (a.sprint_number, a.sprint_name, a.member_name, a.team_name, a.project_name)
+                d[k] = float(d.get(k, 0)) + float(a.days)
+            return d
+
+        a_data = _key_days(snap_a.allocations.all())
+        b_data = _key_days(snap_b.allocations.all())
+        all_keys = sorted(set(a_data) | set(b_data))
+        result = []
+        for k in all_keys:
+            sprint_number, sprint_name, member_name, team_name, project_name = k
+            days_a = round(a_data.get(k, 0), 2)
+            days_b = round(b_data.get(k, 0), 2)
+            delta = round(days_b - days_a, 2)
+            result.append({
+                'sprint_number': sprint_number,
+                'sprint_name': sprint_name,
+                'member_name': member_name,
+                'team_name': team_name,
+                'project_name': project_name,
+                'days_a': days_a,
+                'days_b': days_b,
+                'delta_days': delta,
+            })
+        return result

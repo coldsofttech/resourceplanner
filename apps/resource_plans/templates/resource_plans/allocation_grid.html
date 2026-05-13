@@ -32,12 +32,20 @@
            class="btn btn-sm btn-outline-warning">
             <i class="bi bi-bookmark-fill me-1"></i>Placeholder Leaves
         </a>
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/snapshots/"
+           class="btn btn-sm btn-outline-dark">
+            <i class="bi bi-camera me-1"></i>Snapshots
+        </a>
         <button class="btn btn-sm btn-warning fw-semibold" id="ag-run-engine">
             <i class="bi bi-cpu me-1"></i>Run Engine
         </button>
     </div>
 </div>
 {% endblock %} {% block content %}
+<div id="ag-snap-lock-banner" class="alert alert-warning d-none mb-2" role="alert">
+    <i class="bi bi-lock me-2"></i>A snapshot is in progress — plan write operations are locked.
+    <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/snapshots/" class="alert-link ms-2">View snapshots</a>
+</div>
 <div id="ag-banner" class="alert d-none mb-3" role="alert"></div>
 
 <!-- Allocation Set + Legend row -->

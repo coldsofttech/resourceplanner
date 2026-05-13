@@ -874,3 +874,78 @@ class PlaceholderEngineerAbsence(models.Model):
 
     def __str__(self):
         return f'{self.placeholder_engineer.display_name} — {self.sprint}: {self.effective_days}d'
+
+
+# ── Phase 12: Snapshots ───────────────────────────────────────────────────────
+
+
+class ResourcePlanSnapshot(models.Model):
+    STATUS_PENDING     = 'PENDING'
+    STATUS_IN_PROGRESS = 'IN_PROGRESS'
+    STATUS_COMPLETE    = 'COMPLETE'
+    STATUS_FAILED      = 'FAILED'
+    STATUS_CHOICES = [
+        (STATUS_PENDING,     'Pending'),
+        (STATUS_IN_PROGRESS, 'In Progress'),
+        (STATUS_COMPLETE,    'Complete'),
+        (STATUS_FAILED,      'Failed'),
+    ]
+
+    version      = models.ForeignKey(ResourcePlanVersion, on_delete=models.CASCADE, related_name='snapshots')
+    label        = models.CharField(max_length=200)
+    notes        = models.TextField(null=True, blank=True)
+    status       = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+
+    # Summary metrics populated on completion
+    total_allocation_days = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    total_members         = models.PositiveIntegerField(null=True, blank=True)
+    total_projects        = models.PositiveIntegerField(null=True, blank=True)
+    total_sprints         = models.PositiveIntegerField(null=True, blank=True)
+
+    initiated_at = models.DateTimeField(auto_now_add=True)
+    started_at   = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    error_log    = models.TextField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-initiated_at']
+
+    def __str__(self):
+        return f'Snapshot "{self.label}" [{self.status}] — {self.version}'
+
+
+class ResourcePlanSnapshotAllocation(models.Model):
+    """Denormalised, point-in-time copy of allocation rows. Name fields are stable after rename."""
+    snapshot         = models.ForeignKey(ResourcePlanSnapshot, on_delete=models.CASCADE, related_name='allocations')
+    sprint_number    = models.PositiveIntegerField()
+    sprint_name      = models.CharField(max_length=100)
+    member_name      = models.CharField(max_length=200)
+    team_name        = models.CharField(max_length=200)
+    project_name     = models.CharField(max_length=200)
+    programme_name   = models.CharField(max_length=200, null=True, blank=True)
+    phase_name       = models.CharField(max_length=200, null=True, blank=True)
+    assignment_type  = models.CharField(max_length=20)
+    includes_in_budget = models.BooleanField(default=True)
+    days             = models.DecimalField(max_digits=6, decimal_places=2)
+    is_override      = models.BooleanField(default=False)
+    is_placeholder   = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ['sprint_number', 'team_name', 'member_name']
+
+
+class ResourcePlanSnapshotCapacity(models.Model):
+    """Denormalised, point-in-time copy of member capacity rows."""
+    snapshot         = models.ForeignKey(ResourcePlanSnapshot, on_delete=models.CASCADE, related_name='capacities')
+    sprint_number    = models.PositiveIntegerField()
+    sprint_name      = models.CharField(max_length=100)
+    member_name      = models.CharField(max_length=200)
+    team_name        = models.CharField(max_length=200)
+    working_days     = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    holiday_days     = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    leave_days       = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    placeholder_days = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    net_capacity     = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ['sprint_number', 'team_name', 'member_name']

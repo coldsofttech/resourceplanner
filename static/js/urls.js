@@ -739,6 +739,15 @@ export const API_URLS = {
             members:    (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/utilisation/members/` }),
             programmes: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/utilisation/programmes/` }),
         },
+        snapshots: {
+            list:        (planPk, versionPk) => ({ method: 'GET',    href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/snapshots/` }),
+            create:      (planPk, versionPk) => ({ method: 'POST',   href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/snapshots/` }),
+            detail:      (planPk, versionPk, snapPk) => ({ method: 'GET',    href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/snapshots/${snapPk}/` }),
+            delete:      (planPk, versionPk, snapPk) => ({ method: 'DELETE', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/snapshots/${snapPk}/` }),
+            allocations: (planPk, versionPk, snapPk) => ({ method: 'GET',    href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/snapshots/${snapPk}/allocations/` }),
+            capacity:    (planPk, versionPk, snapPk) => ({ method: 'GET',    href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/snapshots/${snapPk}/capacity/` }),
+            compare:     (planPk, versionPk, snapPk) => ({ method: 'GET',    href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/snapshots/${snapPk}/compare/` }),
+        },
         conflicts: {
             list:    (planPk, versionPk) => ({ method: 'GET',  href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/conflicts/` }),
             summary: (planPk, versionPk) => ({ method: 'GET',  href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/conflicts/summary/` }),
@@ -960,5 +969,6 @@ export const URLS = {
         placeholder_leaves: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/placeholder-leaves/`,
         conflicts: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/conflicts/`,
         utilisation: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/utilisation/`,
+        snapshots: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/snapshots/`,
     },
 };
