@@ -1432,7 +1432,8 @@ class AllocationGridViewSet(viewsets.ViewSet):
 
         team_ids = _int_list(request.query_params.get('teams'))
         employment_type_ids = _int_list(request.query_params.get('employment_types'))
-        return Response(TeamUtilisationService.get_team_utilisation(version, allocation_set_id, team_ids, employment_type_ids))
+        show_auto = request.query_params.get('show_auto', '0') not in ('', '0', 'false', 'False')
+        return Response(TeamUtilisationService.get_team_utilisation(version, allocation_set_id, team_ids, employment_type_ids, show_auto=show_auto))
 
     def utilisation_members(self, request, plan_pk, pk):
         version = self._get_version(plan_pk, pk)
@@ -1483,11 +1484,13 @@ class AllocationGridViewSet(viewsets.ViewSet):
         except (ValueError, TypeError):
             allocation_set_id = None
 
+        show_auto = request.query_params.get('show_auto', '0') not in ('', '0', 'false', 'False')
         return Response(ProgrammeRollupService.get_programme_rollup(
             version,
             allocation_set_id=allocation_set_id,
             programme_ids=_int_list(request.query_params.get('programmes')),
             project_ids=_int_list(request.query_params.get('projects')),
+            show_auto=show_auto,
         ))
 
     # ── Snapshot lock helper ──────────────────────────────────────────────────

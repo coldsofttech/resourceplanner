@@ -60,9 +60,9 @@ function _renderList() {
             <td class="small text-secondary">${s.initiated_at ? new Date(s.initiated_at).toLocaleString() : '—'}</td>
             <td>
                 ${s.status === 'COMPLETE' ? `
-                <a class="btn btn-xs btn-outline-secondary me-1" href="${API_URLS.rp_versions.snapshots.allocations(planPk, versionPk, s.id).href}?page=1" target="_blank" title="Allocations">
+                <button class="btn btn-xs btn-outline-secondary me-1 snap-alloc-btn" data-id="${s.id}" data-label="${escHtml(s.label)}" title="View Allocations">
                     <i class="bi bi-table"></i>
-                </a>` : ''}
+                </button>` : ''}
                 <button class="btn btn-xs btn-outline-danger snap-delete-btn" data-id="${s.id}" title="Delete">
                     <i class="bi bi-trash"></i>
                 </button>
@@ -71,6 +71,9 @@ function _renderList() {
     `).join('');
     tbody.querySelectorAll('.snap-delete-btn').forEach(btn => {
         btn.addEventListener('click', () => _deleteSnapshot(Number(btn.dataset.id)));
+    });
+    tbody.querySelectorAll('.snap-alloc-btn').forEach(btn => {
+        btn.addEventListener('click', () => _openAllocModal(Number(btn.dataset.id), btn.dataset.label));
     });
 }
 
@@ -212,45 +215,117 @@ function _renderDiff(data) {
     const labelB = escHtml(sb?.label ?? 'B');
 
     if (!diff || !diff.length) {
-        panel.innerHTML = `<div class="alert alert-success mt-3">No differences between ${labelA} and ${labelB}.</div>`;
+        panel.innerHTML = `<div class="alert alert-success mt-3">No differences between <strong>${labelA}</strong> and <strong>${labelB}</strong>.</div>`;
         return;
     }
 
-    const rows = diff.map(row => {
-        const delta = row.delta_days;
-        const cls = delta > 0 ? 'table-success' : delta < 0 ? 'table-danger' : '';
-        const sign = delta > 0 ? '+' : '';
-        return `<tr class="${cls}">
-            <td>${escHtml(row.sprint_name)}</td>
-            <td>${escHtml(row.member_name)}</td>
-            <td>${escHtml(row.team_name)}</td>
-            <td>${escHtml(row.project_name)}</td>
-            <td class="text-end">${row.days_a.toFixed(2)}</td>
-            <td class="text-end">${row.days_b.toFixed(2)}</td>
-            <td class="text-end fw-semibold">${sign}${delta.toFixed(2)}</td>
-        </tr>`;
+    // Group by project
+    const byProject = {};
+    diff.forEach(row => {
+        const key = row.project_name ?? '(no project)';
+        if (!byProject[key]) byProject[key] = [];
+        byProject[key].push(row);
+    });
+
+    const projectBlocks = Object.entries(byProject).map(([proj, rows]) => {
+        const rowHtml = rows.map(row => {
+            const delta = row.delta_days;
+            const isAdded   = row.days_a === 0 && row.days_b > 0;
+            const isRemoved = row.days_b === 0 && row.days_a > 0;
+            const sign = delta > 0 ? '+' : '';
+            const prefix = isAdded ? '+' : isRemoved ? '−' : '~';
+            const cls = isAdded ? 'diff-line-add' : isRemoved ? 'diff-line-del' : 'diff-line-chg';
+            return `<div class="diff-line ${cls}">
+                <span class="diff-prefix">${prefix}</span>
+                <span class="diff-meta">${escHtml(row.sprint_name)} &bull; ${escHtml(row.member_name)} <span class="diff-team">[${escHtml(row.team_name)}]</span></span>
+                <span class="diff-days">
+                    <span class="diff-a">${row.days_a.toFixed(2)}d</span>
+                    <span class="diff-arrow">→</span>
+                    <span class="diff-b">${row.days_b.toFixed(2)}d</span>
+                    <span class="diff-delta">${sign}${delta.toFixed(2)}d</span>
+                </span>
+            </div>`;
+        }).join('');
+        return `<div class="diff-block mb-3">
+            <div class="diff-block-header">
+                <i class="bi bi-folder me-1"></i>${escHtml(proj)}
+                <span class="diff-count ms-2">${rows.length} change${rows.length === 1 ? '' : 's'}</span>
+            </div>
+            <div class="diff-body">${rowHtml}</div>
+        </div>`;
     }).join('');
 
     panel.innerHTML = `
-        <div class="d-flex align-items-center gap-2 mt-3 mb-2">
+        <div class="d-flex align-items-center gap-2 mt-3 mb-3">
             <span class="badge bg-secondary">${labelA}</span>
-            <i class="bi bi-arrow-right"></i>
+            <i class="bi bi-arrow-right text-muted"></i>
             <span class="badge bg-secondary">${labelB}</span>
-            <span class="text-muted small ms-2">${diff.length} changed row${diff.length === 1 ? '' : 's'}</span>
+            <span class="text-muted small ms-2">${diff.length} changed row${diff.length === 1 ? '' : 's'} across ${Object.keys(byProject).length} project${Object.keys(byProject).length === 1 ? '' : 's'}</span>
         </div>
-        <div class="table-responsive">
-            <table class="table table-sm table-bordered snap-diff-table">
-                <thead class="table-light">
-                    <tr>
-                        <th>Sprint</th><th>Member</th><th>Team</th><th>Project</th>
-                        <th class="text-end">${labelA} days</th>
-                        <th class="text-end">${labelB} days</th>
-                        <th class="text-end">Delta</th>
-                    </tr>
-                </thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>`;
+        <div class="diff-container">${projectBlocks}</div>`;
+}
+
+// ── Allocations Modal ─────────────────────────────────────────────────────────
+
+let _allocPage = 1;
+let _allocSnapId = null;
+
+async function _openAllocModal(snapId, label) {
+    _allocSnapId = snapId;
+    _allocPage   = 1;
+    const titleEl = document.getElementById('snap-alloc-modal-title');
+    if (titleEl) titleEl.textContent = `Allocations — ${label}`;
+    document.getElementById('snap-alloc-tbody').innerHTML =
+        `<tr><td colspan="6" class="text-center py-3"><div class="spinner-border spinner-border-sm text-secondary"></div></td></tr>`;
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('snapAllocModal')).show();
+    await _loadAllocPage();
+}
+
+async function _loadAllocPage() {
+    const url = API_URLS.rp_versions.snapshots.allocations(planPk, versionPk, _allocSnapId).href + `?page=${_allocPage}`;
+    try {
+        const data = await apiFetch(url);
+        const rows  = data.results ?? [];
+        const count = data.count ?? 0;
+        const pageSize = data.page_size ?? 100;
+        const totalPages = Math.ceil(count / pageSize);
+
+        const tbody = document.getElementById('snap-alloc-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = rows.length
+            ? rows.map(r => `<tr>
+                <td>${escHtml(r.sprint_name)}</td>
+                <td>${escHtml(r.member_name)}</td>
+                <td>${escHtml(r.team_name)}</td>
+                <td>${escHtml(r.project_name)}</td>
+                <td>${escHtml(r.assignment_type ?? '—')}</td>
+                <td class="text-end">${parseFloat(r.days).toFixed(2)}d</td>
+              </tr>`).join('')
+            : `<tr><td colspan="6" class="text-center text-secondary py-3">No allocations</td></tr>`;
+
+        const nav = document.getElementById('snap-alloc-nav');
+        if (nav) {
+            nav.innerHTML = totalPages <= 1 ? '' : `
+                <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" id="snap-alloc-prev" ${_allocPage <= 1 ? 'disabled' : ''}>
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                    <span class="small text-secondary">Page ${_allocPage} / ${totalPages} &nbsp;(${count} rows)</span>
+                    <button class="btn btn-sm btn-outline-secondary" id="snap-alloc-next" ${_allocPage >= totalPages ? 'disabled' : ''}>
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </div>`;
+            document.getElementById('snap-alloc-prev')?.addEventListener('click', async () => {
+                if (_allocPage > 1) { _allocPage--; await _loadAllocPage(); }
+            });
+            document.getElementById('snap-alloc-next')?.addEventListener('click', async () => {
+                if (_allocPage < totalPages) { _allocPage++; await _loadAllocPage(); }
+            });
+        }
+    } catch (err) {
+        const tbody = document.getElementById('snap-alloc-tbody');
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-danger py-2">${escHtml(err?.detail ?? 'Failed to load allocations.')}</td></tr>`;
+    }
 }
 
 // ── Delete ────────────────────────────────────────────────────────────────────

@@ -241,7 +241,7 @@ function _updateFilterVisibility() {
     document.getElementById('util-filter-emp-types-wrap')?.classList.toggle('d-none', !isMember && !isTeam);
     document.getElementById('util-filter-programmes-wrap')?.classList.toggle('d-none', !isProg);
     document.getElementById('util-filter-projects-wrap')?.classList.toggle('d-none', isTeam);
-    document.getElementById('util-auto-toggle-wrap')?.classList.toggle('d-none', !isMember);
+    document.getElementById('util-auto-toggle-wrap')?.classList.toggle('d-none', false);
 
     ['team', 'member', 'programme'].forEach(t => {
         document.getElementById(`util-panel-${t}`)?.classList.toggle('d-none', t !== _activeTab);
@@ -266,7 +266,7 @@ function _bindFilters() {
 function _bindAutoToggle() {
     document.getElementById('util-auto-toggle')?.addEventListener('change', e => {
         _showAuto = e.target.checked;
-        if (_activeTab === 'member') _renderActiveTab();
+        _renderActiveTab();
     });
 }
 
@@ -302,6 +302,7 @@ async function _renderTeamTab() {
     const extras = {};
     const empTypes = _selectedIds('util-filter-emp-types');
     if (empTypes) extras.employment_types = empTypes;
+    extras.show_auto = _showAuto ? '1' : '0';
 
     const data = await apiFetch(API_URLS.rp_versions.utilisation.teams(planPk, versionPk).href + _buildQS(extras));
     const { sprints = [], rows = [] } = data ?? {};
@@ -539,23 +540,12 @@ async function _renderProgrammeTab() {
     const wrap   = document.getElementById('util-prog-charts-wrap');
     const noData = document.getElementById('util-prog-no-data');
 
-    // Issue #10: require programme selection before loading
     const progs = _selectedIds('util-filter-programmes');
-    if (!progs) {
-        _progCharts.forEach(c => c.destroy());
-        _progCharts = [];
-        if (wrap) wrap.innerHTML = '';
-        if (noData) {
-            noData.textContent = 'Select one or more programmes above to view utilisation.';
-            noData.classList.remove('d-none');
-        }
-        return;
-    }
-
     const extras = {};
     const projs = _selectedIds('util-filter-projects');
-    extras.programmes = progs;
+    if (progs) extras.programmes = progs;
     if (projs) extras.projects = projs;
+    extras.show_auto = _showAuto ? '1' : '0';
 
     const data = await apiFetch(API_URLS.rp_versions.utilisation.programmes(planPk, versionPk).href + _buildQS(extras));
     const { sprints = [], rows = [] } = data ?? {};

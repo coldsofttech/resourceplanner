@@ -3485,7 +3485,7 @@ class AllocationEngineService:
                                 includes_in_budget=asgn.includes_in_budget, engine_days=Decimal('0'),
                             ))
                     else:
-                        key = (version.id, te.team_id)  # global per (version, team) for unique numbering
+                        key = version.id  # globally unique slot numbers per version
                         placeholder_slots[key] += 1
                         pe, _ = ResourcePlanPlaceholderEngineer.objects.get_or_create(
                             version=version, team=te.team, phase=phase,
@@ -4319,7 +4319,7 @@ class TeamUtilisationService:
     """Aggregate allocation + capacity per team per sprint — computed on request."""
 
     @staticmethod
-    def get_team_utilisation(version, allocation_set_id=None, team_ids=None, employment_type_ids=None):
+    def get_team_utilisation(version, allocation_set_id=None, team_ids=None, employment_type_ids=None, show_auto=False):
         from apps.sprints.models import Sprint
         from .models import ResourcePlanAllocation, ResourcePlanMemberCapacity
 
@@ -4347,6 +4347,8 @@ class TeamUtilisationService:
             alloc_qs = alloc_qs.filter(team_id__in=team_ids)
         if employment_type_ids:
             alloc_qs = alloc_qs.filter(team_member__employment_type_id__in=employment_type_ids)
+        if not show_auto:
+            alloc_qs = alloc_qs.filter(placeholder_engineer__isnull=True)
 
         team_alloc = {}
         team_names = {}
@@ -4571,7 +4573,7 @@ class ProgrammeRollupService:
     """Aggregate allocation per programme per sprint, compute forecast cost vs budget baseline."""
 
     @staticmethod
-    def get_programme_rollup(version, allocation_set_id=None, programme_ids=None, project_ids=None):
+    def get_programme_rollup(version, allocation_set_id=None, programme_ids=None, project_ids=None, show_auto=False):
         from apps.sprints.models import Sprint
         from .models import ResourcePlanAllocation, ResourcePlanVersionProject
 
@@ -4619,6 +4621,8 @@ class ProgrammeRollupService:
             alloc_qs = alloc_qs.filter(programme_id__in=programme_ids)
         if project_ids:
             alloc_qs = alloc_qs.filter(project_id__in=project_ids)
+        if not show_auto:
+            alloc_qs = alloc_qs.filter(placeholder_engineer__isnull=True)
 
         prog_alloc = {}
         for alloc in alloc_qs:

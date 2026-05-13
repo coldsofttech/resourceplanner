@@ -89,6 +89,45 @@
     </div>
 </div>
 
+<!-- ── Allocations modal ─────────────────────────────────────────────────── -->
+<div class="modal fade" id="snapAllocModal" tabindex="-1" aria-labelledby="snap-alloc-modal-title" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="snap-alloc-modal-title">
+                    <i class="bi bi-table me-2"></i>Allocations
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light sticky-top">
+                            <tr>
+                                <th>Sprint</th>
+                                <th>Member</th>
+                                <th>Team</th>
+                                <th>Project</th>
+                                <th>Type</th>
+                                <th class="text-end">Days</th>
+                            </tr>
+                        </thead>
+                        <tbody id="snap-alloc-tbody">
+                            <tr><td colspan="6" class="text-center py-4">
+                                <div class="spinner-border spinner-border-sm text-secondary"></div>
+                            </td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div id="snap-alloc-nav"></div>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ── Take Snapshot modal ───────────────────────────────────────────────── -->
 <div class="modal fade" id="snapModal" tabindex="-1" aria-labelledby="snapModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
@@ -129,8 +168,35 @@
 </div>
 
 <style>
-.snap-diff-table th, .snap-diff-table td { font-size: .8rem; white-space: nowrap; }
 .btn-xs { padding: .1rem .35rem; font-size: .75rem; }
+
+/* Git-like diff styles */
+.diff-container { font-family: 'SFMono-Regular', Consolas, monospace; font-size: .8rem; }
+.diff-block { border: 1px solid #dee2e6; border-radius: .375rem; overflow: hidden; }
+.diff-block-header {
+    background: #f8f9fa; border-bottom: 1px solid #dee2e6;
+    padding: .35rem .75rem; font-weight: 600; font-size: .78rem; color: #495057;
+}
+.diff-count { font-weight: 400; color: #6c757d; }
+.diff-body { background: #fff; }
+.diff-line {
+    display: flex; align-items: center; gap: .5rem;
+    padding: .2rem .75rem; border-bottom: 1px solid #f0f0f0; line-height: 1.4;
+}
+.diff-line:last-child { border-bottom: none; }
+.diff-line-add  { background: #d4edda; color: #155724; }
+.diff-line-del  { background: #f8d7da; color: #721c24; }
+.diff-line-chg  { background: #fff3cd; color: #856404; }
+.diff-prefix { width: 1rem; text-align: center; font-weight: 700; flex-shrink: 0; }
+.diff-meta  { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-team  { opacity: .7; font-size: .75rem; }
+.diff-days  { display: flex; align-items: center; gap: .3rem; white-space: nowrap; flex-shrink: 0; }
+.diff-a     { opacity: .65; text-decoration: line-through; }
+.diff-arrow { opacity: .5; }
+.diff-delta { font-weight: 700; }
+.diff-line-add .diff-delta  { color: #28a745; }
+.diff-line-del .diff-delta  { color: #dc3545; }
+.diff-line-chg .diff-delta  { color: #856404; }
 </style>
 {% endblock %} {% block extra_js %}
 <script type="module" src="{% static 'js/modules/snapshots.js' %}"></script>
