@@ -8,12 +8,14 @@ const versionPk = getPkFromUrl('versions');
 
 const RAMPDOWN_THRESHOLD_PCT = 50;
 
-let _activeTab  = 'team';
-let _memberView = 'bar';
+let _activeTab   = 'team';
+let _memberView  = 'bar';
 let _teamChart   = null;
 let _memberChart = null;
 let _progCharts  = [];
 let _memberData  = null;
+let _showAuto    = false;
+let _allProjects = [];  // full project list for cascade filter
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -68,6 +70,7 @@ async function init() {
     _bindFilters();
     _bindMemberViewToggle();
     _bindHeatmapClick();
+    _bindAutoToggle();
     await _loadVersionMeta();
     await Promise.all([_loadAllocationSets(), _loadFilterOptions()]);
     await _renderActiveTab();
@@ -114,7 +117,7 @@ async function _loadFilterOptions() {
         apiFetch(API_URLS.employment_types.list.href),
     ]);
 
-    // Teams: [{id, name}]
+    // Teams
     const teams   = teamsRes.status === 'fulfilled'
         ? (Array.isArray(teamsRes.value) ? teamsRes.value : (teamsRes.value?.results ?? []))
         : [];
@@ -127,7 +130,7 @@ async function _loadFilterOptions() {
         teamSel.appendChild(opt);
     });
 
-    // Members from capacity grid rows: [{member_id, member_name, ...}]
+    // Members from capacity grid rows
     const capRows  = capacityRes.status === 'fulfilled' ? (capacityRes.value?.rows ?? []) : [];
     const memberSel = document.getElementById('util-filter-members');
     capRows.forEach(r => {
@@ -138,10 +141,11 @@ async function _loadFilterOptions() {
         memberSel.appendChild(opt);
     });
 
-    // Projects + Programmes from version project list
+    // Projects + Programmes
     const projList = projectsRes.status === 'fulfilled'
         ? (Array.isArray(projectsRes.value) ? projectsRes.value : (projectsRes.value?.results ?? []))
         : [];
+    _allProjects = projList;
     const projSel  = document.getElementById('util-filter-projects');
     const progSel  = document.getElementById('util-filter-programmes');
     const seenProgs = new Set();
@@ -173,6 +177,25 @@ async function _loadFilterOptions() {
         opt.textContent = e.name;
         empSel.appendChild(opt);
     });
+
+    // Cascade: filter projects when programme changes (#11)
+    progSel?.addEventListener('change', _cascadeProjectFilter);
+}
+
+// Cascade project dropdown based on selected programmes (#11)
+function _cascadeProjectFilter() {
+    const selProgs = _selectedIds('util-filter-programmes');
+    const selProgIds = selProgs ? selProgs.split(',').map(Number) : [];
+    const projSel = document.getElementById('util-filter-projects');
+    if (!projSel) return;
+
+    Array.from(projSel.options).forEach(opt => {
+        if (!opt.value) return;
+        const proj = _allProjects.find(p => String(p.project) === opt.value);
+        const match = !selProgIds.length || (proj && selProgIds.includes(proj.programme_id));
+        opt.style.display = match ? '' : 'none';
+        if (!match) opt.selected = false;
+    });
 }
 
 // ── Tab management ────────────────────────────────────────────────────────────
@@ -191,14 +214,15 @@ function _bindTabs() {
 }
 
 function _updateFilterVisibility() {
-    const isMember = _activeTab === 'member';
-    const isProg   = _activeTab === 'programme';
-    const isTeam   = _activeTab === 'team';
+    const isMember  = _activeTab === 'member';
+    const isProg    = _activeTab === 'programme';
+    const isTeam    = _activeTab === 'team';
 
     document.getElementById('util-filter-members-wrap')?.classList.toggle('d-none', !isMember);
-    document.getElementById('util-filter-emp-types-wrap')?.classList.toggle('d-none', !isMember);
+    document.getElementById('util-filter-emp-types-wrap')?.classList.toggle('d-none', !isMember && !isTeam);
     document.getElementById('util-filter-programmes-wrap')?.classList.toggle('d-none', !isProg);
     document.getElementById('util-filter-projects-wrap')?.classList.toggle('d-none', isTeam);
+    document.getElementById('util-auto-toggle-wrap')?.classList.toggle('d-none', !isMember);
 
     ['team', 'member', 'programme'].forEach(t => {
         document.getElementById(`util-panel-${t}`)?.classList.toggle('d-none', t !== _activeTab);
@@ -214,7 +238,15 @@ function _bindFilters() {
         if (allocSel) allocSel.selectedIndex = 0;
         ['util-filter-teams', 'util-filter-members', 'util-filter-programmes',
             'util-filter-projects', 'util-filter-emp-types'].forEach(_clearSelect);
+        _cascadeProjectFilter();
         _renderActiveTab();
+    });
+}
+
+function _bindAutoToggle() {
+    document.getElementById('util-auto-toggle')?.addEventListener('change', e => {
+        _showAuto = e.target.checked;
+        if (_activeTab === 'member') _renderActiveTab();
     });
 }
 
@@ -224,7 +256,7 @@ function _buildQS(extras = {}) {
     if (allocSet) p.set('allocation_set', allocSet);
     const teams = _selectedIds('util-filter-teams');
     if (teams) p.set('teams', teams);
-    Object.entries(extras).forEach(([k, v]) => { if (v) p.set(k, v); });
+    Object.entries(extras).forEach(([k, v]) => { if (v != null) p.set(k, v); });
     return p.toString() ? `?${p}` : '';
 }
 
@@ -236,7 +268,8 @@ async function _renderActiveTab() {
         if      (_activeTab === 'team')      await _renderTeamTab();
         else if (_activeTab === 'member')    await _renderMemberTab();
         else if (_activeTab === 'programme') await _renderProgrammeTab();
-    } catch (_) {
+    } catch (err) {
+        console.error('Utilisation load error:', err);
         _showBanner('Failed to load utilisation data.', 'danger');
     } finally {
         _spinner(false);
@@ -246,8 +279,12 @@ async function _renderActiveTab() {
 // ── Team Tab ──────────────────────────────────────────────────────────────────
 
 async function _renderTeamTab() {
-    const data = await apiFetch(API_URLS.rp_versions.utilisation.teams(planPk, versionPk).href + _buildQS());
-    const { sprints = [], rows = [] } = data;
+    const extras = {};
+    const empTypes = _selectedIds('util-filter-emp-types');
+    if (empTypes) extras.employment_types = empTypes;
+
+    const data = await apiFetch(API_URLS.rp_versions.utilisation.teams(planPk, versionPk).href + _buildQS(extras));
+    const { sprints = [], rows = [] } = data ?? {};
     const hasData = rows.length > 0;
 
     document.getElementById('util-team-no-data')?.classList.toggle('d-none', hasData);
@@ -256,7 +293,7 @@ async function _renderTeamTab() {
     if (!hasData) return;
 
     _renderTeamChart(sprints, rows);
-    _renderTeamTable(rows);
+    _renderTeamTable(sprints, rows);
 }
 
 function _renderTeamChart(sprints, rows) {
@@ -278,12 +315,13 @@ function _renderTeamChart(sprints, rows) {
     _teamChart = _barLineChart(canvas, labels, netCap, alloc, utilPct);
 }
 
-function _renderTeamTable(rows) {
+function _renderTeamTable(sprints, rows) {
     const tbody = document.getElementById('util-team-tbody');
     if (!tbody) return;
     tbody.innerHTML = rows.map(row => {
         let totNet = 0, totAlloc = 0, utilSum = 0, utilN = 0, over = 0;
-        row.cells.forEach(c => {
+        row.cells.forEach((c, i) => {
+            if (sprints[i]?.is_past) return;  // skip past sprints (#6)
             totNet   += c.net_capacity ?? 0;
             totAlloc += c.allocated_days;
             if (c.utilisation_pct != null) { utilSum += c.utilisation_pct; utilN++; }
@@ -310,12 +348,18 @@ async function _renderMemberTab() {
     if (members)  extras.members          = members;
     if (empTypes) extras.employment_types = empTypes;
     if (projects) extras.projects         = projects;
+    extras.show_auto = _showAuto ? '1' : '0';
 
-    _memberData = await apiFetch(API_URLS.rp_versions.utilisation.members(planPk, versionPk).href + _buildQS(extras));
+    _memberData = (await apiFetch(
+        API_URLS.rp_versions.utilisation.members(planPk, versionPk).href + _buildQS(extras)
+    )) ?? { sprints: [], rows: [] };
+
     const { sprints = [], rows = [] } = _memberData;
     const hasData = rows.length > 0;
 
     document.getElementById('util-member-no-data')?.classList.toggle('d-none', hasData);
+    document.getElementById('util-member-chart-card')?.classList.toggle('d-none', !hasData);
+    document.getElementById('util-member-table-card')?.classList.toggle('d-none', !hasData);
     if (!hasData) return;
 
     if (_memberView === 'bar') {
@@ -325,6 +369,7 @@ async function _renderMemberTab() {
         _showMemberView('heatmap');
         _renderMemberHeatmap(sprints, rows);
     }
+    _renderMemberTable(sprints, rows);
 }
 
 function _showMemberView(view) {
@@ -339,12 +384,15 @@ function _renderMemberBarChart(sprints, rows) {
     const canvas = document.getElementById('util-member-chart');
     if (!canvas) return;
 
-    const labels  = rows.map(r => r.member_name);
-    const netCap  = rows.map(r => _round(r.cells.reduce((s, c) => s + (c.net_capacity ?? 0), 0), 2));
-    const alloc   = rows.map(r => _round(r.cells.reduce((s, c) => s + c.allocated_days, 0), 2));
-    const utilPct = rows.map(r => {
+    // Per-sprint chart (same as team chart) — aggregate all rows (#8)
+    const labels  = sprints.map(s => s.name);
+    const netCap  = sprints.map((_, i) =>
+        _round(rows.reduce((sum, r) => sum + (r.cells[i]?.net_capacity ?? 0), 0), 2));
+    const alloc   = sprints.map((_, i) =>
+        _round(rows.reduce((sum, r) => sum + (r.cells[i]?.allocated_days ?? 0), 0), 2));
+    const utilPct = sprints.map((_, i) => {
         let sum = 0, n = 0;
-        r.cells.forEach(c => { if (c.utilisation_pct != null) { sum += c.utilisation_pct; n++; } });
+        rows.forEach(r => { const p = r.cells[i]?.utilisation_pct; if (p != null) { sum += p; n++; } });
         return n ? _round(sum / n, 1) : null;
     });
 
@@ -376,6 +424,29 @@ function _renderMemberHeatmap(sprints, rows) {
         return `<tr>
             <td>${escHtml(row.member_name)}<br><small class="text-secondary">${escHtml(row.team_name)}</small></td>
             ${cells}
+        </tr>`;
+    }).join('');
+}
+
+function _renderMemberTable(sprints, rows) {
+    const tbody = document.getElementById('util-member-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = rows.map(row => {
+        let totNet = 0, totAlloc = 0, utilSum = 0, utilN = 0, over = 0;
+        row.cells.forEach((c, i) => {
+            if (sprints[i]?.is_past) return;
+            totNet   += c.net_capacity ?? 0;
+            totAlloc += c.allocated_days;
+            if (c.utilisation_pct != null) { utilSum += c.utilisation_pct; utilN++; }
+            if (c.is_over) over++;
+        });
+        const avg = utilN ? _round(utilSum / utilN, 1) : null;
+        return `<tr>
+            <td>${escHtml(row.member_name)}<br><small class="text-secondary">${escHtml(row.team_name ?? '')}</small></td>
+            <td class="text-end">${_fmtDays(totNet || null)}</td>
+            <td class="text-end">${_fmtDays(totAlloc)}</td>
+            <td class="text-end">${_fmtPct(avg)}</td>
+            <td class="text-end${over > 0 ? ' text-danger fw-semibold' : ''}">${over}</td>
         </tr>`;
     }).join('');
 }
@@ -445,20 +516,33 @@ function _bindMemberViewToggle() {
 // ── Programme Tab ─────────────────────────────────────────────────────────────
 
 async function _renderProgrammeTab() {
-    const extras = {};
+    const wrap   = document.getElementById('util-prog-charts-wrap');
+    const noData = document.getElementById('util-prog-no-data');
+
+    // Issue #10: require programme selection before loading
     const progs = _selectedIds('util-filter-programmes');
+    if (!progs) {
+        _progCharts.forEach(c => c.destroy());
+        _progCharts = [];
+        if (wrap) wrap.innerHTML = '';
+        if (noData) {
+            noData.textContent = 'Select one or more programmes above to view utilisation.';
+            noData.classList.remove('d-none');
+        }
+        return;
+    }
+
+    const extras = {};
     const projs = _selectedIds('util-filter-projects');
-    if (progs) extras.programmes = progs;
-    if (projs) extras.projects   = projs;
+    extras.programmes = progs;
+    if (projs) extras.projects = projs;
 
     const data = await apiFetch(API_URLS.rp_versions.utilisation.programmes(planPk, versionPk).href + _buildQS(extras));
-    const { sprints = [], rows = [] } = data;
+    const { sprints = [], rows = [] } = data ?? {};
 
     _progCharts.forEach(c => c.destroy());
     _progCharts = [];
 
-    const wrap   = document.getElementById('util-prog-charts-wrap');
-    const noData = document.getElementById('util-prog-no-data');
     if (!wrap) return;
     wrap.innerHTML = '';
 
@@ -475,7 +559,10 @@ async function _renderProgrammeTab() {
         card.innerHTML = `
             <div class="card-header d-flex align-items-center justify-content-between py-2">
                 <span class="fw-semibold small">${escHtml(row.programme_name)}</span>
-                <span class="small text-secondary">Total budget: <strong>${_fmtCost(row.total_budget)}</strong></span>
+                <div class="d-flex gap-3 small text-secondary">
+                    <span>Budget: <strong>${_fmtCost(row.total_budget)}</strong></span>
+                    <span>Forecast: <strong>${_fmtCost(row.total_forecast)}</strong></span>
+                </div>
             </div>
             <div class="card-body" style="position:relative;height:280px;">
                 <canvas id="${cvId}"></canvas>

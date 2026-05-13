@@ -1377,7 +1377,8 @@ class AllocationGridViewSet(viewsets.ViewSet):
             allocation_set_id = None
 
         team_ids = _int_list(request.query_params.get('teams'))
-        return Response(TeamUtilisationService.get_team_utilisation(version, allocation_set_id, team_ids))
+        employment_type_ids = _int_list(request.query_params.get('employment_types'))
+        return Response(TeamUtilisationService.get_team_utilisation(version, allocation_set_id, team_ids, employment_type_ids))
 
     def utilisation_members(self, request, plan_pk, pk):
         version = self._get_version(plan_pk, pk)
@@ -1398,6 +1399,7 @@ class AllocationGridViewSet(viewsets.ViewSet):
         except (ValueError, TypeError):
             allocation_set_id = None
 
+        show_auto = request.query_params.get('show_auto', '0') not in ('', '0', 'false', 'False')
         return Response(MemberUtilisationService.get_member_utilisation(
             version,
             allocation_set_id=allocation_set_id,
@@ -1405,6 +1407,7 @@ class AllocationGridViewSet(viewsets.ViewSet):
             member_ids=_int_list(request.query_params.get('members')),
             employment_type_ids=_int_list(request.query_params.get('employment_types')),
             project_ids=_int_list(request.query_params.get('projects')),
+            show_auto=show_auto,
         ))
 
     def utilisation_programmes(self, request, plan_pk, pk):

@@ -2523,17 +2523,22 @@ class RampDistributionService:
 
         if max_days_per_sprint is not None:
             cap = D(str(max_days_per_sprint))
-            capped = [min(d, cap) for d in raw]
-            excess = sum(r - c for r, c in zip(raw, capped))
-            raw = capped
-            if excess > 0:
-                for i, d in enumerate(raw):
-                    if excess <= 0:
-                        break
-                    if d < cap:
-                        add = min(excess, cap - d)
-                        raw[i] += add
-                        excess -= add
+            if not ramp_pattern or ramp_pattern == 'FLAT':
+                # FLAT: redistribute excess to earlier sprints so total is preserved.
+                capped = [min(d, cap) for d in raw]
+                excess = sum(r - c for r, c in zip(raw, capped))
+                raw = capped
+                if excess > 0:
+                    for i, d in enumerate(raw):
+                        if excess <= 0:
+                            break
+                        if d < cap:
+                            add = min(excess, cap - d)
+                            raw[i] += add
+                            excess -= add
+            else:
+                # Ramp patterns: just cap without redistribution to preserve shape.
+                raw = [min(d, cap) for d in raw]
 
         QUARTER = D('0.25')
         rounded = [(d / QUARTER).quantize(D('1'), rounding=ROUND_HALF_UP) * QUARTER for d in raw]
@@ -3331,6 +3336,14 @@ class AllocationEngineService:
         placeholder_slots = defaultdict(int)
         conflicts = []
 
+        # Pre-load member net capacity for hard per-sprint cap (issue #1)
+        from .models import ResourcePlanMemberCapacity
+        sprint_id_by_num = {s.sprint_number: s.id for s in sprints}
+        _member_net_cap = {
+            (rc.team_member_id, rc.sprint_id): rc.net_capacity
+            for rc in ResourcePlanMemberCapacity.objects.filter(version=version)
+        }
+
         for phase in sorted_phases:
             proj = proj_by_phase_id[phase.id]
             te = team_entry_by_phase_id[phase.id]
@@ -3365,7 +3378,7 @@ class AllocationEngineService:
 
             active_nums = [sn for sn in sprint_nums if phase_start <= sn <= phase_end and sn not in paused_nums]
             if not active_nums:
-                completed[phase.id] = {'start': phase_start, 'end': phase_end}
+                completed[phase.id] = {'start': phase_start, 'end': phase_start}
                 continue
 
             assignments = list(phase.assignments.all())
@@ -3395,6 +3408,8 @@ class AllocationEngineService:
             named = [a for a in assignments if not a.auto_assign and a.team_member_id]
             auto = [a for a in assignments if a.auto_assign]
             n_total = len(assignments) or 1
+
+            actual_end = phase_start  # track actual last sprint allocated (issue #2)
 
             for asgn in assignments:
                 if phase.split_mode == PlanPhase.SPLIT_DAYS and asgn.split_value:
@@ -3433,6 +3448,8 @@ class AllocationEngineService:
                 # create 0-day records so the grid can show them as editable.
                 _alloc_set = set(alloc_nums)
                 zero_nums = [sn for sn in active_nums if sn not in _alloc_set]
+                if alloc_nums:
+                    actual_end = max(actual_end, alloc_nums[-1])
 
                 if asgn.auto_assign:
                     from apps.team_members.models import TeamMember
@@ -3442,7 +3459,12 @@ class AllocationEngineService:
                         member = AutoAssignService.select_member(team_members, alloc_nums, member_alloc)
                         if _do_cap:
                             sprint_days = [
-                                max(Decimal('0'), min(d, effective_max - member_alloc[member.id][sn]))
+                                max(Decimal('0'), min(
+                                    d,
+                                    min(effective_max, _member_net_cap.get(
+                                        (member.id, sprint_id_by_num.get(sn)), effective_max
+                                    )) - member_alloc[member.id][sn]
+                                ))
                                 for sn, d in zip(alloc_nums, sprint_days)
                             ]
                         for sn, d in zip(alloc_nums, sprint_days):
@@ -3493,7 +3515,12 @@ class AllocationEngineService:
                     member = asgn.team_member
                     if _do_cap:
                         sprint_days = [
-                            max(Decimal('0'), min(d, effective_max - member_alloc[member.id][sn]))
+                            max(Decimal('0'), min(
+                                d,
+                                min(effective_max, _member_net_cap.get(
+                                    (member.id, sprint_id_by_num.get(sn)), effective_max
+                                )) - member_alloc[member.id][sn]
+                            ))
                             for sn, d in zip(alloc_nums, sprint_days)
                         ]
                     for sn, d in zip(alloc_nums, sprint_days):
@@ -3514,7 +3541,7 @@ class AllocationEngineService:
                             includes_in_budget=asgn.includes_in_budget, engine_days=Decimal('0'),
                         ))
 
-            completed[phase.id] = {'start': phase_start, 'end': phase_end}
+            completed[phase.id] = {'start': phase_start, 'end': actual_end}
 
         ResourcePlanAllocation.objects.bulk_create(to_create, batch_size=500)
 
@@ -4292,7 +4319,7 @@ class TeamUtilisationService:
     """Aggregate allocation + capacity per team per sprint — computed on request."""
 
     @staticmethod
-    def get_team_utilisation(version, allocation_set_id=None, team_ids=None):
+    def get_team_utilisation(version, allocation_set_id=None, team_ids=None, employment_type_ids=None):
         from apps.sprints.models import Sprint
         from .models import ResourcePlanAllocation, ResourcePlanMemberCapacity
 
@@ -4303,7 +4330,13 @@ class TeamUtilisationService:
             list(Sprint.objects.filter(financial_year=scope.financial_year).order_by('sprint_number'))
             if scope else []
         )
-        sprint_meta = [{'id': s.id, 'name': s.sprint_name, 'month': s.month} for s in sprint_list]
+        active_sprint = Sprint.objects.filter(is_active=True).first()
+        active_sprint_num = active_sprint.sprint_number if active_sprint else None
+        sprint_meta = [
+            {'id': s.id, 'name': s.sprint_name, 'month': s.month,
+             'is_past': bool(active_sprint_num and s.sprint_number < active_sprint_num)}
+            for s in sprint_list
+        ]
 
         aset = _resolve_alloc_set(version, allocation_set_id)
         if not aset:
@@ -4312,6 +4345,8 @@ class TeamUtilisationService:
         alloc_qs = ResourcePlanAllocation.objects.filter(allocation_set=aset).select_related('team', 'sprint')
         if team_ids:
             alloc_qs = alloc_qs.filter(team_id__in=team_ids)
+        if employment_type_ids:
+            alloc_qs = alloc_qs.filter(team_member__employment_type_id__in=employment_type_ids)
 
         team_alloc = {}
         team_names = {}
@@ -4324,6 +4359,11 @@ class TeamUtilisationService:
             team_alloc[tid][sid] = team_alloc[tid].get(sid, 0.0) + float(alloc.effective_days)
 
         member_map = CapacityService._get_members_for_version(version)
+        if employment_type_ids:
+            member_map = {
+                mid: minfo for mid, minfo in member_map.items()
+                if minfo['member'].employment_type_id in employment_type_ids
+            }
         sprint_ids = [s.id for s in sprint_list]
         member_ids = list(member_map.keys())
 
@@ -4396,6 +4436,7 @@ class MemberUtilisationService:
         member_ids=None,
         employment_type_ids=None,
         project_ids=None,
+        show_auto=False,
     ):
         from apps.sprints.models import Sprint
         from .models import ResourcePlanAllocation, ResourcePlanMemberCapacity
@@ -4490,6 +4531,8 @@ class MemberUtilisationService:
 
         rows = []
         for mkey, mdata in sorted(member_data.items(), key=lambda x: x[1]['name']):
+            if not show_auto and mkey[0] == 'placeholder':
+                continue
             cells = []
             for sprint in sprint_list:
                 sdata = mdata['sprints'].get(sprint.id)
@@ -4611,6 +4654,7 @@ class ProgrammeRollupService:
                 'programme_id': pid,
                 'programme_name': prog_names.get(pid, 'Unassigned'),
                 'total_budget': round(baseline_cost, 2),
+                'total_forecast': round(cumulative, 2),
                 'cells': cells,
             })
 

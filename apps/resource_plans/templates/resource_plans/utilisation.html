@@ -57,17 +57,24 @@
                 <select class="form-select form-select-sm" id="util-filter-programmes" multiple size="1">
                 </select>
             </div>
-            <!-- Projects -->
+            <!-- Projects (member + programme tab) -->
             <div style="min-width:140px;max-width:200px;" id="util-filter-projects-wrap">
                 <label class="form-label small mb-1 fw-semibold">Projects</label>
                 <select class="form-select form-select-sm" id="util-filter-projects" multiple size="1">
                 </select>
             </div>
-            <!-- Employment Types (member tab) -->
+            <!-- Employment Types (team + member tab) -->
             <div style="min-width:140px;max-width:200px;" id="util-filter-emp-types-wrap">
                 <label class="form-label small mb-1 fw-semibold">Emp. Types</label>
                 <select class="form-select form-select-sm" id="util-filter-emp-types" multiple size="1">
                 </select>
+            </div>
+            <!-- Show Auto toggle (member tab) -->
+            <div id="util-auto-toggle-wrap" class="d-flex align-items-end pb-1">
+                <div class="form-check form-switch mb-0">
+                    <input class="form-check-input" type="checkbox" id="util-auto-toggle" role="switch">
+                    <label class="form-check-label small" for="util-auto-toggle">Show Auto</label>
+                </div>
             </div>
             <div class="d-flex gap-2 align-items-end">
                 <button class="btn btn-sm btn-primary" id="util-apply-filters">
@@ -158,9 +165,9 @@
 
     <!-- Bar view -->
     <div id="util-member-bar-view">
-        <div class="card border-0 shadow-sm mb-3">
+        <div class="card border-0 shadow-sm mb-3" id="util-member-chart-card">
             <div class="card-header d-flex align-items-center justify-content-between py-2">
-                <span class="fw-semibold small">Member Utilisation — Aggregate</span>
+                <span class="fw-semibold small">Member Utilisation — Per Sprint</span>
                 <div class="d-flex gap-2">
                     <div class="util-legend-item"><span class="util-legend-swatch" style="background:rgba(67,97,238,0.75)"></span>Net Capacity</div>
                     <div class="util-legend-item"><span class="util-legend-swatch" style="background:rgba(247,127,0,0.85)"></span>Allocated</div>
@@ -221,11 +228,30 @@
             <span id="util-drilldown-pct">Utilisation: —</span>
         </div>
     </div>
+
+    <!-- Member summary table (#9) -->
+    <div class="card border-0 shadow-sm mt-3" id="util-member-table-card">
+        <div class="card-header py-2"><span class="fw-semibold small">Member Summary</span></div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" id="util-member-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Member</th>
+                        <th class="text-end">Total Net Cap.</th>
+                        <th class="text-end">Total Allocated</th>
+                        <th class="text-end">Avg Util%</th>
+                        <th class="text-end">Sprints Over</th>
+                    </tr>
+                </thead>
+                <tbody id="util-member-tbody"></tbody>
+            </table>
+        </div>
+    </div>
 </div>
 
 <!-- ── Programme tab ───────────────────────────────────────────────────────── -->
 <div id="util-panel-programme" class="util-panel d-none">
-    <div id="util-prog-no-data" class="alert alert-info d-none">No programme data available.</div>
+    <div id="util-prog-no-data" class="alert alert-info">Select one or more programmes above to view utilisation.</div>
     <div id="util-prog-charts-wrap"></div>
 </div>
 
