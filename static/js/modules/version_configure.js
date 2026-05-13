@@ -2647,7 +2647,9 @@ async function _vcRenderJobs(page) {
             <tbody>
                 ${results.map(j => {
                     const hasSteps = (j.steps_log?.length ?? 0) > 0;
-                    const dur = j.duration_seconds != null ? `${j.duration_seconds}s` : '—';
+                    const dur = (j.duration_seconds != null && j.duration_seconds > 0)
+                        ? `${j.duration_seconds}s`
+                        : (j.total_duration_ms != null ? fmtMs(j.total_duration_ms) : '—');
                     const errCount = j.validation_result?.error_count ?? 0;
                     const warnCount = j.validation_result?.warning_count ?? 0;
                     const result = j.status === 'COMPLETE'

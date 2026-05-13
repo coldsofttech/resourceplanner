@@ -1628,6 +1628,90 @@ class AllocationGridViewSet(viewsets.ViewSet):
                          'snapshot_b': _serialise_snapshot(snap_b),
                          'diff': diff})
 
+    # ── Export endpoint (Phase 14) ────────────────────────────────────────────
+
+    def export_xlsx(self, request, plan_pk, pk):
+        import io
+        from django.http import HttpResponse
+        from .services_export import ExportService
+
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({'detail': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        allocation_set_id = request.query_params.get('allocation_set')
+        try:
+            allocation_set_id = int(allocation_set_id) if allocation_set_id else None
+        except (ValueError, TypeError):
+            allocation_set_id = None
+
+        team_id = request.query_params.get('team')
+        try:
+            team_id = int(team_id) if team_id else None
+        except (ValueError, TypeError):
+            team_id = None
+
+        wb = ExportService.build_workbook(version, allocation_set_id, team_id)
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        plan_slug = version.plan.name.replace(' ', '_')[:40]
+        filename  = f'{plan_slug}_v{version.version}_export.xlsx'
+        resp = HttpResponse(
+            buf.read(),
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        resp['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return resp
+
+    # ── Audit Log endpoints (Phase 13) ────────────────────────────────────────
+
+    def audit_list(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({'detail': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
+        from .services_audit import AuditLogService
+        event_type = request.query_params.get('event_type', '').strip() or None
+        date_from  = request.query_params.get('date_from', '').strip() or None
+        date_to    = request.query_params.get('date_to', '').strip() or None
+        try:
+            page = int(request.query_params.get('page', 1))
+        except (ValueError, TypeError):
+            page = 1
+        data = AuditLogService.list_logs(
+            version, event_type=event_type, date_from=date_from, date_to=date_to, page=page
+        )
+        data['results'] = [_serialise_audit_log(e) for e in data['results']]
+        return Response(data)
+
+    def audit_detail(self, request, plan_pk, pk, audit_pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({'detail': 'Version not found.'}, status=status.HTTP_404_NOT_FOUND)
+        from .models import AuditLog
+        try:
+            entry = AuditLog.objects.select_related('engine_job').get(pk=audit_pk, version=version)
+        except AuditLog.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(_serialise_audit_log(entry, detail=True))
+
+
+def _serialise_audit_log(entry, detail=False):
+    d = {
+        'id': entry.pk,
+        'event_type': entry.event_type,
+        'entity_type': entry.entity_type,
+        'entity_id': entry.entity_id,
+        'notes': entry.notes,
+        'created_at': entry.created_at.isoformat(),
+        'engine_job_id': entry.engine_job_id,
+    }
+    if detail:
+        d['before_state'] = entry.before_state
+        d['after_state']  = entry.after_state
+    return d
+
 
 def _serialise_snapshot(snap):
     return {

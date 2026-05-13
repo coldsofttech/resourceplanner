@@ -170,33 +170,44 @@
 <style>
 .btn-xs { padding: .1rem .35rem; font-size: .75rem; }
 
-/* Git-like diff styles */
+/* Git-like diff with accordion grouping */
 .diff-container { font-family: 'SFMono-Regular', Consolas, monospace; font-size: .8rem; }
-.diff-block { border: 1px solid #dee2e6; border-radius: .375rem; overflow: hidden; }
-.diff-block-header {
-    background: #f8f9fa; border-bottom: 1px solid #dee2e6;
-    padding: .35rem .75rem; font-weight: 600; font-size: .78rem; color: #495057;
+.diff-prog-item { border: 1px solid #dee2e6; border-radius: .375rem; overflow: hidden; margin-bottom: .75rem; }
+.diff-acc-btn   { background: #f1f3f5; font-weight: 600; font-size: .82rem; padding: .45rem .75rem; }
+.diff-acc-btn:not(.collapsed) { background: #e9ecef; }
+.diff-prog-name { flex: 1; }
+.diff-team-block  { border-top: 1px solid #dee2e6; }
+.diff-team-header {
+    background: #f8f9fa; padding: .3rem .75rem .3rem 1.25rem;
+    font-size: .78rem; font-weight: 600; color: #495057;
+    border-bottom: 1px solid #eee;
 }
-.diff-count { font-weight: 400; color: #6c757d; }
+.diff-member-block  { }
+.diff-member-header {
+    background: #fff; padding: .25rem .75rem .25rem 2rem;
+    font-size: .76rem; color: #6c757d; border-bottom: 1px solid #f4f4f4;
+}
+.diff-count { font-weight: 400; color: #6c757d; font-size: .75rem; margin-left: .3rem; }
 .diff-body { background: #fff; }
 .diff-line {
     display: flex; align-items: center; gap: .5rem;
-    padding: .2rem .75rem; border-bottom: 1px solid #f0f0f0; line-height: 1.4;
+    padding: .18rem .75rem .18rem 2.5rem;
+    border-bottom: 1px solid rgba(0,0,0,.04); line-height: 1.35;
 }
 .diff-line:last-child { border-bottom: none; }
 .diff-line-add  { background: #d4edda; color: #155724; }
 .diff-line-del  { background: #f8d7da; color: #721c24; }
-.diff-line-chg  { background: #fff3cd; color: #856404; }
-.diff-prefix { width: 1rem; text-align: center; font-weight: 700; flex-shrink: 0; }
-.diff-meta  { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.diff-team  { opacity: .7; font-size: .75rem; }
-.diff-days  { display: flex; align-items: center; gap: .3rem; white-space: nowrap; flex-shrink: 0; }
-.diff-a     { opacity: .65; text-decoration: line-through; }
-.diff-arrow { opacity: .5; }
-.diff-delta { font-weight: 700; }
-.diff-line-add .diff-delta  { color: #28a745; }
-.diff-line-del .diff-delta  { color: #dc3545; }
-.diff-line-chg .diff-delta  { color: #856404; }
+.diff-line-same { background: #f8f9fa; color: #6c757d; }
+.diff-prefix { width: .9rem; text-align: center; font-weight: 700; flex-shrink: 0; }
+.diff-meta   { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.diff-days   { display: flex; align-items: center; gap: .3rem; white-space: nowrap; flex-shrink: 0; }
+.diff-a      { opacity: .6; }
+.diff-arrow  { opacity: .4; }
+.diff-line-add .diff-a { text-decoration: line-through; }
+.diff-line-del .diff-a { text-decoration: line-through; }
+.diff-delta  { font-weight: 700; }
+.diff-line-add .diff-delta { color: #1a7a3c; }
+.diff-line-del .diff-delta { color: #b02a37; }
 </style>
 {% endblock %} {% block extra_js %}
 <script type="module" src="{% static 'js/modules/snapshots.js' %}"></script>

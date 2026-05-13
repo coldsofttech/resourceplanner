@@ -739,6 +739,11 @@ export const API_URLS = {
             members:    (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/utilisation/members/` }),
             programmes: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/utilisation/programmes/` }),
         },
+        export: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/export/` }),
+        audit: {
+            list:   (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/audit/` }),
+            detail: (planPk, versionPk, auditPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/audit/${auditPk}/` }),
+        },
         snapshots: {
             list:        (planPk, versionPk) => ({ method: 'GET',    href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/snapshots/` }),
             create:      (planPk, versionPk) => ({ method: 'POST',   href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/snapshots/` }),
@@ -969,6 +974,7 @@ export const URLS = {
         placeholder_leaves: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/placeholder-leaves/`,
         conflicts: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/conflicts/`,
         utilisation: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/utilisation/`,
-        snapshots: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/snapshots/`,
+        snapshots:  (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/snapshots/`,
+        audit_log:  (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/audit/`,
     },
 };

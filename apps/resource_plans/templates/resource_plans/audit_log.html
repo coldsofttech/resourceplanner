@@ -1,0 +1,106 @@
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3"
+    id="audit-page-header">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/grid/" class="btn btn-ghost-icon" title="Back to allocation grid">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <div class="small text-secondary mb-1" id="audit-breadcrumb">Resource Plans</div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2 flex-wrap">
+                <span id="audit-plan-name">Loading…</span>
+                <span id="audit-version-badge" class="badge bg-secondary"></span>
+                <span class="badge bg-dark">Audit Log</span>
+            </h1>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/grid/"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-table me-1"></i>Allocation Grid
+        </a>
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/conflicts/"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-exclamation-triangle me-1"></i>Conflicts
+        </a>
+    </div>
+</div>
+{% endblock %} {% block content %}
+
+<!-- ── Filters ────────────────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex align-items-center gap-2 flex-wrap">
+            <span class="text-secondary small me-1">Filter:</span>
+            <button class="btn btn-sm audit-filter-btn active" data-event-type="">All</button>
+            <button class="btn btn-sm audit-filter-btn" data-event-type="ENGINE_RUN">Engine Run</button>
+            <button class="btn btn-sm audit-filter-btn" data-event-type="ALLOCATION_OVERRIDE">Allocation Override</button>
+            <button class="btn btn-sm audit-filter-btn" data-event-type="PLACEHOLDER_OVERRIDE">Placeholder Override</button>
+            <button class="btn btn-sm audit-filter-btn" data-event-type="CONFLICT_RESOLVED">Conflict Resolved</button>
+            <button class="btn btn-sm audit-filter-btn" data-event-type="STATUS_CHANGED">Status Changed</button>
+            <button class="btn btn-sm audit-filter-btn" data-event-type="PLAN_CLONED">Plan Cloned</button>
+            <button class="btn btn-sm audit-filter-btn" data-event-type="CONFIG_CHANGED">Config Changed</button>
+            <div class="ms-auto d-flex gap-2">
+                <input type="date" class="form-control form-control-sm" id="audit-date-from" placeholder="From">
+                <input type="date" class="form-control form-control-sm" id="audit-date-to" placeholder="To">
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Log table ──────────────────────────────────────────────────────────── -->
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0" id="audit-table">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:160px">When</th>
+                    <th style="width:180px">Event</th>
+                    <th style="width:160px">Entity</th>
+                    <th>Summary</th>
+                    <th style="width:40px"></th>
+                </tr>
+            </thead>
+            <tbody id="audit-tbody">
+                <tr><td colspan="5" class="text-center py-4">
+                    <div class="spinner-border spinner-border-sm text-secondary"></div>
+                </td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="card-footer d-flex align-items-center justify-content-between py-2" id="audit-pagination" style="display:none!important">
+        <span class="small text-secondary" id="audit-page-info"></span>
+        <div class="d-flex gap-1">
+            <button class="btn btn-sm btn-outline-secondary" id="audit-prev-btn" disabled>
+                <i class="bi bi-chevron-left"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-secondary" id="audit-next-btn" disabled>
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+</div>
+
+{% endblock %} {% block extra_css %}
+<style>
+.audit-filter-btn { font-size: .76rem; border-radius: 999px; border: 1px solid #dee2e6; background: #fff; color: #495057; }
+.audit-filter-btn.active { background: #4361EE; color: #fff; border-color: #4361EE; }
+.audit-event-badge { display: inline-block; font-size: .7rem; font-weight: 600; padding: .2em .55em; border-radius: 4px; text-transform: uppercase; letter-spacing: .03em; }
+.audit-event-ENGINE_RUN           { background: #cff4fc; color: #0c5460; }
+.audit-event-ALLOCATION_OVERRIDE  { background: #fff3cd; color: #856404; }
+.audit-event-PLACEHOLDER_OVERRIDE { background: #fde8d8; color: #7a3a00; }
+.audit-event-CONFLICT_RESOLVED    { background: #d4edda; color: #155724; }
+.audit-event-STATUS_CHANGED       { background: #e2d9f3; color: #4a235a; }
+.audit-event-PLAN_CLONED          { background: #d1ecf1; color: #0c5460; }
+.audit-event-CONFIG_CHANGED       { background: #f8f9fa; color: #495057; border: 1px solid #dee2e6; }
+.audit-expand-btn { background: none; border: none; color: #6c757d; cursor: pointer; padding: .1rem .3rem; }
+.audit-expand-btn:hover { color: #343a40; }
+.audit-detail-row td { background: #f8f9fa; }
+.audit-diff-panel { font-family: 'Consolas', 'Menlo', monospace; font-size: .8rem; }
+.audit-diff-add  { background: #d4edda; color: #155724; padding: .05rem .5rem; }
+.audit-diff-del  { background: #f8d7da; color: #721c24; padding: .05rem .5rem; text-decoration: line-through; }
+.audit-diff-key  { color: #6c757d; min-width: 140px; display: inline-block; }
+</style>
+{% endblock %} {% block extra_js %}
+<script type="module" src="{% static 'js/modules/audit_log.js' %}"></script>
+{% endblock %}

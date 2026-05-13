@@ -189,6 +189,26 @@ def run_engine(job_id):
                 validation_result=validation_result,
                 steps_log=steps_log,
             )
+            try:
+                from .services_audit import AuditLogService
+                from .models import AuditLog
+                AuditLogService.write(
+                    plan=job.plan,
+                    version=job.version,
+                    event_type=AuditLog.EVENT_ENGINE_RUN,
+                    entity_type='PlanEngineJob',
+                    entity_id=job.pk,
+                    after_state={
+                        'mode': job.mode,
+                        'sprints_in_scope': validation_result.get('sprints_in_scope', 0),
+                        'phases_allocated': 0,
+                        'conflicts_raised': 0,
+                        'allocation_set_id': None,
+                    },
+                    engine_job=job,
+                )
+            except Exception:
+                _engine_logger.warning("AuditLog write failed for validate job %s.", job_id)
             return
 
         # ── Step 2: Override placeholder leaves (skip if remove_overrides not set) ──
@@ -328,6 +348,31 @@ def run_engine(job_id):
             validation_result=validation_result,
             steps_log=steps_log,
         )
+        try:
+            from .services_audit import AuditLogService
+            from .models import AuditLog
+            phases_allocated = sum(
+                len(v) for v in validation_result.get('phases_allocated', {}).values()
+            ) if isinstance(validation_result.get('phases_allocated'), dict) else (
+                validation_result.get('phases_allocated', 0) or 0
+            )
+            AuditLogService.write(
+                plan=job.plan,
+                version=job.version,
+                event_type=AuditLog.EVENT_ENGINE_RUN,
+                entity_type='PlanEngineJob',
+                entity_id=job.pk,
+                after_state={
+                    'mode': job.mode,
+                    'sprints_in_scope': validation_result.get('sprints_in_scope', 0),
+                    'phases_allocated': phases_allocated,
+                    'conflicts_raised': validation_result.get('conflict_count', 0),
+                    'allocation_set_id': alloc_set.id if alloc_set else None,
+                },
+                engine_job=job,
+            )
+        except Exception:
+            _engine_logger.warning("AuditLog write failed for engine job %s.", job_id)
 
     except Exception as exc:
         _engine_logger.exception("Engine job %s failed.", job_id)

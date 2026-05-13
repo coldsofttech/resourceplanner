@@ -456,7 +456,8 @@ class PlanAssignmentSerializer(serializers.ModelSerializer):
 
 
 class PlanEngineJobSerializer(serializers.ModelSerializer):
-    version_number = serializers.SerializerMethodField()
+    version_number    = serializers.SerializerMethodField()
+    total_duration_ms = serializers.SerializerMethodField()
 
     class Meta:
         model = PlanEngineJob
@@ -465,12 +466,17 @@ class PlanEngineJobSerializer(serializers.ModelSerializer):
             "current_step", "progress_pct",
             "include_current_sprint", "dry_run", "remove_overrides",
             "initiated_at", "started_at", "completed_at", "duration_seconds",
-            "validation_result", "steps_log", "error_log",
+            "total_duration_ms", "validation_result", "steps_log", "error_log",
         ]
         read_only_fields = fields
 
     def get_version_number(self, obj):
         return obj.version.version if obj.version else None
+
+    def get_total_duration_ms(self, obj):
+        steps = obj.steps_log or []
+        total = sum(s.get('duration_ms', 0) or 0 for s in steps if isinstance(s, dict))
+        return total if total else None
 
 
 class PlanEngineJobStatusSerializer(serializers.ModelSerializer):

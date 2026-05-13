@@ -215,43 +215,76 @@ function _renderDiff(data) {
     const labelB = escHtml(sb?.label ?? 'B');
 
     if (!diff || !diff.length) {
-        panel.innerHTML = `<div class="alert alert-success mt-3">No differences between <strong>${labelA}</strong> and <strong>${labelB}</strong>.</div>`;
+        panel.innerHTML = `<div class="alert alert-info mt-3">No allocation data found in either snapshot.</div>`;
         return;
     }
+    const changedCount = diff.filter(r => r.delta_days !== 0).length;
+    const unchangedCount = diff.length - changedCount;
 
-    // Group by project
-    const byProject = {};
+    // Build hierarchy: programme → team → member → rows
+    const tree = {};
     diff.forEach(row => {
-        const key = row.project_name ?? '(no project)';
-        if (!byProject[key]) byProject[key] = [];
-        byProject[key].push(row);
+        const prog = row.programme_name || '(No Programme)';
+        const team = row.team_name || '(No Team)';
+        const member = row.member_name || '(Unknown)';
+        if (!tree[prog]) tree[prog] = {};
+        if (!tree[prog][team]) tree[prog][team] = {};
+        if (!tree[prog][team][member]) tree[prog][team][member] = [];
+        tree[prog][team][member].push(row);
     });
 
-    const projectBlocks = Object.entries(byProject).map(([proj, rows]) => {
-        const rowHtml = rows.map(row => {
-            const delta = row.delta_days;
-            const isAdded   = row.days_a === 0 && row.days_b > 0;
-            const isRemoved = row.days_b === 0 && row.days_a > 0;
-            const sign = delta > 0 ? '+' : '';
-            const prefix = isAdded ? '+' : isRemoved ? '−' : '~';
-            const cls = isAdded ? 'diff-line-add' : isRemoved ? 'diff-line-del' : 'diff-line-chg';
-            return `<div class="diff-line ${cls}">
-                <span class="diff-prefix">${prefix}</span>
-                <span class="diff-meta">${escHtml(row.sprint_name)} &bull; ${escHtml(row.member_name)} <span class="diff-team">[${escHtml(row.team_name)}]</span></span>
-                <span class="diff-days">
-                    <span class="diff-a">${row.days_a.toFixed(2)}d</span>
-                    <span class="diff-arrow">→</span>
-                    <span class="diff-b">${row.days_b.toFixed(2)}d</span>
-                    <span class="diff-delta">${sign}${delta.toFixed(2)}d</span>
-                </span>
+    const accordionId = `diff-acc-${Date.now()}`;
+    let itemIdx = 0;
+
+    const progBlocks = Object.entries(tree).map(([prog, teams]) => {
+        const progId  = `${accordionId}-p${itemIdx++}`;
+        const progRows = Object.values(teams).flatMap(members =>
+            Object.values(members).flat()
+        );
+
+        const teamBlocks = Object.entries(teams).map(([team, members]) => {
+            const memberBlocks = Object.entries(members).map(([member, rows]) => {
+                const lineHtml = rows.map(row => {
+                    const delta  = row.delta_days;
+                    const sign   = delta > 0 ? '+' : '';
+                    const cls    = delta > 0 ? 'diff-line-add' : delta < 0 ? 'diff-line-del' : 'diff-line-same';
+                    const prefix = delta > 0 ? '+' : delta < 0 ? '−' : ' ';
+                    return `<div class="diff-line ${cls}">
+                        <span class="diff-prefix">${prefix}</span>
+                        <span class="diff-meta">${escHtml(row.sprint_name)} &bull; ${escHtml(row.project_name)}</span>
+                        <span class="diff-days">
+                            <span class="diff-a">${row.days_a.toFixed(2)}d</span>
+                            <span class="diff-arrow">→</span>
+                            <span class="diff-b">${row.days_b.toFixed(2)}d</span>
+                            ${delta !== 0 ? `<span class="diff-delta">${sign}${delta.toFixed(2)}d</span>` : ''}
+                        </span>
+                    </div>`;
+                }).join('');
+                return `<div class="diff-member-block">
+                    <div class="diff-member-header"><i class="bi bi-person me-1"></i>${escHtml(member)} <span class="diff-count">${rows.length}</span></div>
+                    <div class="diff-body">${lineHtml}</div>
+                </div>`;
+            }).join('');
+            const teamTotal = Object.values(members).flat().length;
+            return `<div class="diff-team-block">
+                <div class="diff-team-header"><i class="bi bi-people me-1"></i>${escHtml(team)} <span class="diff-count">${teamTotal}</span></div>
+                ${memberBlocks}
             </div>`;
         }).join('');
-        return `<div class="diff-block mb-3">
-            <div class="diff-block-header">
-                <i class="bi bi-folder me-1"></i>${escHtml(proj)}
-                <span class="diff-count ms-2">${rows.length} change${rows.length === 1 ? '' : 's'}</span>
+
+        return `
+        <div class="accordion-item diff-prog-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button diff-acc-btn" type="button"
+                        data-bs-toggle="collapse" data-bs-target="#${progId}"
+                        aria-expanded="true" aria-controls="${progId}">
+                    <span class="diff-prog-name">${escHtml(prog)}</span>
+                    <span class="diff-count ms-2">${progRows.length} change${progRows.length === 1 ? '' : 's'}</span>
+                </button>
+            </h2>
+            <div id="${progId}" class="accordion-collapse collapse show">
+                <div class="accordion-body p-0">${teamBlocks}</div>
             </div>
-            <div class="diff-body">${rowHtml}</div>
         </div>`;
     }).join('');
 
@@ -260,9 +293,10 @@ function _renderDiff(data) {
             <span class="badge bg-secondary">${labelA}</span>
             <i class="bi bi-arrow-right text-muted"></i>
             <span class="badge bg-secondary">${labelB}</span>
-            <span class="text-muted small ms-2">${diff.length} changed row${diff.length === 1 ? '' : 's'} across ${Object.keys(byProject).length} project${Object.keys(byProject).length === 1 ? '' : 's'}</span>
+            <span class="text-muted small ms-2">${changedCount > 0 ? `${changedCount} changed` : 'no changes'}${unchangedCount > 0 ? `, ${unchangedCount} unchanged` : ''}</span>
+        ${changedCount === 0 ? `<span class="badge bg-success ms-1">Identical</span>` : ''}
         </div>
-        <div class="diff-container">${projectBlocks}</div>`;
+        <div class="accordion diff-container" id="${accordionId}">${progBlocks}</div>`;
 }
 
 // ── Allocations Modal ─────────────────────────────────────────────────────────

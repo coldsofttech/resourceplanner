@@ -51,6 +51,7 @@ async function init() {
     _bindFilters();
     _bindEngineModal();
     _bindCellEditing();
+    _bindExport();
 
     try {
         const ver = await apiFetch(API_URLS.rp_versions.detail(planPk, versionPk).href);
@@ -1552,6 +1553,21 @@ function _updateEngineProgress(job) {
         const [cls, label] = statusMap[job.status] ?? ['bg-secondary', job.status];
         badge.innerHTML = `<span class="badge ${cls}">${label}</span>`;
     }
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+
+function _bindExport() {
+    document.getElementById('ag-export-btn')?.addEventListener('click', () => {
+        const teamId    = document.getElementById('ag-team-filter')?.value || '';
+        const allocSet  = document.getElementById('ag-alloc-set-select')?.value || '';
+        let url = API_URLS.rp_versions.export(planPk, versionPk).href;
+        const params = new URLSearchParams();
+        if (allocSet) params.set('allocation_set', allocSet);
+        if (teamId)   params.set('team', teamId);
+        if (params.toString()) url += `?${params}`;
+        window.location.href = url;
+    });
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────────

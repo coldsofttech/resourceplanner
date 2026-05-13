@@ -988,7 +988,9 @@ function _fmtMs(ms) {
 
 function _jobRowHtml(j) {
     const hasSteps = !!(j.steps_log?.length);
-    const duration = j.duration_seconds != null ? `${j.duration_seconds}s` : '—';
+    const duration = (j.duration_seconds != null && j.duration_seconds > 0)
+        ? `${j.duration_seconds}s`
+        : (j.total_duration_ms != null ? _fmtMs(j.total_duration_ms) : '—');
     const errCount = j.validation_result?.error_count ?? '—';
     const warnCount = j.validation_result?.warning_count ?? '—';
     const resultSummary = j.status === 'COMPLETE'

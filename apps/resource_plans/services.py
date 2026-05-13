@@ -246,8 +246,20 @@ class ResourcePlanService:
             status=ResourcePlanVersion.STATUS_ACTIVE,
         ).exclude(plan=plan).update(status=ResourcePlanVersion.STATUS_SUPERSEDED)
 
+        old_status = plan.version.status
         plan.version.status = ResourcePlanVersion.STATUS_ACTIVE
         plan.version.save(update_fields=["status"])
+        from .services_audit import AuditLogService
+        from .models import AuditLog
+        AuditLogService.write(
+            plan=plan,
+            version=plan.version,
+            event_type=AuditLog.EVENT_STATUS_CHANGED,
+            entity_type='ResourcePlanVersion',
+            entity_id=plan.version.pk,
+            before_state={'status': old_status},
+            after_state={'status': ResourcePlanVersion.STATUS_ACTIVE},
+        )
         return plan
 
     @staticmethod
@@ -257,6 +269,17 @@ class ResourcePlanService:
             raise ValidationError("Only ACTIVE plans can be locked.")
         plan.version.status = ResourcePlanVersion.STATUS_LOCKED
         plan.version.save(update_fields=["status"])
+        from .services_audit import AuditLogService
+        from .models import AuditLog
+        AuditLogService.write(
+            plan=plan,
+            version=plan.version,
+            event_type=AuditLog.EVENT_STATUS_CHANGED,
+            entity_type='ResourcePlanVersion',
+            entity_id=plan.version.pk,
+            before_state={'status': ResourcePlanVersion.STATUS_ACTIVE},
+            after_state={'status': ResourcePlanVersion.STATUS_LOCKED},
+        )
         return plan
 
     @staticmethod
@@ -300,6 +323,20 @@ class ResourcePlanService:
         if include_config:
             _deep_copy_version_config(source_version, new_version)
 
+        from .services_audit import AuditLogService
+        from .models import AuditLog
+        AuditLogService.write(
+            plan=new_plan,
+            version=new_version,
+            event_type=AuditLog.EVENT_PLAN_CLONED,
+            entity_type='ResourcePlan',
+            entity_id=new_plan.pk,
+            after_state={
+                'cloned_from_plan_id': plan.pk,
+                'cloned_from_plan_name': plan.name,
+                'include_config': include_config,
+            },
+        )
         return new_plan
 
     @staticmethod
@@ -2735,6 +2772,16 @@ class AllocationSetService:
         alloc_set.status = ResourcePlanAllocationSet.STATUS_ACTIVE
         alloc_set.activated_at = timezone.now()
         alloc_set.save(update_fields=['status', 'activated_at', 'updated_at'])
+        from .services_audit import AuditLogService
+        from .models import AuditLog
+        AuditLogService.write(
+            plan=version.plan,
+            version=version,
+            event_type=AuditLog.EVENT_STATUS_CHANGED,
+            entity_type='ResourcePlanAllocationSet',
+            entity_id=alloc_set.pk,
+            after_state={'status': ResourcePlanAllocationSet.STATUS_ACTIVE},
+        )
         return alloc_set
 
     @staticmethod
@@ -3051,6 +3098,7 @@ class CellUpdateService:
             if others_total + d > Decimal('10'):
                 raise ValidationError({"days": f"Total for this sprint would be {float(others_total + d):.2f}d — engineer cannot exceed 10d per sprint."})
 
+        old_days = float(alloc.effective_days)
         if d == alloc.engine_days:
             alloc.override_days = None
             alloc.overridden_at = None
@@ -3061,6 +3109,31 @@ class CellUpdateService:
 
         if alloc.override_days is not None:
             ResourcePlanVersion.objects.filter(pk=version.pk).update(has_allocation_overrides=True)
+
+        try:
+            from .services_audit import AuditLogService
+            from .models import AuditLog
+            who_name = (
+                alloc.team_member.display_name if alloc.team_member_id else
+                alloc.placeholder_engineer.name if alloc.placeholder_engineer_id else '?'
+            )
+            AuditLogService.write(
+                plan=version.plan,
+                version=version,
+                event_type=AuditLog.EVENT_ALLOCATION_OVERRIDE,
+                entity_type='ResourcePlanAllocation',
+                entity_id=alloc.pk,
+                before_state={'days': old_days},
+                after_state={
+                    'days': float(alloc.effective_days),
+                    'is_override': alloc.override_days is not None,
+                    'member': who_name,
+                    'sprint': alloc.sprint.sprint_name if alloc.sprint_id else None,
+                    'project': alloc.project.name if alloc.project_id else None,
+                },
+            )
+        except Exception:
+            pass
 
         project_total = round(sum(
             float(a.effective_days)
@@ -3334,6 +3407,8 @@ class AllocationEngineService:
         completed = {}
         to_create = []
         placeholder_slots = defaultdict(int)
+        # {(team_id, slot_number): frozenset of sprint numbers} — for reuse detection
+        placeholder_sprint_usage = {}
         conflicts = []
 
         # Pre-load member net capacity for hard per-sprint cap (issue #1)
@@ -3485,13 +3560,32 @@ class AllocationEngineService:
                                 includes_in_budget=asgn.includes_in_budget, engine_days=Decimal('0'),
                             ))
                     else:
-                        key = version.id  # globally unique slot numbers per version
-                        placeholder_slots[key] += 1
+                        # Reuse an existing slot for this team if its sprint window
+                        # doesn't overlap with the current phase's sprints.
+                        # Only allocate a new globally-unique slot when necessary.
+                        team_id = te.team_id
+                        current_sprint_set = set(alloc_nums)
+                        reuse_slot = None
+                        # Check existing slots for this team in assignment order
+                        existing_team_slots = sorted(
+                            slot for (tid, slot) in placeholder_sprint_usage if tid == team_id
+                        )
+                        for existing_slot in existing_team_slots:
+                            used = placeholder_sprint_usage.get((team_id, existing_slot), set())
+                            if not used.intersection(current_sprint_set):
+                                reuse_slot = existing_slot
+                                break
+                        if reuse_slot is None:
+                            placeholder_slots[version.id] += 1
+                            reuse_slot = placeholder_slots[version.id]
+                        placeholder_sprint_usage.setdefault(
+                            (team_id, reuse_slot), set()
+                        ).update(current_sprint_set)
                         pe, _ = ResourcePlanPlaceholderEngineer.objects.get_or_create(
-                            version=version, team=te.team, phase=phase,
-                            slot_number=placeholder_slots[key],
+                            version=version, team=te.team,
+                            slot_number=reuse_slot,
                             defaults={
-                                'name': f'Auto #{placeholder_slots[key]}',
+                                'name': f'Auto #{reuse_slot}',
                                 'assignment_type': asgn.assignment_type,
                             },
                         )
@@ -3942,6 +4036,22 @@ class ConflictResolutionService:
             from .models import ManpowerRequest as _MR
             if not _MR.objects.filter(conflict=conflict).exists():
                 ManpowerRequestService.create_from_conflict(conflict, extra_data)
+
+        try:
+            from .services_audit import AuditLogService
+            from .models import AuditLog
+            version = conflict.allocation_set.version
+            AuditLogService.write(
+                plan=version.plan,
+                version=version,
+                event_type=AuditLog.EVENT_CONFLICT_RESOLVED,
+                entity_type='Conflict',
+                entity_id=conflict.pk,
+                before_state={'status': Conflict.STATUS_OPEN, 'conflict_type': conflict.conflict_type},
+                after_state={'status': conflict.status, 'resolution_type': resolution_type, 'notes': notes},
+            )
+        except Exception:
+            pass
 
         return conflict
 
@@ -4869,13 +4979,16 @@ class SnapshotService:
     def compare_snapshots(snap_a, snap_b):
         def _key_days(allocs_qs):
             d = {}
+            prog = {}  # key -> programme_name
             for a in allocs_qs:
                 k = (a.sprint_number, a.sprint_name, a.member_name, a.team_name, a.project_name)
                 d[k] = float(d.get(k, 0)) + float(a.days)
-            return d
+                if k not in prog:
+                    prog[k] = a.programme_name or ''
+            return d, prog
 
-        a_data = _key_days(snap_a.allocations.all())
-        b_data = _key_days(snap_b.allocations.all())
+        a_data, a_prog = _key_days(snap_a.allocations.all())
+        b_data, b_prog = _key_days(snap_b.allocations.all())
         all_keys = sorted(set(a_data) | set(b_data))
         result = []
         for k in all_keys:
@@ -4889,6 +5002,7 @@ class SnapshotService:
                 'member_name': member_name,
                 'team_name': team_name,
                 'project_name': project_name,
+                'programme_name': a_prog.get(k) or b_prog.get(k) or '',
                 'days_a': days_a,
                 'days_b': days_b,
                 'delta_days': delta,

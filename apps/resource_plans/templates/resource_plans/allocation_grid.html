@@ -36,6 +36,13 @@
            class="btn btn-sm btn-outline-dark">
             <i class="bi bi-camera me-1"></i>Snapshots
         </a>
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/audit/"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-journal-text me-1"></i>Audit
+        </a>
+        <button class="btn btn-sm btn-outline-success" id="ag-export-btn" title="Export to XLSX">
+            <i class="bi bi-file-earmark-spreadsheet me-1"></i>Export
+        </button>
         <button class="btn btn-sm btn-warning fw-semibold" id="ag-run-engine">
             <i class="bi bi-cpu me-1"></i>Run Engine
         </button>

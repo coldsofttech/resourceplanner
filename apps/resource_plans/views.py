@@ -74,3 +74,13 @@ class SnapshotsView(View):
             "plan_pk": plan_pk,
             "version_pk": version_pk,
         })
+
+
+class AuditLogView(View):
+    template_name = "resource_plans/audit_log.html"
+
+    def get(self, request, plan_pk, version_pk):
+        return render(request, self.template_name, {
+            "plan_pk": plan_pk,
+            "version_pk": version_pk,
+        })

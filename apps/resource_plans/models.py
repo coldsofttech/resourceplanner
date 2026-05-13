@@ -607,7 +607,7 @@ class ResourcePlanPlaceholderEngineer(models.Model):
     )
 
     class Meta:
-        unique_together = [("version", "team", "phase", "slot_number")]
+        unique_together = [("version", "team", "slot_number")]
         ordering = ["team__name", "slot_number"]
 
     def __str__(self):
@@ -949,3 +949,44 @@ class ResourcePlanSnapshotCapacity(models.Model):
 
     class Meta:
         ordering = ['sprint_number', 'team_name', 'member_name']
+
+
+# ── Phase 13: Audit Log ───────────────────────────────────────────────────────
+
+
+class AuditLog(models.Model):
+    EVENT_ENGINE_RUN            = 'ENGINE_RUN'
+    EVENT_ALLOCATION_OVERRIDE   = 'ALLOCATION_OVERRIDE'
+    EVENT_PLACEHOLDER_OVERRIDE  = 'PLACEHOLDER_OVERRIDE'
+    EVENT_CONFLICT_RESOLVED     = 'CONFLICT_RESOLVED'
+    EVENT_STATUS_CHANGED        = 'STATUS_CHANGED'
+    EVENT_PLAN_CLONED           = 'PLAN_CLONED'
+    EVENT_CONFIG_CHANGED        = 'CONFIG_CHANGED'
+    EVENT_TYPE_CHOICES = [
+        (EVENT_ENGINE_RUN,           'Engine Run'),
+        (EVENT_ALLOCATION_OVERRIDE,  'Allocation Override'),
+        (EVENT_PLACEHOLDER_OVERRIDE, 'Placeholder Override'),
+        (EVENT_CONFLICT_RESOLVED,    'Conflict Resolved'),
+        (EVENT_STATUS_CHANGED,       'Status Changed'),
+        (EVENT_PLAN_CLONED,          'Plan Cloned'),
+        (EVENT_CONFIG_CHANGED,       'Config Changed'),
+    ]
+
+    plan         = models.ForeignKey(ResourcePlan, on_delete=models.CASCADE, related_name='audit_logs')
+    version      = models.ForeignKey(ResourcePlanVersion, on_delete=models.CASCADE, related_name='audit_logs')
+    event_type   = models.CharField(max_length=30, choices=EVENT_TYPE_CHOICES)
+    entity_type  = models.CharField(max_length=30)
+    entity_id    = models.PositiveIntegerField(null=True, blank=True)
+    before_state = models.JSONField(null=True, blank=True)
+    after_state  = models.JSONField(null=True, blank=True)
+    engine_job   = models.ForeignKey(
+        PlanEngineJob, on_delete=models.SET_NULL, null=True, blank=True, related_name='audit_logs'
+    )
+    notes        = models.TextField(null=True, blank=True)
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.event_type} — {self.entity_type}#{self.entity_id} [{self.created_at:%Y-%m-%d %H:%M}]'
