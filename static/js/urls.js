@@ -734,6 +734,11 @@ export const API_URLS = {
             cell_create: (planPk, versionPk) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/cell/` }),
             cell_update: (planPk, versionPk, allocId) => ({ method: 'POST', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/grid/cell/${allocId}/` }),
         },
+        utilisation: {
+            teams:      (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/utilisation/teams/` }),
+            members:    (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/utilisation/members/` }),
+            programmes: (planPk, versionPk) => ({ method: 'GET', href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/utilisation/programmes/` }),
+        },
         conflicts: {
             list:    (planPk, versionPk) => ({ method: 'GET',  href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/conflicts/` }),
             summary: (planPk, versionPk) => ({ method: 'GET',  href: `${API_BASE}resource-plans/${planPk}/versions/${versionPk}/conflicts/summary/` }),
@@ -954,5 +959,6 @@ export const URLS = {
         allocation_grid: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/grid/`,
         placeholder_leaves: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/placeholder-leaves/`,
         conflicts: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/conflicts/`,
+        utilisation: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/utilisation/`,
     },
 };

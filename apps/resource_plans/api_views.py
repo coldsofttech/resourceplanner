@@ -70,6 +70,9 @@ from .services import (
     ManpowerRequestService,
     PlaceholderEngineerService,
     PlaceholderEngineerAbsenceService,
+    TeamUtilisationService,
+    MemberUtilisationService,
+    ProgrammeRollupService,
 )
 
 logger = logging.getLogger(__name__)
@@ -1351,6 +1354,84 @@ class AllocationGridViewSet(viewsets.ViewSet):
             return Response(PlaceholderEngineerAbsenceSerializer(absence).data)
         except DjangoValidationError as exc:
             return Response(exc.message_dict if hasattr(exc, 'message_dict') else {'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+    # ── Utilisation endpoints (Phase 11) ──────────────────────────────────────
+
+    def utilisation_teams(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        def _int_list(val):
+            if not val:
+                return None
+            try:
+                return [int(x.strip()) for x in val.split(',') if x.strip()]
+            except (ValueError, TypeError):
+                return None
+
+        allocation_set_id = request.query_params.get('allocation_set')
+        try:
+            allocation_set_id = int(allocation_set_id) if allocation_set_id else None
+        except (ValueError, TypeError):
+            allocation_set_id = None
+
+        team_ids = _int_list(request.query_params.get('teams'))
+        return Response(TeamUtilisationService.get_team_utilisation(version, allocation_set_id, team_ids))
+
+    def utilisation_members(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        def _int_list(val):
+            if not val:
+                return None
+            try:
+                return [int(x.strip()) for x in val.split(',') if x.strip()]
+            except (ValueError, TypeError):
+                return None
+
+        allocation_set_id = request.query_params.get('allocation_set')
+        try:
+            allocation_set_id = int(allocation_set_id) if allocation_set_id else None
+        except (ValueError, TypeError):
+            allocation_set_id = None
+
+        return Response(MemberUtilisationService.get_member_utilisation(
+            version,
+            allocation_set_id=allocation_set_id,
+            team_ids=_int_list(request.query_params.get('teams')),
+            member_ids=_int_list(request.query_params.get('members')),
+            employment_type_ids=_int_list(request.query_params.get('employment_types')),
+            project_ids=_int_list(request.query_params.get('projects')),
+        ))
+
+    def utilisation_programmes(self, request, plan_pk, pk):
+        version = self._get_version(plan_pk, pk)
+        if not version:
+            return Response({"detail": "Version not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        def _int_list(val):
+            if not val:
+                return None
+            try:
+                return [int(x.strip()) for x in val.split(',') if x.strip()]
+            except (ValueError, TypeError):
+                return None
+
+        allocation_set_id = request.query_params.get('allocation_set')
+        try:
+            allocation_set_id = int(allocation_set_id) if allocation_set_id else None
+        except (ValueError, TypeError):
+            allocation_set_id = None
+
+        return Response(ProgrammeRollupService.get_programme_rollup(
+            version,
+            allocation_set_id=allocation_set_id,
+            programme_ids=_int_list(request.query_params.get('programmes')),
+            project_ids=_int_list(request.query_params.get('projects')),
+        ))
 
 
 class PlanPhaseViewSet(viewsets.ViewSet):

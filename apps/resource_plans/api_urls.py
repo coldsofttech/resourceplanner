@@ -14,6 +14,18 @@ router.register(r"resource-plans", ResourcePlanViewSet, basename="resource-plan"
 # Specific patterns must appear before more-general ones to avoid shadowing.
 _vc_patterns = [
     re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/utilisation/teams/$',
+        GV.as_view({'get': 'utilisation_teams'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/utilisation/members/$',
+        GV.as_view({'get': 'utilisation_members'}),
+    ),
+    re_path(
+        r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/utilisation/programmes/$',
+        GV.as_view({'get': 'utilisation_programmes'}),
+    ),
+    re_path(
         r'^(?P<plan_pk>\d+)/versions/(?P<pk>\d+)/grid/cell/$',
         GV.as_view({'post': 'grid_cell_create'}),
     ),

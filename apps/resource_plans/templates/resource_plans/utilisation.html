@@ -1,0 +1,262 @@
+{% extends "base.html" %} {% load static %} {% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3"
+    id="util-page-header">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/grid/" class="btn btn-ghost-icon" title="Back to allocation grid">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <div class="small text-secondary mb-1" id="util-breadcrumb">Resource Plans</div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2 flex-wrap">
+                <span id="util-plan-name">Loading…</span>
+                <span id="util-version-badge" class="badge bg-secondary"></span>
+                <span class="badge bg-info text-dark">Utilisation</span>
+            </h1>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/grid/"
+           class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-table me-1"></i>Allocation Grid
+        </a>
+        <a href="/resource-plans/{{ plan_pk }}/versions/{{ version_pk }}/conflicts/"
+           class="btn btn-sm btn-outline-danger" id="util-conflicts-link">
+            <i class="bi bi-exclamation-triangle me-1"></i>Conflicts
+        </a>
+    </div>
+</div>
+{% endblock %} {% block content %}
+<div id="util-banner" class="alert d-none mb-3" role="alert"></div>
+
+<!-- Filter bar -->
+<div class="card mb-3 border-0 shadow-sm">
+    <div class="card-body py-2 px-3">
+        <div class="d-flex flex-wrap align-items-end gap-3">
+            <!-- Allocation Set -->
+            <div style="min-width:160px;max-width:220px;">
+                <label class="form-label small mb-1 fw-semibold">Allocation Set</label>
+                <select class="form-select form-select-sm" id="util-alloc-set">
+                    <option value="">— Latest —</option>
+                </select>
+            </div>
+            <!-- Teams -->
+            <div style="min-width:140px;max-width:200px;">
+                <label class="form-label small mb-1 fw-semibold">Teams</label>
+                <select class="form-select form-select-sm" id="util-filter-teams" multiple size="1">
+                </select>
+            </div>
+            <!-- Members (member tab) -->
+            <div style="min-width:140px;max-width:200px;" id="util-filter-members-wrap">
+                <label class="form-label small mb-1 fw-semibold">Members</label>
+                <select class="form-select form-select-sm" id="util-filter-members" multiple size="1">
+                </select>
+            </div>
+            <!-- Programmes (programme tab) -->
+            <div style="min-width:140px;max-width:200px;" id="util-filter-programmes-wrap">
+                <label class="form-label small mb-1 fw-semibold">Programmes</label>
+                <select class="form-select form-select-sm" id="util-filter-programmes" multiple size="1">
+                </select>
+            </div>
+            <!-- Projects -->
+            <div style="min-width:140px;max-width:200px;" id="util-filter-projects-wrap">
+                <label class="form-label small mb-1 fw-semibold">Projects</label>
+                <select class="form-select form-select-sm" id="util-filter-projects" multiple size="1">
+                </select>
+            </div>
+            <!-- Employment Types (member tab) -->
+            <div style="min-width:140px;max-width:200px;" id="util-filter-emp-types-wrap">
+                <label class="form-label small mb-1 fw-semibold">Emp. Types</label>
+                <select class="form-select form-select-sm" id="util-filter-emp-types" multiple size="1">
+                </select>
+            </div>
+            <div class="d-flex gap-2 align-items-end">
+                <button class="btn btn-sm btn-primary" id="util-apply-filters">
+                    <i class="bi bi-funnel me-1"></i>Apply
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" id="util-reset-filters">
+                    Reset
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" id="util-tabs" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active" id="util-tab-team" data-tab="team" type="button" role="tab">
+            <i class="bi bi-people me-1"></i>Team
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" id="util-tab-member" data-tab="member" type="button" role="tab">
+            <i class="bi bi-person me-1"></i>Member
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" id="util-tab-programme" data-tab="programme" type="button" role="tab">
+            <i class="bi bi-diagram-3 me-1"></i>Programme
+        </button>
+    </li>
+</ul>
+
+<!-- ── Team tab ────────────────────────────────────────────────────────────── -->
+<div id="util-panel-team" class="util-panel">
+    <div id="util-team-no-data" class="alert alert-info d-none">No allocation data available for this version.</div>
+    <div class="card border-0 shadow-sm mb-3" id="util-team-chart-card">
+        <div class="card-header d-flex align-items-center justify-content-between py-2">
+            <span class="fw-semibold small">Team Utilisation — Net Capacity vs Allocated</span>
+            <div class="d-flex gap-2">
+                <div class="util-legend-item"><span class="util-legend-swatch" style="background:rgba(67,97,238,0.75)"></span>Net Capacity</div>
+                <div class="util-legend-item"><span class="util-legend-swatch" style="background:rgba(247,127,0,0.85)"></span>Allocated</div>
+                <div class="util-legend-item"><span class="util-legend-swatch util-legend-line" style="background:#20c997"></span>Util%</div>
+            </div>
+        </div>
+        <div class="card-body" style="position:relative;height:350px;">
+            <canvas id="util-team-chart"></canvas>
+        </div>
+    </div>
+    <!-- Team summary table -->
+    <div class="card border-0 shadow-sm" id="util-team-table-card">
+        <div class="card-header py-2"><span class="fw-semibold small">Team Summary</span></div>
+        <div class="table-responsive">
+            <table class="table table-sm table-hover mb-0" id="util-team-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Team</th>
+                        <th class="text-end">Total Net Cap.</th>
+                        <th class="text-end">Total Allocated</th>
+                        <th class="text-end">Avg Util%</th>
+                        <th class="text-end">Sprints Over</th>
+                    </tr>
+                </thead>
+                <tbody id="util-team-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ── Member tab ──────────────────────────────────────────────────────────── -->
+<div id="util-panel-member" class="util-panel d-none">
+    <div id="util-member-no-data" class="alert alert-info d-none">No allocation data available.</div>
+    <!-- View toggle -->
+    <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="small fw-semibold text-secondary">View:</span>
+        <div class="btn-group btn-group-sm" role="group">
+            <button type="button" class="btn btn-outline-primary active" id="util-member-view-bar" data-view="bar">
+                <i class="bi bi-bar-chart me-1"></i>Bar
+            </button>
+            <button type="button" class="btn btn-outline-primary" id="util-member-view-heatmap" data-view="heatmap">
+                <i class="bi bi-grid-3x3 me-1"></i>Heatmap
+            </button>
+        </div>
+        <span class="small text-secondary ms-2" id="util-heatmap-rampdown-hint" style="display:none;">
+            <span class="util-heatmap-rampdown-swatch"></span>
+            Hatched = ramp-down candidate (&lt;50% utilised)
+        </span>
+    </div>
+
+    <!-- Bar view -->
+    <div id="util-member-bar-view">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header d-flex align-items-center justify-content-between py-2">
+                <span class="fw-semibold small">Member Utilisation — Aggregate</span>
+                <div class="d-flex gap-2">
+                    <div class="util-legend-item"><span class="util-legend-swatch" style="background:rgba(67,97,238,0.75)"></span>Net Capacity</div>
+                    <div class="util-legend-item"><span class="util-legend-swatch" style="background:rgba(247,127,0,0.85)"></span>Allocated</div>
+                    <div class="util-legend-item"><span class="util-legend-swatch util-legend-line" style="background:#20c997"></span>Util%</div>
+                </div>
+            </div>
+            <div class="card-body" style="position:relative;height:350px;">
+                <canvas id="util-member-chart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Heatmap view -->
+    <div id="util-member-heatmap-view" class="d-none">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header py-2 d-flex align-items-center gap-3">
+                <span class="fw-semibold small">Member Utilisation Heatmap</span>
+                <div class="d-flex gap-2 flex-wrap align-items-center small">
+                    <span class="util-legend-item"><span class="util-heatmap-chip" style="background:#f8f9fa;border:1px solid #dee2e6;color:#6c757d">0%</span>No alloc</span>
+                    <span class="util-legend-item"><span class="util-heatmap-chip util-heatmap-rampdown-chip">35%</span>Ramp-down (&lt;50%)</span>
+                    <span class="util-legend-item"><span class="util-heatmap-chip" style="background:#20c997;color:#fff">65%</span>Healthy</span>
+                    <span class="util-legend-item"><span class="util-heatmap-chip" style="background:#198754;color:#fff">90%</span>Excellent</span>
+                    <span class="util-legend-item"><span class="util-heatmap-chip" style="background:#dc3545;color:#fff">110%</span>Over</span>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" style="max-height:550px;overflow:auto;">
+                    <table class="table table-bordered table-sm mb-0 util-heatmap-table" id="util-heatmap-table">
+                        <thead id="util-heatmap-thead" class="table-dark sticky-top"></thead>
+                        <tbody id="util-heatmap-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Drilldown panel -->
+    <div id="util-drilldown-panel" class="card border-primary shadow mt-3 d-none">
+        <div class="card-header bg-primary text-white py-2 d-flex align-items-center justify-content-between">
+            <span class="fw-semibold small" id="util-drilldown-title">Project Breakdown</span>
+            <button type="button" class="btn-close btn-close-white btn-sm" id="util-drilldown-close"></button>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0" id="util-drilldown-table">
+                <thead class="table-light">
+                    <tr>
+                        <th>Programme</th>
+                        <th>Project</th>
+                        <th class="text-end">Days</th>
+                    </tr>
+                </thead>
+                <tbody id="util-drilldown-tbody"></tbody>
+            </table>
+        </div>
+        <div class="card-footer py-1 small text-secondary d-flex justify-content-between">
+            <span id="util-drilldown-net">Net capacity: —</span>
+            <span id="util-drilldown-total">Total allocated: —</span>
+            <span id="util-drilldown-pct">Utilisation: —</span>
+        </div>
+    </div>
+</div>
+
+<!-- ── Programme tab ───────────────────────────────────────────────────────── -->
+<div id="util-panel-programme" class="util-panel d-none">
+    <div id="util-prog-no-data" class="alert alert-info d-none">No programme data available.</div>
+    <div id="util-prog-charts-wrap"></div>
+</div>
+
+<!-- Spinner overlay -->
+<div id="util-spinner" class="d-none text-center py-5">
+    <div class="spinner-border text-primary" role="status"></div>
+    <div class="mt-2 small text-secondary">Loading utilisation data…</div>
+</div>
+
+<style>
+.util-panel { }
+.util-legend-item { display:inline-flex; align-items:center; gap:4px; font-size:.78rem; color:#6c757d; }
+.util-legend-swatch { display:inline-block; width:14px; height:12px; border-radius:2px; flex-shrink:0; }
+.util-legend-line { height:3px; border-radius:1px; }
+/* Heatmap */
+.util-heatmap-table th, .util-heatmap-table td { white-space:nowrap; font-size:.75rem; padding:3px 6px; text-align:center; vertical-align:middle; }
+.util-heatmap-table td:first-child { text-align:left; font-weight:500; min-width:140px; position:sticky;left:0;z-index:1;background:#fff; }
+.util-heatmap-table th:first-child { position:sticky;left:0;z-index:2; }
+.util-heatmap-cell { cursor:pointer; transition:opacity .15s; min-width:52px; }
+.util-heatmap-cell:hover { opacity:.8; box-shadow:inset 0 0 0 2px #0d6efd; }
+.util-heatmap-cell.util-cell-none  { background:#f8f9fa; color:#adb5bd; }
+.util-heatmap-cell.util-cell-rampdown { background:#ffc107; color:#333; background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(0,0,0,.12) 3px,rgba(0,0,0,.12) 6px); }
+.util-heatmap-cell.util-cell-healthy { background:#20c997; color:#fff; }
+.util-heatmap-cell.util-cell-good  { background:#198754; color:#fff; }
+.util-heatmap-cell.util-cell-over  { background:#dc3545; color:#fff; }
+.util-heatmap-chip { display:inline-block;padding:1px 6px;border-radius:3px;font-size:.72rem;font-weight:600; }
+.util-heatmap-rampdown-chip { background:#ffc107; color:#333; background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(0,0,0,.12) 3px,rgba(0,0,0,.12) 6px); }
+.util-heatmap-rampdown-swatch { display:inline-block;width:16px;height:12px;vertical-align:middle;background:#ffc107;background-image:repeating-linear-gradient(45deg,transparent,transparent 3px,rgba(0,0,0,.12) 3px,rgba(0,0,0,.12) 6px);border-radius:2px; }
+/* Programme chart cards */
+.util-prog-card + .util-prog-card { margin-top:.75rem; }
+</style>
+{% endblock %} {% block extra_js %}
+<script type="module" src="{% static 'js/modules/utilisation.js' %}"></script>
+{% endblock %}

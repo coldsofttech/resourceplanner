@@ -54,3 +54,13 @@ class ConflictsView(TemplateView):
         ctx['plan_pk'] = self.kwargs['plan_pk']
         ctx['version_pk'] = self.kwargs['version_pk']
         return ctx
+
+
+class UtilisationView(View):
+    template_name = "resource_plans/utilisation.html"
+
+    def get(self, request, plan_pk, version_pk):
+        return render(request, self.template_name, {
+            "plan_pk": plan_pk,
+            "version_pk": version_pk,
+        })

@@ -4275,6 +4275,353 @@ class PlaceholderEngineerService:
         return rows
 
 
+def _resolve_alloc_set(version, allocation_set_id):
+    from .models import ResourcePlanAllocationSet
+    if allocation_set_id:
+        try:
+            return ResourcePlanAllocationSet.objects.get(pk=allocation_set_id, version=version)
+        except ResourcePlanAllocationSet.DoesNotExist:
+            return None
+    aset = ResourcePlanAllocationSet.objects.filter(
+        version=version, status=ResourcePlanAllocationSet.STATUS_ACTIVE
+    ).order_by('-created_at').first()
+    return aset or ResourcePlanAllocationSet.objects.filter(version=version).order_by('-created_at').first()
+
+
+class TeamUtilisationService:
+    """Aggregate allocation + capacity per team per sprint — computed on request."""
+
+    @staticmethod
+    def get_team_utilisation(version, allocation_set_id=None, team_ids=None):
+        from apps.sprints.models import Sprint
+        from .models import ResourcePlanAllocation, ResourcePlanMemberCapacity
+
+        scope = ResourcePlanScope.objects.filter(
+            plan_group=version.plan_group
+        ).select_related('financial_year').first()
+        sprint_list = (
+            list(Sprint.objects.filter(financial_year=scope.financial_year).order_by('sprint_number'))
+            if scope else []
+        )
+        sprint_meta = [{'id': s.id, 'name': s.sprint_name, 'month': s.month} for s in sprint_list]
+
+        aset = _resolve_alloc_set(version, allocation_set_id)
+        if not aset:
+            return {'sprints': sprint_meta, 'rows': [], 'allocation_set_id': None}
+
+        alloc_qs = ResourcePlanAllocation.objects.filter(allocation_set=aset).select_related('team', 'sprint')
+        if team_ids:
+            alloc_qs = alloc_qs.filter(team_id__in=team_ids)
+
+        team_alloc = {}
+        team_names = {}
+        for alloc in alloc_qs:
+            tid = alloc.team_id
+            team_names[tid] = alloc.team.name
+            if tid not in team_alloc:
+                team_alloc[tid] = {}
+            sid = alloc.sprint_id
+            team_alloc[tid][sid] = team_alloc[tid].get(sid, 0.0) + float(alloc.effective_days)
+
+        member_map = CapacityService._get_members_for_version(version)
+        sprint_ids = [s.id for s in sprint_list]
+        member_ids = list(member_map.keys())
+
+        cap_lookup = {}
+        if member_ids:
+            for rc in ResourcePlanMemberCapacity.objects.filter(
+                version=version, team_member_id__in=member_ids, sprint_id__in=sprint_ids
+            ):
+                cap_lookup[(rc.team_member_id, rc.sprint_id)] = rc
+
+        team_cap = {}
+        for mid, minfo in member_map.items():
+            tid = minfo['team_id']
+            if team_ids and tid not in team_ids:
+                continue
+            team_names.setdefault(tid, minfo['team_name'])
+            if tid not in team_cap:
+                team_cap[tid] = {}
+            for sprint in sprint_list:
+                rc = cap_lookup.get((mid, sprint.id))
+                if not rc:
+                    continue
+                if sprint.id not in team_cap[tid]:
+                    team_cap[tid][sprint.id] = {'net': 0.0, 'gross': 0.0, 'absence': 0.0}
+                team_cap[tid][sprint.id]['net'] += float(rc.net_capacity)
+                team_cap[tid][sprint.id]['gross'] += float(rc.working_days)
+                team_cap[tid][sprint.id]['absence'] += float(rc.holiday_days + rc.leave_days + rc.placeholder_days)
+
+        all_team_ids = sorted(
+            set(list(team_alloc.keys()) + list(team_cap.keys())),
+            key=lambda t: team_names.get(t, '')
+        )
+
+        rows = []
+        for tid in all_team_ids:
+            cells = []
+            for sprint in sprint_list:
+                cap_data = team_cap.get(tid, {}).get(sprint.id)
+                alloc_days = team_alloc.get(tid, {}).get(sprint.id, 0.0)
+                net = cap_data['net'] if cap_data else None
+                gross = cap_data['gross'] if cap_data else None
+                absence = cap_data['absence'] if cap_data else None
+                util_pct = round(alloc_days / net * 100, 1) if net else None
+                cells.append({
+                    'sprint_id': sprint.id,
+                    'gross_capacity': round(gross, 2) if gross is not None else None,
+                    'absence_days': round(absence, 2) if absence is not None else None,
+                    'net_capacity': round(net, 2) if net is not None else None,
+                    'allocated_days': round(alloc_days, 2),
+                    'utilisation_pct': util_pct,
+                    'is_over': (alloc_days > net) if net is not None else False,
+                })
+            rows.append({
+                'team_id': tid,
+                'team_name': team_names.get(tid, f'Team {tid}'),
+                'cells': cells,
+            })
+
+        return {'sprints': sprint_meta, 'rows': rows, 'allocation_set_id': aset.id}
+
+
+class MemberUtilisationService:
+    """Aggregate allocation + capacity per engineer per sprint with project breakdown for drilldown."""
+
+    @staticmethod
+    def get_member_utilisation(
+        version,
+        allocation_set_id=None,
+        team_ids=None,
+        member_ids=None,
+        employment_type_ids=None,
+        project_ids=None,
+    ):
+        from apps.sprints.models import Sprint
+        from .models import ResourcePlanAllocation, ResourcePlanMemberCapacity
+
+        scope = ResourcePlanScope.objects.filter(
+            plan_group=version.plan_group
+        ).select_related('financial_year').first()
+        sprint_list = (
+            list(Sprint.objects.filter(financial_year=scope.financial_year).order_by('sprint_number'))
+            if scope else []
+        )
+        sprint_meta = [{'id': s.id, 'name': s.sprint_name, 'month': s.month} for s in sprint_list]
+
+        aset = _resolve_alloc_set(version, allocation_set_id)
+        if not aset:
+            return {'sprints': sprint_meta, 'rows': [], 'allocation_set_id': None}
+
+        alloc_qs = (
+            ResourcePlanAllocation.objects.filter(allocation_set=aset)
+            .select_related(
+                'team_member', 'team_member__employment_type',
+                'placeholder_engineer', 'team', 'sprint', 'programme', 'project',
+            )
+        )
+        if team_ids:
+            alloc_qs = alloc_qs.filter(team_id__in=team_ids)
+        if member_ids:
+            alloc_qs = alloc_qs.filter(team_member_id__in=member_ids)
+        if employment_type_ids:
+            alloc_qs = alloc_qs.filter(team_member__employment_type_id__in=employment_type_ids)
+        if project_ids:
+            alloc_qs = alloc_qs.filter(project_id__in=project_ids)
+
+        member_data = {}
+        for alloc in alloc_qs:
+            if alloc.team_member_id:
+                mkey = ('member', alloc.team_member_id)
+                if mkey not in member_data:
+                    member_data[mkey] = {
+                        'name': alloc.team_member.display_name,
+                        'team_id': alloc.team_id,
+                        'team_name': alloc.team.name,
+                        'member_id': alloc.team_member_id,
+                        'member_type': 'member',
+                        'employment_type': (
+                            alloc.team_member.employment_type.name
+                            if alloc.team_member.employment_type_id else None
+                        ),
+                        'sprints': {},
+                    }
+            else:
+                pe = alloc.placeholder_engineer
+                mkey = ('placeholder', alloc.placeholder_engineer_id)
+                if mkey not in member_data:
+                    member_data[mkey] = {
+                        'name': pe.display_name if pe else 'Auto',
+                        'team_id': alloc.team_id,
+                        'team_name': alloc.team.name,
+                        'member_id': alloc.placeholder_engineer_id,
+                        'member_type': 'placeholder',
+                        'employment_type': None,
+                        'sprints': {},
+                    }
+
+            mdata = member_data[mkey]
+            sid = alloc.sprint_id
+            if sid not in mdata['sprints']:
+                mdata['sprints'][sid] = {'days': 0.0, 'breakdown': {}}
+
+            days = float(alloc.effective_days)
+            mdata['sprints'][sid]['days'] += days
+
+            bkey = (alloc.project_id, alloc.programme_id)
+            if bkey not in mdata['sprints'][sid]['breakdown']:
+                mdata['sprints'][sid]['breakdown'][bkey] = {
+                    'project_id': alloc.project_id,
+                    'project_name': alloc.project.name if alloc.project else '—',
+                    'programme_id': alloc.programme_id,
+                    'programme_name': alloc.programme.name if alloc.programme else 'Unassigned',
+                    'days': 0.0,
+                }
+            mdata['sprints'][sid]['breakdown'][bkey]['days'] += days
+
+        sprint_ids = [s.id for s in sprint_list]
+        real_member_ids = [k[1] for k in member_data if k[0] == 'member']
+        cap_lookup = {}
+        if real_member_ids:
+            for rc in ResourcePlanMemberCapacity.objects.filter(
+                version=version, team_member_id__in=real_member_ids, sprint_id__in=sprint_ids
+            ):
+                cap_lookup[(rc.team_member_id, rc.sprint_id)] = rc
+
+        rows = []
+        for mkey, mdata in sorted(member_data.items(), key=lambda x: x[1]['name']):
+            cells = []
+            for sprint in sprint_list:
+                sdata = mdata['sprints'].get(sprint.id)
+                alloc_days = sdata['days'] if sdata else 0.0
+                rc = cap_lookup.get((mdata['member_id'], sprint.id)) if mdata['member_type'] == 'member' else None
+                net = float(rc.net_capacity) if rc else None
+                absence = float(rc.holiday_days + rc.leave_days + rc.placeholder_days) if rc else None
+                util_pct = round(alloc_days / net * 100, 1) if net else None
+                breakdown = sorted(
+                    [{**v, 'days': round(v['days'], 2)} for v in sdata['breakdown'].values()],
+                    key=lambda x: x['project_name']
+                ) if sdata else []
+                cells.append({
+                    'sprint_id': sprint.id,
+                    'net_capacity': round(net, 2) if net is not None else None,
+                    'absence_days': round(absence, 2) if absence is not None else None,
+                    'allocated_days': round(alloc_days, 2),
+                    'utilisation_pct': util_pct,
+                    'is_over': (alloc_days > net) if net is not None else False,
+                    'project_breakdown': breakdown,
+                })
+            rows.append({
+                'member_id': mdata['member_id'],
+                'member_name': mdata['name'],
+                'member_type': mdata['member_type'],
+                'team_id': mdata['team_id'],
+                'team_name': mdata['team_name'],
+                'employment_type': mdata.get('employment_type'),
+                'cells': cells,
+            })
+
+        return {'sprints': sprint_meta, 'rows': rows, 'allocation_set_id': aset.id}
+
+
+class ProgrammeRollupService:
+    """Aggregate allocation per programme per sprint, compute forecast cost vs budget baseline."""
+
+    @staticmethod
+    def get_programme_rollup(version, allocation_set_id=None, programme_ids=None, project_ids=None):
+        from apps.sprints.models import Sprint
+        from .models import ResourcePlanAllocation, ResourcePlanVersionProject
+
+        scope = ResourcePlanScope.objects.filter(
+            plan_group=version.plan_group
+        ).select_related('financial_year').first()
+        sprint_list = (
+            list(Sprint.objects.filter(financial_year=scope.financial_year).order_by('sprint_number'))
+            if scope else []
+        )
+        sprint_meta = [{'id': s.id, 'name': s.sprint_name, 'month': s.month} for s in sprint_list]
+        spp = _get_sprint_point_price()
+
+        aset = _resolve_alloc_set(version, allocation_set_id)
+        if not aset:
+            return {
+                'sprints': sprint_meta, 'rows': [], 'allocation_set_id': None,
+                'sprint_point_price': float(spp),
+            }
+
+        # Budget baseline per programme from ResourcePlanVersionProject
+        prog_baseline = {}
+        prog_names = {}
+        for vp in (
+            ResourcePlanVersionProject.objects.filter(version=version)
+            .select_related('project__programme')
+        ):
+            prog = getattr(vp.project, 'programme', None)
+            pid = prog.id if prog else None
+            prog_names[pid] = prog.name if prog else 'Unassigned'
+            if programme_ids and pid not in programme_ids:
+                continue
+            if project_ids and vp.project_id not in project_ids:
+                continue
+            if pid not in prog_baseline:
+                prog_baseline[pid] = Decimal('0')
+            prog_baseline[pid] += (vp.days_required or Decimal('0'))
+
+        # Allocated days per programme per sprint
+        alloc_qs = (
+            ResourcePlanAllocation.objects.filter(allocation_set=aset)
+            .select_related('programme', 'project', 'sprint')
+        )
+        if programme_ids:
+            alloc_qs = alloc_qs.filter(programme_id__in=programme_ids)
+        if project_ids:
+            alloc_qs = alloc_qs.filter(project_id__in=project_ids)
+
+        prog_alloc = {}
+        for alloc in alloc_qs:
+            pid = alloc.programme_id
+            prog_names.setdefault(pid, alloc.programme.name if alloc.programme else 'Unassigned')
+            if pid not in prog_alloc:
+                prog_alloc[pid] = {}
+            sid = alloc.sprint_id
+            prog_alloc[pid][sid] = prog_alloc[pid].get(sid, Decimal('0')) + alloc.effective_days
+
+        all_prog_ids = sorted(
+            set(list(prog_baseline.keys()) + list(prog_alloc.keys())),
+            key=lambda p: prog_names.get(p, '')
+        )
+
+        rows = []
+        for pid in all_prog_ids:
+            baseline_cost = float((prog_baseline.get(pid, Decimal('0'))) * spp)
+            cumulative = 0.0
+            cells = []
+            for sprint in sprint_list:
+                alloc_days = float(prog_alloc.get(pid, {}).get(sprint.id, Decimal('0')))
+                forecast_cost = round(alloc_days * float(spp), 2)
+                cumulative = round(cumulative + forecast_cost, 2)
+                cells.append({
+                    'sprint_id': sprint.id,
+                    'forecast_days': round(alloc_days, 2),
+                    'forecast_cost': forecast_cost,
+                    'cumulative_cost': cumulative,
+                    'budget_baseline': round(baseline_cost, 2),
+                })
+            rows.append({
+                'programme_id': pid,
+                'programme_name': prog_names.get(pid, 'Unassigned'),
+                'total_budget': round(baseline_cost, 2),
+                'cells': cells,
+            })
+
+        return {
+            'sprints': sprint_meta,
+            'rows': rows,
+            'allocation_set_id': aset.id,
+            'sprint_point_price': float(spp),
+        }
+
+
 class PlaceholderEngineerAbsenceService:
 
     @staticmethod
