@@ -29,6 +29,10 @@ export async function apiFetch(url, options = {}) {
     };
     const res = await fetch(url, config);
     if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+            window.location.href = '/login/?next=' + encodeURIComponent(window.location.pathname);
+            return;
+        }
         const body = await res.json().catch(() => ({}));
         throw { status: res.status, data: body };
     }

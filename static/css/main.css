@@ -2289,3 +2289,109 @@ body.modal-open {
         flex-wrap: wrap;
     }
 }
+
+/* ── Auth pages ────────────────────────────────────────────────────────────── */
+.rp-auth-body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background: var(--color-bg);
+}
+
+.rp-auth-wrap {
+    width: 100%;
+    max-width: 420px;
+    padding: 1.5rem 1rem;
+}
+
+.rp-auth-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 2.5rem 2rem;
+}
+
+.rp-auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1.1rem;
+    font-weight: 400;
+    color: var(--color-text);
+    margin-bottom: 1.75rem;
+    text-decoration: none;
+}
+.rp-auth-brand i {
+    color: var(--color-primary);
+    font-size: 1.4rem;
+}
+.rp-auth-brand strong {
+    font-weight: 600;
+}
+
+.rp-auth-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0 0 0.25rem;
+}
+
+.rp-auth-subtitle {
+    font-size: 0.875rem;
+    color: var(--color-text-2);
+    margin: 0 0 1.5rem;
+}
+
+.rp-auth-footer {
+    font-size: 0.875rem;
+    color: var(--color-text-2);
+    text-align: center;
+    margin: 1.25rem 0 0;
+}
+
+.rp-auth-link {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+.rp-auth-link:hover {
+    text-decoration: underline;
+}
+
+.rp-auth-icon-wrap {
+    text-align: center;
+    margin-bottom: 1rem;
+}
+.rp-auth-icon {
+    font-size: 3rem;
+    color: var(--color-primary);
+}
+.rp-auth-icon--success {
+    color: var(--color-success-dk);
+}
+
+/* form-control reuse for auth */
+.rp-auth-card .form-label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text);
+}
+.rp-auth-card .rp-input,
+.rp-auth-card .form-control {
+    border-color: var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+.rp-auth-card .rp-input:focus,
+.rp-auth-card .form-control:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+
+@media (max-width: 480px) {
+    .rp-auth-card {
+        padding: 1.75rem 1.25rem;
+    }
+}

@@ -63,6 +63,8 @@ router.register(r"tags", TagViewSet, basename="tag")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    # Auth (classic login/register/logout/password-reset + SSO)
+    path("", include("apps.users.urls")),
     # REST API – resource plans (includes nested version-config routes)
     path("api/v1/", include("apps.resource_plans.api_urls")),
     # REST API – all other apps
