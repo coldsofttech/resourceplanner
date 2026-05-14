@@ -88,6 +88,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "apps.users.middleware.SessionTimeoutMiddleware",
     "apps.users.middleware.AuthRequiredMiddleware",
+    "apps.users.middleware.ForcePasswordChangeMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -159,6 +160,10 @@ USE_TZ = True
 STATICFILES_DIRS = [BASE_DIR / "static"]
 STATIC_URL = "/static/"
 
+# Media files (user uploads, avatars)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
 # Authentication
 from django.contrib.messages import constants as message_constants
 MESSAGE_TAGS = {
@@ -169,24 +174,25 @@ MESSAGE_TAGS = {
     message_constants.ERROR: 'danger',
 }
 
+AUTHENTICATION_BACKENDS = [
+    'apps.users.backends.EmailBackend',
+    'django.contrib.auth.backends.ModelBackend',  # fallback for admin
+]
+
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'apps.users.validators.ConfigurationPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+]
+
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours
 
-# Email (for password reset)
-EMAIL_BACKEND = os.environ.get(
-    "EMAIL_BACKEND",
-    "django.core.mail.backends.console.EmailBackend",
-)
-EMAIL_HOST = os.environ.get("EMAIL_HOST", "localhost")
-EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "25"))
-EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "false").lower() == "true"
-EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
-EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
-DEFAULT_FROM_EMAIL = os.environ.get(
-    "DEFAULT_FROM_EMAIL", "noreply@resourceplanner.local"
-)
+# Email — configuration-driven backend reads settings from ConfigurationService at runtime
+EMAIL_BACKEND = "apps.users.email_backend.ConfigurationEmailBackend"
+# Fallback .env values (used only if ConfigurationService is unavailable)
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@resourceplanner.local")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

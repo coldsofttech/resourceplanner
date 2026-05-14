@@ -451,6 +451,118 @@ CONFIGURATION_DEFAULTS = {
         "data_type": "string",
         "is_secret": False,
     },
+    # Password policy
+    "PASSWORD_MIN_LENGTH": {
+        "label": "Password Minimum Length",
+        "value": "8",
+        "description": (
+            "Minimum number of characters required for user passwords. "
+            "Applies to registration, password change, and admin-created accounts."
+        ),
+        "data_type": "integer",
+        "is_secret": False,
+    },
+    "PASSWORD_REQUIRE_UPPERCASE": {
+        "label": "Require Uppercase Letter",
+        "value": "false",
+        "description": (
+            "When true, passwords must contain at least one uppercase letter (A–Z)."
+        ),
+        "data_type": "boolean",
+        "is_secret": False,
+    },
+    "PASSWORD_REQUIRE_LOWERCASE": {
+        "label": "Require Lowercase Letter",
+        "value": "false",
+        "description": (
+            "When true, passwords must contain at least one lowercase letter (a–z)."
+        ),
+        "data_type": "boolean",
+        "is_secret": False,
+    },
+    "PASSWORD_REQUIRE_DIGITS": {
+        "label": "Require Digit",
+        "value": "false",
+        "description": (
+            "When true, passwords must contain at least one digit (0–9)."
+        ),
+        "data_type": "boolean",
+        "is_secret": False,
+    },
+    "PASSWORD_REQUIRE_SPECIAL": {
+        "label": "Require Special Character",
+        "value": "false",
+        "description": (
+            "When true, passwords must contain at least one special character "
+            "(!@#$%^&*…)."
+        ),
+        "data_type": "boolean",
+        "is_secret": False,
+    },
+    # Email (outbound mail)
+    "EMAIL_PROTOCOL": {
+        "label": "Email Protocol",
+        "value": "console",
+        "description": (
+            "Outbound email protocol. "
+            "'console' — prints to server log (development only). "
+            "'smtp' — plain SMTP (no encryption). "
+            "'smtp_tls' — SMTP with STARTTLS (common for port 587). "
+            "'smtp_ssl' — SMTP over SSL (common for port 465)."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+    },
+    "EMAIL_HOST": {
+        "label": "Email Host (SMTP Server)",
+        "value": "localhost",
+        "description": (
+            "Hostname or IP address of the outbound SMTP server. "
+            "Examples: smtp.gmail.com, smtp.office365.com, mail.example.com."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+    },
+    "EMAIL_PORT": {
+        "label": "Email Port",
+        "value": "25",
+        "description": (
+            "TCP port for the SMTP server. "
+            "Common values: 25 (unencrypted), 465 (SSL), 587 (STARTTLS)."
+        ),
+        "data_type": "integer",
+        "is_secret": False,
+    },
+    "EMAIL_HOST_USER": {
+        "label": "Email Username",
+        "value": "",
+        "description": (
+            "Username (or email address) used to authenticate with the SMTP server. "
+            "Leave blank if the server does not require authentication."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+    },
+    "EMAIL_HOST_PASSWORD": {
+        "label": "Email Password",
+        "value": "",
+        "description": (
+            "Password used to authenticate with the SMTP server. "
+            "Stored encrypted at rest."
+        ),
+        "data_type": "string",
+        "is_secret": True,
+    },
+    "EMAIL_FROM": {
+        "label": "From Email Address",
+        "value": "noreply@resourceplanner.local",
+        "description": (
+            "The 'From' address used for all outbound emails (password resets, "
+            "notifications, etc.)."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+    },
     # Add future built-in configs as below
     # "CODE": {
     #   "label": "Human readable label for the config.",

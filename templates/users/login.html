@@ -3,10 +3,11 @@
 
 {% block auth_content %}
 <h1 class="rp-auth-title">Sign in</h1>
+<p class="rp-auth-subtitle">Welcome back. Enter your email to continue.</p>
 
 {% if form.non_field_errors %}
     <div class="alert alert-danger" role="alert">
-        {{ form.non_field_errors.0 }}
+        <i class="bi bi-exclamation-circle me-2"></i>{{ form.non_field_errors.0 }}
     </div>
 {% endif %}
 
@@ -14,17 +15,24 @@
     {% csrf_token %}
     {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
-    <div class="mb-3">
-        <label for="{{ form.username.id_for_label }}" class="form-label">Username</label>
-        {{ form.username }}
-        {% if form.username.errors %}
-            <div class="invalid-feedback d-block">{{ form.username.errors.0 }}</div>
+    <div class="rp-field mb-3">
+        <label for="{{ form.email.id_for_label }}" class="rp-label">Email address</label>
+        {{ form.email }}
+        {% if form.email.errors %}
+            <div class="invalid-feedback d-block">{{ form.email.errors.0 }}</div>
         {% endif %}
     </div>
 
-    <div class="mb-3">
-        <label for="{{ form.password.id_for_label }}" class="form-label">Password</label>
-        {{ form.password }}
+    <div class="rp-field mb-3">
+        <label for="{{ form.password.id_for_label }}" class="rp-label">Password</label>
+        <div class="rp-pwd-wrap">
+            {{ form.password }}
+            <button type="button" class="rp-pwd-eye"
+                    onclick="rpTogglePwd('{{ form.password.id_for_label }}', this)"
+                    aria-label="Show password" tabindex="-1">
+                <i class="bi bi-eye"></i>
+            </button>
+        </div>
         {% if form.password.errors %}
             <div class="invalid-feedback d-block">{{ form.password.errors.0 }}</div>
         {% endif %}
@@ -33,12 +41,14 @@
     <div class="d-flex align-items-center justify-content-between mb-4">
         <div class="form-check">
             {{ form.remember_me }}
-            <label class="form-check-label" for="{{ form.remember_me.id_for_label }}">Remember me</label>
+            <label class="form-check-label small" for="{{ form.remember_me.id_for_label }}">Keep me signed in</label>
         </div>
-        <a href="/password-reset/" class="rp-auth-link">Forgot password?</a>
+        <a href="/password-reset/" class="rp-auth-link small">Forgot password?</a>
     </div>
 
-    <button type="submit" class="btn rp-btn-primary w-100">Sign in</button>
+    <button type="submit" class="btn rp-btn-primary w-100">
+        <i class="bi bi-box-arrow-in-right me-1"></i>Sign in
+    </button>
 </form>
 
 <p class="rp-auth-footer">

@@ -13,10 +13,10 @@
 <body class="rp-auth-body">
     <div class="rp-auth-wrap">
         <div class="rp-auth-card">
-            <div class="rp-auth-brand">
+            <a class="rp-auth-brand" href="/">
                 <i class="bi bi-diagram-3-fill"></i>
                 <span>Resource<strong>Planner</strong></span>
-            </div>
+            </a>
             {% if messages %}
                 {% for message in messages %}
                     <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
@@ -29,5 +29,16 @@
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    function rpTogglePwd(inputId, btn) {
+        const inp = document.getElementById(inputId);
+        const icon = btn.querySelector('i');
+        if (!inp) return;
+        const isHidden = inp.type === 'password';
+        inp.type = isHidden ? 'text' : 'password';
+        icon.className = isHidden ? 'bi bi-eye-slash' : 'bi bi-eye';
+        btn.setAttribute('aria-label', isHidden ? 'Hide password' : 'Show password');
+    }
+    </script>
 </body>
 </html>

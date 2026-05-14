@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% block title %}User Management{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Users</h1>
+        <p class="rp-page-subtitle">Manage user accounts and access levels.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap" id="header-actions">
+        <a href="/users/new/" class="btn btn-primary btn-sm">
+            <i class="bi bi-person-plus me-1"></i>New User
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Stats -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Total</span>
+            <span class="rp-stat-value" id="stat-total">—</span>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Active</span>
+            <span class="rp-stat-value" id="stat-active">—</span>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Admin</span>
+            <span class="rp-stat-value" id="stat-staff">—</span>
+        </div>
+    </div>
+    <div class="col-6 col-md-3">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">SSO</span>
+            <span class="rp-stat-value" id="stat-sso">—</span>
+        </div>
+    </div>
+</div>
+
+<!-- Toolbar -->
+<div class="rp-toolbar d-flex gap-3 mb-3 flex-wrap">
+    <div class="rp-search flex-grow-1">
+        <i class="bi bi-search rp-search-icon"></i>
+        <input type="text" id="user-search" class="form-control rp-search-input"
+               placeholder="Search by name or email…" />
+    </div>
+    <select id="status-filter" class="form-select rp-select" style="max-width:160px;">
+        <option value="">All statuses</option>
+        <option value="true">Active</option>
+        <option value="false">Inactive</option>
+    </select>
+</div>
+
+<!-- Table -->
+<div class="rp-table-wrap">
+    <table class="table rp-table" id="users-table">
+        <thead>
+            <tr>
+                <th>Name / Email</th>
+                <th>Role</th>
+                <th>Auth</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th class="text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="users-tbody"></tbody>
+    </table>
+    <div id="pagination-bar" class="d-flex align-items-center justify-content-between px-1 py-2">
+        <span id="pagination-info" class="text-secondary small"></span>
+        <nav><ul class="pagination pagination-sm mb-0" id="pagination-controls"></ul></nav>
+    </div>
+</div>
+
+<!-- Deactivate / Activate modal -->
+<div class="modal fade" id="statusModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="status-modal-title">Change status?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0" id="status-modal-body"></p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="status-confirm-btn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Delete user?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    <strong id="delete-user-email"></strong> will be permanently removed.
+                    This action cannot be undone.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reset password modal -->
+<div class="modal fade" id="resetPwdModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Reset password</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-3">Set a new password for <strong id="reset-user-email"></strong>.</p>
+                <div class="rp-field">
+                    <label class="rp-label" for="reset-pwd-input">New password</label>
+                    <div class="rp-pwd-wrap">
+                        <input type="password" id="reset-pwd-input" class="form-control rp-input"
+                               placeholder="Enter new password" autocomplete="new-password">
+                        <button type="button" class="rp-pwd-eye"
+                                onclick="rpTogglePwd('reset-pwd-input', this)"
+                                aria-label="Show" tabindex="-1">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                    </div>
+                    <div class="invalid-feedback" id="reset-pwd-error"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="reset-pwd-confirm-btn">Set password</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script>
+function rpTogglePwd(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    const icon = btn.querySelector('i');
+    if (!inp) return;
+    const isHidden = inp.type === 'password';
+    inp.type = isHidden ? 'text' : 'password';
+    icon.className = isHidden ? 'bi bi-eye-slash' : 'bi bi-eye';
+}
+</script>
+<script type="module" src="{% static 'js/modules/users.js' %}"></script>
+{% endblock %}

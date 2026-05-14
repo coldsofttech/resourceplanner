@@ -233,15 +233,23 @@ async function handleCreateEditSubmit(e) {
         return;
     }
 
-    const payload = { value: rawValue.trim() };
+    // SSO switch warning: intercept AUTH_MODE → sso
+    if (config?.code === 'AUTH_MODE' && rawValue.trim() === 'sso') {
+        showSsoSwitchModal();
+        return;
+    }
 
+    await _doSaveConfig(rawValue.trim());
+}
+
+async function _doSaveConfig(value) {
     const method = API_URLS.configurations.partial_edit(configPk).method;
     const url    = API_URLS.configurations.partial_edit(configPk).href;
 
     setSubmitting(true);
 
     try {
-        await apiFetch(url, { method, body: JSON.stringify(payload) });
+        await apiFetch(url, { method, body: JSON.stringify({ value }) });
         window.location.href = URLS.configurations.list;
     } catch (err) {
         if (err?.status === 400) {
@@ -619,6 +627,82 @@ async function getDefault(code) {
         showFlash(err?.data?.error || 'Could not load configuration details. Please refresh.', 'danger');
         return null;
     }
+}
+
+/*
+ * SSO switch warning modal
+ */
+function showSsoSwitchModal() {
+    const existing = document.getElementById('sso-switch-modal');
+    if (existing) existing.remove();
+
+    const html = `
+    <div class="modal fade" id="sso-switch-modal" tabindex="-1" data-bs-backdrop="static">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+          <div class="modal-header border-0 pb-0">
+            <h5 class="modal-title d-flex align-items-center gap-2">
+              <i class="bi bi-exclamation-triangle-fill text-warning"></i>
+              Switch to SSO authentication?
+            </h5>
+          </div>
+          <div class="modal-body">
+            <p>You are about to switch the authentication mode to <strong>SSO</strong>. Once applied:</p>
+            <ul class="mb-3">
+              <li>Users will no longer be able to sign in with email and password.</li>
+              <li>All authentication will be handled by the configured identity provider.</li>
+            </ul>
+            <div class="alert alert-danger mb-3">
+              <i class="bi bi-shield-exclamation me-2"></i>
+              <strong>Clear classic passwords?</strong><br>
+              For security, it is strongly recommended to clear all stored passwords
+              so users cannot bypass SSO by switching back to classic mode manually.
+            </div>
+            <div class="form-check form-switch rp-switch">
+              <input class="form-check-input" type="checkbox" id="sso-wipe-passwords" checked>
+              <label class="form-check-label" for="sso-wipe-passwords">
+                Clear all classic user passwords on switch
+              </label>
+            </div>
+          </div>
+          <div class="modal-footer border-0 pt-0 gap-2">
+            <button type="button" class="btn btn-outline-secondary" id="sso-modal-cancel">Cancel</button>
+            <button type="button" class="btn btn-danger" id="sso-modal-confirm">
+              <i class="bi bi-arrow-right-circle me-1"></i>Switch to SSO
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+    document.body.insertAdjacentHTML('beforeend', html);
+    const modal = new bootstrap.Modal(document.getElementById('sso-switch-modal'));
+    modal.show();
+
+    document.getElementById('sso-modal-cancel').addEventListener('click', () => modal.hide());
+
+    document.getElementById('sso-modal-confirm').addEventListener('click', async () => {
+        const wipe = document.getElementById('sso-wipe-passwords').checked;
+        modal.hide();
+        setSubmitting(true);
+        try {
+            // 1. Save the AUTH_MODE config
+            await _doSaveConfig('sso');
+            // 2. Optionally wipe passwords via users API
+            if (wipe) {
+                try {
+                    await apiFetch('/api/v1/users/switch_auth_mode/', {
+                        method: 'POST',
+                        body: JSON.stringify({ mode: 'sso', wipe_passwords: true }),
+                    });
+                } catch (_) {
+                    showFlash('Auth mode saved, but password wipe failed. Run it manually.', 'warning');
+                }
+            }
+        } finally {
+            setSubmitting(false);
+        }
+    });
 }
 
 /*

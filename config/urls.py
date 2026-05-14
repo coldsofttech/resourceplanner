@@ -15,6 +15,8 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -65,6 +67,8 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # Auth (classic login/register/logout/password-reset + SSO)
     path("", include("apps.users.urls")),
+    # REST API – users
+    path("api/v1/", include("apps.users.api_urls")),
     # REST API – resource plans (includes nested version-config routes)
     path("api/v1/", include("apps.resource_plans.api_urls")),
     # REST API – all other apps
@@ -92,4 +96,4 @@ urlpatterns = [
     # Generic Modules
     path("import/", include("apps.import.urls")),
     path("", include("apps.delivery_teams.urls")),
-]
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

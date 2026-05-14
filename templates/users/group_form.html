@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block title %}{{ page_title }} — Resource Planner{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center gap-3">
+    <a href="{{ back_url }}" class="btn btn-ghost-icon" title="Back">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+        <h1 class="rp-page-title" id="page-title">{{ page_title }}</h1>
+        <p class="rp-page-subtitle" id="page-subtitle">
+            {% if group_pk %}Updating group settings.{% else %}Fill in the details below to create a new group.{% endif %}
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-7">
+        <div class="rp-card">
+            <div id="form-error-banner" class="alert alert-danger d-none mb-3"></div>
+
+            <form id="group-form" novalidate {% if group_pk %}data-group-pk="{{ group_pk }}"{% endif %}>
+                {% csrf_token %}
+
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_name">
+                        Group name <span class="rp-required">*</span>
+                    </label>
+                    <input type="text" id="id_name" name="name"
+                           class="form-control rp-input" maxlength="100"
+                           placeholder="e.g. Project Managers" required autofocus>
+                    <div class="invalid-feedback" id="name-error"></div>
+                </div>
+
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="id_description">Description</label>
+                    <textarea id="id_description" name="description"
+                              class="form-control rp-input" rows="3"
+                              placeholder="What is the purpose of this group?"></textarea>
+                    <div class="invalid-feedback" id="description-error"></div>
+                </div>
+
+                <div class="rp-field mb-5">
+                    <div class="form-check form-switch rp-switch" id="admin-group-field">
+                        <input class="form-check-input" type="checkbox"
+                               id="id_is_admin_group" name="is_admin_group">
+                        <label class="form-check-label rp-label" for="id_is_admin_group">
+                            Admin group
+                        </label>
+                    </div>
+                    <p class="rp-hint mt-1">
+                        Members of admin groups receive staff-level access across the application.
+                    </p>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button type="submit" id="submit-btn" class="btn btn-primary"
+                            data-original-label="{{ submit_label }}">
+                        <i class="bi bi-check-lg me-1"></i>
+                        <span id="submit-label">{{ submit_label }}</span>
+                    </button>
+                    <a href="{{ back_url }}" class="btn btn-outline-secondary">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+    <div class="col-lg-4 offset-lg-1 mt-4 mt-lg-0">
+        <div class="rp-card rp-card--muted">
+            <h6 class="fw-600 mb-3"><i class="bi bi-info-circle me-2"></i>Notes</h6>
+            <ul class="rp-tip-list">
+                <li>Groups let you assign roles to multiple users at once.</li>
+                <li>Admin groups grant full staff access — use with care.</li>
+                <li>The built-in <strong>ADMINISTRATOR</strong> group cannot be deleted.</li>
+                <li>Members can be added after creating the group.</li>
+            </ul>
+        </div>
+        <div id="metadata-card" class="rp-card rp-card--muted mt-3 d-none">
+            <h6 class="fw-600 mb-2"><i class="bi bi-clock-history me-2"></i>Metadata</h6>
+            <dl class="rp-meta-list">
+                <dt>Created</dt><dd id="meta-created"></dd>
+                <dt>Updated</dt><dd id="meta-updated"></dd>
+            </dl>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script type="module" src="{% static 'js/modules/user_groups.js' %}"></script>
+{% endblock %}

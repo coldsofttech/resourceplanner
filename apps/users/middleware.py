@@ -13,10 +13,21 @@ _EXEMPT = (
     '/logout/',
     '/register/',
     '/password-reset/',
+    '/profile/change-password/',
     '/sso/',
     '/static/',
+    '/media/',
     '/admin/',
     '/api/v1/',   # API auth handled separately via DRF SessionAuthentication
+)
+
+# Additional exemptions for the force-change-password flow so the user
+# can reach the change-password page and log out but nothing else.
+_FORCE_CHANGE_EXEMPT = (
+    '/profile/change-password/',
+    '/logout/',
+    '/static/',
+    '/media/',
 )
 
 
@@ -42,6 +53,31 @@ class AuthRequiredMiddleware(MiddlewareMixin):
 
         next_url = request.get_full_path()
         return redirect(f'/login/?next={next_url}')
+
+
+class ForcePasswordChangeMiddleware(MiddlewareMixin):
+    """
+    If the authenticated user's profile has must_change_password=True,
+    redirect every request to the password-change page until they comply.
+    """
+
+    def process_request(self, request):
+        if not request.user.is_authenticated:
+            return None
+
+        # Allow these paths unconditionally
+        if any(request.path.startswith(p) for p in _FORCE_CHANGE_EXEMPT):
+            return None
+
+        try:
+            must_change = request.user.profile.must_change_password
+        except Exception:
+            return None
+
+        if must_change:
+            return redirect('/profile/change-password/')
+
+        return None
 
 
 class SessionTimeoutMiddleware(MiddlewareMixin):
