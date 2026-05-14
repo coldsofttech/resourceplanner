@@ -272,15 +272,9 @@ class ConfigurationViewSet(viewsets.ViewSet):
     def _perform_update(self, request, pk, partial: bool):
         """
         Update a configuration by specified config id. Shared logic for PUT and PATCH.
+        For secret configs an empty/missing value is treated as a no-op (keep existing).
         """
         value = request.data.get('value')
-        if value is None:
-            return Response(
-                {
-                    "error": "Only the 'value' field can be updated."
-                },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
 
         try:
             try:
@@ -292,6 +286,22 @@ class ConfigurationViewSet(viewsets.ViewSet):
                         "error": "Configuration not found."
                     },
                     status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Non-secret configs require value to be provided
+            if value is None and not instance.is_secret:
+                return Response(
+                    {
+                        "error": "Only the 'value' field can be updated."
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Secret with no value provided → return current state unchanged
+            if value is None and instance.is_secret:
+                return Response(
+                    ConfigurationSerializer(instance).data,
+                    status=status.HTTP_200_OK,
                 )
 
             serializer = ConfigurationSerializer(instance, data=request.data, partial=partial)

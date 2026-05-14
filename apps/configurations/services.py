@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError, ObjectDoesNotExist
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db import DatabaseError, IntegrityError, transaction
 
+from .encryption import encrypt_value, decrypt_value, delete_secret
 from .models import Configuration
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,8 @@ CONFIGURATION_DEFAULTS = {
             "Number of holiday days allocated to each team member per financial year. "
             "Used as the baseline when calculating available capacity in sprint planning."
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     "DEFAULT_HOLIDAYS_PER_SPRINT": {
         "label": "Default holidays per sprint (placeholder engineers)",
@@ -25,6 +28,8 @@ CONFIGURATION_DEFAULTS = {
             "Number of holiday/absence days applied per sprint when generating absence records "
             "for hire placeholder engineers. Defaults to 0 (no absences generated)."
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     # Financial Years
     "FY_EXPIRY_WARNING_DAYS": {
@@ -35,6 +40,8 @@ CONFIGURATION_DEFAULTS = {
             "a warning banner is displayed at the top of every page and the remaining "
             "days cell is highlighted in the Financial Years list."
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     # Sprints
     "SPRINT_NAME_PREFIX": {
@@ -44,6 +51,8 @@ CONFIGURATION_DEFAULTS = {
             "Prefix used when auto-generating sprint names. "
             "For example, 'Sprint', 'SP', etc."
         ),
+        "data_type": "string",
+        "is_secret": False,
     },
     "SPRINT_START_NUMBER": {
         "label": "Sprint Start Number",
@@ -52,6 +61,8 @@ CONFIGURATION_DEFAULTS = {
             "The starting number used when generating the first sprint of a financial year "
             "if no existing sprints are found."
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     "SPRINT_DURATION_DAYS": {
         "label": "Sprint Duration (days)",
@@ -60,6 +71,8 @@ CONFIGURATION_DEFAULTS = {
             "Number of calendar days in a sprint. "
             "Typically set to 14 days (2 weeks)."
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     "SPRINT_POINT_PRICE": {
         "label": "Sprint Point Price (£)",
@@ -67,6 +80,8 @@ CONFIGURATION_DEFAULTS = {
         "description": (
             "Day rate in GBP (£) used for calculating sprint cost based on story points. "
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     # Projects
     "BUDGET_THRESHOLD_PCT_DEFAULT": {
@@ -77,6 +92,8 @@ CONFIGURATION_DEFAULTS = {
             "Remaining > +threshold% = GREEN, within ±threshold% = AMBER, "
             "below -threshold% = RED."
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     "BUDGET_SIZE_XS_MAX_AMOUNT": {
         "label": "T-Shirt Size XS Upper Boundary (£)",
@@ -85,6 +102,8 @@ CONFIGURATION_DEFAULTS = {
             "Maximum actual budget (inclusive) to classify a budget or estimate as X-Small. "
             "Default £20,000."
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     "BUDGET_SIZE_S_MAX_AMOUNT": {
         "label": "T-Shirt Size S Upper Boundary (£)",
@@ -93,6 +112,8 @@ CONFIGURATION_DEFAULTS = {
             "Maximum actual budget (inclusive) to classify a budget or estimate as Small. "
             "Default £60,000."
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     "BUDGET_SIZE_M_MAX_AMOUNT": {
         "label": "T-Shirt Size M Upper Boundary (£)",
@@ -101,6 +122,8 @@ CONFIGURATION_DEFAULTS = {
             "Maximum actual budget (inclusive) to classify a budget or estimate as Medium. "
             "Default £200,000."
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     "BUDGET_SIZE_L_MAX_AMOUNT": {
         "label": "T-Shirt Size L Upper Boundary (£)",
@@ -109,6 +132,8 @@ CONFIGURATION_DEFAULTS = {
             "Maximum actual budget (inclusive) to classify a budget or estimate as Large. "
             "Default £500,000. Anything above is X-Large."
         ),
+        "data_type": "integer",
+        "is_secret": False,
     },
     "BUDGET_SIZE_XS_GREEN_PCT": {
         "label": "T-Shirt Size XS Green Threshold (%)",
@@ -117,6 +142,8 @@ CONFIGURATION_DEFAULTS = {
             "Variance % within which an XS budget/estimate is considered On Budget (GREEN). "
             "Default 0.25%."
         ),
+        "data_type": "float",
+        "is_secret": False,
     },
     "BUDGET_SIZE_S_GREEN_PCT": {
         "label": "T-Shirt Size S Green Threshold (%)",
@@ -125,6 +152,8 @@ CONFIGURATION_DEFAULTS = {
             "Variance % within which a Small budget/estimate is considered On Budget (GREEN). "
             "Default 0.50%."
         ),
+        "data_type": "float",
+        "is_secret": False,
     },
     "BUDGET_SIZE_M_GREEN_PCT": {
         "label": "T-Shirt Size M Green Threshold (%)",
@@ -133,6 +162,8 @@ CONFIGURATION_DEFAULTS = {
             "Variance % within which a Medium budget/estimate is considered On Budget (GREEN). "
             "Default 1.00%."
         ),
+        "data_type": "float",
+        "is_secret": False,
     },
     "BUDGET_SIZE_L_GREEN_PCT": {
         "label": "T-Shirt Size L Green Threshold (%)",
@@ -141,6 +172,8 @@ CONFIGURATION_DEFAULTS = {
             "Variance % within which a Large budget/estimate is considered On Budget (GREEN). "
             "Default 1.00%."
         ),
+        "data_type": "float",
+        "is_secret": False,
     },
     "BUDGET_SIZE_XL_GREEN_PCT": {
         "label": "T-Shirt Size XL Green Threshold (%)",
@@ -149,6 +182,8 @@ CONFIGURATION_DEFAULTS = {
             "Variance % within which an XL budget/estimate is considered On Budget (GREEN). "
             "Default 1.00%."
         ),
+        "data_type": "float",
+        "is_secret": False,
     },
     # AI
     "AI_ENABLED": {
@@ -159,6 +194,8 @@ CONFIGURATION_DEFAULTS = {
             "Set to 'true' to enable. When false, all features fall back to "
             "their deterministic implementations. Accepted values: true, false."
         ),
+        "data_type": "boolean",
+        "is_secret": False,
     },
     "AI_PROVIDER": {
         "label": "AI Provider",
@@ -168,6 +205,8 @@ CONFIGURATION_DEFAULTS = {
             "Accepted values: 'anthropic' (Anthropic API), 'bedrock' (AWS Bedrock). "
             "When set to 'bedrock', the AI_BEDROCK_* configs are also required."
         ),
+        "data_type": "string",
+        "is_secret": False,
     },
     "AI_MODEL": {
         "label": "AI Model",
@@ -178,6 +217,8 @@ CONFIGURATION_DEFAULTS = {
             "Bedrock example: anthropic.claude-3-5-sonnet-20241022-v2:0 "
             "(full Bedrock model ID including version suffix)."
         ),
+        "data_type": "string",
+        "is_secret": False,
     },
     "AI_ANTHROPIC_API_KEY": {
         "label": "Anthropic API Key",
@@ -185,8 +226,10 @@ CONFIGURATION_DEFAULTS = {
         "description": (
             "Anthropic API key (sk-ant-...). "
             "Required only when AI_PROVIDER=anthropic. "
-            "Treat as a secret — do not commit to source control."
+            "Stored encrypted at rest."
         ),
+        "data_type": "string",
+        "is_secret": True,
     },
     "AI_BEDROCK_REGION": {
         "label": "Bedrock Region",
@@ -197,6 +240,8 @@ CONFIGURATION_DEFAULTS = {
             "Must be a region where the chosen model is available. "
             "Examples: us-east-1, eu-west-2, ap-southeast-1."
         ),
+        "data_type": "string",
+        "is_secret": False,
     },
     "AI_BEDROCK_AUTH_MODE": {
         "label": "Bedrock Auth Mode",
@@ -208,6 +253,8 @@ CONFIGURATION_DEFAULTS = {
             "'user' — explicit IAM user credentials stored in AI_BEDROCK_IAM_KEY "
             "and AI_BEDROCK_IAM_SECRET. Use 'user' for local or on-premise deployments."
         ),
+        "data_type": "string",
+        "is_secret": False,
     },
     "AI_BEDROCK_IAM_KEY": {
         "label": "Bedrock IAM Access Key ID",
@@ -216,8 +263,10 @@ CONFIGURATION_DEFAULTS = {
             "AWS IAM user access key ID. "
             "Required only when AI_PROVIDER=bedrock and AI_BEDROCK_AUTH_MODE=user. "
             "The IAM user must have bedrock:InvokeModel permission on the chosen model. "
-            "Treat as a secret — do not commit to source control."
+            "Stored encrypted at rest."
         ),
+        "data_type": "string",
+        "is_secret": True,
     },
     "AI_BEDROCK_IAM_SECRET": {
         "label": "Bedrock IAM Secret Access Key",
@@ -225,14 +274,18 @@ CONFIGURATION_DEFAULTS = {
         "description": (
             "AWS IAM user secret access key. "
             "Required only when AI_PROVIDER=bedrock and AI_BEDROCK_AUTH_MODE=user. "
-            "Treat as a secret — do not commit to source control."
+            "Stored encrypted at rest."
         ),
+        "data_type": "string",
+        "is_secret": True,
     },
     # Add future built-in configs as below
     # "CODE": {
     #   "label": "Human readable label for the config.",
     #   "value": "default value",
     #   "description": "Information on how this config is used.",
+    #   "data_type": "string",   # string | integer | float | boolean
+    #   "is_secret": False,
     # }
 }
 
@@ -351,6 +404,8 @@ class ConfigurationService:
     def update_configuration(config_id: int, value: str):
         """
         Updates the specified configuration id.
+        For secret configs, encrypts the value before saving.
+        Passing an empty value for a secret config is a no-op (existing value preserved).
         """
         if not config_id:
             raise ValidationError(
@@ -361,7 +416,12 @@ class ConfigurationService:
         if not config:
             raise ValidationError(f"Configuration '{config_id}' does not exist.")
 
-        config.value = value
+        if config.is_secret:
+            if value:
+                config.value = encrypt_value(value, config.code)
+            # else: empty → keep existing encrypted value unchanged
+        else:
+            config.value = value
 
         try:
             config.full_clean()
@@ -392,6 +452,7 @@ class ConfigurationService:
     def reset_to_default(config_id: int):
         """
         Resets the configuration to default for the specified configuration id.
+        For secret configs, any backing secret store entry is cleaned up.
         """
         if not config_id:
             raise ValidationError(
@@ -407,6 +468,9 @@ class ConfigurationService:
             raise ValidationError(
                 f"No factory default is registered for '{config.code}'."
             )
+
+        if config.is_secret:
+            delete_secret(config.code, config.value)
 
         config.value = default["value"]
 
@@ -441,17 +505,25 @@ class ConfigurationService:
             raise
 
     @staticmethod
+    def _read_value(cfg: Configuration) -> str:
+        """Return the plaintext value, decrypting secrets automatically."""
+        if cfg.is_secret:
+            return decrypt_value(cfg.value, cfg.code)
+        return cfg.value
+
+    @staticmethod
     def get_int(code: str, fallback: int = 0) -> int:
         try:
             cfg = Configuration.objects.get(code=code.strip().upper())
-            return int(cfg.value)
+            return int(ConfigurationService._read_value(cfg))
         except (ObjectDoesNotExist, ValueError, TypeError):
             return fallback
 
     @staticmethod
     def get_str(code: str, fallback: str = "") -> str:
         try:
-            return Configuration.objects.get(code=code.strip().upper()).value
+            cfg = Configuration.objects.get(code=code.strip().upper())
+            return ConfigurationService._read_value(cfg)
         except ObjectDoesNotExist:
             return fallback
 
@@ -459,7 +531,7 @@ class ConfigurationService:
     def get_float(code: str, fallback: float = 0.0) -> float:
         try:
             cfg = Configuration.objects.get(code=code.strip().upper())
-            return float(cfg.value)
+            return float(ConfigurationService._read_value(cfg))
         except (ObjectDoesNotExist, ValueError, TypeError):
             return fallback
 
@@ -467,6 +539,6 @@ class ConfigurationService:
     def get_bool(code: str, fallback: bool = False) -> bool:
         try:
             cfg = Configuration.objects.get(code=code.strip().upper())
-            return cfg.value.strip().lower() in ("1", "true", "yes", "on")
+            return ConfigurationService._read_value(cfg).strip().lower() in ("1", "true", "yes", "on")
         except ObjectDoesNotExist:
             return fallback

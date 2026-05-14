@@ -23,13 +23,22 @@ def _seed_defaults(sender, **kwargs):
     with transaction.atomic():
         for code, meta in CONFIGURATION_DEFAULTS.items():
             try:
-                Configuration.objects.update_or_create(
+                obj, created = Configuration.objects.get_or_create(
                     code=code,
                     defaults={
                         "label": meta["label"],
                         "value": meta["value"],
                         "description": meta["description"],
-                    }
+                        "data_type": meta.get("data_type", "string"),
+                        "is_secret": meta.get("is_secret", False),
+                    },
                 )
+                if not created:
+                    # Update metadata fields only; preserve any user-set (or encrypted) value.
+                    obj.label = meta["label"]
+                    obj.description = meta["description"]
+                    obj.data_type = meta.get("data_type", "string")
+                    obj.is_secret = meta.get("is_secret", False)
+                    obj.save(update_fields=["label", "description", "data_type", "is_secret"])
             except Exception as e:
-                logger.exception(f"Failed to create default configuration for {code}: {e}")
+                logger.exception("Failed to seed default configuration for %s: %s", code, e)

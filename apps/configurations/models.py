@@ -9,14 +9,23 @@ _CODE_VALIDATOR = RegexValidator(
     ),
 )
 
+DATA_TYPE_CHOICES = [
+    ('string', 'String'),
+    ('integer', 'Integer'),
+    ('float', 'Float'),
+    ('boolean', 'Boolean'),
+]
+
 
 class Configuration(models.Model):
     """
     Structure:
     * code: TEXT NOT NULL UNIQUE 50 CHARS
     * label: TEXT NOT NULL 120 CHARS
-    * value: TEXT NOT NULL
+    * value: TEXT NOT NULL (encrypted if is_secret=True)
     * description: TEXT
+    * data_type: TEXT — string | integer | float | boolean
+    * is_secret: BOOL — if True, value is encrypted at rest
     * created_at: DATETIME
     * updated_at: DATETIME
     """
@@ -31,10 +40,24 @@ class Configuration(models.Model):
         help_text='Short human-readable label for this configuration.',
     )
     value = models.CharField(
-        help_text='Stored value (always a string; cast to the appropriate type when used).',
+        blank=True,
+        help_text=(
+            'Stored value (always a string). '
+            'Encrypted at rest when is_secret=True; cast to the appropriate type when used.'
+        ),
     )
     description = models.CharField(
         blank=True
+    )
+    data_type = models.CharField(
+        max_length=10,
+        choices=DATA_TYPE_CHOICES,
+        default='string',
+        help_text='Expected data type of the stored value.',
+    )
+    is_secret = models.BooleanField(
+        default=False,
+        help_text='If true, the value is treated as a secret and stored encrypted.',
     )
     created_at = models.DateTimeField(
         auto_now_add=True
@@ -47,4 +70,6 @@ class Configuration(models.Model):
         ordering = ['code']
 
     def __str__(self):
-        return f"{self.code} = {self.value}"
+        if self.is_secret and self.value:
+            return f'{self.code} = ••••••••'
+        return f'{self.code} = {self.value}'

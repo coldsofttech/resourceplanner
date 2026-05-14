@@ -16,6 +16,15 @@ let fetcher = null;
 const configPk = getPkFromUrl('configurations');
 const isEdit = isSubPathUrl('configurations', 'edit');
 
+const SECRET_MASK = '••••••••';
+
+const DATA_TYPE_ICONS = {
+    string:  'bi-fonts',
+    integer: 'bi-hash',
+    float:   'bi-calculator',
+    boolean: 'bi-toggle-on',
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     const teamsTable = document.getElementById('configs-table');
     if (teamsTable) {
@@ -46,7 +55,7 @@ function initListView() {
 
     const renderer = initRenderer({
         tbodyId: 'configs-tbody',
-        colspan: 5,
+        colspan: 6,
         itemLabel: 'configurations',
         rowTemplate: renderConfigurationRow,
         emptyState: {
@@ -90,6 +99,35 @@ function initListView() {
     });
 }
 
+function renderDataTypeBadge(config) {
+    const icon = DATA_TYPE_ICONS[config.data_type] || 'bi-fonts';
+    const label = config.data_type || 'string';
+    const secretBadge = config.is_secret
+        ? `<span class="rp-badge rp-badge--warning ms-1" title="Encrypted at rest">
+               <i class="bi bi-shield-lock-fill"></i>
+           </span>`
+        : '';
+    return `<span class="text-secondary small"><i class="bi ${icon} me-1"></i>${escHtml(label)}</span>${secretBadge}`;
+}
+
+function renderValueCell(config) {
+    if (config.is_secret) {
+        if (config.value) {
+            return `<span class="rp-badge rp-badge--muted">
+                        <i class="bi bi-lock-fill me-1"></i>${escHtml(SECRET_MASK)}
+                    </span>`;
+        }
+        return `<span class="text-muted fst-italic small">Not set</span>`;
+    }
+    if (config.data_type === 'boolean') {
+        const isTrue = config.value === 'true';
+        return `<span class="rp-badge ${isTrue ? 'rp-badge--success' : 'rp-badge--muted'}">
+                    ${escHtml(config.value ?? '')}
+                </span>`;
+    }
+    return `<span class="rp-value-pill">${escHtml(config.value ?? '')}</span>`;
+}
+
 function renderConfigurationRow(config) {
     return `
         <tr data-config-id="${config.id}">
@@ -105,9 +143,10 @@ function renderConfigurationRow(config) {
                 </span>
             </td>
             <td>
-                <span class="rp-value-pill">
-                    ${escHtml(config.value ?? '')}
-                </span>
+                ${renderDataTypeBadge(config)}
+            </td>
+            <td>
+                ${renderValueCell(config)}
             </td>
             <td class="text-secondary"
                 style="max-width: 300px;">
@@ -176,27 +215,33 @@ async function initEditView() {
 
 async function handleCreateEditSubmit(e) {
     e.preventDefault();
-    clearErrors(['value']);
 
-    const valueInput = document.getElementById('id_value');
-    if (!valueInput.value.trim()) {
-        valueInput.classList.add('is-invalid');
-        document.getElementById('value-error').textContent = 'Value is required.';
-        valueInput.focus();
+    // Clear previous errors
+    const valueEl = document.getElementById('id_value');
+    valueEl?.classList.remove('is-invalid');
+    const errEl = document.getElementById('value-error');
+    if (errEl) errEl.textContent = '';
+
+    const config = e.target._configData;
+    const rawValue = valueEl ? valueEl.value : '';
+
+    // For non-secret configs, value is required
+    if (!config?.is_secret && !rawValue.trim()) {
+        valueEl?.classList.add('is-invalid');
+        if (errEl) errEl.textContent = 'Value is required.';
+        valueEl?.focus();
         return;
     }
 
-    const payload = {
-        value: valueInput.value.trim(),
-    };
+    const payload = { value: rawValue.trim() };
 
-    const method = API_URLS.configurations.partial_edit(configPk).method
-    const url = API_URLS.configurations.partial_edit(configPk).href
+    const method = API_URLS.configurations.partial_edit(configPk).method;
+    const url    = API_URLS.configurations.partial_edit(configPk).href;
 
     setSubmitting(true);
 
     try {
-        const res = await apiFetch(url, { method, body: JSON.stringify(payload) });
+        await apiFetch(url, { method, body: JSON.stringify(payload) });
         window.location.href = URLS.configurations.list;
     } catch (err) {
         if (err?.status === 400) {
@@ -225,16 +270,30 @@ async function populateForm(config) {
     const pageTitle     = document.getElementById('page-title');
     const pageSubtitle  = document.getElementById('page-subtitle');
     const metadataCard  = document.getElementById('metadata-card');
-    const resetBtnSlot = document.getElementById('reset-btn-slot');
+    const resetBtnSlot  = document.getElementById('reset-btn-slot');
     const overrideBadge = document.getElementById('override-badge');
+    const secretBadge   = document.getElementById('id_secret_badge');
+    const formEl        = document.getElementById('config-form');
 
-    document.getElementById('id_code').textContent  = config.code        ?? '';
-    document.getElementById('id_label').textContent = config.label       ?? '';
+    // Attach config data to the form element so the submit handler can read it
+    formEl._configData = config;
+
+    document.getElementById('id_code').textContent        = config.code        ?? '';
+    document.getElementById('id_label').textContent       = config.label       ?? '';
     document.getElementById('id_description').textContent = config.description ?? '';
-    document.getElementById('id_value').value = config.value ?? '';
 
-    pageTitle.textContent    = 'Edit Configuration';
-    pageSubtitle.innerHTML   = `Updating <strong>${escHtml(config.code)}</strong>`;
+    // Data type display
+    const dtIcon  = DATA_TYPE_ICONS[config.data_type] || 'bi-fonts';
+    document.getElementById('id_data_type').innerHTML =
+        `<i class="bi ${dtIcon} me-1"></i>${escHtml(config.data_type || 'string')}`;
+
+    // Secret badge
+    if (config.is_secret) {
+        secretBadge?.classList.remove('d-none');
+    }
+
+    pageTitle.textContent  = 'Edit Configuration';
+    pageSubtitle.innerHTML = `Updating <strong>${escHtml(config.code)}</strong>`;
 
     document.getElementById('meta-created').textContent = formatDateTime(config.created_at);
     document.getElementById('meta-updated').textContent = formatDateTime(config.updated_at);
@@ -252,11 +311,106 @@ async function populateForm(config) {
         );
 
     const def_value = await getDefault(config.code);
-    document.getElementById('id_default_value').textContent = def_value.default_value ?? '';
-    if (config.value !== def_value.default_value) {
-        overrideBadge.classList.remove('d-none');
+    const defaultVal = def_value?.default_value ?? '';
+
+    // System default hint
+    if (config.is_secret) {
+        document.getElementById('id_default_value').textContent = defaultVal || '(empty)';
     } else {
-        overrideBadge.classList.add('d-none');
+        document.getElementById('id_default_value').textContent = defaultVal;
+        if (config.value !== defaultVal) {
+            overrideBadge.classList.remove('d-none');
+        } else {
+            overrideBadge.classList.add('d-none');
+        }
+    }
+
+    // Render the appropriate value control
+    renderValueControl(config);
+}
+
+function renderValueControl(config) {
+    const container = document.getElementById('value-control-container');
+    const hintEl    = document.getElementById('value-hint');
+
+    if (config.is_secret) {
+        container.innerHTML = `
+            <div class="input-group">
+                <input type="password"
+                       id="id_value"
+                       name="value"
+                       class="form-control rp-input"
+                       autocomplete="new-password"
+                       placeholder="${config.value ? 'Enter new value to replace the current secret' : 'Enter secret value'}">
+                <button class="btn btn-outline-secondary"
+                        type="button"
+                        id="toggle-secret-btn"
+                        title="Show / hide value">
+                    <i class="bi bi-eye" id="toggle-secret-icon"></i>
+                </button>
+            </div>`;
+        if (hintEl) {
+            hintEl.textContent = config.value
+                ? 'A secret value is already stored. Leave blank to keep it unchanged.'
+                : 'Enter the secret value. It will be encrypted before being saved.';
+        }
+        document.getElementById('toggle-secret-btn').addEventListener('click', () => {
+            const inp  = document.getElementById('id_value');
+            const icon = document.getElementById('toggle-secret-icon');
+            const isPassword = inp.type === 'password';
+            inp.type       = isPassword ? 'text' : 'password';
+            icon.className = isPassword ? 'bi bi-eye-slash' : 'bi bi-eye';
+        });
+
+    } else if (config.data_type === 'boolean') {
+        const cur = config.value === 'true' ? 'true' : 'false';
+        container.innerHTML = `
+            <select id="id_value"
+                    name="value"
+                    class="form-select rp-input"
+                    style="max-width:200px;">
+                <option value="true"  ${cur === 'true'  ? 'selected' : ''}>true</option>
+                <option value="false" ${cur === 'false' ? 'selected' : ''}>false</option>
+            </select>`;
+        if (hintEl) hintEl.textContent = 'Select true or false.';
+
+    } else if (config.data_type === 'integer') {
+        container.innerHTML = `
+            <input type="number"
+                   id="id_value"
+                   name="value"
+                   class="form-control rp-input"
+                   style="max-width:240px;"
+                   step="1"
+                   value="${escAttr(config.value ?? '')}"
+                   autocomplete="off">`;
+        if (hintEl) hintEl.textContent = 'Enter a whole number (no decimals).';
+
+    } else if (config.data_type === 'float') {
+        container.innerHTML = `
+            <input type="number"
+                   id="id_value"
+                   name="value"
+                   class="form-control rp-input"
+                   style="max-width:240px;"
+                   step="any"
+                   value="${escAttr(config.value ?? '')}"
+                   autocomplete="off">`;
+        if (hintEl) hintEl.textContent = 'Enter a decimal number (e.g. 1.50).';
+
+    } else {
+        // string
+        container.innerHTML = `
+            <textarea id="id_value"
+                      name="value"
+                      class="form-control rp-input"
+                      rows="3"
+                      autocomplete="off"
+                      placeholder="Enter value">${escHtml(config.value ?? '')}</textarea>`;
+        if (hintEl) {
+            hintEl.textContent =
+                'Values are stored as strings. Use pipe characters (|) to separate multiple values, e.g. option1|option2.';
+        }
     }
 }
 
@@ -295,14 +449,22 @@ async function initDetailView() {
 async function renderDetailTitle(config, def) {
     document.getElementById('config-code').textContent = config.code;
 
-    if (config.value !== def.default_value) {
-        document.getElementById('config-overridden').classList.add('rp-badge--warning');
-        document.getElementById('config-overridden').classList.remove('rp-badge--success');
-        document.getElementById('config-overridden').textContent = 'Overridden';
+    // Override / Default badge
+    const overriddenEl = document.getElementById('config-overridden');
+    if (config.is_secret) {
+        // For secrets we can't compare masked value to default, so skip the badge
+        overriddenEl.classList.remove('rp-badge--warning', 'rp-badge--success');
+        overriddenEl.textContent = '';
     } else {
-        document.getElementById('config-overridden').classList.remove('rp-badge--warning');
-        document.getElementById('config-overridden').classList.add('rp-badge--success');
-        document.getElementById('config-overridden').textContent = 'Default';
+        const isOverridden = config.value !== (def?.default_value ?? '');
+        overriddenEl.classList.toggle('rp-badge--warning', isOverridden);
+        overriddenEl.classList.toggle('rp-badge--success', !isOverridden);
+        overriddenEl.textContent = isOverridden ? 'Overridden' : 'Default';
+    }
+
+    // Secret badge
+    if (config.is_secret) {
+        document.getElementById('config-secret-badge')?.classList.remove('d-none');
     }
 
     document.getElementById('config-label').textContent = config.label;
@@ -310,15 +472,51 @@ async function renderDetailTitle(config, def) {
 }
 
 function renderConfigDetails(config, def) {
-    document.getElementById('current-value').textContent = config.value;
-    document.getElementById('factory-default').textContent = def.default_value;
-    document.getElementById('config-description').textContent = config.description ?? "-";
+    // Current Value
+    const currentValueEl = document.getElementById('current-value');
+    if (config.is_secret) {
+        if (config.value) {
+            currentValueEl.innerHTML =
+                `<span class="rp-badge rp-badge--muted">
+                     <i class="bi bi-lock-fill me-1"></i>${escHtml(SECRET_MASK)}
+                 </span>`;
+        } else {
+            currentValueEl.innerHTML =
+                `<span class="text-muted fst-italic">Not set</span>`;
+        }
+    } else if (config.data_type === 'boolean') {
+        const isTrue = config.value === 'true';
+        currentValueEl.innerHTML =
+            `<span class="rp-badge ${isTrue ? 'rp-badge--success' : 'rp-badge--muted'} rp-value-pill--lg">
+                 ${escHtml(config.value ?? '')}
+             </span>`;
+    } else {
+        currentValueEl.textContent = config.value;
+    }
+
+    // System Default
+    const defEl = document.getElementById('factory-default');
+    if (config.is_secret) {
+        defEl.innerHTML = `<span class="text-muted fst-italic small">(secret — no displayable default)</span>`;
+    } else {
+        defEl.textContent = def?.default_value ?? '—';
+    }
+
+    // Data Type
+    const dtIcon = DATA_TYPE_ICONS[config.data_type] || 'bi-fonts';
+    document.getElementById('config-data-type').innerHTML =
+        `<i class="bi ${dtIcon} me-1"></i>${escHtml(config.data_type || 'string')}` +
+        (config.is_secret
+            ? ` <span class="rp-badge rp-badge--warning ms-1"><i class="bi bi-shield-lock-fill me-1"></i>Encrypted</span>`
+            : '');
+
+    document.getElementById('config-description').textContent = config.description ?? '—';
     document.getElementById('meta-created').textContent = formatDateTime(config.created_at);
     document.getElementById('meta-updated').textContent = formatDateTime(config.updated_at);
 }
 
 /*
- * Delete Modal - Shared
+ * Reset Modal - Shared
  */
 function confirmReset(id, name, onSuccess) {
     const modal     = document.getElementById('resetModal');
@@ -349,7 +547,7 @@ function confirmReset(id, name, onSuccess) {
                 return;
             }
             showFlash(
-                err?.data?.detail || `Failed to delete configuration "${name}". Please try again.`,
+                err?.data?.detail || `Failed to reset configuration "${name}". Please try again.`,
                 'error'
             );
         } finally {
@@ -365,11 +563,13 @@ function confirmReset(id, name, onSuccess) {
  * Export View
  */
 const LIST_EXPORT_COLUMNS = [
-    { key: 'id', label: 'ID' },
-    { key: 'code', label: 'Code' },
-    { key: 'label', label: 'Label' },
-    { key: 'value', label: 'Value' },
-    { key: 'description', label: 'Description' }
+    { key: 'id',          label: 'ID' },
+    { key: 'code',        label: 'Code' },
+    { key: 'label',       label: 'Label' },
+    { key: 'data_type',   label: 'Type' },
+    { key: 'is_secret',   label: 'Secret' },
+    { key: 'value',       label: 'Value' },
+    { key: 'description', label: 'Description' },
 ];
 
 async function runListExport(format) {
@@ -414,9 +614,10 @@ async function getDefault(code) {
                 'warning',
             );
             setTimeout(() => { window.location.href = URLS.configurations.list; }, 3000);
-            return;
+            return null;
         }
         showFlash(err?.data?.error || 'Could not load configuration details. Please refresh.', 'danger');
+        return null;
     }
 }
 

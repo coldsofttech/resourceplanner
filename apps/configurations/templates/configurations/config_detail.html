@@ -16,6 +16,10 @@
                       id="config-code"></span>
                 <span id="config-overridden"
                       class="rp-badge"></span>
+                <span id="config-secret-badge"
+                      class="rp-badge rp-badge--warning d-none">
+                    <i class="bi bi-shield-lock-fill me-1"></i>Secret
+                </span>
             </h1>
             <p class="rp-page-subtitle"
                id="config-label"></p>
@@ -38,20 +42,22 @@
      class="row g-4">
     <!-- Left Panel -->
     <div class="col-lg-12">
-        <!-- Team Details -->
+        <!-- Configuration Details -->
         <div class="rp-card mb-3">
             <h6 class="rp-card-heading">Configuration Details</h6>
             <dl class="rp-meta-list">
                 <dt>Current Value</dt>
-                <dd>
+                <dd id="current-value-cell">
                     <span class="rp-value-pill rp-value-pill--lg"
                           id="current-value"></span>
                 </dd>
-                <dt>System default</dt>
+                <dt>System Default</dt>
                 <dd>
                     <span class="rp-value-fill"
                           id="factory-default"></span>
                 </dd>
+                <dt>Data Type</dt>
+                <dd id="config-data-type"></dd>
                 <dt>Description</dt>
                 <dd id="config-description"></dd>
             </dl>

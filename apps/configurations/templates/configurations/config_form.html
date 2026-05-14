@@ -33,6 +33,10 @@
                     <span class="rp-badge rp-badge--muted">
                         <i class="bi bi-lock-fill me-1"></i>System
                     </span>
+                    <span id="id_secret_badge"
+                          class="rp-badge rp-badge--warning d-none">
+                        <i class="bi bi-shield-lock-fill me-1"></i>Secret
+                    </span>
                 </div>
             </div>
 
@@ -42,6 +46,15 @@
                 <div class="rp-locked-field">
                     <span class="text-secondary"
                           id="id_label"></span>
+                </div>
+            </div>
+
+            <!-- Data Type -->
+            <div class="rp-field mb-4">
+                <label class="rp-label">Data Type</label>
+                <div class="rp-locked-field">
+                    <span id="id_data_type"
+                          class="text-secondary"></span>
                 </div>
             </div>
 
@@ -58,8 +71,7 @@
                 style="border-color: var(--color-border);" />
 
             <form id="config-form"
-                  novalidate
-                  data-config-id="{{ configuration.pk|default: '' }">
+                  novalidate>
                 {% csrf_token %}
                 <!-- Value -->
                 <div class="rp-field mb-4">
@@ -77,23 +89,14 @@
                               id="override-badge">Overridden</span>
                     </div>
 
-                    <span id="value-control"></span>
-
-                    <textarea id="id_value"
-                              name="value"
-                              class="form-control rp-input"
-                              rows="3"
-                              autocomplete="off"
-                              autofocus
-                              placeholder="For a simple value enter e.g. 20. For multiple values, separate with | e.g. option1|option2|option3"></textarea>
+                    <!-- Dynamic value control injected by JS based on data_type / is_secret -->
+                    <div id="value-control-container"></div>
 
                     <div class="invalid-feedback"
                          id="value-error"></div>
 
-                    <p class="rp-hint mt-1">
-                        Values are stored as strings and cast to the correct type (integer, boolean, etc.)
-                        when read by the application.
-                    </p>
+                    <p class="rp-hint mt-1"
+                       id="value-hint"></p>
                 </div>
 
                 <!-- Form Errors (non-field) -->
@@ -130,23 +133,22 @@
             </h6>
             <ul class="rp-tip-list">
                 <li>
-                    Use <strong>pipe characters</strong> (<code>|</code>) to separate multiple values,
-                    e.g. <code>option1|option2|option3</code>. Order matters — values appear in the UI in the order listed.
+                    Only the <strong>value</strong> field can be changed.
+                    Code, label, data type, and description are system-managed.
                 </li>
                 <li>
-                    Enter a day rate in <strong>GBP (£)</strong> as a decimal, e.g. <code>850.00</code>.
-                    Used to calculate project cost: estimate days × day rate × (1 + contingency%).
-                    Changing this does <strong>not</strong> update existing records retroactively.
+                    The input control shown is determined by the configuration's
+                    <strong>data type</strong>: a toggle for booleans, a number field
+                    for integers and decimals, a password field for secrets, and a
+                    text area for strings.
                 </li>
                 <li>
-                    Only the <strong>value</strong> field can be changed. Code, label, and description are system-managed.
-                </li>
-                <li>
-                    Values may be a number (e.g. <code>20</code>), a decimal (e.g. <code>0.85</code>),
-                    or a boolean (<code>true</code> / <code>false</code>).
+                    <strong>Secret</strong> values are encrypted before being saved.
+                    Leaving the secret field blank keeps the current value unchanged.
                 </li>
                 <li>
                     Click <strong>Reset to default</strong> to restore the system value at any time.
+                    For secret fields this clears the stored secret.
                 </li>
             </ul>
         </div>
