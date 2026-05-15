@@ -3,7 +3,7 @@
 import {
     apiFetch, showFlash, formatDateTime, setPageTitle, escHtml, escAttr,
     getPkFromUrl, isSubPathUrl, clearErrors, setSubmitting,
-    showBanner, applyErrors
+    showBanner, applyErrors, hasPerm
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -145,16 +145,18 @@ function renderTypeRow(type) {
                        title="View type">
                         <i class="bi bi-eye"></i>
                     </a>
+                    ${hasPerm('employment_types.change_employmenttype') ? `
                     <a href="${URLS.employment_types.edit(type.id)}"
                        class="btn btn-ghost-icon"
                        title="Edit type">
                         <i class="bi bi-pencil"></i>
-                    </a>
+                    </a>` : ''}
+                    ${hasPerm('employment_types.delete_employmenttype') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger"
                             title="Delete type"
                             onclick="confirmDelete(${type.id}, '${escAttr(type.name)}', onDeleteFromList)">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

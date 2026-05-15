@@ -8,9 +8,12 @@
         <p class="rp-page-subtitle">Track confirmed leave for all team members</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
+        {% if user.is_staff %}
         <a href="/import/?module=leaves" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
+        {% endif %}
+        {% if user.is_staff or perms.member_leaves.export %}
         <div class="dropdown">
             <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
                     data-bs-toggle="dropdown" aria-expanded="false">
@@ -29,9 +32,12 @@
                 </li>
             </ul>
         </div>
+        {% endif %}
+        {% if user.is_staff or perms.member_leaves.add_memberleave or perms.member_leaves.add_own or perms.member_leaves.add_behalf %}
         <a href="/leaves/new/" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-lg me-1"></i>New Leave
         </a>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

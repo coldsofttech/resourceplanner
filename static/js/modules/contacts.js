@@ -3,7 +3,7 @@
 import { initFetch } from './../list/fetch.js';
 import { initRenderer } from './../list/render.js';
 import { initSorting } from './../list/sort.js';
-import { apiFetch, escAttr, escHtml, formatDateTime, setPageTitle, showFlash } from './../main.js';
+import { apiFetch, escAttr, escHtml, formatDateTime, setPageTitle, showFlash, hasPerm } from './../main.js';
 import { API_URLS, URLS } from './../urls.js';
 import { exportToCsv, exportToPdf } from '../export.js';
 
@@ -168,6 +168,7 @@ function renderContactRow(contact) {
                             onclick="openViewModal(${contact.id})">
                         <i class="bi bi-eye"></i>
                     </button>
+                    ${hasPerm('contacts.change_contact') ? `
                     <button class="btn btn-ghost-icon" title="Edit contact"
                             onclick="openEditModal(${contact.id}, '${escAttr(contact.name)}', '${escAttr(contact.email)}')">
                         <i class="bi bi-pencil"></i>
@@ -175,11 +176,12 @@ function renderContactRow(contact) {
                     <button class="btn btn-ghost-icon ${activeBtnClass}" title="${activeBtnTitle}"
                             onclick="openActiveModal(${contact.id}, '${escAttr(contact.name)}', ${contact.is_active})">
                         <i class="bi bi-check-circle"></i>
-                    </button>
+                    </button>` : ''}
+                    ${hasPerm('contacts.delete_contact') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger" title="Delete contact"
                             onclick="openDeleteModal(${contact.id}, '${escAttr(contact.name)}')">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>
@@ -241,14 +243,22 @@ function _renderViewError(message) {
 
 function _renderViewContent(contact) {
     const editBtn = document.getElementById('contact-view-edit-btn');
-    editBtn.classList.remove('d-none');
+    if (hasPerm('contacts.change_contact')) {
+        editBtn.classList.remove('d-none');
+    } else {
+        editBtn.classList.add('d-none');
+    }
     editBtn.onclick = () => {
         _hideModal('contactViewModal');
         openEditModal(contact.id, contact.name, contact.email);
     };
 
     const deleteBtn = document.getElementById('contact-view-delete-btn');
-    deleteBtn.classList.remove('d-none');
+    if (hasPerm('contacts.delete_contact')) {
+        deleteBtn.classList.remove('d-none');
+    } else {
+        deleteBtn.classList.add('d-none');
+    }
     deleteBtn.onclick = () => {
         _hideModal('contactViewModal');
         openDeleteModal(contact.id, contact.name);

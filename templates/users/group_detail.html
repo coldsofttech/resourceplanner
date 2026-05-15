@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ group.name }} — User Groups — Resource Planner{% endblock %}
+{% block title %}User Group — Resource Planner{% endblock %}
 
 {% block page_header %}
 <div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
@@ -8,24 +8,13 @@
             <i class="bi bi-arrow-left"></i>
         </a>
         <div>
-            <h1 class="rp-page-title" id="page-group-name">{{ group.name }}</h1>
+            <h1 class="rp-page-title" id="page-group-name">Loading…</h1>
             <p class="rp-page-subtitle" id="page-group-subtitle">
-                {% if group.is_admin_group %}<span class="rp-badge rp-badge--warning me-2">Admin Group</span>{% endif %}
-                {% if group.is_system %}<span class="rp-badge rp-badge--info me-2">System</span>{% endif %}
                 <span id="member-count-subtitle"></span>
             </p>
         </div>
     </div>
-    <div class="d-flex gap-2" id="header-actions">
-        {% if not group.is_system %}
-        <a href="/user-groups/{{ group.pk }}/edit/" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-pencil me-1"></i>Edit
-        </a>
-        <button class="btn btn-danger btn-sm" id="delete-group-btn">
-            <i class="bi bi-trash me-1"></i>Delete
-        </button>
-        {% endif %}
-    </div>
+    <div class="d-flex gap-2" id="header-actions"></div>
 </div>
 {% endblock %}
 
@@ -155,7 +144,7 @@
             </div>
             <div class="modal-body">
                 <p class="text-secondary mb-0">
-                    <strong>{{ group.name }}</strong> will be permanently removed.
+                    <strong id="delete-group-name-modal"></strong> will be permanently removed.
                     Members will lose the associated access.
                 </p>
             </div>
@@ -171,7 +160,7 @@
 {% block extra_js %}
 {% load static %}
 <script>
-    window.GROUP_PK = {{ group.pk }};
+    window.GROUP_PK = {{ group_pk }};
 </script>
 <script type="module" src="{% static 'js/modules/user_groups.js' %}"></script>
 {% endblock %}

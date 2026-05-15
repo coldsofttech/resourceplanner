@@ -3,7 +3,7 @@
 import { initFetch } from "./../list/fetch.js";
 import { initRenderer } from "./../list/render.js";
 import { initSorting } from "./../list/sort.js";
-import { apiFetch, escAttr, escHtml, setPageTitle, showFlash } from "./../main.js";
+import { apiFetch, escAttr, escHtml, setPageTitle, showFlash, hasPerm } from "./../main.js";
 import { API_URLS, URLS } from "./../urls.js";
 import { exportToCsv, exportToPdf } from "../export.js";
 
@@ -475,6 +475,7 @@ function renderStatusRow(status) {
         <tr data-status-id="${status.id}">
             <td style="width:36px; padding: 0 8px;">
                 <div class="d-flex flex-column align-items-center" style="gap:1px;">
+                    ${hasPerm('project_sub_statuses.change_projectsubstatus') ? `
                     <button class="btn btn-ghost-icon btn-sm p-0"
                             style="height:16px; min-height:unset; line-height:1;"
                             title="Move up" onclick="moveUp(${status.id}, '${escAttr(status.name)}', '${escAttr(status.main_status)}')">
@@ -484,7 +485,7 @@ function renderStatusRow(status) {
                             style="height:16px; min-height:unset; line-height:1;"
                             title="Move down" onclick="moveDown(${status.id}, '${escAttr(status.name)}', '${escAttr(status.main_status)}')">
                         <i class="bi bi-chevron-down" style="font-size:11px;"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
             <td>
@@ -498,18 +499,20 @@ function renderStatusRow(status) {
             </td>
             <td class="text-center">
                 <div class="d-flex justify-content-center gap-1">
-                    <button class="btn btn-ghost-icon" title="Edit sub-status" 
+                    ${hasPerm('project_sub_statuses.change_projectsubstatus') ? `
+                    <button class="btn btn-ghost-icon" title="Edit sub-status"
                             onclick="openEditModal(${status.id}, '${escAttr(status.name)}', '${escAttr(status.main_status)}')">
                         <i class="bi bi-pencil"></i>
                     </button>
-                    <button class="btn btn-ghost-icon ${activateBtnClass}" title="${activateBtnTitle}" 
+                    <button class="btn btn-ghost-icon ${activateBtnClass}" title="${activateBtnTitle}"
                             onclick="openActiveModal(${status.id}, '${escAttr(status.name)}', ${status.is_active}, '${escAttr(status.main_status)}')">
                         <i class="bi bi-check-circle"></i>
-                    </button>
-                    <button class="btn btn-ghost-icon btn-ghost-icon--danger" title="Delete sub-status" 
+                    </button>` : ''}
+                    ${hasPerm('project_sub_statuses.delete_projectsubstatus') ? `
+                    <button class="btn btn-ghost-icon btn-ghost-icon--danger" title="Delete sub-status"
                             onclick="openDeleteModal(${status.id}, '${escAttr(status.name)}', '${escAttr(status.main_status)}')">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

@@ -9,13 +9,16 @@
     </div>
 
     <div class="d-flex gap-2 flex-wrap">
+        {% if user.is_staff or perms.sprints.add_sprint or perms.sprints.run %}
         <!-- Run Engine -->
         <button class="btn btn-warning btn-sm"
                 id="run-engine-btn"
                 title="Auto-generate sprints for a financial year">
             <i class="bi bi-lightning-charge me-1"></i>Run Engine
         </button>
+        {% endif %}
 
+        {% if user.is_staff or perms.sprints.export %}
         <!-- Export -->
         <div class="dropdown">
             <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
@@ -37,11 +40,14 @@
                 </li>
             </ul>
         </div>
+        {% endif %}
 
+        {% if user.is_staff or perms.sprints.add_sprint %}
         <!-- New Sprint -->
         <a href="/sprints/new/" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-lg me-1"></i>New Sprint
         </a>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

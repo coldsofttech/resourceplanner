@@ -3,7 +3,7 @@
 import { initFetch } from './../list/fetch.js';
 import { initRenderer } from './../list/render.js';
 import { initSorting } from './../list/sort.js';
-import { apiFetch, escAttr, escHtml, formatDateTime, setPageTitle, showFlash } from './../main.js';
+import { apiFetch, escAttr, escHtml, formatDateTime, setPageTitle, showFlash, hasPerm } from './../main.js';
 import { API_URLS, URLS } from './../urls.js';
 import { exportToCsv, exportToPdf } from '../export.js';
 
@@ -189,6 +189,7 @@ function renderProgrammeRow(prog) {
                             onclick="openViewModal(${prog.id})">
                         <i class="bi bi-eye"></i>
                     </button>
+                    ${hasPerm('programmes.change_programme') ? `
                     <button class="btn btn-ghost-icon" title="Edit programme"
                             onclick="openEditModal(${prog.id}, '${escAttr(prog.name)}', '${escAttr(prog.description)}')">
                         <i class="bi bi-pencil"></i>
@@ -196,11 +197,12 @@ function renderProgrammeRow(prog) {
                     <button class="btn btn-ghost-icon ${activeBtnClass}" title="${activeBtnTitle}"
                             onclick="openActiveModal(${prog.id}, '${escAttr(prog.name)}', ${prog.is_active})">
                         <i class="bi bi-check-circle"></i>
-                    </button>
+                    </button>` : ''}
+                    ${hasPerm('programmes.delete_programme') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger" title="Delete programme"
                             onclick="openDeleteModal(${prog.id}, '${escAttr(prog.name)}')">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>
@@ -266,7 +268,7 @@ function _renderViewError(message) {
 
 async function _renderViewContent(prog) {
     const editBtn = document.getElementById('prog-view-edit-btn');
-    if (prog.is_protected) {
+    if (prog.is_protected || !hasPerm('programmes.change_programme')) {
         editBtn.classList.add('d-none');
     } else {
         editBtn.classList.remove('d-none');
@@ -277,7 +279,7 @@ async function _renderViewContent(prog) {
     }
 
     const deleteBtn = document.getElementById('prog-view-delete-btn');
-    if (prog.is_protected) {
+    if (prog.is_protected || !hasPerm('programmes.delete_programme')) {
         deleteBtn.classList.add('d-none');
     } else {
         deleteBtn.classList.remove('d-none');

@@ -76,7 +76,7 @@ function renderGroupRow(g) {
                 <a href="/user-groups/${g.id}/" class="fw-500 rp-link">${escHtml(g.name)}</a>
             </td>
             <td>${typeBadge}${sysBadge}</td>
-            <td>${g.member_count ?? g.members_count ?? '—'}</td>
+            <td>${g.member_count ?? '—'}</td>
             <td class="text-secondary small">${escHtml(g.description || '—')}</td>
             <td class="text-center">
                 <div class="d-flex justify-content-center gap-1">
@@ -126,9 +126,14 @@ function wireDeleteModal() {
 
 // ── Form view (create / edit) ─────────────────────────────────────────────────
 
+let _allPermissions = [];     // [{app_label, label, permissions:[{id,codename,name}]}]
+let _groupIsSystem = false;
+
 function initFormView() {
     const form = document.getElementById('group-form');
     const groupPk = form.dataset.groupPk ? Number(form.dataset.groupPk) : null;
+
+    loadPermissionsAccordion(groupPk);
 
     if (groupPk) {
         loadGroupForEdit(groupPk);
@@ -140,6 +145,83 @@ function initFormView() {
     });
 }
 
+async function loadPermissionsAccordion(groupPk) {
+    const loadingEl = document.getElementById('permissions-loading');
+    const accordionEl = document.getElementById('permissions-accordion');
+
+    try {
+        _allPermissions = await apiFetch('/api/v1/permissions/');
+    } catch (_) {
+        if (loadingEl) loadingEl.textContent = 'Could not load permissions.';
+        return;
+    }
+
+    if (loadingEl) loadingEl.classList.add('d-none');
+
+    if (!_allPermissions.length) {
+        if (accordionEl) accordionEl.innerHTML = '<p class="text-secondary small">No permissions configured.</p>';
+        return;
+    }
+
+    accordionEl.innerHTML = _allPermissions.map((mod, i) => `
+        <div class="accordion-item border-0 border-bottom">
+            <h2 class="accordion-header" id="perm-head-${i}">
+                <button class="accordion-button collapsed py-2 px-0 bg-transparent shadow-none fw-500"
+                        type="button" data-bs-toggle="collapse"
+                        data-bs-target="#perm-body-${i}" aria-expanded="false">
+                    ${escHtml(mod.label)}
+                    <span class="ms-2 text-secondary small" id="perm-count-${i}">
+                        (0 / ${mod.permissions.length})
+                    </span>
+                </button>
+            </h2>
+            <div id="perm-body-${i}" class="accordion-collapse collapse"
+                 data-bs-parent="">
+                <div class="accordion-body px-0 pb-2 pt-1">
+                    ${mod.permissions.map(p => `
+                        <div class="form-check mb-1">
+                            <input class="form-check-input perm-check"
+                                   type="checkbox" value="${p.id}"
+                                   id="perm-${p.id}"
+                                   data-module-index="${i}"
+                                   onchange="updatePermCount(${i})">
+                            <label class="form-check-label small" for="perm-${p.id}">
+                                ${escHtml(p.name)}
+                            </label>
+                        </div>`).join('')}
+                </div>
+            </div>
+        </div>`).join('');
+}
+
+window.updatePermCount = (moduleIdx) => {
+    const mod = _allPermissions[moduleIdx];
+    if (!mod) return;
+    const checked = document.querySelectorAll(`.perm-check[data-module-index="${moduleIdx}"]:checked`).length;
+    const countEl = document.getElementById(`perm-count-${moduleIdx}`);
+    if (countEl) countEl.textContent = `(${checked} / ${mod.permissions.length})`;
+};
+
+function _getSelectedPermissionIds() {
+    return [...document.querySelectorAll('.perm-check:checked')].map(cb => Number(cb.value));
+}
+
+function _applyGroupPermissions(permIds) {
+    const idSet = new Set(permIds);
+    document.querySelectorAll('.perm-check').forEach(cb => {
+        cb.checked = idSet.has(Number(cb.value));
+    });
+    _allPermissions.forEach((_, i) => updatePermCount(i));
+}
+
+function _disablePermissions() {
+    document.querySelectorAll('.perm-check').forEach(cb => { cb.disabled = true; });
+    const badge = document.getElementById('permissions-system-badge');
+    const hint  = document.getElementById('permissions-hint');
+    if (badge) badge.classList.remove('d-none');
+    if (hint) hint.textContent = 'Permissions for system groups cannot be modified.';
+}
+
 async function loadGroupForEdit(pk) {
     try {
         const g = await apiFetch(`/api/v1/user-groups/${pk}/`);
@@ -147,6 +229,8 @@ async function loadGroupForEdit(pk) {
         document.getElementById('id_name').value         = g.name || '';
         document.getElementById('id_description').value  = g.description || '';
         document.getElementById('id_is_admin_group').checked = !!g.is_admin_group;
+
+        _groupIsSystem = !!g.is_system;
 
         const metaCard = document.getElementById('metadata-card');
         if (metaCard) {
@@ -158,6 +242,14 @@ async function loadGroupForEdit(pk) {
         if (g.is_system) {
             document.getElementById('id_name').disabled         = true;
             document.getElementById('id_is_admin_group').disabled = true;
+        }
+
+        // Pre-check permissions and disable if system group
+        if (g.permission_ids) {
+            _applyGroupPermissions(g.permission_ids);
+        }
+        if (g.is_system) {
+            _disablePermissions();
         }
     } catch (_) {
         showFlash('Failed to load group data.', 'error');
@@ -176,7 +268,9 @@ async function submitGroupForm(groupPk) {
         name:           document.getElementById('id_name').value.trim(),
         description:    document.getElementById('id_description').value.trim(),
         is_admin_group: document.getElementById('id_is_admin_group').checked,
+        permission_ids: _groupIsSystem ? undefined : _getSelectedPermissionIds(),
     };
+    if (payload.permission_ids === undefined) delete payload.permission_ids;
 
     const origLabel = submitBtn.dataset.originalLabel || submitLabel.textContent;
     submitBtn.disabled   = true;
@@ -235,16 +329,16 @@ function initDetailView() {
     const pk = window.GROUP_PK;
     if (!pk) return;
 
+    _addModal       = new bootstrap.Modal(document.getElementById('addMembersModal'));
+    _removeModal    = new bootstrap.Modal(document.getElementById('removeMemberModal'));
+    _deleteGrpModal = new bootstrap.Modal(document.getElementById('deleteGroupModal'));
+
     loadGroupDetail(pk);
     loadMembers(pk);
 
     document.getElementById('member-search').addEventListener('input', () => {
         filterMemberRows(document.getElementById('member-search').value.trim().toLowerCase());
     });
-
-    _addModal       = new bootstrap.Modal(document.getElementById('addMembersModal'));
-    _removeModal    = new bootstrap.Modal(document.getElementById('removeMemberModal'));
-    _deleteGrpModal = new bootstrap.Modal(document.getElementById('deleteGroupModal'));
 
     wireDetailButtons(pk);
 }
@@ -253,10 +347,47 @@ async function loadGroupDetail(pk) {
     try {
         const g = await apiFetch(`/api/v1/user-groups/${pk}/`);
 
+        // Page title
+        const titleEl = document.getElementById('page-group-name');
+        if (titleEl) titleEl.textContent = g.name;
+        document.title = `${g.name} — User Groups — Resource Planner`;
+
+        // Subtitle badges
+        const subtitleEl = document.getElementById('page-group-subtitle');
+        if (subtitleEl) {
+            let badges = '';
+            if (g.is_admin_group) badges += '<span class="rp-badge rp-badge--warning me-2">Admin Group</span>';
+            if (g.is_system)      badges += '<span class="rp-badge rp-badge--info me-2">System</span>';
+            const countEl = document.getElementById('member-count-subtitle');
+            subtitleEl.innerHTML = badges;
+            if (countEl) subtitleEl.appendChild(countEl);
+        }
+
+        // Header action buttons (edit / delete) — hidden for system groups
+        const actionsEl = document.getElementById('header-actions');
+        if (actionsEl) {
+            if (!g.is_system) {
+                actionsEl.innerHTML = `
+                    <a href="/user-groups/${g.id}/edit/" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-pencil me-1"></i>Edit
+                    </a>
+                    <button class="btn btn-danger btn-sm" id="delete-group-btn">
+                        <i class="bi bi-trash me-1"></i>Delete
+                    </button>`;
+
+                document.getElementById('delete-group-btn')
+                    ?.addEventListener('click', () => _deleteGrpModal.show());
+            }
+        }
+
+        // Delete modal group name
+        const deleteNameEl = document.getElementById('delete-group-name-modal');
+        if (deleteNameEl) deleteNameEl.textContent = g.name;
+
+        // Group info card
         document.getElementById('info-type').innerHTML = g.is_admin_group
             ? '<span class="rp-badge rp-badge--warning">Admin</span>'
             : '<span class="rp-badge rp-badge--muted">Standard</span>';
-
         document.getElementById('info-description').textContent = g.description || '—';
         document.getElementById('meta-created').textContent = formatDateTime(g.created_at);
         document.getElementById('meta-updated').textContent = formatDateTime(g.updated_at);
@@ -333,21 +464,17 @@ function filterMemberRows(q) {
 
 function wireDetailButtons(pk) {
     // Delete group
-    const deleteBtn = document.getElementById('delete-group-btn');
-    if (deleteBtn) {
-        deleteBtn.addEventListener('click', () => _deleteGrpModal.show());
-        document.getElementById('confirm-delete-group-btn').addEventListener('click', async () => {
-            _deleteGrpModal.hide();
-            try {
-                await apiFetch(`/api/v1/user-groups/${pk}/`, { method: 'DELETE' });
-                window.location.href = '/user-groups/';
-            } catch (err) {
-                showFlash(err?.data?.error || 'Could not delete group.', 'error');
-            }
-        });
-    }
+    document.getElementById('confirm-delete-group-btn').addEventListener('click', async () => {
+        _deleteGrpModal.hide();
+        try {
+            await apiFetch(`/api/v1/user-groups/${pk}/`, { method: 'DELETE' });
+            window.location.href = '/user-groups/';
+        } catch (err) {
+            showFlash(err?.data?.error || 'Could not delete group.', 'error');
+        }
+    });
 
-    // Remove member
+    // Remove member modal
     window.showRemoveMemberModal = (userId, name) => {
         _removePk = userId;
         document.getElementById('remove-member-name').textContent = name;
@@ -444,7 +571,6 @@ async function searchUsers() {
                 </div>`;
         }).join('');
 
-        // wire checkboxes
         resultsEl.querySelectorAll('.user-pick-check').forEach(cb => {
             cb.addEventListener('change', () => {
                 const uid  = Number(cb.dataset.userId);
@@ -476,7 +602,6 @@ function renderSelectedChips() {
 
     section.classList.remove('d-none');
 
-    // rebuild chips from checked inputs
     const picked = [];
     document.querySelectorAll('.user-pick-check:checked').forEach(cb => {
         if (_selectedPks.has(Number(cb.dataset.userId))) {

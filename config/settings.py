@@ -76,6 +76,7 @@ INSTALLED_APPS = [
     "apps.tags",
     "apps.resource_plans",
     "apps.import",
+    "apps.permissions",
 ]
 
 MIDDLEWARE = [
@@ -89,6 +90,7 @@ MIDDLEWARE = [
     "apps.users.middleware.SessionTimeoutMiddleware",
     "apps.users.middleware.AuthRequiredMiddleware",
     "apps.users.middleware.ForcePasswordChangeMiddleware",
+    "apps.users.middleware.ModulePermissionMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -104,6 +106,7 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.users.context_processors.user_perms_js",
             ],
         },
     },
@@ -197,9 +200,11 @@ DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@resourceplann
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.BasicAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
+        "apps.users.permissions.ModulePermission",
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,

@@ -13,12 +13,15 @@
 
     <!-- Features -->
     <div class="d-flex gap-2 flex-wrap">
+        {% if user.is_staff or perms.project_sub_statuses.import %}
         <!-- Import -->
         <a href="/import/?module=project_sub_statuses"
            class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
+        {% endif %}
 
+        {% if user.is_staff or perms.project_sub_statuses.export %}
         <!-- Export -->
         <div class="dropdown">
             <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
@@ -44,12 +47,15 @@
                 </li>
             </ul>
         </div>
+        {% endif %}
 
+        {% if user.is_staff or perms.project_sub_statuses.add_projectsubstatus %}
         <a href="#"
            class="btn btn-primary btn-sm"
            id="add-sub-status-btn">
             <i class="bi bi-plus-lg me-1"></i>Add Sub-status
         </a>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

@@ -52,14 +52,6 @@
             {% endif %}
         </div>
 
-        {% if request.user.is_staff %}
-        <div class="rp-card rp-card--muted">
-            <p class="rp-sidebar-label mb-2">Admin</p>
-            <a href="/users/" class="rp-sidebar-link d-flex align-items-center gap-2">
-                <i class="bi bi-people"></i> Manage Users
-            </a>
-        </div>
-        {% endif %}
     </div>
 
     <!-- Profile details + change password -->
@@ -91,9 +83,9 @@
                     </div>
                 </div>
                 <div class="rp-field mb-4">
-                    <label class="rp-label" for="id_email">Email address</label>
-                    {{ profile_form.email }}
-                    <div class="invalid-feedback" id="email-error"></div>
+                    <label class="rp-label">Email address</label>
+                    <p class="form-control rp-input mb-0" style="background:var(--rp-surface-muted,#f8f9fa);cursor:default">{{ request.user.email }}</p>
+                    <p class="rp-hint mt-1">Email address cannot be changed after account creation.</p>
                 </div>
                 <button type="submit" class="btn btn-primary" id="profile-submit-btn">
                     <span id="profile-submit-label">Save changes</span>

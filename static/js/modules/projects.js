@@ -4,7 +4,7 @@ import { initFetch } from './../list/fetch.js';
 import { initFetchMulti } from './../list/fetch_multi.js';
 import { initRenderer } from './../list/render.js';
 import { initSorting } from './../list/sort.js';
-import { apiFetch, escAttr, escHtml, formatDate, setPageTitle, showFlash } from './../main.js';
+import { apiFetch, escAttr, escHtml, formatDate, setPageTitle, showFlash, hasPerm } from './../main.js';
 import { API_URLS, URLS } from './../urls.js';
 import { exportToCsv, exportToPdf } from '../export.js';
 
@@ -908,6 +908,7 @@ function renderProjectRow(proj) {
                     <a href="${detailUrl}" class="btn btn-ghost-icon" title="View project">
                         <i class="bi bi-eye"></i>
                     </a>
+                    ${hasPerm('projects.change_project') ? `
                     <button class="btn btn-ghost-icon" title="Assign team"
                             onclick="openAssignTeamModal(${proj.id}, '${escAttr(proj.name)}', ${proj.assigned_team ?? 'null'})">
                         <i class="bi bi-people"></i>
@@ -916,11 +917,12 @@ function renderProjectRow(proj) {
                             title="${proj.is_active ? 'Deactivate' : 'Activate'} project"
                             onclick="openActiveModal(${proj.id}, '${escAttr(proj.name)}', ${proj.is_active})">
                         <i class="bi bi-check-circle"></i>
-                    </button>
+                    </button>` : ''}
+                    ${hasPerm('projects.delete_project') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger" title="Delete project"
                             onclick="openDeleteModal(${proj.id}, '${escAttr(proj.name)}')">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             `,
             )}

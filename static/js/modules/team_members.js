@@ -3,7 +3,7 @@
 import {
     apiFetch, showFlash, formatDateTime, setPageTitle, escHtml, escAttr,
     getPkFromUrl, isSubPathUrl, clearErrors, setSubmitting,
-    showBanner, applyErrors
+    showBanner, applyErrors, hasPerm
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -233,6 +233,7 @@ function renderMemberRow(member) {
                        class="btn btn-ghost-icon" title="View member">
                         <i class="bi bi-eye"></i>
                     </a>
+                    ${hasPerm('team_members.change_teammember') ? `
                     <a href="${URLS.team_members.edit(member.id)}"
                        class="btn btn-ghost-icon" title="Edit member">
                         <i class="bi bi-pencil"></i>
@@ -240,11 +241,12 @@ function renderMemberRow(member) {
                     <button class="btn btn-ghost-icon" title="Move team"
                             onclick="confirmMoveTeam(${member.id}, '${escAttr(member.display_name)}', ${JSON.stringify(currentTeamId)}, '${escAttr(currentTeamName)}', onMoveFromList)">
                         <i class="bi bi-arrow-left-right"></i>
-                    </button>
+                    </button>` : ''}
+                    ${hasPerm('team_members.delete_teammember') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger" title="Delete member"
                             onclick="confirmDelete(${member.id}, '${escAttr(member.display_name)}', onDeleteFromList)">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

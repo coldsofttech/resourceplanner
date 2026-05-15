@@ -3,7 +3,7 @@
 import {
     apiFetch, showFlash, formatDate, formatDateTime, setPageTitle,
     escHtml, escAttr, getPkFromUrl, isSubPathUrl,
-    clearErrors, setSubmitting, applyErrors, showBanner,
+    clearErrors, setSubmitting, applyErrors, showBanner, hasPerm,
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -180,7 +180,7 @@ function renderFyRow(fy) {
         ? `<span class="rp-badge rp-badge--success">Active</span>`
         : `<span class="rp-badge rp-badge--muted">Inactive</span>`;
 
-    const setActivBtn = (fy.is_active || isCompletedFy(fy))
+    const setActivBtn = (fy.is_active || isCompletedFy(fy) || !hasPerm('financial_years.change_financialyear'))
         ? ''
         : `<button class="btn btn-ghost-icon"
                    title="Set as active"
@@ -208,15 +208,17 @@ function renderFyRow(fy) {
                         <i class="bi bi-eye"></i>
                     </a>
                     ${setActivBtn}
+                    ${hasPerm('financial_years.change_financialyear') ? `
                     <a href="${URLS.financial_years.edit(fy.id)}"
                        class="btn btn-ghost-icon" title="Edit">
                         <i class="bi bi-pencil"></i>
-                    </a>
+                    </a>` : ''}
+                    ${hasPerm('financial_years.delete_financialyear') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger"
                             title="Delete"
                             onclick="confirmDelete(${fy.id}, '${escAttr(fy.long_fy)}', onDeleteFromList)">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

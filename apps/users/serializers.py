@@ -1,11 +1,12 @@
 import logging
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group, Permission
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
-from .models import UserProfile, UserGroup, UserGroupMembership
+from .models import UserProfile, GroupProfile
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -58,11 +59,10 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class UserCreateSerializer(serializers.Serializer):
+    """Creates a user without a password; an invitation email is sent instead."""
     first_name = serializers.CharField(max_length=150)
     last_name = serializers.CharField(max_length=150, required=False, default='')
     email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
-    is_staff = serializers.BooleanField(required=False, default=False)
 
     def validate_email(self, value):
         email = value.lower().strip()
@@ -70,63 +70,43 @@ class UserCreateSerializer(serializers.Serializer):
             raise serializers.ValidationError('An account with this email already exists.')
         return email
 
-    def validate_password(self, value):
-        try:
-            validate_password(value)
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(list(exc.messages))
-        return value
-
     def create(self, validated_data):
         import secrets as _secrets
         email = validated_data['email']
         username = email[:150]
         if User.objects.filter(username=username).exists():
             username = f'{email[:140]}{_secrets.token_hex(4)}'
-        return User.objects.create_user(
+        user = User.objects.create_user(
             username=username,
             email=email,
             first_name=validated_data['first_name'],
             last_name=validated_data.get('last_name', ''),
-            password=validated_data['password'],
-            is_staff=validated_data.get('is_staff', False),
         )
+        user.set_unusable_password()
+        user.save(update_fields=['password'])
+        UserProfile.objects.get_or_create(
+            user=user,
+            defaults={'must_change_password': True},
+        )
+        return user
 
 
 class UserUpdateSerializer(serializers.Serializer):
     first_name = serializers.CharField(max_length=150, required=False)
     last_name = serializers.CharField(max_length=150, required=False)
-    email = serializers.EmailField(required=False)
     is_staff = serializers.BooleanField(required=False)
     is_active = serializers.BooleanField(required=False)
-
-    def __init__(self, *args, instance=None, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._instance = instance
-
-    def validate_email(self, value):
-        email = value.lower().strip()
-        qs = User.objects.filter(email__iexact=email)
-        if self._instance:
-            qs = qs.exclude(pk=self._instance.pk)
-        if qs.exists():
-            raise serializers.ValidationError('Another account is using this email.')
-        return email
 
     def update(self, instance, validated_data):
         for field in ('first_name', 'last_name', 'is_staff', 'is_active'):
             if field in validated_data:
                 setattr(instance, field, validated_data[field])
-        if 'email' in validated_data:
-            new_email = validated_data['email']
-            instance.email = new_email
-            instance.username = new_email[:150]
         instance.save()
         return instance
 
 
 # ---------------------------------------------------------------------------
-# UserGroup
+# UserGroup (using Django's built-in auth.Group + GroupProfile)
 # ---------------------------------------------------------------------------
 
 class UserGroupMemberSerializer(serializers.ModelSerializer):
@@ -154,55 +134,100 @@ class UserGroupMemberSerializer(serializers.ModelSerializer):
             return ''
 
     def get_joined_at(self, obj):
-        # Injected via annotate in viewset
-        membership = getattr(obj, '_membership', None)
-        if membership:
-            return membership.joined_at.isoformat()
+        # Django's auth.Group M2M has no timestamp
         return None
 
 
 class UserGroupSerializer(serializers.ModelSerializer):
     member_count = serializers.SerializerMethodField()
+    is_admin_group = serializers.SerializerMethodField()
+    is_system = serializers.SerializerMethodField()
+    description = serializers.SerializerMethodField()
+    created_at = serializers.SerializerMethodField()
+    updated_at = serializers.SerializerMethodField()
+    permission_ids = serializers.SerializerMethodField()
 
     class Meta:
-        model = UserGroup
+        model = Group
         fields = [
             'id', 'name', 'description', 'is_admin_group', 'is_system',
-            'member_count', 'created_at', 'updated_at',
+            'member_count', 'permission_ids', 'created_at', 'updated_at',
         ]
-        read_only_fields = ['is_system', 'created_at', 'updated_at']
 
     def get_member_count(self, obj):
-        return obj.members.count()
+        return obj.user_set.count()
+
+    def get_is_admin_group(self, obj):
+        try:
+            return obj.profile.is_admin_group
+        except Exception:
+            return False
+
+    def get_is_system(self, obj):
+        try:
+            return obj.profile.is_system
+        except Exception:
+            return False
+
+    def get_description(self, obj):
+        try:
+            return obj.profile.description
+        except Exception:
+            return ''
+
+    def get_created_at(self, obj):
+        try:
+            return obj.profile.created_at.isoformat()
+        except Exception:
+            return None
+
+    def get_updated_at(self, obj):
+        try:
+            return obj.profile.updated_at.isoformat()
+        except Exception:
+            return None
+
+    def get_permission_ids(self, obj):
+        return list(obj.permissions.values_list('id', flat=True))
 
     def validate_name(self, value):
         name = value.strip()
         if not name:
             raise serializers.ValidationError('Name cannot be blank.')
-        qs = UserGroup.objects.filter(name__iexact=name)
-        instance = self.instance
-        if instance:
-            qs = qs.exclude(pk=instance.pk)
+        qs = Group.objects.filter(name__iexact=name)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise serializers.ValidationError('A group with this name already exists.')
         return name
 
 
 class UserGroupCreateSerializer(serializers.Serializer):
-    name = serializers.CharField(max_length=100)
+    name = serializers.CharField(max_length=150)
     description = serializers.CharField(required=False, default='', allow_blank=True)
     is_admin_group = serializers.BooleanField(required=False, default=False)
+    permission_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
 
     def validate_name(self, value):
         name = value.strip()
-        if UserGroup.objects.filter(name__iexact=name).exists():
+        if not name:
+            raise serializers.ValidationError('Name cannot be blank.')
+        if Group.objects.filter(name__iexact=name).exists():
             raise serializers.ValidationError('A group with this name already exists.')
         return name
 
     def create(self, validated_data):
-        return UserGroup.objects.create(
-            name=validated_data['name'],
+        perm_ids = validated_data.pop('permission_ids', [])
+        group = Group.objects.create(name=validated_data['name'])
+        GroupProfile.objects.create(
+            group=group,
             description=validated_data.get('description', ''),
             is_admin_group=validated_data.get('is_admin_group', False),
             is_system=False,
         )
+        if perm_ids:
+            perms = Permission.objects.filter(id__in=perm_ids)
+            group.permissions.set(perms)
+        return group

@@ -69,7 +69,15 @@ def register_view(request):
     form = RegisterForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         user = form.save()
-        login(request, user)
+        login(request, user, backend='apps.users.backends.EmailBackend')
+        # Assign to GUEST group by default
+        try:
+            from django.contrib.auth.models import Group
+            from apps.users.apps import GUEST_GROUP_NAME
+            guest_group = Group.objects.get(name=GUEST_GROUP_NAME)
+            guest_group.user_set.add(user)
+        except Exception:
+            pass
         messages.success(request, f'Welcome, {user.first_name or user.email}!')
         return redirect('/')
 
@@ -91,7 +99,6 @@ def profile_view(request):
     profile_form = ProfileForm(initial={
         'first_name': user.first_name,
         'last_name': user.last_name,
-        'email': user.email,
     }, user=user)
     password_form = ChangePasswordForm(user=user)
 
@@ -127,7 +134,13 @@ def user_create_view(request):
     form = AdminUserCreateForm(request.POST or None)
     if request.method == 'POST' and form.is_valid():
         user = form.save()
-        messages.success(request, f'User {user.email} created successfully.')
+        # Send invitation email (best-effort)
+        try:
+            from .api_views import _send_invitation_email
+            _send_invitation_email(user, request)
+        except Exception as exc:
+            logger.warning('Invitation email failed for %s: %s', user.email, exc)
+        messages.success(request, f'User {user.email} created. An invitation email has been sent.')
         return redirect('/users/')
 
     return render(request, 'users/user_form.html', {
@@ -144,7 +157,7 @@ def user_detail_view(request, pk):
 
 
 # ---------------------------------------------------------------------------
-# Force password change (first login)
+# Force password change (first login / rotation)
 # ---------------------------------------------------------------------------
 
 @login_required
@@ -170,9 +183,12 @@ def force_change_password_view(request):
                 validate_password(new_pwd, user=user)
                 user.set_password(new_pwd)
                 user.save()
+
+                from django.utils import timezone
                 profile.must_change_password = False
-                profile.save(update_fields=['must_change_password'])
-                # Re-login so the session stays valid after password change
+                profile.password_last_changed = timezone.now()
+                profile.save(update_fields=['must_change_password', 'password_last_changed'])
+
                 from django.contrib.auth import update_session_auth_hash
                 update_session_auth_hash(request, user)
                 messages.success(request, 'Password updated. Welcome!')
@@ -245,6 +261,20 @@ class RpPasswordResetDoneView(PasswordResetDoneView):
 class RpPasswordResetConfirmView(PasswordResetConfirmView):
     template_name = 'users/password_reset_confirm.html'
     success_url = reverse_lazy('password_reset_complete')
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        # Clear must_change_password and record password_last_changed after reset
+        try:
+            user = form.user
+            from django.utils import timezone
+            profile, _ = user.profile.__class__.objects.get_or_create(user=user)
+            profile.must_change_password = False
+            profile.password_last_changed = timezone.now()
+            profile.save(update_fields=['must_change_password', 'password_last_changed'])
+        except Exception:
+            pass
+        return response
 
 
 class RpPasswordResetCompleteView(PasswordResetCompleteView):

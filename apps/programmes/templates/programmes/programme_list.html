@@ -11,11 +11,14 @@
 
     <!-- Features -->
     <div class="d-flex gap-2 flex-wrap">
+        {% if user.is_staff %}
         <!-- Import -->
         <a href="/import/?module=programmes" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
+        {% endif %}
 
+        {% if user.is_staff or perms.programmes.export %}
         <!-- Export -->
         <div class="dropdown">
             <button
@@ -39,10 +42,13 @@
                 </li>
             </ul>
         </div>
+        {% endif %}
 
+        {% if user.is_staff or perms.programmes.add_programme %}
         <a href="#" class="btn btn-primary btn-sm" id="add-programme-btn">
             <i class="bi bi-plus-lg me-1"></i>Add Programme
         </a>
+        {% endif %}
     </div>
 </div>
 {% endblock %} {% block content %}

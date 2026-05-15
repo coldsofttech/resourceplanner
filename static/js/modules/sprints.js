@@ -3,7 +3,7 @@
 import {
     apiFetch, showFlash, formatDateTime, setPageTitle, escHtml, escAttr,
     getPkFromUrl, isSubPathUrl, clearErrors, setSubmitting, extractFieldMessage,
-    showBanner, applyErrors
+    showBanner, applyErrors, hasPerm
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -168,7 +168,7 @@ function renderSprintRow(sprint) {
     const overriddenTag = sprint.is_overridden
         ? ' <span class="rp-badge rp-badge--warning" title="Manually overridden">Overridden</span>'
         : '';
-    const setActivBtn = (sprint.is_active || isCompletedSprint(sprint))
+    const setActivBtn = (sprint.is_active || isCompletedSprint(sprint) || !hasPerm('sprints.change_sprint'))
         ? ''
         : `<button class="btn btn-ghost-icon"
                    title="Set as active"
@@ -196,15 +196,17 @@ function renderSprintRow(sprint) {
                         <i class="bi bi-eye"></i>
                     </a>
                     ${setActivBtn}
+                    ${hasPerm('sprints.change_sprint') ? `
                     <a href="${URLS.sprints.edit(sprint.id)}"
                        class="btn btn-ghost-icon" title="Edit sprint">
                         <i class="bi bi-pencil"></i>
-                    </a>
+                    </a>` : ''}
+                    ${hasPerm('sprints.delete_sprint') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger"
                             title="Delete sprint"
                             onclick="confirmDelete(${sprint.id}, '${escAttr(sprint.sprint_name)}', onDeleteFromList)">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

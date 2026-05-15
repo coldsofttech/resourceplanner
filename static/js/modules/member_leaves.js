@@ -3,7 +3,7 @@
 import {
     apiFetch, showFlash, formatDateTime, setPageTitle, escHtml, escAttr,
     getPkFromUrl, isSubPathUrl, clearErrors, setSubmitting,
-    showBanner, applyErrors
+    showBanner, applyErrors, hasPerm
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -146,16 +146,18 @@ function renderLeaveRow(leave) {
                        class="btn btn-ghost-icon" title="View leave">
                         <i class="bi bi-eye"></i>
                     </a>
+                    ${hasPerm('member_leaves.change_memberleave') ? `
                     <a href="${URLS.leaves.edit(leave.id)}"
                        class="btn btn-ghost-icon" title="Edit leave">
                         <i class="bi bi-pencil"></i>
-                    </a>
+                    </a>` : ''}
+                    ${hasPerm('member_leaves.delete_memberleave') ? `
                     <button type="button"
                             class="btn btn-ghost-icon btn-ghost-icon--danger"
                             title="Delete leave"
                             onclick="confirmDelete(${leave.id}, '${escAttr(memberName)}', onDeleteFromList)">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

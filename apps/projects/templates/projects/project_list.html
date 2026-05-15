@@ -9,11 +9,14 @@
     </div>
     <!-- Features -->
     <div class="d-flex gap-2 flex-wrap">
+        {% if user.is_staff or perms.projects.import %}
         <!-- Import -->
         <a href="/import/?module=projects" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
+        {% endif %}
 
+        {% if user.is_staff or perms.projects.export %}
         <!-- Export dropdown -->
         <div class="dropdown">
             <button
@@ -37,10 +40,13 @@
                 </li>
             </ul>
         </div>
+        {% endif %}
+        {% if user.is_staff or perms.projects.add_project %}
         <!-- Add button -->
         <button class="btn btn-primary btn-sm" id="add-project-btn">
             <i class="bi bi-plus-lg me-1"></i>New Project
         </button>
+        {% endif %}
     </div>
 </div>
 {% endblock %} {% block content %}

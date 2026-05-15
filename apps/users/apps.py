@@ -8,6 +8,7 @@ DEFAULT_ADMIN_EMAIL = 'admin@resourceplanner.com'
 DEFAULT_ADMIN_USERNAME = 'admin'
 DEFAULT_ADMIN_PASSWORD = 'ReP1Adm$n'
 ADMINISTRATOR_GROUP_NAME = 'ADMINISTRATOR'
+GUEST_GROUP_NAME = 'GUEST'
 
 
 class UsersConfig(AppConfig):
@@ -25,15 +26,19 @@ def _seed_users(sender, **kwargs):
     try:
         with transaction.atomic():
             _ensure_administrator_group()
+            _ensure_guest_group()
             _ensure_default_admin()
     except Exception as exc:
         logger.exception('User seeder failed: %s', exc)
 
 
 def _ensure_administrator_group():
-    from apps.users.models import UserGroup
-    group, created = UserGroup.objects.get_or_create(
-        name=ADMINISTRATOR_GROUP_NAME,
+    from django.contrib.auth.models import Group
+    from apps.users.models import GroupProfile
+
+    group, _ = Group.objects.get_or_create(name=ADMINISTRATOR_GROUP_NAME)
+    profile, created = GroupProfile.objects.get_or_create(
+        group=group,
         defaults={
             'description': 'Built-in administrator group. Members have full access to the application.',
             'is_admin_group': True,
@@ -41,22 +46,38 @@ def _ensure_administrator_group():
         },
     )
     if not created:
-        # Ensure system flags are always set correctly
-        updated = False
-        if not group.is_admin_group:
-            group.is_admin_group = True
-            updated = True
-        if not group.is_system:
-            group.is_system = True
-            updated = True
+        updated = []
+        if not profile.is_admin_group:
+            profile.is_admin_group = True
+            updated.append('is_admin_group')
+        if not profile.is_system:
+            profile.is_system = True
+            updated.append('is_system')
         if updated:
-            group.save(update_fields=['is_admin_group', 'is_system'])
+            profile.save(update_fields=updated)
+    return group
+
+
+def _ensure_guest_group():
+    from django.contrib.auth.models import Group
+    from apps.users.models import GroupProfile
+
+    group, _ = Group.objects.get_or_create(name=GUEST_GROUP_NAME)
+    GroupProfile.objects.get_or_create(
+        group=group,
+        defaults={
+            'description': 'Default group for self-registered and SSO users. Members have minimal access.',
+            'is_admin_group': False,
+            'is_system': True,
+        },
+    )
     return group
 
 
 def _ensure_default_admin():
     from django.contrib.auth import get_user_model
-    from apps.users.models import UserGroup, UserProfile
+    from django.contrib.auth.models import Group
+    from apps.users.models import UserProfile
 
     User = get_user_model()
 
@@ -77,7 +98,6 @@ def _ensure_default_admin():
         user.save()
         logger.info('Created default admin user: %s', DEFAULT_ADMIN_EMAIL)
     else:
-        # Ensure existing admin user has correct flags
         changed = []
         if not user.is_staff:
             user.is_staff = True
@@ -91,7 +111,7 @@ def _ensure_default_admin():
         if changed:
             user.save(update_fields=changed)
 
-    # Ensure profile with must_change_password=True on first creation
+    # Ensure profile exists; force password change only on first creation
     profile, profile_created = UserProfile.objects.get_or_create(
         user=user,
         defaults={'must_change_password': True},
@@ -101,7 +121,7 @@ def _ensure_default_admin():
 
     # Ensure admin is in the ADMINISTRATOR group
     try:
-        admin_group = UserGroup.objects.get(name=ADMINISTRATOR_GROUP_NAME)
-        admin_group.members.add(user)
-    except UserGroup.DoesNotExist:
+        admin_group = Group.objects.get(name=ADMINISTRATOR_GROUP_NAME)
+        admin_group.user_set.add(user)
+    except Group.DoesNotExist:
         pass

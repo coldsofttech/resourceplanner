@@ -3,7 +3,7 @@
 import {
     apiFetch, showFlash, formatDateTime, setPageTitle, escHtml,
     getPkFromUrl, isSubPathUrl, clearErrors, setSubmitting,
-    showBanner, applyErrors
+    showBanner, applyErrors, hasPerm
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -166,17 +166,19 @@ function renderHolidayRow(holiday) {
                        title="View holiday">
                         <i class="bi bi-eye"></i>
                     </a>
+                    ${hasPerm('public_holidays.change_publicholiday') ? `
                     <a href="${URLS.holidays.edit(holiday.id)}"
                        class="btn btn-ghost-icon"
                        title="Edit holiday">
                         <i class="bi bi-pencil"></i>
-                    </a>
+                    </a>` : ''}
+                    ${hasPerm('public_holidays.delete_publicholiday') ? `
                     <button type="button"
                             class="btn btn-ghost-icon btn-ghost-icon--danger"
                             title="Delete holiday"
                             onclick="confirmDelete(${holiday.id}, '${escHtml(holiday.name)}', onDeleteFromList)">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

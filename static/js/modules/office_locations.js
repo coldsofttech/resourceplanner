@@ -3,7 +3,7 @@
 import {
     apiFetch, showFlash, formatDateTime, setPageTitle, escHtml, escAttr,
     getPkFromUrl, isSubPathUrl, clearErrors, setSubmitting, extractFieldMessage,
-    showBanner, applyErrors
+    showBanner, applyErrors, hasPerm
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -175,16 +175,18 @@ function renderLocationRow(location) {
                        title="View location">
                         <i class="bi bi-eye"></i>
                     </a>
+                    ${hasPerm('office_locations.change_officelocation') ? `
                     <a href="${URLS.locations.edit(location.id)}"
                        class="btn btn-ghost-icon"
                        title="Edit location">
                         <i class="bi bi-pencil"></i>
-                    </a>
+                    </a>` : ''}
+                    ${hasPerm('office_locations.delete_officelocation') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger"
                             title="Delete location"
                             onclick="confirmDelete(${location.id}, '${escAttr(location.city)}', onDeleteFromList)">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

@@ -29,7 +29,7 @@
                         Group name <span class="rp-required">*</span>
                     </label>
                     <input type="text" id="id_name" name="name"
-                           class="form-control rp-input" maxlength="100"
+                           class="form-control rp-input" maxlength="150"
                            placeholder="e.g. Project Managers" required autofocus>
                     <div class="invalid-feedback" id="name-error"></div>
                 </div>
@@ -76,6 +76,23 @@
                 <li>Members can be added after creating the group.</li>
             </ul>
         </div>
+
+        <!-- Permissions accordion -->
+        <div class="rp-card mt-3" id="permissions-card">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h6 class="fw-600 mb-0"><i class="bi bi-shield-check me-2"></i>Permissions</h6>
+                <span id="permissions-system-badge" class="rp-badge rp-badge--muted d-none">Read-only</span>
+            </div>
+            <p id="permissions-hint" class="rp-hint mb-2">
+                Select which actions members of this group can perform.
+            </p>
+            <div id="permissions-loading" class="text-secondary small py-2">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                Loading permissions…
+            </div>
+            <div id="permissions-accordion" class="accordion accordion-flush" style="max-height:480px;overflow-y:auto"></div>
+        </div>
+
         <div id="metadata-card" class="rp-card rp-card--muted mt-3 d-none">
             <h6 class="fw-600 mb-2"><i class="bi bi-clock-history me-2"></i>Metadata</h6>
             <dl class="rp-meta-list">

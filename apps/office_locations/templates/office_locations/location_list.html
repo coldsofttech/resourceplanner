@@ -13,12 +13,15 @@
 
     <!-- Features -->
     <div class="d-flex gap-2 flex-wrap">
+        {% if user.is_staff or perms.office_locations.import %}
         <!-- Import -->
         <a href="/import/?module=locations"
            class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
+        {% endif %}
 
+        {% if user.is_staff or perms.office_locations.export %}
         <!-- Export -->
         <div class="dropdown">
             <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
@@ -44,12 +47,15 @@
                 </li>
             </ul>
         </div>
+        {% endif %}
 
+        {% if user.is_staff or perms.office_locations.add_officelocation %}
         <!-- New Office Location -->
         <a href="/locations/new"
            class="btn btn-primary btn-sm">
             <i class="bi bi-plus-lg me-1"></i>New Location
         </a>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

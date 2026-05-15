@@ -29,7 +29,7 @@ export async function apiFetch(url, options = {}) {
     };
     const res = await fetch(url, config);
     if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
+        if (res.status === 401) {
             window.location.href = '/login/?next=' + encodeURIComponent(window.location.pathname);
             return;
         }
@@ -112,6 +112,10 @@ export function setPageTitle(pageTitle) {
     document.title = pageTitle
         ? `${pageTitle} - ${APP_SUFFIX}`
         : APP_SUFFIX;
+}
+
+export function hasPerm(perm) {
+    return window.USER_IS_STAFF === true || (window.USER_PERMS instanceof Set && window.USER_PERMS.has(perm));
 }
 
 export function escHtml(s) {

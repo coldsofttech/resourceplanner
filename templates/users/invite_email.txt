@@ -1,0 +1,10 @@
+Hi {{ user.first_name|default:user.email }},
+
+You've been invited to join Resource Planner. Click the link below to set your password and activate your account:
+
+{{ reset_link }}
+
+This link will expire in 24 hours. If you did not expect this invitation, you can safely ignore this email.
+
+Thanks,
+The Resource Planner Team

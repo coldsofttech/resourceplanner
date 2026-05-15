@@ -9,11 +9,14 @@
     </div>
     <!-- Features -->
     <div class="d-flex gap-2 flex-wrap">
+        {% if user.is_staff %}
         <!-- Import -->
         <a href="/import/?module=resource_plans" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
+        {% endif %}
 
+        {% if user.is_staff or perms.resource_plans.export %}
         <!-- Export dropdown -->
         <div class="dropdown">
             <button
@@ -37,10 +40,13 @@
                 </li>
             </ul>
         </div>
+        {% endif %}
+        {% if user.is_staff or perms.resource_plans.add_resourceplan %}
         <!-- Add button -->
         <button class="btn btn-primary btn-sm" id="add-plan-btn">
             <i class="bi bi-plus-lg me-1"></i>New Plan
         </button>
+        {% endif %}
     </div>
 </div>
 {% endblock %} {% block content %}

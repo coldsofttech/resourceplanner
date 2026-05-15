@@ -10,11 +10,14 @@
 
     <!-- Features -->
     <div class="d-flex gap-2 flex-wrap">
+        {% if user.is_staff %}
         <!-- Import -->
         <a href="/import/?module=delivery_teams" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
+        {% endif %}
 
+        {% if user.is_staff or perms.delivery_teams.export %}
         <!-- Export -->
         <div class="dropdown">
             <button
@@ -38,11 +41,14 @@
                 </li>
             </ul>
         </div>
+        {% endif %}
 
+        {% if user.is_staff or perms.delivery_teams.add_deliveryteam %}
         <!-- New Delivery Team -->
         <a href="/delivery-teams/new" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-lg me-1"></i>New Team
         </a>
+        {% endif %}
     </div>
 </div>
 {% endblock %} {% block content %}

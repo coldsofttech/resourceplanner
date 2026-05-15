@@ -106,10 +106,21 @@
                         <li class="nav-item dropdown">
                             <a class="nav-link dropdown-toggle d-flex align-items-center gap-1"
                                href="#" role="button" data-bs-toggle="dropdown">
-                                <i class="bi bi-person-circle me-1"></i>
                                 {% if user.is_authenticated %}
+                                    {% if user.profile.avatar %}
+                                        <img src="{{ user.profile.avatar.url }}" alt="Avatar"
+                                             class="rounded-circle me-1"
+                                             width="22" height="22" style="object-fit:cover">
+                                    {% elif user.profile.avatar_url %}
+                                        <img src="{{ user.profile.avatar_url }}" alt="Avatar"
+                                             class="rounded-circle me-1"
+                                             width="22" height="22" style="object-fit:cover">
+                                    {% else %}
+                                        <i class="bi bi-person-circle me-1"></i>
+                                    {% endif %}
                                     {{ user.get_full_name|default:user.username }}
                                 {% else %}
+                                    <i class="bi bi-person-circle me-1"></i>
                                     Account
                                 {% endif %}
                             </a>
@@ -120,9 +131,6 @@
                                     </span></li>
                                     <li><hr class="dropdown-divider my-1"></li>
                                     <li><a class="dropdown-item" href="/profile/"><i class="bi bi-person-gear me-2"></i>Profile</a></li>
-                                    {% if user.is_staff %}
-                                    <li><a class="dropdown-item" href="/users/"><i class="bi bi-people me-2"></i>Manage Users</a></li>
-                                    {% endif %}
                                     <li><hr class="dropdown-divider my-1"></li>
                                     <li><a class="dropdown-item" href="/logout/"><i class="bi bi-box-arrow-right me-2"></i>Sign out</a></li>
                                 {% else %}
@@ -161,6 +169,7 @@
                         <!-- Manage Section -->
                         <p class="rp-sidebar-label">Manage</p>
                         <!-- Teams -->
+                        {% if user.is_staff or perms.delivery_teams %}
                         <a
                             href="/delivery-teams/"
                             class="rp-sidebar-link"
@@ -170,7 +179,9 @@
                             <i class="bi bi-people"></i>
                             <span class="rp-sidebar-link-label">Teams</span>
                         </a>
+                        {% endif %}
                         <!-- Team Members -->
+                        {% if user.is_staff or perms.team_members %}
                         <a
                             href="/team-members/"
                             class="rp-sidebar-link"
@@ -180,7 +191,9 @@
                             <i class="bi bi-person-badge"></i>
                             <span class="rp-sidebar-link-label">Team Members</span>
                         </a>
+                        {% endif %}
                         <!-- Leaves -->
+                        {% if user.is_staff or perms.member_leaves %}
                         <a
                             href="/leaves/"
                             class="rp-sidebar-link"
@@ -190,7 +203,9 @@
                             <i class="bi bi-calendar2-minus"></i>
                             <span class="rp-sidebar-link-label">Leaves</span>
                         </a>
+                        {% endif %}
                         <!-- Projects -->
+                        {% if user.is_staff or perms.projects or perms.programmes or perms.contacts or perms.resource_plans %}
                         <a
                             href="#"
                             class="rp-sidebar-link rp-sidebar-link--projects"
@@ -201,7 +216,9 @@
                             <i class="bi bi-kanban"></i>
                             <span class="rp-sidebar-link-label">Projects</span>
                         </a>
+                        {% endif %}
                         <!-- Financial Years -->
+                        {% if user.is_staff or perms.financial_years %}
                         <a
                             href="/fy/"
                             class="rp-sidebar-link"
@@ -211,6 +228,7 @@
                             <i class="bi bi-calendar3"></i>
                             <span class="rp-sidebar-link-label">Financial Years</span>
                         </a>
+                        {% endif %}
                         <!-- Budgets -->
                         <a
                             href="/budgets/"
@@ -226,6 +244,7 @@
                         <!-- Plan Section -->
                         <p class="rp-sidebar-label">Plan</p>
                         <!-- Sprints -->
+                        {% if user.is_staff or perms.sprints %}
                         <a
                             href="/sprints/"
                             class="rp-sidebar-link"
@@ -235,7 +254,9 @@
                             <i class="bi bi-calendar3-range"></i>
                             <span class="rp-sidebar-link-label">Sprints</span>
                         </a>
+                        {% endif %}
                         <!-- Resource Plans -->
+                        {% if user.is_staff or perms.resource_plans %}
                         <a
                             href="/resource-plan/"
                             class="rp-sidebar-link"
@@ -245,6 +266,7 @@
                             <i class="bi bi-bar-chart-steps"></i>
                             <span class="rp-sidebar-link-label">Resource Plans</span>
                         </a>
+                        {% endif %}
                     </div>
                     <div class="rp-sidebar-section mt-auto">
                         <!-- Settings Section -->
@@ -282,6 +304,7 @@
                     <div class="rp-sidebar-section">
                         <p class="rp-sidebar-label">Projects</p>
                         <!-- Programmes -->
+                        {% if user.is_staff or perms.programmes %}
                         <a
                             href="/programmes/"
                             class="rp-sidebar-link"
@@ -291,7 +314,9 @@
                             <i class="bi bi-collection"></i>
                             <span class="rp-sidebar-link-label">Programmes</span>
                         </a>
+                        {% endif %}
                         <!-- Projects -->
+                        {% if user.is_staff or perms.projects %}
                         <a
                             href="/projects/"
                             class="rp-sidebar-link"
@@ -301,7 +326,9 @@
                             <i class="bi bi-kanban"></i>
                             <span class="rp-sidebar-link-label">Projects</span>
                         </a>
+                        {% endif %}
                         <!-- Resource Plans -->
+                        {% if user.is_staff or perms.resource_plans %}
                         <a
                             href="/resource-plans/"
                             class="rp-sidebar-link"
@@ -311,11 +338,14 @@
                             <i class="bi bi-diagram-3"></i>
                             <span class="rp-sidebar-link-label">Resource Plans</span>
                         </a>
+                        {% endif %}
                         <!-- Contacts -->
-                         <a href="/contacts/" class="rp-sidebar-link" data-nav-match="/contacts/" data-rp-tooltip="Contacts">
+                        {% if user.is_staff or perms.contacts %}
+                        <a href="/contacts/" class="rp-sidebar-link" data-nav-match="/contacts/" data-rp-tooltip="Contacts">
                             <i class="bi bi-person-lines-fill"></i>
                             <span class="rp-sidebar-link-label">Contacts</span>
-                         </a>
+                        </a>
+                        {% endif %}
                     </div>
                 </aside>
 
@@ -340,6 +370,7 @@
                     <div class="rp-sidebar-section">
                         <p class="rp-sidebar-label">Reference data</p>
                         <!-- Holidays -->
+                        {% if user.is_staff or perms.public_holidays %}
                         <a
                             href="/holidays/"
                             class="rp-sidebar-link"
@@ -349,7 +380,9 @@
                             <i class="bi bi-calendar-heart"></i>
                             <span class="rp-sidebar-link-label">Holidays</span>
                         </a>
+                        {% endif %}
                         <!-- Skills -->
+                        {% if user.is_staff or perms.skills %}
                         <a
                             href="/skills/"
                             class="rp-sidebar-link"
@@ -359,7 +392,9 @@
                             <i class="bi bi-puzzle"></i>
                             <span class="rp-sidebar-link-label">Skills</span>
                         </a>
+                        {% endif %}
                         <!-- Roles -->
+                        {% if user.is_staff or perms.team_roles %}
                         <a
                             href="/roles/"
                             class="rp-sidebar-link"
@@ -369,7 +404,9 @@
                             <i class="bi bi-person-gear"></i>
                             <span class="rp-sidebar-link-label">Roles</span>
                         </a>
+                        {% endif %}
                         <!-- Locations -->
+                        {% if user.is_staff or perms.office_locations %}
                         <a
                             href="/locations/"
                             class="rp-sidebar-link"
@@ -379,7 +416,9 @@
                             <i class="bi bi-geo-alt"></i>
                             <span class="rp-sidebar-link-label">Locations</span>
                         </a>
+                        {% endif %}
                         <!-- Employment Types -->
+                        {% if user.is_staff or perms.employment_types %}
                         <a
                             href="/employment-types/"
                             class="rp-sidebar-link"
@@ -389,7 +428,9 @@
                             <i class="bi bi-briefcase"></i>
                             <span class="rp-sidebar-link-label">Employment Types</span>
                         </a>
+                        {% endif %}
                         <!-- Project Types -->
+                        {% if user.is_staff or perms.project_types %}
                         <a
                             href="/project-types/"
                             class="rp-sidebar-link"
@@ -399,7 +440,9 @@
                             <i class="bi bi-folder2"></i>
                             <span class="rp-sidebar-link-label">Project Types</span>
                         </a>
+                        {% endif %}
                         <!-- Project Sub Statuses -->
+                        {% if user.is_staff or perms.project_sub_statuses %}
                         <a
                             href="/project-sub-statuses/"
                             class="rp-sidebar-link"
@@ -410,6 +453,7 @@
                             <i class="bi bi-tags"></i>
                             <span class="rp-sidebar-link-label">Project Sub Statuses</span>
                         </a>
+                        {% endif %}
                     </div>
 
                     <!-- Users (admin only) -->
@@ -1098,6 +1142,11 @@
                         'rp_active_sprint=' + encodeURIComponent(val) + '; path=/; SameSite=Strict';
                 }
             })();
+        </script>
+
+        <script>
+            window.USER_IS_STAFF = {{ user.is_staff|yesno:"true,false" }};
+            window.USER_PERMS = new Set({{ user_perms_json|safe }});
         </script>
 
         {% block extra_js %}{% endblock %}

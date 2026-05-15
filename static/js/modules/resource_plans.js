@@ -1,5 +1,5 @@
 import { API_URLS, URLS } from './../urls.js';
-import { apiFetch, escAttr, escHtml, setPageTitle, showFlash } from './../main.js';
+import { apiFetch, escAttr, escHtml, setPageTitle, showFlash, hasPerm } from './../main.js';
 import { initRenderer } from '../list/render.js';
 import { initFetch } from '../list/fetch.js';
 import { initSorting } from '../list/sort.js';
@@ -243,20 +243,23 @@ function renderPlanRow(plan) {
                 <a href="${detailUrl}" class="btn btn-ghost-icon" title="View plan">
                     <i class="bi bi-eye"></i>
                 </a>
+                ${hasPerm('resource_plans.add_resourceplan') ? `
                 <button class="btn btn-ghost-icon"
                         title="Clone plan"
                         onclick="openCloneModal(${plan.id})">
                     <i class="bi bi-files"></i>
-                </button>
+                </button>` : ''}
+                ${hasPerm('resource_plans.change_resourceplan') ? `
                 <button class="btn btn-ghost-icon ${plan.is_active ? 'btn-ghost-icon--danger' : 'btn-ghost-icon--success'}"
                         title="${plan.is_active ? 'Deactivate' : 'Activate'} plan"
                         onclick="openActiveModal(${plan.id}, '${escAttr(plan.name)}', ${plan.is_active})">
                     <i class="bi bi-check-circle"></i>
-                </button>
+                </button>` : ''}
+                ${hasPerm('resource_plans.delete_resourceplan') ? `
                 <button class="btn btn-ghost-icon btn-ghost-icon--danger" title="Delete plan"
                         onclick="openDeleteModal(${plan.id}, '${escAttr(plan.name)}')">
                     <i class="bi bi-trash"></i>
-                </button>
+                </button>` : ''}
             </td>
         </tr>
     `;

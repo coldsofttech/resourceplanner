@@ -9,10 +9,13 @@
     </div>
 
     <div class="d-flex gap-2 flex-wrap">
+        {% if user.is_staff or perms.employment_types.import %}
         <a href="/import/?module=employment_types" class="btn btn-outline-secondary btn-sm">
             <i class="bi bi-upload me-1"></i>Import
         </a>
+        {% endif %}
 
+        {% if user.is_staff or perms.employment_types.export %}
         <div class="dropdown">
             <button class="btn btn-outline-secondary btn-sm dropdown-toggle"
                     id="export-dropdown-btn"
@@ -33,10 +36,13 @@
                 </li>
             </ul>
         </div>
+        {% endif %}
 
+        {% if user.is_staff or perms.employment_types.add_employmenttype %}
         <a href="/employment-types/new/" class="btn btn-primary btn-sm">
             <i class="bi bi-plus-lg me-1"></i>New Type
         </a>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

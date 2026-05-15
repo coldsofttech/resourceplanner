@@ -3,7 +3,7 @@
 import {
     apiFetch, showFlash, formatDateTime, setPageTitle, escHtml, escAttr,
     getPkFromUrl, isSubPathUrl, clearErrors, setSubmitting, extractFieldMessage,
-    showBanner, applyErrors
+    showBanner, applyErrors, hasPerm
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -202,16 +202,18 @@ function renderRoleRow(role) {
                        title="View role">
                         <i class="bi bi-eye"></i>
                     </a>
+                    ${hasPerm('team_roles.change_teamrole') ? `
                     <a href="${URLS.roles.edit(role.id)}"
                        class="btn btn-ghost-icon"
                        title="Edit role">
                         <i class="bi bi-pencil"></i>
-                    </a>
+                    </a>` : ''}
+                    ${hasPerm('team_roles.delete_teamrole') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger"
                             title="Delete role"
                             onclick="confirmDelete(${role.id}, '${escAttr(role.role)}', onDeleteFromList)">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

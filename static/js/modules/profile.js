@@ -18,13 +18,12 @@ function initProfileForm() {
 
     form.addEventListener('submit', async e => {
         e.preventDefault();
-        clearErrors(['first_name', 'last_name', 'email'], 'profile-error-banner');
+        clearErrors(['first_name', 'last_name'], 'profile-error-banner');
         document.getElementById('profile-success-banner')?.classList.add('d-none');
 
         const payload = {
             first_name: form.querySelector('[name="first_name"]')?.value?.trim() || '',
             last_name:  form.querySelector('[name="last_name"]')?.value?.trim()  || '',
-            email:      form.querySelector('[name="email"]')?.value?.trim()       || '',
         };
 
         const btn   = document.getElementById('profile-submit-btn');
@@ -47,7 +46,7 @@ function initProfileForm() {
             }
         } catch (err) {
             if (err?.status === 400) {
-                applyErrors(err.data ?? {}, ['first_name', 'last_name', 'email'], 'profile-error-banner');
+                applyErrors(err.data ?? {}, ['first_name', 'last_name'], 'profile-error-banner');
             } else {
                 document.getElementById('profile-error-banner').textContent =
                     err?.data?.error || 'Could not save profile.';

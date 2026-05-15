@@ -1,5 +1,13 @@
+import uuid
+
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import Group
 from django.db import models
+
+
+def _avatar_upload_path(instance, filename):
+    ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else 'jpg'
+    return f'avatars/{uuid.uuid4().hex}.{ext}'
 
 User = get_user_model()
 
@@ -32,7 +40,7 @@ class UserProfile(models.Model):
         help_text='Profile picture URL from the identity provider (optional).',
     )
     avatar = models.ImageField(
-        upload_to='avatars/',
+        upload_to=_avatar_upload_path,
         blank=True,
         null=True,
         help_text='Profile picture uploaded by the user.',
@@ -40,6 +48,11 @@ class UserProfile(models.Model):
     must_change_password = models.BooleanField(
         default=False,
         help_text='When True, the user is forced to change their password on next login.',
+    )
+    password_last_changed = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text='Timestamp of the last password change. Used for rotation policy enforcement.',
     )
 
     class Meta:
@@ -57,12 +70,13 @@ class UserProfile(models.Model):
         return self.user.username
 
 
-class UserGroup(models.Model):
-    """
-    Application-level user groups / roles.
-    ADMINISTRATOR is the built-in system group with full access.
-    """
-    name = models.CharField(max_length=100, unique=True)
+class GroupProfile(models.Model):
+    """Extends Django's built-in auth.Group with metadata for application-level role management."""
+    group = models.OneToOneField(
+        Group,
+        on_delete=models.CASCADE,
+        related_name='profile',
+    )
     description = models.TextField(blank=True, default='')
     is_admin_group = models.BooleanField(
         default=False,
@@ -72,39 +86,11 @@ class UserGroup(models.Model):
         default=False,
         help_text='System groups are created automatically and cannot be deleted.',
     )
-    members = models.ManyToManyField(
-        User,
-        through='UserGroupMembership',
-        related_name='user_groups',
-        blank=True,
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ['name']
+        ordering = ['group__name']
 
     def __str__(self):
-        return self.name
-
-
-class UserGroupMembership(models.Model):
-    """Through model tracking when a user joined a group."""
-    user = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='group_memberships',
-    )
-    group = models.ForeignKey(
-        UserGroup,
-        on_delete=models.CASCADE,
-        related_name='memberships',
-    )
-    joined_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        unique_together = [('user', 'group')]
-        ordering = ['joined_at']
-
-    def __str__(self):
-        return f'{self.user.email} → {self.group.name}'
+        return self.group.name

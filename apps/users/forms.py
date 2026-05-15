@@ -1,6 +1,5 @@
 from django import forms
 from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm, SetPasswordForm
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 
@@ -71,7 +70,6 @@ class RegisterForm(forms.Form):
     def save(self):
         email = self.cleaned_data['email']
         username = email[:150]
-        # Ensure username uniqueness if needed
         if User.objects.filter(username=username).exists():
             import secrets
             username = f'{email[:140]}{secrets.token_hex(4)}'
@@ -86,6 +84,7 @@ class RegisterForm(forms.Form):
 
 
 class ProfileForm(forms.Form):
+    """Profile form — email is intentionally excluded (immutable after creation)."""
     first_name = forms.CharField(
         max_length=150,
         widget=forms.TextInput(attrs={'class': _INPUT_CLS, 'placeholder': 'First name'}),
@@ -95,19 +94,10 @@ class ProfileForm(forms.Form):
         required=False,
         widget=forms.TextInput(attrs={'class': _INPUT_CLS, 'placeholder': 'Last name'}),
     )
-    email = forms.EmailField(
-        widget=forms.EmailInput(attrs={'class': _INPUT_CLS, 'placeholder': 'you@example.com'}),
-    )
 
     def __init__(self, *args, user=None, **kwargs):
         super().__init__(*args, **kwargs)
         self._user = user
-
-    def clean_email(self):
-        email = self.cleaned_data['email'].lower().strip()
-        if self._user and User.objects.filter(email__iexact=email).exclude(pk=self._user.pk).exists():
-            raise ValidationError('Another account is using this email address.')
-        return email
 
 
 class ChangePasswordForm(forms.Form):
@@ -148,6 +138,7 @@ class ChangePasswordForm(forms.Form):
 
 
 class AdminUserCreateForm(forms.Form):
+    """Create a user by email only — no password required; an invitation email is sent."""
     first_name = forms.CharField(
         max_length=150,
         widget=forms.TextInput(attrs={'class': _INPUT_CLS, 'placeholder': 'First name'}),
@@ -160,10 +151,6 @@ class AdminUserCreateForm(forms.Form):
     email = forms.EmailField(
         widget=forms.EmailInput(attrs={'class': _INPUT_CLS, 'placeholder': 'you@example.com'}),
     )
-    password = forms.CharField(
-        widget=forms.PasswordInput(attrs={'class': _INPUT_CLS, 'placeholder': 'Password', 'autocomplete': 'new-password'}),
-    )
-    is_staff = forms.BooleanField(required=False, label='Admin / staff access')
 
     def clean_email(self):
         email = self.cleaned_data['email'].lower().strip()
@@ -171,25 +158,20 @@ class AdminUserCreateForm(forms.Form):
             raise ValidationError('An account with this email already exists.')
         return email
 
-    def clean_password(self):
-        pwd = self.cleaned_data['password']
-        try:
-            validate_password(pwd)
-        except ValidationError as exc:
-            raise ValidationError(exc.messages)
-        return pwd
-
     def save(self):
         email = self.cleaned_data['email']
         username = email[:150]
         if User.objects.filter(username=username).exists():
             import secrets
             username = f'{email[:140]}{secrets.token_hex(4)}'
-        return User.objects.create_user(
+        user = User.objects.create_user(
             username=username,
             email=email,
             first_name=self.cleaned_data['first_name'],
             last_name=self.cleaned_data.get('last_name', ''),
-            password=self.cleaned_data['password'],
-            is_staff=self.cleaned_data.get('is_staff', False),
         )
+        user.set_unusable_password()
+        user.save(update_fields=['password'])
+        from .models import UserProfile
+        UserProfile.objects.get_or_create(user=user, defaults={'must_change_password': True})
+        return user

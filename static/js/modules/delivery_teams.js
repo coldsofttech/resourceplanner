@@ -12,6 +12,7 @@ import {
     clearErrors,
     setSubmitting,
     applyErrors,
+    hasPerm,
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -192,16 +193,18 @@ function renderTeamRow(team) {
                        title="View team">
                         <i class="bi bi-eye"></i>
                     </a>
+                    ${hasPerm('delivery_teams.change_deliveryteam') ? `
                     <a href="${URLS.delivery_teams.edit(team.id)}"
                        class="btn btn-ghost-icon"
                        title="Edit team">
                         <i class="bi bi-pencil"></i>
-                    </a>
+                    </a>` : ''}
+                    ${hasPerm('delivery_teams.delete_deliveryteam') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger"
                             title="Delete team"
                             onclick="confirmDelete(${team.id}, '${escAttr(team.name)}', onDeleteFromList)">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

@@ -457,7 +457,7 @@ class ResourcePlanViewSet(viewsets.ViewSet):
 
         if request.method == "POST":
             comment_text = request.data.get("comment", "").strip()
-            posted_by = request.data.get("posted_by", "Anonymous")
+            posted_by = request.user.get_full_name() or request.user.email
             try:
                 comment = ResourcePlanCommentService.add_comment(plan, comment_text, posted_by)
                 return Response(

@@ -3,7 +3,7 @@
 import {
     apiFetch, showFlash, formatDateTime, setPageTitle, escHtml, escAttr,
     getPkFromUrl, isSubPathUrl, clearErrors, setSubmitting, extractFieldMessage,
-    showBanner, applyErrors
+    showBanner, applyErrors, hasPerm
 } from './../main.js';
 import { URLS, API_URLS } from './../urls.js';
 import { initFetch } from './../list/fetch.js';
@@ -175,16 +175,18 @@ function renderSkillRow(skill) {
                        title="View skill">
                         <i class="bi bi-eye"></i>
                     </a>
+                    ${hasPerm('skills.change_skill') ? `
                     <a href="${URLS.skills.edit(skill.id)}"
                        class="btn btn-ghost-icon"
                        title="Edit skill">
                         <i class="bi bi-pencil"></i>
-                    </a>
+                    </a>` : ''}
+                    ${hasPerm('skills.delete_skill') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger"
                             title="Delete skill"
                             onclick="confirmDelete(${skill.id}, '${escAttr(skill.skill)}', onDeleteFromList)">
                         <i class="bi bi-trash"></i>
-                    </button>
+                    </button>` : ''}
                 </div>
             </td>
         </tr>

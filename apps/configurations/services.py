@@ -311,6 +311,16 @@ CONFIGURATION_DEFAULTS = {
         "data_type": "integer",
         "is_secret": False,
     },
+    "PASSWORD_ROTATION_DAYS": {
+        "label": "Password Rotation Period (days)",
+        "value": "90",
+        "description": (
+            "Number of days after which classic-mode users are forced to change their password on next login. "
+            "Set to 0 to disable password rotation. Default: 90 days."
+        ),
+        "data_type": "integer",
+        "is_secret": False,
+    },
     # SSO — General
     "SSO_PROTOCOL": {
         "label": "SSO Protocol",
