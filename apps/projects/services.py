@@ -1076,7 +1076,7 @@ class ProjectCommentService:
 
     @staticmethod
     @transaction.atomic
-    def create_comment(project_id: int, comment_text: str):
+    def create_comment(project_id: int, comment_text: str, user=None):
         project = Project.objects.get(pk=project_id)
         if not project:
             raise ValidationError(f"Project '{project_id}' does not exist.")
@@ -1084,10 +1084,15 @@ class ProjectCommentService:
         if not comment_text or not comment_text.strip():
             raise ValidationError({"comment": "Comment cannot be blank."})
 
+        posted_by = 'Anonymous'
+        if user and user.is_authenticated:
+            posted_by = user.get_full_name() or user.email or 'Anonymous'
+
         try:
             return ProjectComment.objects.create(
                 project=project,
                 comment=comment_text.strip(),
+                posted_by=posted_by,
             )
         except IntegrityError as e:
             logger.error("IntegrityError creating comment '%s': %s", project_id, e)

@@ -30,6 +30,7 @@
     <table class="table rp-table" id="categories-table">
         <thead>
             <tr>
+                <th>Module</th>
                 <th>Name</th>
                 <th>Description</th>
                 <th class="text-center">Permissions</th>
@@ -50,6 +51,33 @@
             </div>
             <div class="modal-body">
                 <div id="category-modal-error" class="alert alert-danger d-none mb-3"></div>
+
+                <div class="rp-field mb-3">
+                    <label class="rp-label" for="cat-module">
+                        Module <span class="rp-required">*</span>
+                    </label>
+                    <select id="cat-module" class="form-select rp-input">
+                        <option value="">— Select module —</option>
+                        <option value="delivery_teams">Delivery Teams</option>
+                        <option value="team_members">Team Members</option>
+                        <option value="member_leaves">Member Leaves</option>
+                        <option value="financial_years">Financial Years</option>
+                        <option value="sprints">Sprints</option>
+                        <option value="sprint_capacity">Sprint Capacity</option>
+                        <option value="resource_plans">Resource Plans</option>
+                        <option value="projects">Projects</option>
+                        <option value="programmes">Programmes</option>
+                        <option value="contacts">Contacts</option>
+                        <option value="skills">Skills</option>
+                        <option value="team_roles">Team Roles</option>
+                        <option value="office_locations">Office Locations</option>
+                        <option value="employment_types">Employment Types</option>
+                        <option value="project_types">Project Types</option>
+                        <option value="project_sub_statuses">Project Sub-Statuses</option>
+                        <option value="public_holidays">Public Holidays</option>
+                    </select>
+                    <div class="invalid-feedback" id="cat-module-error"></div>
+                </div>
 
                 <div class="rp-field mb-3">
                     <label class="rp-label" for="cat-name">

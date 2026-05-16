@@ -192,10 +192,10 @@ LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/login/"
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours
 
-# Email — configuration-driven backend reads settings from ConfigurationService at runtime
+# Email — all settings (host, port, user, password, from, protocol) are managed
+# via the Configurations UI. The backend delegates to ConfigurationService at runtime.
 EMAIL_BACKEND = "apps.users.email_backend.ConfigurationEmailBackend"
-# Fallback .env values (used only if ConfigurationService is unavailable)
-DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "noreply@resourceplanner.local")
+DEFAULT_FROM_EMAIL = "noreply@resourceplanner.local"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

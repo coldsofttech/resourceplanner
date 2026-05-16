@@ -16,6 +16,7 @@ from .models import UserProfile, GroupProfile
 from .serializers import (
     UserSerializer, UserCreateSerializer, UserUpdateSerializer,
     UserGroupSerializer, UserGroupCreateSerializer, UserGroupMemberSerializer,
+    _is_admin_by_coverage,
 )
 
 User = get_user_model()
@@ -34,6 +35,14 @@ def _sync_staff_for_user(user):
     if user.is_staff != in_admin_group:
         user.is_staff = in_admin_group
         user.save(update_fields=['is_staff'])
+
+
+def _sync_group_perms_from_categories(group, profile):
+    """Recompute group.permissions from its assigned permission_categories only."""
+    perm_ids = set()
+    for cat in profile.permission_categories.prefetch_related('permissions').all():
+        perm_ids.update(cat.permissions.values_list('id', flat=True))
+    group.permissions.set(Permission.objects.filter(id__in=perm_ids))
 
 
 def _send_invitation_email(user, request):
@@ -149,6 +158,16 @@ class UserViewSet(ViewSet):
         user = self._get_user(request, pk)
         if isinstance(user, Response):
             return user
+
+        # Protect the default admin user's identity fields
+        from apps.users.apps import DEFAULT_ADMIN_EMAIL
+        if user.email.lower() == DEFAULT_ADMIN_EMAIL.lower():
+            protected = ('first_name', 'last_name', 'email')
+            if any(f in request.data for f in protected):
+                return _err(
+                    'The default administrator account name and email cannot be changed.',
+                    status.HTTP_403_FORBIDDEN,
+                )
 
         ser = UserUpdateSerializer(data=request.data, instance=user)
         if not ser.is_valid():
@@ -288,6 +307,9 @@ class UserViewSet(ViewSet):
             return _err('User not found.', status.HTTP_404_NOT_FOUND)
         if user == request.user:
             return _err('You cannot deactivate your own account.')
+        from apps.users.apps import DEFAULT_ADMIN_EMAIL
+        if user.email.lower() == DEFAULT_ADMIN_EMAIL.lower():
+            return _err('The default administrator account cannot be deactivated.', status.HTTP_403_FORBIDDEN)
         user.is_active = False
         user.save(update_fields=['is_active'])
         return Response(UserSerializer(user, context={'request': request}).data)
@@ -361,9 +383,9 @@ class UserViewSet(ViewSet):
         user = User.objects.select_related('profile').get(pk=user.pk)
         return Response(UserSerializer(user, context={'request': request}).data)
 
-    # ── /{pk}/set_permissions ────────────────────────────────────────────────
-    @action(detail=True, methods=['post'], url_path='set_permissions')
-    def set_permissions(self, request, pk=None):
+    # ── /{pk}/set_permission_categories ─────────────────────────────────────
+    @action(detail=True, methods=['post'], url_path='set_permission_categories')
+    def set_permission_categories(self, request, pk=None):
         if not request.user.is_staff:
             return _err('Admin access required.', status.HTTP_403_FORBIDDEN)
         try:
@@ -371,12 +393,21 @@ class UserViewSet(ViewSet):
         except User.DoesNotExist:
             return _err('User not found.', status.HTTP_404_NOT_FOUND)
 
-        perm_ids = request.data.get('permission_ids', [])
-        if not isinstance(perm_ids, list):
-            return _err('permission_ids must be a list.')
+        cat_ids = request.data.get('category_ids', [])
+        if not isinstance(cat_ids, list):
+            return _err('category_ids must be a list.')
 
-        perms = Permission.objects.filter(id__in=perm_ids)
-        user.user_permissions.set(perms)
+        from apps.permissions.models import PermissionCategory
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        cats = PermissionCategory.objects.filter(id__in=cat_ids)
+        profile.permission_categories.set(cats)
+
+        # Sync user_permissions from categories
+        perm_ids = set()
+        for cat in profile.permission_categories.prefetch_related('permissions').all():
+            perm_ids.update(cat.permissions.values_list('id', flat=True))
+        user.user_permissions.set(Permission.objects.filter(id__in=perm_ids))
+
         user = User.objects.select_related('profile').get(pk=user.pk)
         return Response(UserSerializer(user, context={'request': request}).data)
 
@@ -502,6 +533,10 @@ class UserGroupViewSet(ViewSet):
             profile = GroupProfile.objects.create(group=group)
             is_system = False
 
+        # System groups: name is protected
+        if 'name' in request.data and is_system:
+            return _err('System group names cannot be changed.')
+
         # Update group name
         if 'name' in request.data:
             name = str(request.data['name']).strip()
@@ -518,40 +553,35 @@ class UserGroupViewSet(ViewSet):
             group.name = name
             group.save(update_fields=['name'])
 
-        # Update profile fields
+        # Update profile description
         profile_changed = []
         if 'description' in request.data:
             profile.description = request.data['description']
             profile_changed.append('description')
-        if 'is_admin_group' in request.data and not is_system:
-            profile.is_admin_group = bool(request.data['is_admin_group'])
-            profile_changed.append('is_admin_group')
-        if profile_changed:
-            profile.save(update_fields=profile_changed)
 
-        # Update permission categories (blocked for system groups)
+        # Update permission categories (blocked for system groups); permissions derived from categories only
+        categories_changed = False
         if 'category_ids' in request.data and not is_system:
             from apps.permissions.models import PermissionCategory
             cat_ids = request.data.get('category_ids', [])
             if isinstance(cat_ids, list):
                 cats = PermissionCategory.objects.filter(id__in=cat_ids)
                 profile.permission_categories.set(cats)
+                _sync_group_perms_from_categories(group, profile)
+                categories_changed = True
 
-        # Update permissions (blocked for system groups)
-        if 'permission_ids' in request.data and not is_system:
-            perm_ids = list(request.data.get('permission_ids', []))
-            if isinstance(perm_ids, list):
-                # Union with category permissions
-                try:
-                    for cat in profile.permission_categories.prefetch_related('permissions').all():
-                        perm_ids += list(cat.permissions.values_list('id', flat=True))
-                except Exception:
-                    pass
-                perms = Permission.objects.filter(id__in=set(perm_ids))
-                group.permissions.set(perms)
+        # Auto-compute is_admin_group from permission coverage (skip for system groups)
+        if not is_system and categories_changed:
+            new_is_admin = _is_admin_by_coverage(group)
+            if profile.is_admin_group != new_is_admin:
+                profile.is_admin_group = new_is_admin
+                profile_changed.append('is_admin_group')
 
-        # Re-sync staff flag for all members
-        if 'is_admin_group' in request.data:
+        if profile_changed:
+            profile.save(update_fields=profile_changed)
+
+        # Re-sync staff flag for all members whenever categories changed
+        if categories_changed:
             for user in group.user_set.all():
                 _sync_staff_for_user(user)
 

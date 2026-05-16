@@ -41,6 +41,8 @@ def _err(msg, code=status.HTTP_400_BAD_REQUEST):
 def _serialize_category(cat):
     return {
         'id': cat.id,
+        'module': cat.module,
+        'module_label': MODULE_LABELS.get(cat.module, '') if cat.module else '',
         'name': cat.name,
         'description': cat.description,
         'permission_ids': list(cat.permissions.values_list('id', flat=True)),
@@ -109,12 +111,17 @@ class PermissionCategoryViewSet(ViewSet):
             return _err('A category with this name already exists.')
 
         description = str(request.data.get('description', '')).strip()
+        module = str(request.data.get('module', '')).strip()
+        from .models import MODULE_CHOICES
+        valid_modules = {m[0] for m in MODULE_CHOICES}
+        if module and module not in valid_modules:
+            return _err('Invalid module value.')
         perm_ids = request.data.get('permission_ids', [])
         if not isinstance(perm_ids, list):
             return _err('permission_ids must be a list.')
 
         try:
-            cat = PermissionCategory.objects.create(name=name, description=description)
+            cat = PermissionCategory.objects.create(name=name, description=description, module=module)
             if perm_ids:
                 cat.permissions.set(Permission.objects.filter(id__in=perm_ids))
         except Exception as exc:
@@ -151,6 +158,14 @@ class PermissionCategoryViewSet(ViewSet):
         if 'description' in request.data:
             cat.description = str(request.data.get('description', '')).strip()
 
+        if 'module' in request.data:
+            from .models import MODULE_CHOICES
+            module = str(request.data['module']).strip()
+            valid_modules = {m[0] for m in MODULE_CHOICES}
+            if module and module not in valid_modules:
+                return _err('Invalid module value.')
+            cat.module = module
+
         cat.save()
 
         if 'permission_ids' in request.data:
@@ -179,12 +194,23 @@ class PermissionCategoryViewSet(ViewSet):
 
 
 def _sync_category_to_groups(category):
-    """After a category's permissions change, update all groups using it."""
-    from django.contrib.auth.models import Group
+    """After a category's permissions change, recompute permissions for all groups using it."""
     from apps.users.models import GroupProfile
+    from apps.users.serializers import _is_admin_by_coverage
     for profile in GroupProfile.objects.filter(permission_categories=category).select_related('group'):
+        if profile.is_system:
+            continue
         group = profile.group
-        all_perm_ids = set(group.permissions.values_list('id', flat=True))
+        all_perm_ids = set()
         for cat in profile.permission_categories.prefetch_related('permissions').all():
             all_perm_ids.update(cat.permissions.values_list('id', flat=True))
         group.permissions.set(Permission.objects.filter(id__in=all_perm_ids))
+        # Re-evaluate admin status
+        new_is_admin = _is_admin_by_coverage(group)
+        if profile.is_admin_group != new_is_admin:
+            profile.is_admin_group = new_is_admin
+            profile.save(update_fields=['is_admin_group'])
+        # Sync staff flag for members
+        for user in group.user_set.all():
+            from apps.users.api_views import _sync_staff_for_user
+            _sync_staff_for_user(user)

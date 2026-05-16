@@ -52,11 +52,12 @@ async function loadPermissions() {
 function renderRows(cats) {
     const tbody = document.getElementById('categories-tbody');
     if (!cats.length) {
-        tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary py-4">No categories yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">No categories yet.</td></tr>';
         return;
     }
     tbody.innerHTML = cats.map(c => `
         <tr>
+            <td class="text-secondary small">${escHtml(c.module_label || '—')}</td>
             <td class="fw-500">${escHtml(c.name)}</td>
             <td class="text-secondary small">${escHtml(c.description || '—')}</td>
             <td class="text-center">
@@ -132,9 +133,11 @@ window.updateCpCount = (idx) => {
 function openModal(cat) {
     _editingId = cat ? cat.id : null;
     document.getElementById('category-modal-title').textContent = cat ? 'Edit Category' : 'New Category';
+    document.getElementById('cat-module').value      = cat ? (cat.module || '') : '';
     document.getElementById('cat-name').value        = cat ? cat.name        : '';
     document.getElementById('cat-description').value = cat ? cat.description : '';
     document.getElementById('category-modal-error').classList.add('d-none');
+    document.getElementById('cat-module').classList.remove('is-invalid');
     document.getElementById('cat-name').classList.remove('is-invalid');
     document.getElementById('cat-name-error').textContent = '';
     renderPermAccordion(cat ? cat.permission_ids : []);
@@ -166,6 +169,15 @@ async function saveCategory() {
     nameEl.classList.remove('is-invalid');
     document.getElementById('cat-name-error').textContent = '';
 
+    const moduleEl = document.getElementById('cat-module');
+    moduleEl.classList.remove('is-invalid');
+
+    const module = moduleEl.value;
+    if (!module) {
+        moduleEl.classList.add('is-invalid');
+        return;
+    }
+
     const name = nameEl.value.trim();
     if (!name) {
         nameEl.classList.add('is-invalid');
@@ -174,6 +186,7 @@ async function saveCategory() {
     }
 
     const payload = {
+        module,
         name,
         description: document.getElementById('cat-description').value.trim(),
         permission_ids: _getSelectedPermIds(),

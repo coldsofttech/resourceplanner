@@ -8,6 +8,31 @@ from rest_framework import serializers
 
 from .models import UserProfile, GroupProfile
 
+
+def _is_admin_by_coverage(group):
+    """True if the group's permissions span every included-app module that has perms in the DB."""
+    _INCLUDED_APPS = [
+        'delivery_teams', 'team_members', 'member_leaves', 'financial_years',
+        'sprints', 'sprint_capacity', 'resource_plans', 'projects', 'programmes',
+        'contacts', 'skills', 'team_roles', 'office_locations', 'employment_types',
+        'project_types', 'project_sub_statuses', 'public_holidays',
+    ]
+    modules_with_perms = set(
+        Permission.objects
+        .filter(content_type__app_label__in=_INCLUDED_APPS)
+        .values_list('content_type__app_label', flat=True)
+        .distinct()
+    )
+    if not modules_with_perms:
+        return False
+    group_modules = set(
+        group.permissions
+        .filter(content_type__app_label__in=_INCLUDED_APPS)
+        .values_list('content_type__app_label', flat=True)
+        .distinct()
+    )
+    return modules_with_perms == group_modules
+
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
@@ -33,7 +58,9 @@ class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     avatar_display = serializers.SerializerMethodField()
     group_ids = serializers.SerializerMethodField()
-    explicit_permission_ids = serializers.SerializerMethodField()
+    explicit_category_ids = serializers.SerializerMethodField()
+    effective_permission_ids = serializers.SerializerMethodField()
+    group_permission_summary = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -42,7 +69,8 @@ class UserSerializer(serializers.ModelSerializer):
             'is_active', 'is_staff', 'is_superuser',
             'date_joined', 'last_login',
             'profile', 'avatar_display',
-            'group_ids', 'explicit_permission_ids',
+            'group_ids', 'explicit_category_ids',
+            'effective_permission_ids', 'group_permission_summary',
         ]
         read_only_fields = ['date_joined', 'last_login', 'is_superuser']
 
@@ -63,8 +91,36 @@ class UserSerializer(serializers.ModelSerializer):
     def get_group_ids(self, obj):
         return list(obj.groups.values_list('id', flat=True))
 
-    def get_explicit_permission_ids(self, obj):
-        return list(obj.user_permissions.values_list('id', flat=True))
+    def get_explicit_category_ids(self, obj):
+        try:
+            return list(obj.profile.permission_categories.values_list('id', flat=True))
+        except UserProfile.DoesNotExist:
+            return []
+
+    def get_effective_permission_ids(self, obj):
+        """Union of permissions from explicit categories + all group permissions."""
+        perm_ids = set()
+        # From explicit user categories
+        try:
+            for cat in obj.profile.permission_categories.prefetch_related('permissions').all():
+                perm_ids.update(cat.permissions.values_list('id', flat=True))
+        except UserProfile.DoesNotExist:
+            pass
+        # From groups
+        for group in obj.groups.prefetch_related('permissions').all():
+            perm_ids.update(group.permissions.values_list('id', flat=True))
+        return list(perm_ids)
+
+    def get_group_permission_summary(self, obj):
+        """Per-group list of category IDs that contribute to this user's permissions."""
+        result = []
+        for group in obj.groups.select_related('profile').all():
+            try:
+                cat_ids = list(group.profile.permission_categories.values_list('id', flat=True))
+            except Exception:
+                cat_ids = []
+            result.append({'group_id': group.id, 'group_name': group.name, 'category_ids': cat_ids})
+        return result
 
 
 class UserCreateSerializer(serializers.Serializer):
@@ -221,10 +277,6 @@ class UserGroupSerializer(serializers.ModelSerializer):
 class UserGroupCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150)
     description = serializers.CharField(required=False, default='', allow_blank=True)
-    is_admin_group = serializers.BooleanField(required=False, default=False)
-    permission_ids = serializers.ListField(
-        child=serializers.IntegerField(), required=False, default=list
-    )
     category_ids = serializers.ListField(
         child=serializers.IntegerField(), required=False, default=list
     )
@@ -239,22 +291,23 @@ class UserGroupCreateSerializer(serializers.Serializer):
 
     def create(self, validated_data):
         from apps.permissions.models import PermissionCategory
-        perm_ids = validated_data.pop('permission_ids', [])
         cat_ids = validated_data.pop('category_ids', [])
         group = Group.objects.create(name=validated_data['name'])
         profile = GroupProfile.objects.create(
             group=group,
             description=validated_data.get('description', ''),
-            is_admin_group=validated_data.get('is_admin_group', False),
+            is_admin_group=False,
             is_system=False,
         )
         if cat_ids:
             cats = PermissionCategory.objects.filter(id__in=cat_ids)
             profile.permission_categories.set(cats)
-            # Include category permissions in the effective set
+            perm_ids = set()
             for cat in cats:
-                perm_ids += list(cat.permissions.values_list('id', flat=True))
-        if perm_ids:
-            perms = Permission.objects.filter(id__in=set(perm_ids))
-            group.permissions.set(perms)
+                perm_ids.update(cat.permissions.values_list('id', flat=True))
+            if perm_ids:
+                group.permissions.set(Permission.objects.filter(id__in=perm_ids))
+        # Auto-compute is_admin_group: admin if perms span all available modules
+        profile.is_admin_group = _is_admin_by_coverage(group)
+        profile.save(update_fields=['is_admin_group'])
         return group

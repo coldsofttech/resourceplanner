@@ -747,7 +747,7 @@ class ProjectViewSet(viewsets.ViewSet):
 
             if request.method == "POST":
                 comment_text = (request.data.get("comment") or "").strip()
-                comment = ProjectCommentService.create_comment(pk, comment_text)
+                comment = ProjectCommentService.create_comment(pk, comment_text, user=request.user)
                 return Response(
                     ProjectCommentSerializer(comment).data,
                     status=status.HTTP_201_CREATED,

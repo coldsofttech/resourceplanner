@@ -4,10 +4,11 @@ import { apiFetch, showFlash, formatDateTime, setPageTitle, escHtml } from './..
 
 let _user = null;
 let _allGroups = [];
-let _allPermissions = [];
-let _groupsModal = null;
-let _permsModal = null;
-let _statusModal = null;
+let _allCategories = [];      // all PermissionCategories (with module_label)
+let _allPermissions = [];     // grouped by module [{app_label, label, permissions:[...]}]
+let _groupsModal   = null;
+let _permsModal    = null;
+let _statusModal   = null;
 let _resetPwdModal = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -21,6 +22,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     await loadUser(pk);
     loadAllGroups();
+    loadAllCategories();
     loadAllPermissions();
     wireButtons(pk);
 });
@@ -72,8 +74,11 @@ function renderUser(u) {
     // Groups
     renderGroupBadges(u.group_ids || []);
 
-    // Permissions
-    renderPermBadges(u.explicit_permission_ids || []);
+    // Explicit permission categories
+    renderExplicitCategoryBadges(u.explicit_category_ids || []);
+
+    // Effective permissions (aggregated)
+    renderEffectivePerms(u.effective_permission_ids || []);
 
     // Action buttons
     renderActions(u);
@@ -90,7 +95,6 @@ function renderGroupBadges(groupIds) {
     }
     emptyEl.classList.add('d-none');
 
-    // Use the already-loaded groups if available, else just show IDs
     if (_allGroups.length) {
         const myGroups = _allGroups.filter(g => groupIds.includes(g.id));
         listEl.innerHTML = myGroups.map(g => `
@@ -104,28 +108,77 @@ function renderGroupBadges(groupIds) {
     }
 }
 
-function renderPermBadges(permIds) {
+function renderExplicitCategoryBadges(catIds) {
     const listEl  = document.getElementById('perms-list');
     const emptyEl = document.getElementById('perms-empty');
 
-    if (!permIds.length) {
+    if (!catIds.length) {
         emptyEl.classList.remove('d-none');
         listEl.innerHTML = '';
         return;
     }
     emptyEl.classList.add('d-none');
 
-    // Flatten permissions from all modules
-    const permMap = {};
-    _allPermissions.forEach(mod => {
-        mod.permissions.forEach(p => { permMap[p.id] = p; });
-    });
+    const catMap = {};
+    _allCategories.forEach(c => { catMap[c.id] = c; });
 
-    listEl.innerHTML = permIds.map(id => {
-        const p = permMap[id];
-        return p
-            ? `<span class="rp-badge rp-badge--muted" title="${escHtml(p.codename)}">${escHtml(p.name)}</span>`
-            : `<span class="rp-badge rp-badge--muted">Perm #${id}</span>`;
+    listEl.innerHTML = catIds.map(id => {
+        const c = catMap[id];
+        return c
+            ? `<span class="rp-badge rp-badge--muted" title="${escHtml(c.description || '')}">
+                   <i class="bi bi-collection me-1"></i>${escHtml(c.name)}
+               </span>`
+            : `<span class="rp-badge rp-badge--muted">Category #${id}</span>`;
+    }).join('');
+}
+
+function renderEffectivePerms(permIds) {
+    const accordionEl = document.getElementById('effective-perms-accordion');
+    const emptyEl     = document.getElementById('effective-perms-empty');
+
+    if (!permIds.length) {
+        emptyEl.classList.remove('d-none');
+        accordionEl.innerHTML = '';
+        return;
+    }
+    emptyEl.classList.add('d-none');
+
+    if (!_allPermissions.length) {
+        accordionEl.innerHTML = '<p class="text-secondary small">Loading permissions…</p>';
+        return;
+    }
+
+    const idSet = new Set(permIds);
+    const modulesWithPerms = _allPermissions.filter(mod =>
+        mod.permissions.some(p => idSet.has(p.id))
+    );
+
+    if (!modulesWithPerms.length) {
+        emptyEl.classList.remove('d-none');
+        return;
+    }
+
+    accordionEl.innerHTML = modulesWithPerms.map((mod, i) => {
+        const myPerms = mod.permissions.filter(p => idSet.has(p.id));
+        return `
+        <div class="accordion-item border-0 border-bottom">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed py-2 px-0 bg-transparent shadow-none fw-500"
+                        type="button" data-bs-toggle="collapse"
+                        data-bs-target="#ep-body-${i}">
+                    ${escHtml(mod.label)}
+                    <span class="ms-2 text-secondary small">(${myPerms.length})</span>
+                </button>
+            </h2>
+            <div id="ep-body-${i}" class="accordion-collapse collapse">
+                <div class="accordion-body px-0 pb-2 pt-1">
+                    ${myPerms.map(p => `
+                        <div class="small text-secondary py-1">
+                            <i class="bi bi-check-circle-fill text-success me-1"></i>${escHtml(p.name)}
+                        </div>`).join('')}
+                </div>
+            </div>
+        </div>`;
     }).join('');
 }
 
@@ -207,10 +260,17 @@ async function loadAllGroups() {
     } catch (_) {}
 }
 
+async function loadAllCategories() {
+    try {
+        _allCategories = await apiFetch('/api/v1/permission-categories/');
+        if (_user) renderExplicitCategoryBadges(_user.explicit_category_ids || []);
+    } catch (_) {}
+}
+
 async function loadAllPermissions() {
     try {
         _allPermissions = await apiFetch('/api/v1/permissions/');
-        if (_user) renderPermBadges(_user.explicit_permission_ids || []);
+        if (_user) renderEffectivePerms(_user.effective_permission_ids || []);
     } catch (_) {}
 }
 
@@ -230,28 +290,30 @@ function wireButtons(pk) {
             });
             _groupsModal.hide();
             renderGroupBadges(_user.group_ids || []);
+            renderEffectivePerms(_user.effective_permission_ids || []);
             showFlash('Group membership updated.', 'success');
         } catch (err) {
             showFlash(err?.data?.error || 'Could not update groups.', 'error');
         }
     });
 
-    // Manage permissions
+    // Manage permission categories
     document.getElementById('manage-perms-btn').addEventListener('click', () => {
-        openPermsModal();
+        openCategoriesModal();
     });
 
     document.getElementById('save-perms-btn').addEventListener('click', async () => {
-        const selected = [...document.querySelectorAll('.perm-pick-check:checked')]
+        const selected = [...document.querySelectorAll('.cat-pick-check:checked')]
             .map(cb => Number(cb.value));
         try {
-            _user = await apiFetch(`/api/v1/users/${pk}/set_permissions/`, {
+            _user = await apiFetch(`/api/v1/users/${pk}/set_permission_categories/`, {
                 method: 'POST',
-                body: JSON.stringify({ permission_ids: selected }),
+                body: JSON.stringify({ category_ids: selected }),
             });
             _permsModal.hide();
-            renderPermBadges(_user.explicit_permission_ids || []);
-            showFlash('Permissions updated.', 'success');
+            renderExplicitCategoryBadges(_user.explicit_category_ids || []);
+            renderEffectivePerms(_user.effective_permission_ids || []);
+            showFlash('Permission categories updated.', 'success');
         } catch (err) {
             showFlash(err?.data?.error || 'Could not update permissions.', 'error');
         }
@@ -288,42 +350,70 @@ function openGroupsModal() {
     _groupsModal.show();
 }
 
-function openPermsModal() {
+function openCategoriesModal() {
     const loadingEl   = document.getElementById('perm-pick-loading');
     const accordionEl = document.getElementById('perm-pick-accordion');
 
     loadingEl.classList.remove('d-none');
     accordionEl.innerHTML = '';
 
-    const currentPermIds = new Set(_user?.explicit_permission_ids || []);
+    const currentCatIds = new Set(_user?.explicit_category_ids || []);
 
-    if (_allPermissions.length) {
+    if (_allCategories.length) {
         loadingEl.classList.add('d-none');
-        accordionEl.innerHTML = _allPermissions.map((mod, i) => {
-            const checked = mod.permissions.filter(p => currentPermIds.has(p.id)).length;
+
+        // Group by module
+        const byModule = {};
+        const noModule = [];
+        _allCategories.forEach(cat => {
+            if (cat.module) {
+                if (!byModule[cat.module]) byModule[cat.module] = { label: cat.module_label || cat.module, cats: [] };
+                byModule[cat.module].cats.push(cat);
+            } else {
+                noModule.push(cat);
+            }
+        });
+
+        const moduleOrder = [
+            'delivery_teams','team_members','member_leaves','financial_years',
+            'sprints','sprint_capacity','resource_plans','projects','programmes',
+            'contacts','skills','team_roles','office_locations','employment_types',
+            'project_types','project_sub_statuses','public_holidays',
+        ];
+
+        const sections = [];
+        moduleOrder.forEach(m => {
+            if (byModule[m]) sections.push({ key: m, label: byModule[m].label, cats: byModule[m].cats });
+        });
+        if (noModule.length) sections.push({ key: '__other__', label: 'Other', cats: noModule });
+
+        accordionEl.innerHTML = sections.map((sec, i) => {
+            const checked = sec.cats.filter(c => currentCatIds.has(c.id)).length;
             return `
             <div class="accordion-item border-0 border-bottom">
                 <h2 class="accordion-header">
                     <button class="accordion-button collapsed py-2 px-0 bg-transparent shadow-none fw-500"
                             type="button" data-bs-toggle="collapse"
-                            data-bs-target="#pp-body-${i}">
-                        ${escHtml(mod.label)}
-                        <span class="ms-2 text-secondary small" id="pp-count-${i}">
-                            (${checked} / ${mod.permissions.length})
+                            data-bs-target="#cp-ud-${i}">
+                        ${escHtml(sec.label)}
+                        <span class="ms-2 text-secondary small" id="cp-ud-count-${i}">
+                            (${checked} / ${sec.cats.length})
                         </span>
                     </button>
                 </h2>
-                <div id="pp-body-${i}" class="accordion-collapse collapse">
+                <div id="cp-ud-${i}" class="accordion-collapse collapse">
                     <div class="accordion-body px-0 pb-2 pt-1">
-                        ${mod.permissions.map(p => `
+                        ${sec.cats.map(cat => `
                             <div class="form-check mb-1">
-                                <input class="form-check-input perm-pick-check"
-                                       type="checkbox" value="${p.id}"
-                                       id="pp-${p.id}" data-mod-idx="${i}"
-                                       ${currentPermIds.has(p.id) ? 'checked' : ''}
-                                       onchange="updatePpCount(${i})">
-                                <label class="form-check-label small" for="pp-${p.id}">
-                                    ${escHtml(p.name)}
+                                <input class="form-check-input cat-pick-check"
+                                       type="checkbox" value="${cat.id}"
+                                       id="cp-ud-cat-${cat.id}" data-sec-idx="${i}"
+                                       ${currentCatIds.has(cat.id) ? 'checked' : ''}
+                                       onchange="updateCpUdCount(${i}, ${sec.cats.length})">
+                                <label class="form-check-label small" for="cp-ud-cat-${cat.id}">
+                                    <span class="fw-500">${escHtml(cat.name)}</span>
+                                    ${cat.description ? `<span class="text-secondary ms-1">— ${escHtml(cat.description)}</span>` : ''}
+                                    <span class="rp-badge rp-badge--muted ms-1">${cat.permission_count} perms</span>
                                 </label>
                             </div>`).join('')}
                     </div>
@@ -331,17 +421,15 @@ function openPermsModal() {
             </div>`;
         }).join('');
     } else {
-        accordionEl.innerHTML = '<p class="text-secondary small">No permissions available.</p>';
+        accordionEl.innerHTML = '<p class="text-secondary small">No permission categories available.</p>';
         loadingEl.classList.add('d-none');
     }
 
     _permsModal.show();
 }
 
-window.updatePpCount = (idx) => {
-    const mod = _allPermissions[idx];
-    if (!mod) return;
-    const n = document.querySelectorAll(`.perm-pick-check[data-mod-idx="${idx}"]:checked`).length;
-    const el = document.getElementById(`pp-count-${idx}`);
-    if (el) el.textContent = `(${n} / ${mod.permissions.length})`;
+window.updateCpUdCount = (secIdx, total) => {
+    const checked = document.querySelectorAll(`.cat-pick-check[data-sec-idx="${secIdx}"]:checked`).length;
+    const el = document.getElementById(`cp-ud-count-${secIdx}`);
+    if (el) el.textContent = `(${checked} / ${total})`;
 };

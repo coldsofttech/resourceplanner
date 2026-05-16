@@ -126,16 +126,14 @@ function wireDeleteModal() {
 
 // ── Form view (create / edit) ─────────────────────────────────────────────────
 
-let _allPermissions = [];     // [{app_label, label, permissions:[{id,codename,name}]}]
-let _allCategories  = [];     // [{id, name, permission_ids:[...]}]
+let _allCategories  = [];     // [{id, module, module_label, name, permission_ids:[...]}]
 let _groupIsSystem  = false;
 
 function initFormView() {
     const form = document.getElementById('group-form');
     const groupPk = form.dataset.groupPk ? Number(form.dataset.groupPk) : null;
 
-    loadCategoriesSection();
-    loadPermissionsAccordion(groupPk);
+    loadCategoriesAccordion();
 
     if (groupPk) {
         loadGroupForEdit(groupPk);
@@ -147,10 +145,10 @@ function initFormView() {
     });
 }
 
-async function loadCategoriesSection() {
-    const loadingEl = document.getElementById('categories-loading');
-    const listEl    = document.getElementById('categories-list');
-    if (!listEl) return;
+async function loadCategoriesAccordion() {
+    const loadingEl   = document.getElementById('categories-loading');
+    const accordionEl = document.getElementById('categories-accordion');
+    if (!accordionEl) return;
 
     try {
         _allCategories = await apiFetch('/api/v1/permission-categories/');
@@ -162,34 +160,78 @@ async function loadCategoriesSection() {
     if (loadingEl) loadingEl.classList.add('d-none');
 
     if (!_allCategories.length) {
-        listEl.innerHTML = '<p class="text-secondary small mb-0">No categories configured yet. <a href="/permission-categories/" class="rp-link">Create one</a>.</p>';
+        accordionEl.innerHTML = '<p class="text-secondary small mb-0">No categories configured yet. <a href="/permission-categories/" class="rp-link">Create one</a>.</p>';
         return;
     }
 
-    listEl.innerHTML = _allCategories.map(cat => `
-        <div class="form-check">
-            <input class="form-check-input cat-check" type="checkbox"
-                   value="${cat.id}" id="cat-${cat.id}"
-                   data-perm-ids="${escHtml(JSON.stringify(cat.permission_ids))}"
-                   onchange="onCategoryToggle(this)">
-            <label class="form-check-label" for="cat-${cat.id}">
-                <span class="fw-500">${escHtml(cat.name)}</span>
-                ${cat.description ? `<span class="text-secondary small ms-1">— ${escHtml(cat.description)}</span>` : ''}
-                <span class="rp-badge rp-badge--muted ms-1">${cat.permission_count} perms</span>
-            </label>
-        </div>`).join('');
-}
-
-window.onCategoryToggle = (checkbox) => {
-    const permIds = JSON.parse(checkbox.dataset.permIds || '[]');
-    permIds.forEach(id => {
-        const cb = document.getElementById(`perm-${id}`);
-        if (cb && !cb.disabled) {
-            cb.checked = checkbox.checked;
+    // Group categories by module
+    const byModule = {};
+    const noModule = [];
+    _allCategories.forEach(cat => {
+        if (cat.module) {
+            if (!byModule[cat.module]) byModule[cat.module] = { label: cat.module_label || cat.module, cats: [] };
+            byModule[cat.module].cats.push(cat);
+        } else {
+            noModule.push(cat);
         }
     });
-    // Refresh all module counts
-    _allPermissions.forEach((_, i) => updatePermCount(i));
+
+    const moduleOrder = [
+        'delivery_teams', 'team_members', 'member_leaves', 'financial_years',
+        'sprints', 'sprint_capacity', 'resource_plans', 'projects', 'programmes',
+        'contacts', 'skills', 'team_roles', 'office_locations', 'employment_types',
+        'project_types', 'project_sub_statuses', 'public_holidays',
+    ];
+
+    const sections = [];
+    moduleOrder.forEach(m => {
+        if (byModule[m]) sections.push({ key: m, label: byModule[m].label, cats: byModule[m].cats });
+    });
+    if (noModule.length) sections.push({ key: '__other__', label: 'Other', cats: noModule });
+
+    accordionEl.innerHTML = sections.map((sec, i) => `
+        <div class="accordion-item border-0 border-bottom">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed py-2 px-0 bg-transparent shadow-none fw-500"
+                        type="button" data-bs-toggle="collapse"
+                        data-bs-target="#cat-mod-${i}">
+                    ${escHtml(sec.label)}
+                    <span class="ms-2 text-secondary small" id="cat-mod-count-${i}">
+                        (0 / ${sec.cats.length})
+                    </span>
+                </button>
+            </h2>
+            <div id="cat-mod-${i}" class="accordion-collapse collapse">
+                <div class="accordion-body px-0 pb-2 pt-1">
+                    ${sec.cats.map(cat => `
+                        <div class="form-check mb-1">
+                            <input class="form-check-input cat-check" type="checkbox"
+                                   value="${cat.id}" id="cat-${cat.id}"
+                                   data-mod-idx="${i}"
+                                   onchange="updateCatModCount(${i})">
+                            <label class="form-check-label small" for="cat-${cat.id}">
+                                <span class="fw-500">${escHtml(cat.name)}</span>
+                                ${cat.description ? `<span class="text-secondary ms-1">— ${escHtml(cat.description)}</span>` : ''}
+                                <span class="rp-badge rp-badge--muted ms-1">${cat.permission_count} perms</span>
+                            </label>
+                        </div>`).join('')}
+                </div>
+            </div>
+        </div>`).join('');
+
+    // Store section cat counts for counter updates
+    window._catModSections = sections;
+}
+
+window.updateCatModCount = (idx) => {
+    const sec = window._catModSections?.[idx];
+    if (!sec) return;
+    const checked = sec.cats.filter(c => {
+        const cb = document.getElementById(`cat-${c.id}`);
+        return cb && cb.checked;
+    }).length;
+    const el = document.getElementById(`cat-mod-count-${idx}`);
+    if (el) el.textContent = `(${checked} / ${sec.cats.length})`;
 };
 
 function _getSelectedCategoryIds() {
@@ -201,102 +243,24 @@ function _applyGroupCategories(catIds) {
     document.querySelectorAll('.cat-check').forEach(cb => {
         cb.checked = idSet.has(Number(cb.value));
     });
-    // Auto-select permissions from checked categories
-    catIds.forEach(catId => {
-        const cat = _allCategories.find(c => c.id === catId);
-        if (!cat) return;
-        cat.permission_ids.forEach(pid => {
-            const cb = document.getElementById(`perm-${pid}`);
-            if (cb && !cb.disabled) cb.checked = true;
-        });
-    });
-    _allPermissions.forEach((_, i) => updatePermCount(i));
+    // Refresh all module counts
+    (window._catModSections || []).forEach((_, i) => updateCatModCount(i));
 }
 
-async function loadPermissionsAccordion(groupPk) {
-    const loadingEl = document.getElementById('permissions-loading');
-    const accordionEl = document.getElementById('permissions-accordion');
-
-    try {
-        _allPermissions = await apiFetch('/api/v1/permissions/');
-    } catch (_) {
-        if (loadingEl) loadingEl.textContent = 'Could not load permissions.';
-        return;
-    }
-
-    if (loadingEl) loadingEl.classList.add('d-none');
-
-    if (!_allPermissions.length) {
-        if (accordionEl) accordionEl.innerHTML = '<p class="text-secondary small">No permissions configured.</p>';
-        return;
-    }
-
-    accordionEl.innerHTML = _allPermissions.map((mod, i) => `
-        <div class="accordion-item border-0 border-bottom">
-            <h2 class="accordion-header" id="perm-head-${i}">
-                <button class="accordion-button collapsed py-2 px-0 bg-transparent shadow-none fw-500"
-                        type="button" data-bs-toggle="collapse"
-                        data-bs-target="#perm-body-${i}" aria-expanded="false">
-                    ${escHtml(mod.label)}
-                    <span class="ms-2 text-secondary small" id="perm-count-${i}">
-                        (0 / ${mod.permissions.length})
-                    </span>
-                </button>
-            </h2>
-            <div id="perm-body-${i}" class="accordion-collapse collapse"
-                 data-bs-parent="">
-                <div class="accordion-body px-0 pb-2 pt-1">
-                    ${mod.permissions.map(p => `
-                        <div class="form-check mb-1">
-                            <input class="form-check-input perm-check"
-                                   type="checkbox" value="${p.id}"
-                                   id="perm-${p.id}"
-                                   data-module-index="${i}"
-                                   onchange="updatePermCount(${i})">
-                            <label class="form-check-label small" for="perm-${p.id}">
-                                ${escHtml(p.name)}
-                            </label>
-                        </div>`).join('')}
-                </div>
-            </div>
-        </div>`).join('');
-}
-
-window.updatePermCount = (moduleIdx) => {
-    const mod = _allPermissions[moduleIdx];
-    if (!mod) return;
-    const checked = document.querySelectorAll(`.perm-check[data-module-index="${moduleIdx}"]:checked`).length;
-    const countEl = document.getElementById(`perm-count-${moduleIdx}`);
-    if (countEl) countEl.textContent = `(${checked} / ${mod.permissions.length})`;
-};
-
-function _getSelectedPermissionIds() {
-    return [...document.querySelectorAll('.perm-check:checked')].map(cb => Number(cb.value));
-}
-
-function _applyGroupPermissions(permIds) {
-    const idSet = new Set(permIds);
-    document.querySelectorAll('.perm-check').forEach(cb => {
-        cb.checked = idSet.has(Number(cb.value));
-    });
-    _allPermissions.forEach((_, i) => updatePermCount(i));
-}
-
-function _disablePermissions() {
-    document.querySelectorAll('.perm-check').forEach(cb => { cb.disabled = true; });
-    const badge = document.getElementById('permissions-system-badge');
-    const hint  = document.getElementById('permissions-hint');
+function _disableCategories() {
+    document.querySelectorAll('.cat-check').forEach(cb => { cb.disabled = true; });
+    const badge = document.getElementById('categories-system-badge');
+    const hint  = document.getElementById('categories-hint');
     if (badge) badge.classList.remove('d-none');
-    if (hint) hint.textContent = 'Permissions for system groups cannot be modified.';
+    if (hint) hint.textContent = 'Categories for system groups cannot be modified.';
 }
 
 async function loadGroupForEdit(pk) {
     try {
         const g = await apiFetch(`/api/v1/user-groups/${pk}/`);
 
-        document.getElementById('id_name').value         = g.name || '';
-        document.getElementById('id_description').value  = g.description || '';
-        document.getElementById('id_is_admin_group').checked = !!g.is_admin_group;
+        document.getElementById('id_name').value        = g.name || '';
+        document.getElementById('id_description').value = g.description || '';
 
         _groupIsSystem = !!g.is_system;
 
@@ -308,20 +272,14 @@ async function loadGroupForEdit(pk) {
         }
 
         if (g.is_system) {
-            document.getElementById('id_name').disabled         = true;
-            document.getElementById('id_is_admin_group').disabled = true;
+            document.getElementById('id_name').disabled = true;
         }
 
-        // Pre-check categories then permissions
         if (g.category_ids && g.category_ids.length) {
             _applyGroupCategories(g.category_ids);
         }
-        if (g.permission_ids) {
-            _applyGroupPermissions(g.permission_ids);
-        }
         if (g.is_system) {
-            _disablePermissions();
-            document.querySelectorAll('.cat-check').forEach(cb => { cb.disabled = true; });
+            _disableCategories();
         }
     } catch (_) {
         showFlash('Failed to load group data.', 'error');
@@ -337,17 +295,14 @@ async function submitGroupForm(groupPk) {
     errorBanner.classList.add('d-none');
 
     const payload = {
-        name:           document.getElementById('id_name').value.trim(),
-        description:    document.getElementById('id_description').value.trim(),
-        is_admin_group: document.getElementById('id_is_admin_group').checked,
-        permission_ids: _groupIsSystem ? undefined : _getSelectedPermissionIds(),
-        category_ids:   _groupIsSystem ? undefined : _getSelectedCategoryIds(),
+        name:         document.getElementById('id_name').value.trim(),
+        description:  document.getElementById('id_description').value.trim(),
+        category_ids: _groupIsSystem ? undefined : _getSelectedCategoryIds(),
     };
-    if (payload.permission_ids === undefined) delete payload.permission_ids;
     if (payload.category_ids === undefined) delete payload.category_ids;
 
     const origLabel = submitBtn.dataset.originalLabel || submitLabel.textContent;
-    submitBtn.disabled   = true;
+    submitBtn.disabled      = true;
     submitLabel.textContent = 'Saving…';
 
     try {

@@ -54,6 +54,12 @@ class UserProfile(models.Model):
         blank=True,
         help_text='Timestamp of the last password change. Used for rotation policy enforcement.',
     )
+    permission_categories = models.ManyToManyField(
+        'permissions.PermissionCategory',
+        blank=True,
+        related_name='user_profiles',
+        help_text='Permission categories assigned directly to this user.',
+    )
 
     class Meta:
         constraints = [
@@ -91,6 +97,7 @@ class GroupProfile(models.Model):
         blank=True,
         related_name='groups',
     )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

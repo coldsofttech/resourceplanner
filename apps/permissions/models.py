@@ -1,8 +1,35 @@
 from django.contrib.auth.models import Permission
 from django.db import models
 
+MODULE_CHOICES = [
+    ('delivery_teams', 'Delivery Teams'),
+    ('team_members', 'Team Members'),
+    ('member_leaves', 'Member Leaves'),
+    ('financial_years', 'Financial Years'),
+    ('sprints', 'Sprints'),
+    ('sprint_capacity', 'Sprint Capacity'),
+    ('resource_plans', 'Resource Plans'),
+    ('projects', 'Projects'),
+    ('programmes', 'Programmes'),
+    ('contacts', 'Contacts'),
+    ('skills', 'Skills'),
+    ('team_roles', 'Team Roles'),
+    ('office_locations', 'Office Locations'),
+    ('employment_types', 'Employment Types'),
+    ('project_types', 'Project Types'),
+    ('project_sub_statuses', 'Project Sub-Statuses'),
+    ('public_holidays', 'Public Holidays'),
+]
+
 
 class PermissionCategory(models.Model):
+    module = models.CharField(
+        max_length=50,
+        choices=MODULE_CHOICES,
+        blank=True,
+        default='',
+        help_text='Application module this category belongs to.',
+    )
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, default='')
     permissions = models.ManyToManyField(

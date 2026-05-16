@@ -42,19 +42,6 @@
                     <div class="invalid-feedback" id="description-error"></div>
                 </div>
 
-                <div class="rp-field mb-5">
-                    <div class="form-check form-switch rp-switch" id="admin-group-field">
-                        <input class="form-check-input" type="checkbox"
-                               id="id_is_admin_group" name="is_admin_group">
-                        <label class="form-check-label rp-label" for="id_is_admin_group">
-                            Admin group
-                        </label>
-                    </div>
-                    <p class="rp-hint mt-1">
-                        Members of admin groups receive staff-level access across the application.
-                    </p>
-                </div>
-
                 <div class="d-flex gap-2">
                     <button type="submit" id="submit-btn" class="btn btn-primary"
                             data-original-label="{{ submit_label }}">
@@ -71,41 +58,27 @@
             <h6 class="fw-600 mb-3"><i class="bi bi-info-circle me-2"></i>Notes</h6>
             <ul class="rp-tip-list">
                 <li>Groups let you assign roles to multiple users at once.</li>
-                <li>Admin groups grant full staff access — use with care.</li>
-                <li>The built-in <strong>ADMINISTRATOR</strong> group cannot be deleted.</li>
+                <li>Assign permission categories to control what module access members get.</li>
+                <li>A group is automatically marked <strong>Admin</strong> when it has permissions in every module.</li>
+                <li>The built-in <strong>ADMINISTRATOR</strong> and <strong>GUEST</strong> groups cannot be deleted or renamed.</li>
                 <li>Members can be added after creating the group.</li>
             </ul>
         </div>
 
-        <!-- Permission Categories -->
+        <!-- Permission Categories grouped by module -->
         <div class="rp-card mt-3" id="categories-card">
             <div class="d-flex align-items-center justify-content-between mb-2">
                 <h6 class="fw-600 mb-0"><i class="bi bi-collection me-2"></i>Permission Categories</h6>
+                <span id="categories-system-badge" class="rp-badge rp-badge--muted d-none">Read-only</span>
             </div>
-            <p class="rp-hint mb-2">
-                Assign pre-built permission bundles. Checking a category auto-selects its permissions below.
+            <p id="categories-hint" class="rp-hint mb-2">
+                Assign permission bundles organised by module. Admin status is auto-determined from coverage.
             </p>
             <div id="categories-loading" class="text-secondary small py-1">
                 <div class="spinner-border spinner-border-sm me-2" role="status"></div>
                 Loading…
             </div>
-            <div id="categories-list" class="d-flex flex-column gap-1"></div>
-        </div>
-
-        <!-- Permissions accordion -->
-        <div class="rp-card mt-3" id="permissions-card">
-            <div class="d-flex align-items-center justify-content-between mb-3">
-                <h6 class="fw-600 mb-0"><i class="bi bi-shield-check me-2"></i>Permissions</h6>
-                <span id="permissions-system-badge" class="rp-badge rp-badge--muted d-none">Read-only</span>
-            </div>
-            <p id="permissions-hint" class="rp-hint mb-2">
-                Fine-grained control. Permissions from categories above are auto-selected.
-            </p>
-            <div id="permissions-loading" class="text-secondary small py-2">
-                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
-                Loading permissions…
-            </div>
-            <div id="permissions-accordion" class="accordion accordion-flush" style="max-height:480px;overflow-y:auto"></div>
+            <div id="categories-accordion" class="accordion accordion-flush" style="max-height:520px;overflow-y:auto"></div>
         </div>
 
         <div id="metadata-card" class="rp-card rp-card--muted mt-3 d-none">

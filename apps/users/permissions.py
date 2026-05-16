@@ -25,10 +25,16 @@ _API_MODULE_MAP = {
 }
 
 
+_OPEN_PATHS = {
+    '/api/v1/sprints/active/',
+}
+
+
 class ModulePermission(BasePermission):
     """
     Deny access to module APIs for users without any permission in that module.
     Staff users bypass all checks. Unrecognised endpoints are allowed through.
+    Certain read-only paths (e.g. the active sprint) are open to all authenticated users.
     """
     message = 'You do not have permission to access this module.'
 
@@ -39,6 +45,9 @@ class ModulePermission(BasePermission):
             return True
 
         path = request.path
+        if path in _OPEN_PATHS:
+            return True
+
         if path.startswith('/api/v1/'):
             tail = path[len('/api/v1/'):]
             segment = tail.split('/')[0]
