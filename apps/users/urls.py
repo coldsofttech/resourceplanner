@@ -3,6 +3,9 @@ from django.urls import path
 from . import views, sso_views
 
 urlpatterns = [
+    # Dashboard (root)
+    path('', views.dashboard_view, name='dashboard'),
+
     # Classic auth
     path('login/', views.login_view, name='login'),
     path('register/', views.register_view, name='register'),
@@ -36,6 +39,9 @@ urlpatterns = [
     path('user-groups/new/', views.group_create_view, name='group_create'),
     path('user-groups/<int:pk>/', views.group_detail_view, name='group_detail'),
     path('user-groups/<int:pk>/edit/', views.group_edit_view, name='group_edit'),
+
+    # Privacy / Cookie policy
+    path('privacy/', views.privacy_view, name='privacy'),
 
     # SSO — OAuth2
     path('sso/oauth2/login/', sso_views.oauth2_login, name='sso_oauth2_login'),

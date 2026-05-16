@@ -60,6 +60,22 @@ class UserProfile(models.Model):
         related_name='user_profiles',
         help_text='Permission categories assigned directly to this user.',
     )
+    timezone = models.CharField(
+        max_length=64,
+        default='UTC',
+        help_text='User timezone for displaying datetimes (e.g. Europe/London).',
+    )
+    theme = models.CharField(
+        max_length=10,
+        choices=[('light', 'Light'), ('dark', 'Dark')],
+        default='light',
+        help_text='UI theme preference.',
+    )
+    dashboard_config = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Per-user dashboard widget configuration.',
+    )
 
     class Meta:
         constraints = [

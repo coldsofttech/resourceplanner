@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}Cookie &amp; Privacy Policy{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3">
+    <h1 class="rp-page-title">Cookie &amp; Privacy Policy</h1>
+    <p class="rp-page-subtitle">How this application uses cookies and local storage.</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-lg-8">
+        <div class="rp-card">
+            <h6 class="fw-600 mb-3">What we store</h6>
+            <p class="text-secondary small">Resource Planner uses the following cookies and browser storage mechanisms:</p>
+            <dl class="rp-meta-list">
+                <dt>Session cookie (<code>sessionid</code>)</dt>
+                <dd class="text-secondary small">Required. Identifies your authenticated session. Expires when you sign out or the browser closes.</dd>
+
+                <dt>CSRF cookie (<code>csrftoken</code>)</dt>
+                <dd class="text-secondary small">Required. Protects against cross-site request forgery attacks.</dd>
+
+                <dt>Active financial year cookie (<code>rp_active_fy</code>)</dt>
+                <dd class="text-secondary small">Functional. Caches the active financial year for instant navbar display on page load. Contains only public FY data (name and dates).</dd>
+
+                <dt>Active sprint cookie (<code>rp_active_sprint</code>)</dt>
+                <dd class="text-secondary small">Functional. Caches the active sprint for instant sprint pill display. Contains only the sprint name, dates, and remaining days.</dd>
+
+                <dt>Cookie consent (<code>rp_cookie_consent</code> in localStorage)</dt>
+                <dd class="text-secondary small">Functional. Stores whether you have acknowledged this notice, so the banner is not shown on every page.</dd>
+
+                <dt>Sidebar state (<code>rp_main_collapsed</code>, <code>rp_sub_collapsed</code>, etc. in localStorage)</dt>
+                <dd class="text-secondary small">Functional. Remembers your sidebar collapse preferences between pages.</dd>
+            </dl>
+
+            <hr class="my-4">
+
+            <h6 class="fw-600 mb-3">What we do not store</h6>
+            <p class="text-secondary small">No advertising, analytics, or tracking cookies are used. No data is shared with third parties.</p>
+
+            <hr class="my-4">
+
+            <h6 class="fw-600 mb-3">Managing cookies</h6>
+            <p class="text-secondary small">
+                You can clear all cookies and local storage at any time through your browser settings.
+                The application requires the session and CSRF cookies to function; clearing them will sign you out.
+            </p>
+
+            <a href="/" class="btn btn-outline-secondary btn-sm mt-2">
+                <i class="bi bi-arrow-left me-1"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

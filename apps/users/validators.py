@@ -22,6 +22,14 @@ class ConfigurationPasswordValidator:
             return fallback
 
     def validate(self, password, user=None):
+        # SSO users are not subject to classic password policies
+        if user is not None:
+            try:
+                if user.profile.sso_provider:
+                    return
+            except Exception:
+                pass
+
         errors = []
 
         min_len = self._cfg_int('PASSWORD_MIN_LENGTH', 8)

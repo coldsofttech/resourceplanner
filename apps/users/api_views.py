@@ -263,12 +263,43 @@ class UserViewSet(ViewSet):
             ser.validated_data.pop(f, None)
 
         updated = ser.update(request.user, ser.validated_data)
+
+        # Handle profile-level fields: timezone, theme
+        profile_fields = {}
+        new_tz = request.data.get('timezone', '').strip()
+        if new_tz:
+            try:
+                import zoneinfo
+                zoneinfo.ZoneInfo(new_tz)
+                profile_fields['timezone'] = new_tz
+            except Exception:
+                return _err('Invalid timezone.')
+        new_theme = request.data.get('theme', '').strip()
+        if new_theme in ('light', 'dark'):
+            profile_fields['theme'] = new_theme
+        if profile_fields:
+            try:
+                profile, _ = UserProfile.objects.get_or_create(user=updated)
+                for k, v in profile_fields.items():
+                    setattr(profile, k, v)
+                profile.save(update_fields=list(profile_fields.keys()))
+            except Exception as exc:
+                logger.warning('Profile field update failed: %s', exc)
+
         return Response(UserSerializer(updated, context={'request': request}).data)
 
     # ── /me/change_password ──────────────────────────────────────────────────
     @action(detail=False, methods=['post'], url_path='me/change_password')
     def me_change_password(self, request):
         user = request.user
+
+        # SSO users cannot use classic password change
+        try:
+            if user.profile.sso_provider:
+                return _err('Password change is not available for SSO accounts.', status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            pass
+
         current = request.data.get('current_password', '')
         new_pwd = request.data.get('new_password', '')
 
@@ -350,6 +381,16 @@ class UserViewSet(ViewSet):
         except UserProfile.DoesNotExist:
             pass
         return Response(UserSerializer(request.user, context={'request': request}).data)
+
+    # ── /me/dashboard_config ─────────────────────────────────────────────────
+    @action(detail=False, methods=['get', 'post'], url_path='me/dashboard_config')
+    def me_dashboard_config(self, request):
+        profile, _ = UserProfile.objects.get_or_create(user=request.user)
+        if request.method == 'POST':
+            config = request.data if isinstance(request.data, (dict, list)) else {}
+            profile.dashboard_config = config
+            profile.save(update_fields=['dashboard_config'])
+        return Response({'dashboard_config': profile.dashboard_config or {}})
 
     # ── /{pk}/deactivate ─────────────────────────────────────────────────────
     @action(detail=True, methods=['post'], url_path='deactivate')

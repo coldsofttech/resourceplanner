@@ -1,5 +1,6 @@
 <!doctype html>
-<html lang="en">
+{% load static %}
+<html lang="en" data-theme="{% if user.is_authenticated %}{% firstof user.profile.theme 'light' %}{% else %}light{% endif %}">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -22,7 +23,6 @@
             rel="stylesheet"
         />
         <!-- App CSS -->
-        {% load static %}
         <link href="{% static 'css/main.css' %}" rel="stylesheet" />
 
         {% block extra_css %}{% endblock %}
@@ -1156,8 +1156,40 @@
         <script>
             window.USER_IS_STAFF = {{ user.is_staff|yesno:"true,false" }};
             window.USER_PERMS = new Set({{ user_perms_json|safe }});
+            window.USER_TIMEZONE = "{% if user.is_authenticated %}{% firstof user.profile.timezone 'UTC' %}{% else %}UTC{% endif %}";
+            window.USER_THEME = "{% if user.is_authenticated %}{% firstof user.profile.theme 'light' %}{% else %}light{% endif %}";
         </script>
 
         {% block extra_js %}{% endblock %}
+
+        <!-- Cookie Consent Banner -->
+        <div id="rp-cookie-banner" class="rp-cookie-banner d-none" role="dialog" aria-label="Cookie consent">
+            <div class="rp-cookie-banner-inner">
+                <div class="rp-cookie-banner-text">
+                    <i class="bi bi-cookie me-2"></i>
+                    <span>This site uses cookies and local storage to remember your session, active financial year, active sprint, and interface preferences (sidebar state, theme). No tracking or advertising cookies are used.</span>
+                </div>
+                <div class="rp-cookie-banner-actions">
+                    <a href="/privacy/" class="btn btn-sm btn-ghost-icon text-secondary" target="_blank" rel="noopener">Learn more</a>
+                    <button id="rp-cookie-accept" class="btn btn-sm btn-primary">Accept</button>
+                </div>
+            </div>
+        </div>
+        <script>
+        (function () {
+            var CONSENT_KEY = 'rp_cookie_consent';
+            if (!localStorage.getItem(CONSENT_KEY)) {
+                var banner = document.getElementById('rp-cookie-banner');
+                if (banner) banner.classList.remove('d-none');
+                var btn = document.getElementById('rp-cookie-accept');
+                if (btn) {
+                    btn.addEventListener('click', function () {
+                        localStorage.setItem(CONSENT_KEY, '1');
+                        banner.classList.add('d-none');
+                    });
+                }
+            }
+        })();
+        </script>
     </body>
 </html>

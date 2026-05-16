@@ -42,7 +42,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProfile
-        fields = ['sso_provider', 'sso_uid', 'avatar_url', 'avatar', 'avatar_thumb']
+        fields = ['sso_provider', 'sso_uid', 'avatar_url', 'avatar', 'avatar_thumb', 'timezone', 'theme']
         read_only_fields = ['sso_provider', 'sso_uid']
 
     def get_avatar_thumb(self, obj):
@@ -189,11 +189,12 @@ class UserGroupMemberSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     avatar_display = serializers.SerializerMethodField()
     joined_at = serializers.SerializerMethodField()
+    is_default_admin = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'full_name',
-                  'is_active', 'is_staff', 'avatar_display', 'joined_at']
+                  'is_active', 'is_staff', 'avatar_display', 'joined_at', 'is_default_admin']
 
     def get_full_name(self, obj):
         return obj.get_full_name() or obj.email
@@ -212,6 +213,10 @@ class UserGroupMemberSerializer(serializers.ModelSerializer):
     def get_joined_at(self, obj):
         # Django's auth.Group M2M has no timestamp
         return None
+
+    def get_is_default_admin(self, obj):
+        from apps.users.apps import DEFAULT_ADMIN_EMAIL
+        return obj.email.lower() == DEFAULT_ADMIN_EMAIL.lower()
 
 
 class UserGroupSerializer(serializers.ModelSerializer):

@@ -354,6 +354,7 @@ let _removeModal  = null;
 let _deleteGrpModal = null;
 let _removePk     = null;
 let _detailAllCategories = [];
+let _groupName    = '';
 
 function initDetailView() {
     const pk = window.GROUP_PK;
@@ -407,6 +408,7 @@ async function loadGroupDetail(pk) {
         const g = await apiFetch(`/api/v1/user-groups/${pk}/`);
 
         // Page title
+        _groupName = g.name || '';
         const titleEl = document.getElementById('page-group-name');
         if (titleEl) titleEl.textContent = g.name;
         document.title = `${g.name} — User Groups — Resource Planner`;
@@ -496,22 +498,28 @@ function renderMemberRow(m) {
         ? `<img src="${escHtml(m.avatar_display)}" class="rp-avatar-sm me-2" alt="">`
         : `<span class="rp-avatar-sm-initials me-2">${escHtml((m.first_name || m.email || '?')[0].toUpperCase())}</span>`;
 
+    const isProtected = m.is_default_admin && _groupName === 'ADMINISTRATOR';
+    const removeBtn = isProtected
+        ? `<button class="btn btn-ghost-icon text-danger" title="Cannot remove default admin from Administrators" disabled>
+               <i class="bi bi-x-lg"></i>
+           </button>`
+        : `<button class="btn btn-ghost-icon text-danger" title="Remove"
+                   onclick="showRemoveMemberModal(${m.id}, '${escHtml(name)}')">
+               <i class="bi bi-x-lg"></i>
+           </button>`;
+
     return `
         <tr data-member-id="${m.id}">
             <td>
                 <div class="d-flex align-items-center">
                     ${avatar}
                     <span class="fw-500">${escHtml(name)}</span>
+                    ${m.is_default_admin ? '<span class="rp-badge rp-badge--warning ms-2">Default Admin</span>' : ''}
                 </div>
             </td>
             <td class="text-secondary small">${escHtml(m.email)}</td>
             <td class="text-secondary small">${formatDateTime(m.joined_at || null)}</td>
-            <td class="text-center">
-                <button class="btn btn-ghost-icon text-danger" title="Remove"
-                        onclick="showRemoveMemberModal(${m.id}, '${escHtml(name)}')">
-                    <i class="bi bi-x-lg"></i>
-                </button>
-            </td>
+            <td class="text-center">${removeBtn}</td>
         </tr>`;
 }
 

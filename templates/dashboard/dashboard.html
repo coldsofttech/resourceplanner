@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Resource Planner{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Dashboard</h1>
+        <p class="rp-page-subtitle">Overview of your resource planner.</p>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary" id="dashboard-config-btn" title="Configure dashboard">
+        <i class="bi bi-gear me-1"></i>Configure
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Widget grid -->
+<div id="dashboard-grid" class="row g-3">
+    <div class="col-12 text-center text-secondary py-5" id="dashboard-loading">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading dashboard…
+    </div>
+</div>
+
+<!-- Dashboard Config Panel (offcanvas) -->
+<div class="offcanvas offcanvas-end" tabindex="-1" id="dashboardConfigPanel" style="width:360px">
+    <div class="offcanvas-header border-bottom">
+        <h5 class="offcanvas-title"><i class="bi bi-gear me-2"></i>Configure Dashboard</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+    </div>
+    <div class="offcanvas-body">
+        <p class="text-secondary small mb-3">Drag to reorder. Toggle visibility with the eye icon.</p>
+        <ul id="widget-config-list" class="list-unstyled mb-4"></ul>
+        <div class="d-flex gap-2">
+            <button class="btn btn-primary btn-sm" id="save-dashboard-btn">
+                <span id="save-dashboard-label">Save layout</span>
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" id="reset-dashboard-btn">Reset to defaults</button>
+        </div>
+        <div id="config-save-success" class="alert alert-success mt-3 d-none py-2 px-3" style="font-size:13px">Layout saved.</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+<script type="module" src="{% static 'js/modules/dashboard.js' %}"></script>
+{% endblock %}

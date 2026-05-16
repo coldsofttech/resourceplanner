@@ -72,6 +72,10 @@ class ForcePasswordChangeMiddleware(MiddlewareMixin):
         except Exception:
             return None
 
+        # SSO users are not subject to classic password policies
+        if getattr(profile, 'sso_provider', ''):
+            return None
+
         if profile.must_change_password:
             return redirect('/profile/change-password/')
 

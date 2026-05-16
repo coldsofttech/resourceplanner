@@ -8,6 +8,7 @@ import {
 document.addEventListener('DOMContentLoaded', () => {
     setPageTitle('My Profile');
     initProfileForm();
+    initPrefsForm();
     initPasswordForm();
     initAvatarUpload();
 });
@@ -54,6 +55,41 @@ function initProfileForm() {
             }
         } finally {
             if (btn) { btn.disabled = false; label.textContent = 'Save changes'; }
+        }
+    });
+}
+
+function initPrefsForm() {
+    const form = document.getElementById('prefs-form');
+    if (!form) return;
+
+    form.addEventListener('submit', async e => {
+        e.preventDefault();
+        document.getElementById('prefs-error-banner')?.classList.add('d-none');
+        document.getElementById('prefs-success-banner')?.classList.add('d-none');
+
+        const timezone = form.querySelector('[name="timezone"]')?.value || 'UTC';
+        const theme    = form.querySelector('[name="theme"]:checked')?.value || 'light';
+
+        const btn   = document.getElementById('prefs-submit-btn');
+        const label = document.getElementById('prefs-submit-label');
+        if (btn) { btn.disabled = true; label.textContent = 'Saving…'; }
+
+        try {
+            await apiFetch('/api/v1/users/me/update/', {
+                method: 'PATCH',
+                body: JSON.stringify({ timezone, theme }),
+            });
+            document.getElementById('prefs-success-banner').textContent = 'Preferences saved. Reload to apply theme.';
+            document.getElementById('prefs-success-banner').classList.remove('d-none');
+            // Apply theme immediately without reload
+            document.documentElement.setAttribute('data-theme', theme);
+        } catch (err) {
+            document.getElementById('prefs-error-banner').textContent =
+                err?.data?.error || 'Could not save preferences.';
+            document.getElementById('prefs-error-banner').classList.remove('d-none');
+        } finally {
+            if (btn) { btn.disabled = false; label.textContent = 'Save preferences'; }
         }
     });
 }

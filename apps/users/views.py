@@ -111,11 +111,26 @@ def profile_view(request):
         profile_form.fields['last_name'].widget.attrs.update(_ro)
 
     try:
-        sso_provider = user.profile.sso_provider
+        profile = user.profile
+        sso_provider = profile.sso_provider
+        password_last_changed = profile.password_last_changed
+        user_timezone = profile.timezone or 'UTC'
+        user_theme = profile.theme or 'light'
     except Exception:
         sso_provider = ''
+        password_last_changed = None
+        user_timezone = 'UTC'
+        user_theme = 'light'
 
     is_sso = bool(sso_provider)
+    user_groups = list(user.groups.select_related('profile').all())
+
+    # Common timezone list for selector
+    try:
+        import zoneinfo
+        all_timezones = sorted(zoneinfo.available_timezones())
+    except Exception:
+        all_timezones = ['UTC', 'Europe/London', 'Europe/Paris', 'US/Eastern', 'US/Pacific', 'Asia/Kolkata', 'Asia/Tokyo', 'Australia/Sydney']
 
     return render(request, 'users/profile.html', {
         'profile_form': profile_form,
@@ -123,7 +138,25 @@ def profile_view(request):
         'is_sso': is_sso,
         'sso_provider': sso_provider,
         'is_default_admin': is_default_admin,
+        'user_groups': user_groups,
+        'password_last_changed': password_last_changed,
+        'user_timezone': user_timezone,
+        'user_theme': user_theme,
+        'all_timezones': all_timezones,
     })
+
+
+# ---------------------------------------------------------------------------
+# Dashboard
+# ---------------------------------------------------------------------------
+
+@login_required
+def dashboard_view(request):
+    return render(request, 'dashboard/dashboard.html')
+
+
+def privacy_view(request):
+    return render(request, 'users/privacy.html')
 
 
 # ---------------------------------------------------------------------------
