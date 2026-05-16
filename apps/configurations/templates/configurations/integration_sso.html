@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">SSO Integration</h1>
+        <p class="rp-page-subtitle">Configure Single Sign-On via OAuth2 or SAML 2.0.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="wizard-progress" class="wizard-progress px-1"></div>
+
+<!-- Step 1: Protocol & Provider -->
+<div id="step-1" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Protocol & Identity Provider</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">SSO Protocol</div>
+        <div class="wizard-field-desc">
+            <code>oauth2</code> — OpenID Connect / OAuth2 (GitHub, Azure AD, Google, Okta).
+            <code>saml</code> — SAML 2.0 (Azure AD SAML, ADFS, Okta SAML).
+        </div>
+        <select id="ctrl-SSO_PROTOCOL" class="form-select rp-input" style="max-width:240px;">
+            <option value="oauth2">OAuth2 / OpenID Connect</option>
+            <option value="saml">SAML 2.0</option>
+        </select>
+    </div>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Provider Display Name</div>
+        <div class="wizard-field-desc">Name shown on the login page, e.g. 'GitHub', 'Azure AD'.</div>
+        <div id="ctrl-SSO_PROVIDER_NAME"></div>
+    </div>
+</div>
+
+<!-- Step 2: OAuth2 Configuration -->
+<div id="step-2" class="wizard-panel d-none">
+
+    <!-- OAuth2 panel -->
+    <div id="panel-oauth2">
+        <h6 class="wizard-section-title">OAuth2 / OpenID Connect Settings</h6>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">
+                Client ID
+                <span class="rp-badge rp-badge--warning"><i class="bi bi-shield-lock-fill"></i> Encrypted</span>
+            </div>
+            <div class="wizard-field-desc">Application (client) ID from the identity provider.</div>
+            <div id="ctrl-SSO_OAUTH2_CLIENT_ID"></div>
+        </div>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">
+                Client Secret
+                <span class="rp-badge rp-badge--warning"><i class="bi bi-shield-lock-fill"></i> Encrypted</span>
+            </div>
+            <div class="wizard-field-desc">Client secret from the identity provider.</div>
+            <div id="ctrl-SSO_OAUTH2_CLIENT_SECRET"></div>
+        </div>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">Authorization Endpoint</div>
+            <div class="wizard-field-desc">The IdP URL users are redirected to for authentication.</div>
+            <div id="ctrl-SSO_OAUTH2_AUTH_URL"></div>
+        </div>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">Token Endpoint</div>
+            <div class="wizard-field-desc">URL to exchange the authorization code for tokens.</div>
+            <div id="ctrl-SSO_OAUTH2_TOKEN_URL"></div>
+        </div>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">User Info Endpoint</div>
+            <div class="wizard-field-desc">URL to fetch the user's profile. Leave blank if claims are in the ID token.</div>
+            <div id="ctrl-SSO_OAUTH2_USERINFO_URL"></div>
+        </div>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">Scope</div>
+            <div class="wizard-field-desc">Space-separated OAuth2 scopes. Typical: <code>openid email profile</code>.</div>
+            <div id="ctrl-SSO_OAUTH2_SCOPE"></div>
+        </div>
+    </div>
+
+    <!-- SAML panel -->
+    <div id="panel-saml">
+        <h6 class="wizard-section-title">SAML 2.0 — Identity Provider</h6>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">IdP Entity ID</div>
+            <div class="wizard-field-desc">The IdP's entity ID / Issuer found in the metadata XML.</div>
+            <div id="ctrl-SSO_SAML_IDP_ENTITY_ID"></div>
+        </div>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">IdP SSO URL</div>
+            <div class="wizard-field-desc">The IdP's Single Sign-On URL (HTTP-Redirect binding).</div>
+            <div id="ctrl-SSO_SAML_IDP_SSO_URL"></div>
+        </div>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">
+                IdP X.509 Certificate
+                <span class="rp-badge rp-badge--warning"><i class="bi bi-shield-lock-fill"></i> Encrypted</span>
+            </div>
+            <div class="wizard-field-desc">Public certificate used to verify SAML assertion signatures (PEM/base64, no header/footer).</div>
+            <div id="ctrl-SSO_SAML_IDP_CERT"></div>
+        </div>
+
+        <h6 class="wizard-section-title mt-3">SAML 2.0 — Service Provider</h6>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">SP Entity ID</div>
+            <div class="wizard-field-desc">This app's entity ID registered with the IdP (usually your base URL).</div>
+            <div id="ctrl-SSO_SAML_SP_ENTITY_ID"></div>
+        </div>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">SP Assertion Consumer Service URL</div>
+            <div class="wizard-field-desc">URL the IdP posts SAML responses to. Typically <code>https://yourhost/sso/saml/acs/</code>.</div>
+            <div id="ctrl-SSO_SAML_SP_ACS_URL"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation -->
+<div class="wizard-nav d-flex gap-2 justify-content-end">
+    <button id="wizard-back" class="btn btn-outline-secondary d-none">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </button>
+    <button id="wizard-next" class="btn btn-primary d-none">
+        Next<i class="bi bi-arrow-right ms-1"></i>
+    </button>
+    <button id="wizard-save" class="btn btn-primary d-none">
+        <i class="bi bi-check-lg me-1"></i>Save changes
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/integration_sso.js' %}"></script>
+{% endblock %}

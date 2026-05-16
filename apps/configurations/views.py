@@ -40,39 +40,33 @@ class _ModuleListView(View):
         })
 
 
-class IntegrationAIListView(_ModuleListView):
-    module = 'integration_ai'
-    page_title = 'AI Integration'
-    page_subtitle = 'Configure AI provider and model settings.'
+class IntegrationAIListView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'configurations/integration_ai.html')
 
 
-class IntegrationEmailListView(_ModuleListView):
-    module = 'integration_email'
-    page_title = 'Email Integration'
-    page_subtitle = 'Configure outbound email (SMTP) settings.'
+class IntegrationEmailListView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'configurations/integration_email.html')
 
 
-class IntegrationSSOListView(_ModuleListView):
-    module = 'integration_sso'
-    page_title = 'SSO Integration'
-    page_subtitle = 'Configure Single Sign-On via OAuth2 or SAML 2.0.'
+class IntegrationSSOListView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'configurations/integration_sso.html')
 
 
-class IntegrationJiraListView(_ModuleListView):
-    module = 'integration_jira'
-    page_title = 'Jira Integration'
-    page_subtitle = 'Configure Jira project management integration.'
+class IntegrationJiraListView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'configurations/integration_jira.html')
 
 
 # ── Security views ────────────────────────────────────────────────────────────
 
-class SecurityListView(_ModuleListView):
-    module = 'security'
-    page_title = 'Security'
-    page_subtitle = 'Authentication mode, session, and access control settings.'
+class SecurityListView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'configurations/security.html')
 
 
-class SecurityPasswordPolicyListView(_ModuleListView):
-    module = 'security_password'
-    page_title = 'Password Policy'
-    page_subtitle = 'Configure password strength requirements and rotation rules.'
+class SecurityPasswordPolicyListView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'configurations/security_password.html')

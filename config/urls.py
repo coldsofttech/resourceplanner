@@ -77,6 +77,8 @@ urlpatterns = [
     path("api/v1/", include("apps.resource_plans.api_urls")),
     # REST API – all other apps
     path("api/v1/", include(router.urls)),
+    # REST API – integration + security module endpoints
+    path("api/v1/", include("apps.configurations.module_api_urls")),
     # Manage
     path("delivery-teams/", include("apps.delivery_teams.urls")),
     path("team-members/", include("apps.team_members.urls")),

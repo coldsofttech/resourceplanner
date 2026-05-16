@@ -5,7 +5,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-        <title>{% block title %}Resource Planner{% endblock %}</title>
+        <title>{% block title %}{% autoescape off %}{{ app_name|striptags }}{% endautoescape %}{% endblock %}</title>
 
         <!-- Bootstrap 5 -->
         <link
@@ -51,7 +51,7 @@
                     <span class="rp-brand-icon">
                         <i class="bi bi-diagram-3-fill"></i>
                     </span>
-                    <span>Resource<strong>Planner</strong></span>
+                    <span>{{ app_name|safe }}</span>
                 </a>
 
                 <button
@@ -1264,5 +1264,142 @@
             }
         })();
         </script>
+
+        {% if user.is_authenticated %}
+        <!-- Session Timeout Warning Modal -->
+        <div class="modal fade" id="sessionTimeoutModal" tabindex="-1"
+             data-bs-backdrop="static" data-bs-keyboard="false" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered" style="max-width:420px;">
+                <div class="modal-content rp-modal">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title d-flex align-items-center gap-2">
+                            <i class="bi bi-clock-history text-warning"></i>
+                            Session expiring soon
+                        </h5>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3 text-secondary">
+                            Your session will expire due to inactivity in
+                            <strong id="session-countdown" class="text-danger">2:00</strong>.
+                        </p>
+                        <p class="mb-0 small text-secondary">
+                            Click <strong>Stay Logged In</strong> to continue your session,
+                            or you will be redirected to the login page.
+                        </p>
+                    </div>
+                    <div class="modal-footer border-0 pt-0 gap-2">
+                        <a href="/login/" class="btn btn-outline-secondary">Log Out Now</a>
+                        <button type="button" class="btn btn-primary" id="session-stay-btn">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Stay Logged In
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+        (function () {
+            var TIMEOUT_MS  = {{ session_timeout_minutes }} * 60 * 1000;
+            var WARNING_MS  = 2 * 60 * 1000;   // show warning 2 min before expiry
+            var PING_URL    = '/api/v1/users/ping/';
+            var LOGIN_URL   = '/login/?reason=timeout';
+            var CSRF_META   = document.querySelector('meta[name="csrf-token"]');
+            var csrfToken   = CSRF_META ? CSRF_META.getAttribute('content') : '';
+
+            if (!csrfToken) {
+                var cookie = document.cookie.split(';').find(function(c) { return c.trim().startsWith('csrftoken='); });
+                csrfToken = cookie ? cookie.split('=')[1].trim() : '';
+            }
+
+            // Only run if there is a real timeout configured
+            if (!TIMEOUT_MS || TIMEOUT_MS <= 0) return;
+
+            var lastActivity = Date.now();
+            var warningShown = false;
+            var countdownInterval = null;
+            var modal = null;
+
+            function resetActivity() {
+                lastActivity = Date.now();
+                if (warningShown) {
+                    hideWarning();
+                    ping();
+                }
+            }
+
+            ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'].forEach(function(evt) {
+                document.addEventListener(evt, resetActivity, { passive: true });
+            });
+
+            function getModal() {
+                if (!modal) {
+                    var el = document.getElementById('sessionTimeoutModal');
+                    if (el && window.bootstrap) modal = new bootstrap.Modal(el);
+                }
+                return modal;
+            }
+
+            function showWarning(remaining) {
+                warningShown = true;
+                var m = getModal();
+                if (m) m.show();
+                startCountdown(remaining);
+            }
+
+            function hideWarning() {
+                warningShown = false;
+                clearInterval(countdownInterval);
+                var m = getModal();
+                if (m) m.hide();
+            }
+
+            function startCountdown(remaining) {
+                clearInterval(countdownInterval);
+                var end = Date.now() + remaining;
+                function tick() {
+                    var left = Math.max(0, end - Date.now());
+                    var mins = Math.floor(left / 60000);
+                    var secs = Math.floor((left % 60000) / 1000);
+                    var el = document.getElementById('session-countdown');
+                    if (el) el.textContent = mins + ':' + (secs < 10 ? '0' : '') + secs;
+                    if (left <= 0) {
+                        clearInterval(countdownInterval);
+                        window.location.href = LOGIN_URL;
+                    }
+                }
+                tick();
+                countdownInterval = setInterval(tick, 1000);
+            }
+
+            function ping() {
+                fetch(PING_URL, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': csrfToken, 'Content-Type': 'application/json' },
+                    credentials: 'same-origin',
+                }).catch(function() {});
+            }
+
+            var stayBtn = document.getElementById('session-stay-btn');
+            if (stayBtn) {
+                stayBtn.addEventListener('click', function() {
+                    lastActivity = Date.now();
+                    hideWarning();
+                    ping();
+                });
+            }
+
+            // Check every 10 seconds
+            setInterval(function () {
+                var idle = Date.now() - lastActivity;
+                var remaining = TIMEOUT_MS - idle;
+                if (remaining <= 0) {
+                    window.location.href = LOGIN_URL;
+                } else if (remaining <= WARNING_MS && !warningShown) {
+                    showWarning(remaining);
+                }
+            }, 10000);
+        })();
+        </script>
+        {% endif %}
     </body>
 </html>

@@ -92,6 +92,28 @@ class UserProfile(models.Model):
         return self.user.username
 
 
+class UserProfileAvatar(models.Model):
+    """Stores avatar image binary data when AVATAR_STORAGE=database."""
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='avatar_data',
+    )
+    data = models.BinaryField(
+        help_text='Raw image bytes.',
+    )
+    content_type = models.CharField(
+        max_length=50,
+        default='image/jpeg',
+        help_text='MIME type of the stored image (e.g. image/jpeg, image/png).',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f'Avatar for {self.user.username}'
+
+
 class PasswordHistory(models.Model):
     """Stores hashed previous passwords to prevent reuse."""
     user = models.ForeignKey(

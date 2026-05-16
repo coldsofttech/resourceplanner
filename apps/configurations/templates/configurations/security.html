@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Security</h1>
+        <p class="rp-page-subtitle">Authentication mode, session, and access control settings.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="wizard-progress" class="wizard-progress px-1"></div>
+
+<!-- Step 1: Authentication -->
+<div id="step-1" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Authentication</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Authentication Mode</div>
+        <div class="wizard-field-desc">
+            <code>classic</code> — email and password via the built-in login screen.
+            <code>sso</code> — redirect all users to the configured identity provider.
+        </div>
+        <select id="ctrl-AUTH_MODE" class="form-select rp-input" style="max-width:240px;">
+            <option value="classic">Classic (email + password)</option>
+            <option value="sso">SSO (identity provider)</option>
+        </select>
+        <div id="sso-warning" class="alert alert-warning mt-3 d-none" role="alert">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            <strong>Switching to SSO</strong> will disable local password login. Ensure the SSO integration is configured first.
+        </div>
+    </div>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Allow Self-Registration</div>
+        <div class="wizard-field-desc">When classic auth is active, allow new users to register via the sign-up page.</div>
+        <select id="ctrl-ALLOW_REGISTRATION" class="form-select rp-input" style="max-width:200px;">
+            <option value="true">Allowed</option>
+            <option value="false">Disabled (admin invite only)</option>
+        </select>
+    </div>
+</div>
+
+<!-- Step 2: Session -->
+<div id="step-2" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Session Management</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Session Timeout (minutes)</div>
+        <div class="wizard-field-desc">
+            Idle minutes before the session expires and the user is redirected to login.
+            Default: 480 (8 hours). Set to 0 to disable timeout.
+        </div>
+        <div id="ctrl-SESSION_TIMEOUT_MINUTES"></div>
+    </div>
+</div>
+
+<!-- Navigation -->
+<div class="wizard-nav d-flex gap-2 justify-content-end">
+    <button id="wizard-back" class="btn btn-outline-secondary d-none">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </button>
+    <button id="wizard-next" class="btn btn-primary d-none">
+        Next<i class="bi bi-arrow-right ms-1"></i>
+    </button>
+    <button id="wizard-save" class="btn btn-primary d-none">
+        <i class="bi bi-check-lg me-1"></i>Save changes
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/security.js' %}"></script>
+{% endblock %}

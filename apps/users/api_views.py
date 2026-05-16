@@ -507,6 +507,14 @@ class UserViewSet(ViewSet):
         user = User.objects.select_related('profile').get(pk=user.pk)
         return Response(UserSerializer(user, context={'request': request}).data)
 
+    # ── /ping ────────────────────────────────────────────────────────────────
+    @action(detail=False, methods=['post'], url_path='ping')
+    def ping(self, request):
+        """Refresh _rp_last_activity so the session timeout resets."""
+        import time
+        request.session['_rp_last_activity'] = time.time()
+        return Response({'ok': True})
+
     # ── /stats ───────────────────────────────────────────────────────────────
     @action(detail=False, methods=['get'], url_path='stats')
     def stats(self, request):

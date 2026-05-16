@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Jira Integration</h1>
+        <p class="rp-page-subtitle">Configure Jira project management integration.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="wizard-progress" class="wizard-progress px-1"></div>
+
+<!-- Step 1: Connection -->
+<div id="step-1" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Connection</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Jira Integration Enabled</div>
+        <div class="wizard-field-desc">Enable or disable Jira integration across the application.</div>
+        <div id="ctrl-JIRA_ENABLED"></div>
+    </div>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Jira Base URL</div>
+        <div class="wizard-field-desc">
+            Cloud: <code>https://yourcompany.atlassian.net</code>.
+            Server: <code>https://jira.example.com</code>.
+        </div>
+        <div id="ctrl-JIRA_URL"></div>
+    </div>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Auth Mode</div>
+        <div class="wizard-field-desc">
+            <code>token</code> — API token + email (Jira Cloud).
+            <code>oauth2</code> — OAuth 2.0.
+        </div>
+        <select id="ctrl-JIRA_AUTH_MODE" class="form-select rp-input" style="max-width:240px;">
+            <option value="token">API Token</option>
+            <option value="oauth2">OAuth 2.0</option>
+        </select>
+    </div>
+</div>
+
+<!-- Step 2: Credentials & Project -->
+<div id="step-2" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Credentials & Project</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Jira Account Email</div>
+        <div class="wizard-field-desc">Email address of the Jira account used for API token auth.</div>
+        <div id="ctrl-JIRA_EMAIL"></div>
+    </div>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">
+            Jira API Token
+            <span class="rp-badge rp-badge--warning"><i class="bi bi-shield-lock-fill"></i> Encrypted</span>
+        </div>
+        <div class="wizard-field-desc">Generated from your Atlassian account settings. Stored encrypted.</div>
+        <div id="ctrl-JIRA_API_TOKEN"></div>
+    </div>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Default Project Key</div>
+        <div class="wizard-field-desc">Key of the default Jira project (e.g. <code>PROJ</code>). Leave blank to select per request.</div>
+        <div id="ctrl-JIRA_PROJECT_KEY"></div>
+    </div>
+</div>
+
+<!-- Navigation -->
+<div class="wizard-nav d-flex gap-2 justify-content-end">
+    <button id="wizard-back" class="btn btn-outline-secondary d-none">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </button>
+    <button id="wizard-next" class="btn btn-primary d-none">
+        Next<i class="bi bi-arrow-right ms-1"></i>
+    </button>
+    <button id="wizard-save" class="btn btn-primary d-none">
+        <i class="bi bi-check-lg me-1"></i>Save changes
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/integration_jira.js' %}"></script>
+{% endblock %}

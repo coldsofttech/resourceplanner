@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">AI Integration</h1>
+        <p class="rp-page-subtitle">Configure AI provider and model settings.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Progress -->
+<div id="wizard-progress" class="wizard-progress px-1"></div>
+
+<!-- Step 1: Enable & Provider -->
+<div id="step-1" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Enable & Provider</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">AI Features</div>
+        <div class="wizard-field-desc">Enable or disable all AI-powered features across the application.</div>
+        <div id="ctrl-AI_ENABLED"></div>
+    </div>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">AI Provider</div>
+        <div class="wizard-field-desc">Select the AI service provider. Anthropic uses the cloud API; Bedrock runs via AWS.</div>
+        <select id="ctrl-AI_PROVIDER" class="form-select rp-input" style="max-width:240px;">
+            <option value="anthropic">Anthropic API</option>
+            <option value="bedrock">AWS Bedrock</option>
+        </select>
+    </div>
+</div>
+
+<!-- Step 2: Credentials -->
+<div id="step-2" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Provider Credentials</h6>
+
+    <!-- Anthropic credentials -->
+    <div id="panel-anthropic">
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">
+                Anthropic API Key
+                <span class="rp-badge rp-badge--warning"><i class="bi bi-shield-lock-fill"></i> Encrypted</span>
+            </div>
+            <div class="wizard-field-desc">Your Anthropic API key (sk-ant-…). Stored encrypted at rest.</div>
+            <div id="ctrl-AI_ANTHROPIC_API_KEY"></div>
+        </div>
+    </div>
+
+    <!-- Bedrock credentials -->
+    <div id="panel-bedrock">
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">Bedrock Region</div>
+            <div class="wizard-field-desc">AWS region where Bedrock is available (e.g. us-east-1).</div>
+            <div id="ctrl-AI_BEDROCK_REGION"></div>
+        </div>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">Bedrock Auth Mode</div>
+            <div class="wizard-field-desc">'role' uses the instance/task IAM role; 'user' uses explicit IAM key+secret.</div>
+            <select id="ctrl-AI_BEDROCK_AUTH_MODE" class="form-select rp-input" style="max-width:240px;">
+                <option value="role">IAM Role (recommended)</option>
+                <option value="user">IAM User credentials</option>
+            </select>
+        </div>
+
+        <div id="panel-bedrock-iam">
+            <div class="wizard-field-group">
+                <div class="wizard-field-label">
+                    Bedrock IAM Access Key ID
+                    <span class="rp-badge rp-badge--warning"><i class="bi bi-shield-lock-fill"></i> Encrypted</span>
+                </div>
+                <div class="wizard-field-desc">Required when Auth Mode is 'IAM User'.</div>
+                <div id="ctrl-AI_BEDROCK_IAM_KEY"></div>
+            </div>
+
+            <div class="wizard-field-group">
+                <div class="wizard-field-label">
+                    Bedrock IAM Secret Access Key
+                    <span class="rp-badge rp-badge--warning"><i class="bi bi-shield-lock-fill"></i> Encrypted</span>
+                </div>
+                <div class="wizard-field-desc">Required when Auth Mode is 'IAM User'.</div>
+                <div id="ctrl-AI_BEDROCK_IAM_SECRET"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Step 3: Model -->
+<div id="step-3" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Model Selection</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Model Identifier</div>
+        <div class="wizard-field-desc">
+            Anthropic example: <code>claude-sonnet-4-20250514</code>.
+            Bedrock example: <code>anthropic.claude-3-5-sonnet-20241022-v2:0</code>.
+        </div>
+        <div id="ctrl-AI_MODEL"></div>
+    </div>
+</div>
+
+<!-- Navigation -->
+<div class="wizard-nav d-flex gap-2 justify-content-end">
+    <button id="wizard-back" class="btn btn-outline-secondary d-none">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </button>
+    <button id="wizard-next" class="btn btn-primary d-none">
+        Next<i class="bi bi-arrow-right ms-1"></i>
+    </button>
+    <button id="wizard-save" class="btn btn-primary d-none">
+        <i class="bi bi-check-lg me-1"></i>Save changes
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/integration_ai.js' %}"></script>
+{% endblock %}

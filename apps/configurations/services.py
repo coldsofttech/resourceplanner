@@ -11,6 +11,56 @@ logger = logging.getLogger(__name__)
 
 CONFIGURATION_DEFAULTS = {
     # ── General ──────────────────────────────────────────────────────────────
+    # App
+    "APP_NAME": {
+        "label": "Application Name",
+        "value": "Resource<b>Planner</b>",
+        "description": (
+            "Display name shown in the navigation bar and browser tab title. "
+            "HTML tags are supported for custom styling (e.g. bold, colour, icon)."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
+    # Avatar Storage
+    "AVATAR_STORAGE": {
+        "label": "Avatar Storage Backend",
+        "value": "database",
+        "description": (
+            "Where user profile avatars are stored. "
+            "'database' — stored as binary data in a dedicated table (no filesystem dependency). "
+            "'local' — saved to the server filesystem at the path in AVATAR_LOCAL_PATH. "
+            "'s3' — uploaded to an S3-compatible bucket; configure the bucket in AVATAR_S3_BUCKET_ARN."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
+    "AVATAR_LOCAL_PATH": {
+        "label": "Avatar Local Storage Path",
+        "value": "",
+        "description": (
+            "Absolute filesystem path where avatar images are saved when AVATAR_STORAGE=local. "
+            "The web server process must have read and write access to this directory. "
+            "Example: /var/resourceplanner/avatars."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
+    "AVATAR_S3_BUCKET_ARN": {
+        "label": "Avatar S3 Bucket ARN",
+        "value": "",
+        "description": (
+            "ARN of the S3 bucket used to store avatar images when AVATAR_STORAGE=s3. "
+            "Example: arn:aws:s3:::my-resourceplanner-avatars. "
+            "The application IAM role must have s3:PutObject and s3:GetObject on this bucket."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
     # Holidays
     "DEFAULT_HOLIDAYS": {
         "label": "Default holidays per financial year.",

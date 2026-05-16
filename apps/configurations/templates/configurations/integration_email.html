@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Email Integration</h1>
+        <p class="rp-page-subtitle">Configure outbound email (SMTP) settings.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="wizard-progress" class="wizard-progress px-1"></div>
+
+<!-- Step 1: Protocol & Server -->
+<div id="step-1" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Protocol & Server</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Email Protocol</div>
+        <div class="wizard-field-desc">
+            <code>console</code> — prints to server log (dev only).
+            <code>smtp</code> — plain SMTP.
+            <code>smtp_tls</code> — STARTTLS (port 587).
+            <code>smtp_ssl</code> — SSL (port 465).
+        </div>
+        <select id="ctrl-EMAIL_PROTOCOL" class="form-select rp-input" style="max-width:240px;">
+            <option value="console">Console (development)</option>
+            <option value="smtp">SMTP (plain)</option>
+            <option value="smtp_tls">SMTP + STARTTLS</option>
+            <option value="smtp_ssl">SMTP over SSL</option>
+        </select>
+    </div>
+
+    <div id="panel-smtp-server">
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">SMTP Host</div>
+            <div class="wizard-field-desc">Hostname or IP address of the outbound SMTP server.</div>
+            <div id="ctrl-EMAIL_HOST"></div>
+        </div>
+
+        <div class="wizard-field-group">
+            <div class="wizard-field-label">SMTP Port</div>
+            <div class="wizard-field-desc">Common: 25 (unencrypted), 465 (SSL), 587 (STARTTLS).</div>
+            <div id="ctrl-EMAIL_PORT"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Step 2: Auth & Sender -->
+<div id="step-2" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Authentication & Sender</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Email Username</div>
+        <div class="wizard-field-desc">SMTP authentication username. Leave blank if not required.</div>
+        <div id="ctrl-EMAIL_HOST_USER"></div>
+    </div>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">
+            Email Password
+            <span class="rp-badge rp-badge--warning"><i class="bi bi-shield-lock-fill"></i> Encrypted</span>
+        </div>
+        <div class="wizard-field-desc">SMTP authentication password. Stored encrypted at rest.</div>
+        <div id="ctrl-EMAIL_HOST_PASSWORD"></div>
+    </div>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">From Email Address</div>
+        <div class="wizard-field-desc">The 'From' address used for all outbound system emails.</div>
+        <div id="ctrl-EMAIL_FROM"></div>
+    </div>
+</div>
+
+<!-- Navigation -->
+<div class="wizard-nav d-flex gap-2 justify-content-end">
+    <button id="wizard-back" class="btn btn-outline-secondary d-none">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </button>
+    <button id="wizard-next" class="btn btn-primary d-none">
+        Next<i class="bi bi-arrow-right ms-1"></i>
+    </button>
+    <button id="wizard-save" class="btn btn-primary d-none">
+        <i class="bi bi-check-lg me-1"></i>Save changes
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/integration_email.js' %}"></script>
+{% endblock %}

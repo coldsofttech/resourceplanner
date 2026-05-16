@@ -598,6 +598,23 @@ export const API_URLS = {
             }),
         },
     },
+    users: {
+        ping: { method: 'POST', href: `${API_BASE}users/ping/` },
+    },
+    integrations: {
+        ai:    { get: { method: 'GET', href: `${API_BASE}integrations/ai/` }, patch: { method: 'PATCH', href: `${API_BASE}integrations/ai/` } },
+        email: { get: { method: 'GET', href: `${API_BASE}integrations/email/` }, patch: { method: 'PATCH', href: `${API_BASE}integrations/email/` } },
+        sso:   { get: { method: 'GET', href: `${API_BASE}integrations/sso/` }, patch: { method: 'PATCH', href: `${API_BASE}integrations/sso/` } },
+        jira:  { get: { method: 'GET', href: `${API_BASE}integrations/jira/` }, patch: { method: 'PATCH', href: `${API_BASE}integrations/jira/` } },
+    },
+    security: {
+        get:             { method: 'GET',   href: `${API_BASE}security/` },
+        patch:           { method: 'PATCH', href: `${API_BASE}security/` },
+        password_policy: {
+            get:   { method: 'GET',   href: `${API_BASE}security/password-policy/` },
+            patch: { method: 'PATCH', href: `${API_BASE}security/password-policy/` },
+        },
+    },
     configurations: {
         list: { method: 'GET', href: `${API_BASE}configurations/` },
         stats: { method: 'GET', href: `${API_BASE}configurations/stats/` },
