@@ -106,4 +106,7 @@ urlpatterns = [
     # Reporting
     path("api/v1/", include("apps.reporting.api_urls")),
     path("reports/", include("apps.reporting.urls")),
+    # Sprint Forecast
+    path("api/v1/", include("apps.sprint_forecast.api_urls")),
+    path("", include("apps.sprint_forecast.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -78,6 +78,7 @@ INSTALLED_APPS = [
     "apps.import",
     "apps.permissions",
     "apps.reporting",
+    "apps.sprint_forecast",
 ]
 
 MIDDLEWARE = [

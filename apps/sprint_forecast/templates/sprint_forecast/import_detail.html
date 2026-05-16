@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}v{{ forecast_import.version_number }} — {{ forecast_import.team.name }} — {{ sprint.sprint_name }}{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3">
+    <div class="d-flex align-items-start align-items-md-center justify-content-between flex-wrap gap-3">
+        <div class="d-flex align-items-center gap-3">
+            <a href="/sprints/{{ sprint.id }}/forecast/" class="btn btn-ghost-icon" title="Back to Forecast">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+            <div>
+                <div class="text-secondary small mb-1">
+                    {{ sprint.sprint_name }} &rsaquo; {{ forecast_import.team.name }}
+                </div>
+                <h1 class="rp-page-title d-flex align-items-center gap-2 mb-0">
+                    Version {{ forecast_import.version_number }}
+                    <span id="import-status-badge" class="rp-badge"></span>
+                </h1>
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap align-items-center">
+            <span id="import-meta" class="text-secondary small me-2"></span>
+            <button class="btn btn-sm btn-outline-secondary" id="add-row-btn">
+                <i class="bi bi-plus me-1"></i>Add Row
+            </button>
+            <button class="btn btn-sm btn-warning" id="review-btn">
+                <i class="bi bi-cpu me-1"></i>Review
+            </button>
+            <button class="btn btn-sm btn-success" id="confirm-btn">
+                <i class="bi bi-check-circle me-1"></i>Confirm
+            </button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="review-summary" class="alert d-none mb-4 py-2" role="alert"></div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-0" id="import-tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-rows-btn" data-bs-toggle="tab"
+                data-bs-target="#tab-rows" type="button" role="tab">
+            <i class="bi bi-table me-1"></i>Rows
+            <span id="rows-count-badge" class="badge bg-secondary ms-1" style="font-size:11px"></span>
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-capacity-btn" data-bs-toggle="tab"
+                data-bs-target="#tab-capacity" type="button" role="tab">
+            <i class="bi bi-person-lines-fill me-1"></i>Engineer Capacity
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content rp-card border-top-0 rounded-top-0 p-0" style="border-radius:0 0 8px 8px">
+
+    <!-- Tab 1: Rows -->
+    <div class="tab-pane fade show active p-3" id="tab-rows" role="tabpanel">
+        <div id="rows-loading" class="text-center py-5">
+            <div class="spinner-border text-secondary spinner-border-sm me-2"></div>Loading rows…
+        </div>
+        <div class="rp-table-wrap" id="rows-table-wrap" style="display:none">
+            <table class="table rp-table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th style="width:36px">#</th>
+                        <th>Story Type</th>
+                        <th>Jira ID</th>
+                        <th>Title / Description</th>
+                        <th>Assignee</th>
+                        <th class="text-end">Efforts (s)</th>
+                        <th class="text-end">Days</th>
+                        <th>Sprint</th>
+                        <th>Label</th>
+                        <th>Mapping</th>
+                        <th style="width:80px">Checks</th>
+                        <th style="width:40px"></th>
+                    </tr>
+                </thead>
+                <tbody id="rows-tbody"></tbody>
+            </table>
+        </div>
+        <div id="rows-empty" class="text-center text-secondary py-5 d-none">No rows imported.</div>
+    </div>
+
+    <!-- Tab 2: Capacity Pivot -->
+    <div class="tab-pane fade p-3" id="tab-capacity" role="tabpanel">
+        <div id="capacity-loading" class="text-center py-5 d-none">
+            <div class="spinner-border text-secondary spinner-border-sm"></div>
+        </div>
+        <div class="rp-table-wrap">
+            <table class="table rp-table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Engineer</th>
+                        <th class="text-end">Allocated Days</th>
+                        <th class="text-end">Sprint Net Capacity</th>
+                        <th class="text-center">Match</th>
+                    </tr>
+                </thead>
+                <tbody id="capacity-tbody">
+                    <tr><td colspan="4" class="text-secondary text-center py-3">Run a review to see capacity data.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.SPRINT_ID = {{ sprint.id }};
+    window.IMPORT_ID = {{ forecast_import.id }};
+</script>
+<script type="module" src="{% static 'js/modules/import_detail.js' %}"></script>
+{% endblock %}

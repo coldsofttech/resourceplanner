@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Finance Types{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Finance Types</h1>
+        <p class="rp-page-subtitle">Manage project finance types and their allowed mappings per project type.</p>
+    </div>
+    <button class="btn btn-primary btn-sm" id="add-finance-type-btn">
+        <i class="bi bi-plus me-1"></i>Add Finance Type
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <!-- Finance Types list -->
+    <div class="col-lg-5">
+        <div class="rp-card">
+            <h6 class="rp-card-heading">Finance Types</h6>
+            <div id="ft-loading" class="text-center text-secondary py-4">
+                <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+            </div>
+            <div class="rp-table-wrap d-none" id="ft-table-wrap">
+                <table class="table rp-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Name</th>
+                            <th class="text-center">Active</th>
+                            <th style="width:80px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="ft-tbody"></tbody>
+                </table>
+            </div>
+            <div id="ft-empty" class="text-center text-secondary py-4 d-none">No finance types yet.</div>
+        </div>
+    </div>
+
+    <!-- Mappings per project type -->
+    <div class="col-lg-7">
+        <div class="rp-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="rp-card-heading mb-0">Project Type → Finance Type Mappings</h6>
+                <button class="btn btn-sm btn-outline-secondary" id="add-mapping-btn">
+                    <i class="bi bi-plus me-1"></i>Add Mapping
+                </button>
+            </div>
+            <div id="map-loading" class="text-center text-secondary py-4">
+                <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+            </div>
+            <div class="rp-table-wrap d-none" id="map-table-wrap">
+                <table class="table rp-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Project Type</th>
+                            <th>Finance Type</th>
+                            <th style="width:50px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="map-tbody"></tbody>
+                </table>
+            </div>
+            <div id="map-empty" class="text-center text-secondary py-4 d-none">No mappings defined.</div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Finance Type Modal -->
+<div class="modal fade" id="ftModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="ft-modal-title">Finance Type</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Code <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="ft-code" placeholder="e.g. PROJECT, BAU, HOLIDAY">
+                    <div class="form-text">UPPER_SNAKE_CASE, unique.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="ft-name" placeholder="Human-readable name">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Description</label>
+                    <input type="text" class="form-control" id="ft-description" placeholder="Optional description">
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="ft-active" checked>
+                    <label class="form-check-label" for="ft-active">Active</label>
+                </div>
+                <div id="ft-error" class="alert alert-danger py-2 mt-3 d-none"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0 gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="ft-save-btn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Mapping Modal -->
+<div class="modal fade" id="mapModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Add Mapping</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Project Type <span class="text-danger">*</span></label>
+                    <select class="form-select" id="map-project-type"></select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Finance Type <span class="text-danger">*</span></label>
+                    <select class="form-select" id="map-finance-type"></select>
+                </div>
+                <div id="map-error" class="alert alert-danger py-2 mt-2 d-none"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0 gap-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="map-save-btn">Add</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/finance_types.js' %}"></script>
+{% endblock %}

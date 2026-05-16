@@ -858,6 +858,49 @@ export const API_URLS = {
             },
         },
     },
+
+    finance_types: {
+        list: { method: 'GET', href: `${API_BASE}finance-types/` },
+        options: { method: 'GET', href: `${API_BASE}finance-types/options/` },
+        create: { method: 'POST', href: `${API_BASE}finance-types/` },
+        detail: (id) => ({ method: 'GET', href: `${API_BASE}finance-types/${id}/` }),
+        update: (id) => ({ method: 'PATCH', href: `${API_BASE}finance-types/${id}/` }),
+        delete: (id) => ({ method: 'DELETE', href: `${API_BASE}finance-types/${id}/` }),
+    },
+
+    finance_type_mappings: {
+        list: { method: 'GET', href: `${API_BASE}finance-type-mappings/` },
+        create: { method: 'POST', href: `${API_BASE}finance-type-mappings/` },
+        delete: (id) => ({ method: 'DELETE', href: `${API_BASE}finance-type-mappings/${id}/` }),
+    },
+
+    sprint_forecast: {
+        list: { method: 'GET', href: `${API_BASE}sprint-forecast/` },
+        import: { method: 'POST', href: `${API_BASE}sprint-forecast/` },
+        detail: (id) => ({ method: 'GET', href: `${API_BASE}sprint-forecast/${id}/` }),
+        rows: (id) => ({ method: 'GET', href: `${API_BASE}sprint-forecast/${id}/rows/` }),
+        update_row: (importId, rowId) => ({ method: 'PATCH', href: `${API_BASE}sprint-forecast/${importId}/rows/${rowId}/` }),
+        add_row: (importId) => ({ method: 'POST', href: `${API_BASE}sprint-forecast/${importId}/add-row/` }),
+        delete_row: (importId, rowId) => ({ method: 'DELETE', href: `${API_BASE}sprint-forecast/${importId}/rows/${rowId}/delete/` }),
+        review: (id) => ({ method: 'POST', href: `${API_BASE}sprint-forecast/${id}/review/` }),
+        reviews: (id) => ({ method: 'GET', href: `${API_BASE}sprint-forecast/${id}/reviews/` }),
+        confirm: (id) => ({ method: 'POST', href: `${API_BASE}sprint-forecast/${id}/confirm/` }),
+        labels_options: { method: 'GET', href: `${API_BASE}sprint-forecast/labels-options/` },
+        sprint_status: (sprintId) => ({ method: 'GET', href: `${API_BASE}sprint-forecast/sprint-status/?sprint_id=${sprintId}` }),
+        review_warnings: (sprintId) => ({ method: 'GET', href: `${API_BASE}sprint-forecast/review-warnings/?sprint_id=${sprintId}` }),
+        review_complete: { method: 'POST', href: `${API_BASE}sprint-forecast/review-complete/` },
+    },
+
+    recharges: {
+        list: { method: 'GET', href: `${API_BASE}recharges/` },
+        detail: (id) => ({ method: 'GET', href: `${API_BASE}recharges/${id}/` }),
+        programme_options: { method: 'GET', href: `${API_BASE}recharges/programme-options/` },
+        project_options: { method: 'GET', href: `${API_BASE}recharges/project-options/` },
+    },
+
+    recharge_details: {
+        list: { method: 'GET', href: `${API_BASE}recharge-details/` },
+    },
 };
 
 export const URLS = {
