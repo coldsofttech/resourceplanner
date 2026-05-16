@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Reports — Resource Planner{% endblock %}
+
+{% block content %}
+<div class="rp-page-header d-flex align-items-center justify-content-between mb-4">
+    <div>
+        <h1 class="rp-page-title mb-0">Reports</h1>
+        <p class="text-secondary mb-0" style="font-size:14px">
+            Analyse resource plans and generate insights.
+        </p>
+    </div>
+</div>
+
+<!-- Standard Reports -->
+<section class="mb-5">
+    <h2 class="rp-section-title mb-3">Standard Reports</h2>
+    <div id="standard-reports-grid" class="row g-3">
+        <div class="col-12 text-secondary" style="font-size:14px">Loading…</div>
+    </div>
+</section>
+
+<!-- Custom Reports -->
+<section class="mb-5">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <h2 class="rp-section-title mb-0">Custom Reports</h2>
+        <button class="btn btn-sm btn-outline-secondary" disabled title="Coming soon">
+            <i class="bi bi-plus me-1"></i>New Report
+        </button>
+    </div>
+    <div class="rp-empty-state py-4 text-center text-secondary border rounded" style="font-size:14px">
+        <i class="bi bi-bar-chart-line display-6 d-block mb-2 opacity-50"></i>
+        Custom report builder coming soon.
+    </div>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    async function loadStandardReports() {
+        const grid = document.getElementById('standard-reports-grid');
+        try {
+            const res = await fetch('/api/v1/reports/?type=STANDARD');
+            if (!res.ok) throw new Error('Failed to load reports');
+            const json = await res.json();
+            const reports = json.results || [];
+            if (!reports.length) {
+                grid.innerHTML = '<div class="col-12 text-secondary">No standard reports available.</div>';
+                return;
+            }
+            grid.innerHTML = reports.map(r => `
+                <div class="col-md-4 col-lg-3">
+                    <a href="/reports/standard/${r.slug}/" class="rp-report-card card h-100 text-decoration-none">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start gap-2 mb-2">
+                                <span class="rp-report-icon">
+                                    <i class="bi bi-bar-chart-line-fill text-primary"></i>
+                                </span>
+                                <div>
+                                    <div class="fw-semibold" style="font-size:15px">${r.name}</div>
+                                    <span class="badge bg-secondary bg-opacity-25 text-secondary"
+                                          style="font-size:10px">${r.report_type}</span>
+                                </div>
+                            </div>
+                            <p class="text-secondary mb-0" style="font-size:13px">${r.description || ''}</p>
+                        </div>
+                        <div class="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
+                            <span class="text-primary" style="font-size:13px">
+                                Open report <i class="bi bi-arrow-right ms-1"></i>
+                            </span>
+                        </div>
+                    </a>
+                </div>
+            `).join('');
+        } catch (err) {
+            grid.innerHTML = `<div class="col-12 text-danger">${err.message}</div>`;
+        }
+    }
+    loadStandardReports();
+})();
+</script>
+<style>
+.rp-report-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    transition: box-shadow 0.15s, border-color 0.15s;
+    color: inherit;
+}
+.rp-report-card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: var(--bs-primary);
+}
+.rp-report-icon { font-size: 20px; }
+.rp-section-title { font-size: 16px; font-weight: 600; color: var(--rp-text); }
+</style>
+{% endblock %}

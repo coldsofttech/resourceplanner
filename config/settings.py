@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     "apps.resource_plans",
     "apps.import",
     "apps.permissions",
+    "apps.reporting",
 ]
 
 MIDDLEWARE = [

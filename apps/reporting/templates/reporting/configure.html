@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Configure Report — Resource Planner{% endblock %}
+
+{% block extra_css %}
+<style>
+.rp-configure-wrap { max-width: 880px; }
+.rp-mapping-table { font-size: 13px; }
+.rp-mapping-table thead th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 600;
+    background: var(--rp-surface);
+    border-bottom: 2px solid var(--bs-border-color);
+    padding: 8px 12px;
+}
+.rp-mapping-table tbody td { padding: 8px 12px; vertical-align: middle; }
+.rp-mapping-table .prog-name { font-weight: 500; }
+.rp-mapping-table .cat-input { font-size: 13px; }
+.badge-no-mapping { font-size: 10px; opacity: .7; }
+
+.rp-configure-filters {
+    background: var(--rp-surface);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="rp-configure-wrap">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1" style="font-size:13px">
+                    <li class="breadcrumb-item"><a href="/reports/">Reports</a></li>
+                    <li class="breadcrumb-item">
+                        <a href="/reports/standard/{{ slug }}/" id="report-link">Report</a>
+                    </li>
+                    <li class="breadcrumb-item active">Configure</li>
+                </ol>
+            </nav>
+            <h1 class="rp-page-title mb-0">Configure: <span id="report-title">Demand & Capacity</span></h1>
+            <p class="text-secondary mb-0" style="font-size:13px">
+                Map programmes to display categories for this plan version.
+                Programmes without a mapping appear under their own name.
+            </p>
+        </div>
+    </div>
+
+    <!-- Plan / Version selector -->
+    <div class="rp-configure-filters">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label mb-1" style="font-size:12px">Resource Plan</label>
+                <select id="filter-plan" class="form-select form-select-sm">
+                    <option value="">— Select plan —</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label mb-1" style="font-size:12px">Version</label>
+                <select id="filter-version" class="form-select form-select-sm" disabled>
+                    <option value="">— Select version —</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button id="btn-load" class="btn btn-sm btn-primary">
+                    <i class="bi bi-sliders me-1"></i>Load
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configure panel -->
+    <div id="configure-panel" class="d-none">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h2 style="font-size:15px;font-weight:600" class="mb-0">
+                Programme → Category Mappings
+            </h2>
+            <div class="d-flex gap-2">
+                <button id="btn-save-all" class="btn btn-sm btn-primary">
+                    <i class="bi bi-floppy me-1"></i>Save All
+                </button>
+            </div>
+        </div>
+
+        <div class="alert alert-info d-flex gap-2 align-items-start py-2" style="font-size:13px">
+            <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+            <div>
+                Programmes shown below appear in this plan version's projects.
+                Edit the <strong>Category Label</strong> to group programmes together in the report.
+                Leave blank to revert to the programme's own name.
+            </div>
+        </div>
+
+        <div id="table-loading" class="text-center py-4 d-none">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        </div>
+
+        <div id="mapping-table-wrap">
+            <table class="table rp-mapping-table">
+                <thead>
+                    <tr>
+                        <th style="width:40%">Programme</th>
+                        <th>Category Label</th>
+                        <th style="width:100px"></th>
+                    </tr>
+                </thead>
+                <tbody id="mapping-tbody"></tbody>
+            </table>
+        </div>
+
+        <div id="no-programmes" class="text-secondary py-3 d-none" style="font-size:14px">
+            No programmes are associated with the projects in this plan version.
+        </div>
+    </div>
+
+    <!-- Placeholder -->
+    <div id="configure-placeholder" class="text-center py-5 text-secondary" style="font-size:14px">
+        <i class="bi bi-sliders display-5 d-block mb-2 opacity-25"></i>
+        Select a plan and version above to configure mappings.
+    </div>
+</div>
+
+<!-- Toast notifications -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:2000">
+    <div id="save-toast" class="toast align-items-center text-bg-success border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body" id="toast-msg">Mappings saved.</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const SLUG = '{{ slug }}';
+    let currentPlanId = null;
+    let currentVersionId = null;
+    let programmesData = [];
+    let mappingsData = {};  // {programme_id: category_label}
+
+    // ── Load filter options ─────────────────────────────────────────────────
+    async function loadFilters() {
+        const res = await fetch('/api/v1/resource-plans/?page_size=200');
+        const json = await res.json();
+        const sel = document.getElementById('filter-plan');
+        (json.results || []).forEach(p => {
+            sel.insertAdjacentHTML('beforeend',
+                `<option value="${p.id}">${p.name}</option>`);
+        });
+
+        // Report meta
+        const metaRes = await fetch(`/api/v1/reports/standard/${SLUG}/`);
+        if (metaRes.ok) {
+            const meta = await metaRes.json();
+            document.getElementById('report-title').textContent = meta.name;
+            document.getElementById('report-link').textContent = meta.name;
+            document.getElementById('report-link').href = `/reports/standard/${SLUG}/`;
+        }
+    }
+
+    // Plan → version cascade
+    document.getElementById('filter-plan').addEventListener('change', async function () {
+        const planId = this.value;
+        const versionSel = document.getElementById('filter-version');
+        versionSel.innerHTML = '<option value="">— Select version —</option>';
+        versionSel.disabled = true;
+        if (!planId) return;
+        const res = await fetch(`/api/v1/resource-plans/${planId}/`);
+        if (!res.ok) return;
+        const plan = await res.json();
+        const ver = plan.version_info;
+        if (ver) {
+            versionSel.insertAdjacentHTML('beforeend',
+                `<option value="${ver.id}" selected>v${ver.version} [${ver.status}]</option>`);
+        }
+        versionSel.disabled = false;
+    });
+
+    // ── Load configure data ─────────────────────────────────────────────────
+    document.getElementById('btn-load').addEventListener('click', async function () {
+        const planId = document.getElementById('filter-plan').value;
+        const versionId = document.getElementById('filter-version').value;
+        if (!planId || !versionId) {
+            alert('Please select a resource plan and version.');
+            return;
+        }
+        currentPlanId = planId;
+        currentVersionId = versionId;
+        await loadConfigureData();
+    });
+
+    async function loadConfigureData() {
+        document.getElementById('configure-placeholder').classList.add('d-none');
+        document.getElementById('configure-panel').classList.remove('d-none');
+        document.getElementById('table-loading').classList.remove('d-none');
+        document.getElementById('mapping-table-wrap').classList.add('d-none');
+
+        try {
+            const res = await fetch(
+                `/api/v1/reports/standard/${SLUG}/configure/?plan=${currentPlanId}&version=${currentVersionId}`
+            );
+            if (!res.ok) throw new Error('Failed to load configuration');
+            const data = await res.json();
+
+            programmesData = data.programmes || [];
+            mappingsData = {};
+            (data.mappings || []).forEach(m => {
+                mappingsData[m.programme_id] = m.category_label;
+            });
+
+            renderMappingTable();
+        } catch (err) {
+            alert(err.message);
+        } finally {
+            document.getElementById('table-loading').classList.add('d-none');
+            document.getElementById('mapping-table-wrap').classList.remove('d-none');
+        }
+    }
+
+    function renderMappingTable() {
+        const tbody = document.getElementById('mapping-tbody');
+        const noProgs = document.getElementById('no-programmes');
+
+        if (!programmesData.length) {
+            tbody.innerHTML = '';
+            noProgs.classList.remove('d-none');
+            return;
+        }
+        noProgs.classList.add('d-none');
+
+        tbody.innerHTML = programmesData.map(p => {
+            const mapped = mappingsData[p.id] !== undefined;
+            const label = mapped ? escHtml(mappingsData[p.id]) : '';
+            const placeholder = escHtml(p.name);
+            return `
+            <tr data-programme-id="${p.id}">
+                <td>
+                    <span class="prog-name">${escHtml(p.name)}</span>
+                    ${!mapped ? '<span class="badge text-bg-secondary badge-no-mapping ms-2">default</span>' : ''}
+                </td>
+                <td>
+                    <input type="text"
+                           class="form-control form-control-sm cat-input"
+                           data-programme-id="${p.id}"
+                           value="${label}"
+                           placeholder="${placeholder}"
+                           autocomplete="off">
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-danger btn-clear-mapping"
+                            data-programme-id="${p.id}"
+                            ${!mapped ? 'disabled' : ''}
+                            title="Remove mapping">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+
+        // Clear individual mapping
+        document.querySelectorAll('.btn-clear-mapping').forEach(btn => {
+            btn.addEventListener('click', async function () {
+                const progId = this.dataset.programmeId;
+                const input = document.querySelector(`.cat-input[data-programme-id="${progId}"]`);
+                const prog = programmesData.find(p => String(p.id) === String(progId));
+                input.value = '';
+                this.disabled = true;
+
+                // Delete server-side mapping (if exists)
+                try {
+                    const listRes = await fetch(
+                        `/api/v1/reports/standard/${SLUG}/configure/mapping/?plan=${currentPlanId}&version=${currentVersionId}`
+                    );
+                    const mappings = await listRes.json();
+                    const existing = mappings.find(m => String(m.programme) === String(progId));
+                    if (existing) {
+                        await fetch(
+                            `/api/v1/reports/standard/${SLUG}/configure/mapping/${existing.id}/`,
+                            { method: 'DELETE', headers: getCsrfHeaders() }
+                        );
+                    }
+                    delete mappingsData[progId];
+                    showToast('Mapping removed.', 'success');
+                } catch (e) {
+                    showToast('Failed to remove mapping.', 'danger');
+                }
+            });
+        });
+    }
+
+    // ── Save all ────────────────────────────────────────────────────────────
+    document.getElementById('btn-save-all').addEventListener('click', async function () {
+        const inputs = document.querySelectorAll('.cat-input');
+        const mappings = [];
+        inputs.forEach(input => {
+            const progId = parseInt(input.dataset.programmeId);
+            const label = input.value.trim();
+            // Always include — empty string signals server to delete the mapping
+            mappings.push({ programme_id: progId, category_label: label });
+        });
+
+        try {
+            const res = await fetch(
+                `/api/v1/reports/standard/${SLUG}/configure/?plan=${currentPlanId}&version=${currentVersionId}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...getCsrfHeaders() },
+                    body: JSON.stringify({ mappings }),
+                }
+            );
+            if (!res.ok) throw new Error('Failed to save mappings');
+            showToast('All mappings saved successfully.', 'success');
+            await loadConfigureData();
+        } catch (err) {
+            showToast(err.message, 'danger');
+        }
+    });
+
+    // ── Helpers ─────────────────────────────────────────────────────────────
+    function getCsrfHeaders() {
+        const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        return { 'X-CSRFToken': csrfToken };
+    }
+
+    function showToast(msg, type = 'success') {
+        const toastEl = document.getElementById('save-toast');
+        document.getElementById('toast-msg').textContent = msg;
+        toastEl.className = `toast align-items-center text-bg-${type} border-0`;
+        const toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+        toast.show();
+    }
+
+    function escHtml(s) {
+        return String(s)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    loadFilters();
+})();
+</script>
+{% endblock %}

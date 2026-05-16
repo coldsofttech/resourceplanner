@@ -99,4 +99,7 @@ urlpatterns = [
     path("configurations/", include("apps.configurations.urls")),
     # Generic Modules
     path("import/", include("apps.import.urls")),
+    # Reporting
+    path("api/v1/", include("apps.reporting.api_urls")),
+    path("reports/", include("apps.reporting.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

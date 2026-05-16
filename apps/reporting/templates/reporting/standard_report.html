@@ -1,0 +1,701 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Demand & Capacity — Resource Planner{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Filter bar ── */
+.rp-report-filters {
+    background: var(--rp-surface);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+}
+.rp-report-filters select { font-size: 13px; }
+
+/* ── Table ── */
+.rp-dc-table-wrap {
+    overflow-x: auto;
+    max-height: 60vh;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 6px;
+}
+.rp-dc-table {
+    font-size: 12px;
+    white-space: nowrap;
+    min-width: 600px;
+    margin: 0;
+}
+.rp-dc-table thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--rp-surface);
+    font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .04em;
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--bs-border-color);
+    text-align: center;
+}
+.rp-dc-table thead th:first-child {
+    position: sticky; left: 0; z-index: 3;
+    text-align: left;
+}
+.rp-dc-table tbody td {
+    padding: 6px 10px;
+    text-align: right;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    vertical-align: middle;
+}
+.rp-dc-table tbody td:first-child {
+    position: sticky; left: 0; z-index: 1;
+    background: var(--rp-surface);
+    text-align: left; font-weight: 500;
+}
+.rp-dc-table tfoot td {
+    position: sticky; bottom: 0; z-index: 2;
+    background: var(--rp-surface);
+    font-weight: 600;
+    padding: 7px 10px;
+    border-top: 2px solid var(--bs-border-color);
+    text-align: right;
+}
+.rp-dc-table tfoot td:first-child { text-align: left; }
+
+/* Row colours */
+.rp-dc-table .row-leave td          { background: #f9fafb; font-style: italic; }
+.rp-dc-table .row-demand td         { background: #eff6ff; font-weight: 600; }
+.rp-dc-table .row-capacity td       { background: #f0fdf4; font-weight: 600; }
+.rp-dc-table .row-risk td           { background: #fffbeb; font-weight: 600; }
+.rp-dc-table .row-util td           { background: #fef2f2; font-style: italic; }
+.rp-dc-table .row-risk td:first-child,
+.rp-dc-table .row-demand td:first-child,
+.rp-dc-table .row-capacity td:first-child { background: inherit; }
+
+/* Risk colouring */
+.risk-negative { color: #dc2626; font-weight: 700; }
+.risk-low      { color: #d97706; }
+.risk-ok       { color: #16a34a; }
+
+/* Colour dot */
+.cat-dot {
+    display: inline-block; width: 9px; height: 9px;
+    border-radius: 50%; margin-right: 6px; flex-shrink: 0;
+}
+
+/* Chart */
+#dc-chart-container { position: relative; height: 380px; }
+
+/* Toolbar */
+.rp-report-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.rp-status-badge   { font-size: 11px; padding: 3px 10px; border-radius: 20px; }
+
+/* Accordion */
+.rp-team-accord .accordion-button { font-size: 13px; font-weight: 600; padding: 10px 14px; }
+.rp-team-accord .accordion-body   { padding: 12px; }
+
+/* Placeholder / loading */
+.rp-placeholder {
+    min-height: 180px; display: flex; align-items: center;
+    justify-content: center; color: var(--bs-secondary-color);
+    font-size: 14px; flex-direction: column; gap: 8px;
+}
+
+/* Print */
+@media print {
+    .rp-report-filters, .rp-report-toolbar, .rp-report-tabs,
+    .rp-sidebar-outer, .rp-navbar, nav, header, .btn,
+    #reportTabs, #pane-chart { display: none !important; }
+    .rp-dc-table-wrap { max-height: none; overflow: visible; border: none; }
+    .rp-dc-table thead th { background: #e8f0fe !important; -webkit-print-color-adjust: exact; }
+    .rp-dc-table .row-demand td  { background: #dbeafe !important; }
+    .rp-dc-table .row-capacity td{ background: #d1fae5 !important; }
+    .rp-dc-table .row-risk td    { background: #fef3c7 !important; }
+    .rp-dc-table .row-leave td   { background: #f3f4f6 !important; }
+    body { font-size: 11px; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1" style="font-size:13px">
+                <li class="breadcrumb-item"><a href="/reports/">Reports</a></li>
+                <li class="breadcrumb-item active" id="report-bc">Demand &amp; Capacity</li>
+            </ol>
+        </nav>
+        <h1 class="rp-page-title mb-0" id="report-title">Demand &amp; Capacity</h1>
+        <p class="text-secondary mb-0" style="font-size:13px" id="report-desc"></p>
+    </div>
+    <a href="/reports/standard/{{ slug }}/configure/" class="btn btn-sm btn-outline-secondary">
+        <i class="bi bi-sliders me-1"></i>Configure
+    </a>
+</div>
+
+<!-- Filters -->
+<div class="rp-report-filters">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label mb-1" style="font-size:12px">Resource Plan</label>
+            <select id="filter-plan" class="form-select form-select-sm">
+                <option value="">— Select plan —</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label mb-1" style="font-size:12px">Version</label>
+            <select id="filter-version" class="form-select form-select-sm" disabled>
+                <option value="">— Select version —</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label mb-1" style="font-size:12px">Team</label>
+            <select id="filter-team" class="form-select form-select-sm">
+                <option value="">All teams</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label mb-1" style="font-size:12px">Employment Type</label>
+            <select id="filter-et" class="form-select form-select-sm">
+                <option value="">All types</option>
+            </select>
+        </div>
+        <div class="col-auto">
+            <button id="btn-run" class="btn btn-sm btn-primary">
+                <i class="bi bi-play-fill me-1"></i>Run
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toolbar -->
+<div class="rp-report-toolbar">
+    <span id="report-status" class="d-none"></span>
+    <div class="ms-auto d-flex gap-2 flex-wrap align-items-center">
+        <!-- View toggle -->
+        <div class="btn-group btn-group-sm" role="group" id="view-toggle-group" style="display:none!important">
+            <input type="radio" class="btn-check" name="view-mode" id="view-all" value="all" checked>
+            <label class="btn btn-outline-secondary" for="view-all">All Teams</label>
+            <input type="radio" class="btn-check" name="view-mode" id="view-by-team" value="team">
+            <label class="btn btn-outline-secondary" for="view-by-team">By Team</label>
+        </div>
+        <div class="vr mx-1 d-none" id="view-sep"></div>
+        <button id="btn-csv"   class="btn btn-sm btn-outline-secondary" disabled>
+            <i class="bi bi-filetype-csv me-1"></i>CSV
+        </button>
+        <button id="btn-xlsx"  class="btn btn-sm btn-outline-secondary" disabled>
+            <i class="bi bi-file-earmark-excel me-1"></i>XLSX
+        </button>
+        <button id="btn-pdf"   class="btn btn-sm btn-outline-secondary" disabled>
+            <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+        </button>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" id="reportTabs" role="tablist">
+    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-table" type="button">
+        <i class="bi bi-table me-1"></i>Table</button></li>
+    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-chart" type="button">
+        <i class="bi bi-bar-chart-line me-1"></i>Chart</button></li>
+</ul>
+
+<div class="tab-content">
+    <!-- TABLE TAB -->
+    <div class="tab-pane fade show active" id="pane-table">
+        <div id="placeholder" class="rp-placeholder">
+            <i class="bi bi-bar-chart-line display-5 opacity-25"></i>
+            <span>Select a plan and version, then click Run.</span>
+        </div>
+        <div id="loading" class="rp-placeholder d-none">
+            <div class="spinner-border spinner-border-sm text-primary"></div>
+            <span>Loading…</span>
+        </div>
+
+        <!-- All-teams view -->
+        <div id="view-all-panel" class="d-none">
+            <div class="rp-dc-table-wrap">
+                <table class="rp-dc-table table table-borderless mb-0">
+                    <thead id="dc-thead"></thead>
+                    <tbody id="dc-tbody"></tbody>
+                    <tfoot id="dc-tfoot"></tfoot>
+                </table>
+            </div>
+        </div>
+
+        <!-- By-team accordion -->
+        <div id="view-team-panel" class="d-none">
+            <div class="accordion rp-team-accord" id="teamAccordion"></div>
+        </div>
+    </div>
+
+    <!-- CHART TAB -->
+    <div class="tab-pane fade" id="pane-chart">
+        <div id="chart-placeholder" class="rp-placeholder">
+            <i class="bi bi-pie-chart display-5 opacity-25"></i>
+            <span>Run the report to see the chart.</span>
+        </div>
+        <div id="chart-content" class="d-none">
+            <div id="dc-chart-container"><canvas id="dc-chart"></canvas></div>
+            <div id="chart-legend" class="mt-3 d-flex gap-3 justify-content-center flex-wrap"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+'use strict';
+const SLUG = '{{ slug }}';
+const LEAVE_CAT = 'HOLIDAYS/LEAVES';
+const PALETTE = [
+    '#3b82f6','#10b981','#f59e0b','#8b5cf6','#06b6d4',
+    '#f97316','#84cc16','#ec4899','#6366f1','#14b8a6',
+];
+const LEAVE_COLOUR = '#9ca3af';
+
+let reportData = null;
+let chartInstance = null;
+let currentParams = {};
+
+const r2 = v => (parseFloat(v) || 0).toFixed(2);
+
+// ── Filter population ──────────────────────────────────────────────────────
+async function loadFilters() {
+    const [plansRes, teamsRes, etRes, metaRes] = await Promise.all([
+        fetch('/api/v1/resource-plans/?page_size=200'),
+        fetch('/api/v1/delivery-teams/?page_size=200'),
+        fetch('/api/v1/employment-types/?page_size=200'),
+        fetch(`/api/v1/reports/standard/${SLUG}/`),
+    ]);
+    const [plans, teams, et] = await Promise.all([
+        plansRes.json(), teamsRes.json(), etRes.json(),
+    ]);
+
+    const planSel = $('filter-plan');
+    (plans.results || []).forEach(p =>
+        planSel.insertAdjacentHTML('beforeend', opt(p.id, p.name)));
+
+    const teamSel = $('filter-team');
+    (teams.results || []).forEach(t =>
+        teamSel.insertAdjacentHTML('beforeend', opt(t.id, t.name)));
+
+    const etSel = $('filter-et');
+    (et.results || []).forEach(e =>
+        etSel.insertAdjacentHTML('beforeend', opt(e.id, e.name)));
+
+    if (metaRes.ok) {
+        const meta = await metaRes.json();
+        $('report-bc').textContent = meta.name;
+        $('report-title').textContent = meta.name;
+        $('report-desc').textContent = meta.description || '';
+    }
+}
+
+$('filter-plan').addEventListener('change', async function () {
+    const planId = this.value;
+    const vSel = $('filter-version');
+    vSel.innerHTML = '<option value="">— Select version —</option>';
+    vSel.disabled = true;
+    if (!planId) return;
+    const res = await fetch(`/api/v1/resource-plans/${planId}/`);
+    if (!res.ok) return;
+    const plan = await res.json();
+    const ver = plan.version_info;
+    if (ver) {
+        vSel.insertAdjacentHTML('beforeend',
+            `<option value="${ver.id}" selected>v${ver.version} [${ver.status}]</option>`);
+    }
+    vSel.disabled = false;
+});
+
+// ── View mode toggle ───────────────────────────────────────────────────────
+document.querySelectorAll('input[name="view-mode"]').forEach(r => {
+    r.addEventListener('change', () => applyViewMode());
+});
+
+function applyViewMode() {
+    if (!reportData) return;
+    const mode = document.querySelector('input[name="view-mode"]:checked').value;
+    $('view-all-panel').classList.toggle('d-none', mode !== 'all');
+    $('view-team-panel').classList.toggle('d-none', mode !== 'team');
+}
+
+// ── Run ────────────────────────────────────────────────────────────────────
+$('btn-run').addEventListener('click', runReport);
+
+async function runReport() {
+    const planId    = $('filter-plan').value;
+    const versionId = $('filter-version').value;
+    if (!planId || !versionId) { alert('Please select a plan and version.'); return; }
+
+    const teamId = $('filter-team').value;
+    const etId   = $('filter-et').value;
+
+    currentParams = { plan: planId, version: versionId, team: teamId, et: etId };
+    showLoading(true);
+
+    try {
+        let url = `/api/v1/reports/standard/${SLUG}/data/?plan=${planId}&version=${versionId}`;
+        if (teamId) url += `&team=${teamId}`;
+        if (etId)   url += `&employee_type=${etId}`;
+
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) {
+            const e = await res.json();
+            throw new Error(e.error || 'Failed to load report');
+        }
+        reportData = await res.json();
+
+        renderTable(reportData, 'dc-thead', 'dc-tbody', 'dc-tfoot');
+        renderTeamAccordion(reportData);
+        renderChart(reportData);
+        setExportEnabled(true);
+
+        // Show view toggle only if there are multiple teams
+        const hasTeams = reportData.teams && reportData.teams.length > 1;
+        $('view-toggle-group').style.display = hasTeams ? '' : 'none';
+        $('view-sep').classList.toggle('d-none', !hasTeams);
+
+        updateStatus(reportData);
+        showContent();
+    } catch (err) {
+        showError(err.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
+// ── Table render ───────────────────────────────────────────────────────────
+function renderTable(data, theadId, tbodyId, tfootId) {
+    const months     = data.months;
+    const categories = data.categories;
+    const demand     = data.demand;
+    const capacity   = data.capacity;
+    const totals     = data.totals;
+
+    // Header
+    const thead = document.getElementById(theadId);
+    thead.innerHTML = `<tr>
+        <th style="min-width:180px">Category</th>
+        ${months.map(m => `<th title="${m.working_days} working days">${m.label}</th>`).join('')}
+        <th>Total</th>
+    </tr>`;
+
+    // Body
+    const tbody = document.getElementById(tbodyId);
+    tbody.innerHTML = categories.map((cat, idx) => {
+        const isLeave = cat === LEAVE_CAT;
+        const colour  = isLeave ? LEAVE_COLOUR : PALETTE[idx % PALETTE.length];
+        const catData = demand[cat] || {};
+        let total = 0;
+        const cells = months.map(m => {
+            const v = catData[m.key] || 0;
+            total += v;
+            return `<td>${v > 0 ? r2(v) : '—'}</td>`;
+        }).join('');
+        return `<tr class="${isLeave ? 'row-leave' : ''}">
+            <td>
+                <span class="cat-dot" style="background:${colour}"></span>${esc(cat)}
+            </td>
+            ${cells}
+            <td>${total > 0 ? r2(total) : '—'}</td>
+        </tr>`;
+    }).join('');
+
+    // Footer
+    const tfoot = document.getElementById(tfootId);
+
+    // Total Demand
+    const td = months.map(m => totals.demand_by_month[m.key] || 0);
+    const tdTotal = td.reduce((a, b) => a + b, 0);
+
+    // Total Capacity
+    const tc = months.map(m => capacity[m.key] || 0);
+    const tcTotal = tc.reduce((a, b) => a + b, 0);
+
+    // FTE Risk
+    const tr = months.map(m => totals.risk_by_month[m.key] || 0);
+    const trTotal = tr.reduce((a, b) => a + b, 0);
+
+    // Utilisation %
+    const tu = months.map(m => totals.utilisation_by_month[m.key] || 0);
+
+    tfoot.innerHTML = `
+        <tr class="row-demand">
+            <td>Total Demand</td>
+            ${td.map(v => `<td>${r2(v)}</td>`).join('')}
+            <td>${r2(tdTotal)}</td>
+        </tr>
+        <tr class="row-capacity">
+            <td>Total Capacity</td>
+            ${tc.map(v => `<td>${r2(v)}</td>`).join('')}
+            <td>${r2(tcTotal)}</td>
+        </tr>
+        <tr class="row-risk">
+            <td>FTE Risk</td>
+            ${tr.map(v => `<td class="${riskClass(v)}">${r2(v)}</td>`).join('')}
+            <td class="${riskClass(trTotal)}">${r2(trTotal)}</td>
+        </tr>
+        <tr class="row-util">
+            <td>Utilisation %</td>
+            ${tu.map(v => `<td class="${utilClass(v)}">${r2(v)}%</td>`).join('')}
+            <td></td>
+        </tr>`;
+}
+
+function riskClass(v) {
+    if (v < 0)   return 'risk-negative';
+    if (v < 0.5) return 'risk-low';
+    return 'risk-ok';
+}
+function utilClass(v) {
+    if (v >= 100) return 'risk-negative';
+    if (v >= 85)  return 'risk-low';
+    return '';
+}
+
+// ── Team accordion ─────────────────────────────────────────────────────────
+function renderTeamAccordion(data) {
+    const acc = $('teamAccordion');
+    acc.innerHTML = '';
+    (data.teams || []).forEach((team, idx) => {
+        const id = `team-${team.id}`;
+        const theadId = `thead-${team.id}`;
+        const tbodyId = `tbody-${team.id}`;
+        const tfootId = `tfoot-${team.id}`;
+
+        const demFte = r2(team.totals.demand_total);
+        const capFte = r2(team.totals.capacity_total);
+        const util   = team.totals.capacity_total
+            ? r2(team.totals.demand_total / team.totals.capacity_total * 100)
+            : '0.00';
+
+        acc.insertAdjacentHTML('beforeend', `
+            <div class="accordion-item">
+                <h2 class="accordion-header">
+                    <button class="accordion-button ${idx > 0 ? 'collapsed' : ''}"
+                            type="button" data-bs-toggle="collapse"
+                            data-bs-target="#${id}" aria-expanded="${idx === 0}">
+                        <span class="me-3">${esc(team.name)}</span>
+                        <span class="badge text-bg-primary bg-opacity-10 text-primary me-2" style="font-size:11px">
+                            Demand ${demFte} FTE
+                        </span>
+                        <span class="badge text-bg-success bg-opacity-10 text-success me-2" style="font-size:11px">
+                            Capacity ${capFte} FTE
+                        </span>
+                        <span class="badge ${parseFloat(util) >= 100 ? 'text-bg-danger' : 'text-bg-warning'} bg-opacity-10 me-2" style="font-size:11px">
+                            ${util}% utilised
+                        </span>
+                    </button>
+                </h2>
+                <div id="${id}" class="accordion-collapse collapse ${idx === 0 ? 'show' : ''}">
+                    <div class="accordion-body p-2">
+                        <div class="rp-dc-table-wrap" style="max-height:300px">
+                            <table class="rp-dc-table table table-borderless mb-0">
+                                <thead id="${theadId}"></thead>
+                                <tbody id="${tbodyId}"></tbody>
+                                <tfoot id="${tfootId}"></tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>`);
+
+        // Build per-team data object matching the same shape as main data
+        const teamData = {
+            months: data.months,
+            categories: data.categories,
+            demand: team.demand,
+            capacity: team.capacity,
+            totals: team.totals,
+        };
+        renderTable(teamData, theadId, tbodyId, tfootId);
+    });
+}
+
+// ── Chart ──────────────────────────────────────────────────────────────────
+function renderChart(data) {
+    const months     = data.months;
+    const categories = data.categories;
+    const demand     = data.demand;
+    const capacity   = data.capacity;
+    const totals     = data.totals;
+    const labels     = months.map(m => m.label);
+
+    const datasets = categories.map((cat, idx) => ({
+        type: 'bar',
+        label: cat,
+        data: months.map(m => parseFloat(r2(demand[cat]?.[m.key] || 0))),
+        backgroundColor: (cat === LEAVE_CAT ? LEAVE_COLOUR : PALETTE[idx % PALETTE.length]) + 'bb',
+        borderColor:     (cat === LEAVE_CAT ? LEAVE_COLOUR : PALETTE[idx % PALETTE.length]),
+        borderWidth: 1,
+        stack: 'demand',
+        yAxisID: 'y',
+    }));
+
+    // Capacity line (left axis)
+    datasets.push({
+        type: 'line',
+        label: 'Capacity',
+        data: months.map(m => parseFloat(r2(capacity[m.key] || 0))),
+        borderColor: '#2563eb',
+        backgroundColor: 'transparent',
+        borderWidth: 2.5,
+        pointRadius: 4,
+        yAxisID: 'y',
+        tension: 0.1,
+        order: -2,
+    });
+
+    // Utilisation % line (right axis)
+    datasets.push({
+        type: 'line',
+        label: 'Utilisation %',
+        data: months.map(m => parseFloat(r2(totals.utilisation_by_month[m.key] || 0))),
+        borderColor: '#dc2626',
+        backgroundColor: 'rgba(220,38,38,0.08)',
+        borderWidth: 2,
+        borderDash: [6, 4],
+        pointRadius: 3,
+        yAxisID: 'y2',
+        tension: 0.1,
+        order: -1,
+        fill: false,
+    });
+
+    const ctx = document.getElementById('dc-chart').getContext('2d');
+    if (chartInstance) chartInstance.destroy();
+    chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => {
+                            if (ctx.dataset.yAxisID === 'y2')
+                                return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%`;
+                            return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} FTE`;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: { stacked: true, ticks: { font: { size: 11 } } },
+                y: {
+                    stacked: true, beginAtZero: true,
+                    position: 'left',
+                    title: { display: true, text: 'FTE', font: { size: 11 } },
+                    ticks: { font: { size: 11 } },
+                },
+                y2: {
+                    position: 'right',
+                    min: 0, max: Math.max(100, ...months.map(m =>
+                        Math.ceil(totals.utilisation_by_month[m.key] || 0))),
+                    title: { display: true, text: 'Utilisation %', font: { size: 11 } },
+                    grid: { drawOnChartArea: false },
+                    ticks: { callback: v => v + '%', font: { size: 11 } },
+                },
+            },
+        },
+    });
+
+    // Legend
+    const legend = $('chart-legend');
+    legend.innerHTML = [
+        ...categories.map((cat, i) => {
+            const col = cat === LEAVE_CAT ? LEAVE_COLOUR : PALETTE[i % PALETTE.length];
+            return `<span class="d-flex align-items-center gap-1" style="font-size:12px">
+                <span style="width:12px;height:12px;border-radius:2px;background:${col}"></span>${esc(cat)}
+            </span>`;
+        }),
+        `<span class="d-flex align-items-center gap-1" style="font-size:12px">
+            <span style="width:20px;height:2.5px;background:#2563eb;display:inline-block"></span>Capacity
+         </span>`,
+        `<span class="d-flex align-items-center gap-1" style="font-size:12px">
+            <span style="width:20px;border-top:2px dashed #dc2626;display:inline-block"></span>Utilisation %
+         </span>`,
+    ].join('');
+
+    $('chart-placeholder').classList.add('d-none');
+    $('chart-content').classList.remove('d-none');
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+function setExportEnabled(on) {
+    [$('btn-csv'), $('btn-xlsx'), $('btn-pdf')].forEach(b => { b.disabled = !on; });
+    if (!on) return;
+    const { plan, version, team, et } = currentParams;
+    const base = `/api/v1/reports/standard/${SLUG}/export/?plan=${plan}&version=${version}`
+        + (team ? `&team=${team}` : '')
+        + (et   ? `&employee_type=${et}` : '');
+
+    $('btn-csv').onclick  = () => downloadUrl(base + '&fmt=csv');
+    $('btn-xlsx').onclick = () => downloadUrl(base + '&fmt=xlsx');
+    $('btn-pdf').onclick  = () => window.print();
+}
+
+function downloadUrl(url) {
+    const a = document.createElement('a');
+    a.href = url;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function showLoading(on) {
+    $('loading').classList.toggle('d-none', !on);
+    if (on) {
+        $('placeholder').classList.add('d-none');
+        $('view-all-panel').classList.add('d-none');
+        $('view-team-panel').classList.add('d-none');
+    }
+}
+
+function showContent() {
+    $('placeholder').classList.add('d-none');
+    applyViewMode();
+}
+
+function showError(msg) {
+    $('placeholder').classList.remove('d-none');
+    $('placeholder').innerHTML = `
+        <i class="bi bi-exclamation-circle display-5 text-danger opacity-50"></i>
+        <span class="text-danger">${esc(msg)}</span>`;
+    $('view-all-panel').classList.add('d-none');
+    $('view-team-panel').classList.add('d-none');
+}
+
+function updateStatus(data) {
+    const el = $('report-status');
+    const noAlloc = !data.has_allocation_set;
+    el.className = `rp-status-badge badge ${noAlloc
+        ? 'bg-warning text-dark'
+        : 'bg-success bg-opacity-10 text-success'} d-inline-flex align-items-center gap-1`;
+    el.textContent = noAlloc
+        ? 'No active allocation set — demand unavailable'
+        : `${data.version.status} · v${data.version.version}`;
+    el.classList.remove('d-none');
+}
+
+function $(id)   { return document.getElementById(id); }
+function opt(v, t) { return `<option value="${v}">${esc(t)}</option>`; }
+function esc(s)  {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+                    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadFilters();
+})();
+</script>
+{% endblock %}
