@@ -64,6 +64,12 @@
             <div id="profile-error-banner" class="alert alert-danger d-none mb-3"></div>
             <div id="profile-success-banner" class="alert alert-success d-none mb-3"></div>
 
+            {% if is_default_admin %}
+            <div class="alert alert-info py-2 px-3 mb-3 d-flex align-items-center gap-2" style="font-size:13px">
+                <i class="bi bi-shield-lock-fill"></i>
+                The default administrator account name cannot be modified.
+            </div>
+            {% endif %}
             <form id="profile-form" novalidate>
                 {% csrf_token %}
                 <div class="row g-3 mb-3">
@@ -87,9 +93,11 @@
                     <p class="form-control rp-input mb-0" style="background:var(--rp-surface-muted,#f8f9fa);cursor:default">{{ request.user.email }}</p>
                     <p class="rp-hint mt-1">Email address cannot be changed after account creation.</p>
                 </div>
+                {% if not is_default_admin %}
                 <button type="submit" class="btn btn-primary" id="profile-submit-btn">
                     <span id="profile-submit-label">Save changes</span>
                 </button>
+                {% endif %}
             </form>
         </div>
 

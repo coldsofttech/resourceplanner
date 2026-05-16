@@ -357,7 +357,8 @@ function openCategoriesModal() {
     loadingEl.classList.remove('d-none');
     accordionEl.innerHTML = '';
 
-    const currentCatIds = new Set(_user?.explicit_category_ids || []);
+    const explicitCatIds = new Set(_user?.explicit_category_ids || []);
+    const groupCatIds    = new Set(_user?.group_category_ids    || []);
 
     if (_allCategories.length) {
         loadingEl.classList.add('d-none');
@@ -388,7 +389,7 @@ function openCategoriesModal() {
         if (noModule.length) sections.push({ key: '__other__', label: 'Other', cats: noModule });
 
         accordionEl.innerHTML = sections.map((sec, i) => {
-            const checked = sec.cats.filter(c => currentCatIds.has(c.id)).length;
+            const checked = sec.cats.filter(c => explicitCatIds.has(c.id)).length;
             return `
             <div class="accordion-item border-0 border-bottom">
                 <h2 class="accordion-header">
@@ -403,19 +404,23 @@ function openCategoriesModal() {
                 </h2>
                 <div id="cp-ud-${i}" class="accordion-collapse collapse">
                     <div class="accordion-body px-0 pb-2 pt-1">
-                        ${sec.cats.map(cat => `
+                        ${sec.cats.map(cat => {
+                            const viaGroup = groupCatIds.has(cat.id) && !explicitCatIds.has(cat.id);
+                            return `
                             <div class="form-check mb-1">
                                 <input class="form-check-input cat-pick-check"
                                        type="checkbox" value="${cat.id}"
                                        id="cp-ud-cat-${cat.id}" data-sec-idx="${i}"
-                                       ${currentCatIds.has(cat.id) ? 'checked' : ''}
+                                       ${explicitCatIds.has(cat.id) ? 'checked' : ''}
                                        onchange="updateCpUdCount(${i}, ${sec.cats.length})">
                                 <label class="form-check-label small" for="cp-ud-cat-${cat.id}">
                                     <span class="fw-500">${escHtml(cat.name)}</span>
                                     ${cat.description ? `<span class="text-secondary ms-1">— ${escHtml(cat.description)}</span>` : ''}
                                     <span class="rp-badge rp-badge--muted ms-1">${cat.permission_count} perms</span>
+                                    ${viaGroup ? '<span class="rp-badge rp-badge--info ms-1" title="Inherited via group">via group</span>' : ''}
                                 </label>
-                            </div>`).join('')}
+                            </div>`;
+                        }).join('')}
                     </div>
                 </div>
             </div>`;

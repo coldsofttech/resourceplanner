@@ -49,17 +49,30 @@ async function loadPermissions() {
     renderPermAccordion([]);
 }
 
+const SCOPE_BADGE = {
+    all:  { cls: 'rp-badge--muted',   icon: 'bi-globe',      label: 'All'  },
+    team: { cls: 'rp-badge--info',    icon: 'bi-people',     label: 'Team' },
+    self: { cls: 'rp-badge--warning', icon: 'bi-person',     label: 'Self' },
+};
+
 function renderRows(cats) {
     const tbody = document.getElementById('categories-tbody');
     if (!cats.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary py-4">No categories yet.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-4">No categories yet.</td></tr>';
         return;
     }
-    tbody.innerHTML = cats.map(c => `
+    tbody.innerHTML = cats.map(c => {
+        const sb = SCOPE_BADGE[c.scope] || SCOPE_BADGE.all;
+        return `
         <tr>
             <td class="text-secondary small">${escHtml(c.module_label || '—')}</td>
             <td class="fw-500">${escHtml(c.name)}</td>
             <td class="text-secondary small">${escHtml(c.description || '—')}</td>
+            <td class="text-center">
+                <span class="rp-badge ${sb.cls}" title="${escHtml(c.scope_label || c.scope)}">
+                    <i class="bi ${sb.icon} me-1"></i>${sb.label}
+                </span>
+            </td>
             <td class="text-center">
                 <span class="rp-badge rp-badge--muted">${c.permission_count}</span>
             </td>
@@ -74,7 +87,8 @@ function renderRows(cats) {
                     </button>
                 </div>
             </td>
-        </tr>`).join('');
+        </tr>`;
+    }).join('');
 }
 
 function renderPermAccordion(selectedIds) {
@@ -134,6 +148,7 @@ function openModal(cat) {
     _editingId = cat ? cat.id : null;
     document.getElementById('category-modal-title').textContent = cat ? 'Edit Category' : 'New Category';
     document.getElementById('cat-module').value      = cat ? (cat.module || '') : '';
+    document.getElementById('cat-scope').value       = cat ? (cat.scope  || 'all') : 'all';
     document.getElementById('cat-name').value        = cat ? cat.name        : '';
     document.getElementById('cat-description').value = cat ? cat.description : '';
     document.getElementById('category-modal-error').classList.add('d-none');
@@ -187,6 +202,7 @@ async function saveCategory() {
 
     const payload = {
         module,
+        scope: document.getElementById('cat-scope').value || 'all',
         name,
         description: document.getElementById('cat-description').value.trim(),
         permission_ids: _getSelectedPermIds(),

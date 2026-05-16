@@ -45,13 +45,51 @@ def _sync_group_perms_from_categories(group, profile):
     group.permissions.set(Permission.objects.filter(id__in=perm_ids))
 
 
+def _check_password_history(user, new_password):
+    """Return an error string if new_password matches a recent or current password, else None."""
+    try:
+        from apps.configurations.services import ConfigurationService
+        count = ConfigurationService.get_int('PASSWORD_HISTORY_COUNT', 3)
+    except Exception:
+        count = 3
+    from django.contrib.auth.hashers import check_password
+    # Block reusing the current password
+    if count > 0 and user.password and check_password(new_password, user.password):
+        return 'Your new password must be different from your current password.'
+    if count <= 0:
+        return None
+    from apps.users.models import PasswordHistory
+    recent = PasswordHistory.objects.filter(user=user).order_by('-created_at')[:count]
+    for entry in recent:
+        if check_password(new_password, entry.password_hash):
+            return f'You cannot reuse any of your last {count} passwords.'
+    return None
+
+
+def _save_password_history(user, old_hash):
+    """Save a previous password hash to history, pruning old entries beyond limit."""
+    try:
+        from apps.configurations.services import ConfigurationService
+        count = ConfigurationService.get_int('PASSWORD_HISTORY_COUNT', 3)
+    except Exception:
+        count = 3
+    if count <= 0:
+        return
+    from apps.users.models import PasswordHistory
+    PasswordHistory.objects.create(user=user, password_hash=old_hash)
+    # Prune entries beyond limit
+    keep_ids = list(
+        PasswordHistory.objects.filter(user=user).order_by('-created_at').values_list('id', flat=True)[:count]
+    )
+    PasswordHistory.objects.filter(user=user).exclude(id__in=keep_ids).delete()
+
+
 def _send_invitation_email(user, request):
     from django.contrib.auth.tokens import default_token_generator
     from django.utils.encoding import force_bytes
     from django.utils.http import urlsafe_base64_encode
     from django.core.mail import send_mail
     from django.template.loader import render_to_string
-    from django.conf import settings
 
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
@@ -67,11 +105,11 @@ def _send_invitation_email(user, request):
 
     context = {'user': user, 'reset_link': reset_link}
 
+    from apps.configurations.services import ConfigurationService
     try:
-        from apps.configurations.services import ConfigurationService
-        from_email = ConfigurationService.get_str('EMAIL_FROM', '') or settings.DEFAULT_FROM_EMAIL
+        from_email = ConfigurationService.get_str('EMAIL_FROM', 'noreply@resourceplanner.local')
     except Exception:
-        from_email = settings.DEFAULT_FROM_EMAIL
+        from_email = 'noreply@resourceplanner.local'
 
     subject = render_to_string('users/invite_email_subject.txt', context).strip()
     message = render_to_string('users/invite_email.txt', context)
@@ -208,6 +246,14 @@ class UserViewSet(ViewSet):
     # ── /me/update ───────────────────────────────────────────────────────────
     @action(detail=False, methods=['patch'], url_path='me/update')
     def me_update(self, request):
+        from apps.users.apps import DEFAULT_ADMIN_EMAIL
+        if request.user.email.lower() == DEFAULT_ADMIN_EMAIL.lower():
+            if any(f in request.data for f in ('first_name', 'last_name', 'email')):
+                return _err(
+                    'The default administrator account name cannot be changed.',
+                    status.HTTP_403_FORBIDDEN,
+                )
+
         ser = UserUpdateSerializer(data=request.data, instance=request.user)
         if not ser.is_valid():
             return Response({'error': 'Validation failed.', 'details': ser.errors},
@@ -236,8 +282,17 @@ class UserViewSet(ViewSet):
                              'details': {'new_password': list(exc.messages)}},
                             status=status.HTTP_400_BAD_REQUEST)
 
+        # Password history check
+        history_error = _check_password_history(user, new_pwd)
+        if history_error:
+            return Response({'error': 'Password validation failed.',
+                             'details': {'new_password': [history_error]}},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        old_hash = user.password
         user.set_password(new_pwd)
         user.save()
+        _save_password_history(user, old_hash)
 
         try:
             from django.utils import timezone

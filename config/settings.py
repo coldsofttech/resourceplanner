@@ -195,7 +195,6 @@ PASSWORD_RESET_TIMEOUT = 86400  # 24 hours
 # Email — all settings (host, port, user, password, from, protocol) are managed
 # via the Configurations UI. The backend delegates to ConfigurationService at runtime.
 EMAIL_BACKEND = "apps.users.email_backend.ConfigurationEmailBackend"
-DEFAULT_FROM_EMAIL = "noreply@resourceplanner.local"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

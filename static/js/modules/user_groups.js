@@ -353,6 +353,7 @@ let _addModal     = null;
 let _removeModal  = null;
 let _deleteGrpModal = null;
 let _removePk     = null;
+let _detailAllCategories = [];
 
 function initDetailView() {
     const pk = window.GROUP_PK;
@@ -362,6 +363,7 @@ function initDetailView() {
     _removeModal    = new bootstrap.Modal(document.getElementById('removeMemberModal'));
     _deleteGrpModal = new bootstrap.Modal(document.getElementById('deleteGroupModal'));
 
+    loadAllCategoriesForDetail();
     loadGroupDetail(pk);
     loadMembers(pk);
 
@@ -370,6 +372,34 @@ function initDetailView() {
     });
 
     wireDetailButtons(pk);
+}
+
+async function loadAllCategoriesForDetail() {
+    try {
+        _detailAllCategories = await apiFetch('/api/v1/permission-categories/');
+    } catch (_) {}
+}
+
+function renderGroupCategories(catIds) {
+    const listEl  = document.getElementById('group-categories-list');
+    const emptyEl = document.getElementById('group-categories-empty');
+    if (!listEl) return;
+    if (!catIds || !catIds.length) {
+        emptyEl.classList.remove('d-none');
+        listEl.innerHTML = '';
+        return;
+    }
+    emptyEl.classList.add('d-none');
+    const catMap = {};
+    _detailAllCategories.forEach(c => { catMap[c.id] = c; });
+    listEl.innerHTML = catIds.map(id => {
+        const c = catMap[id];
+        return c
+            ? `<span class="rp-badge rp-badge--muted" title="${escHtml(c.description || '')}">
+                   <i class="bi bi-collection me-1"></i>${escHtml(c.name)}
+               </span>`
+            : `<span class="rp-badge rp-badge--muted">Category #${id}</span>`;
+    }).join('');
 }
 
 async function loadGroupDetail(pk) {
@@ -420,6 +450,8 @@ async function loadGroupDetail(pk) {
         document.getElementById('info-description').textContent = g.description || '—';
         document.getElementById('meta-created').textContent = formatDateTime(g.created_at);
         document.getElementById('meta-updated').textContent = formatDateTime(g.updated_at);
+
+        renderGroupCategories(g.category_ids || []);
     } catch (_) {}
 }
 

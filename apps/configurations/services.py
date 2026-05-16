@@ -509,6 +509,16 @@ CONFIGURATION_DEFAULTS = {
         "data_type": "boolean",
         "is_secret": False,
     },
+    "PASSWORD_HISTORY_COUNT": {
+        "label": "Password History Count",
+        "value": "3",
+        "description": (
+            "Number of previous passwords a user cannot reuse when changing their password. "
+            "Set to 0 to disable the history check. Default: 3."
+        ),
+        "data_type": "integer",
+        "is_secret": False,
+    },
     # Email (outbound mail)
     "EMAIL_PROTOCOL": {
         "label": "Email Protocol",

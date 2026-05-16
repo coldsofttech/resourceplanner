@@ -22,6 +22,13 @@ MODULE_CHOICES = [
 ]
 
 
+SCOPE_CHOICES = [
+    ('all', 'All — no restriction'),
+    ('team', 'Team — own delivery team only'),
+    ('self', 'Self — own records only'),
+]
+
+
 class PermissionCategory(models.Model):
     module = models.CharField(
         max_length=50,
@@ -29,6 +36,12 @@ class PermissionCategory(models.Model):
         blank=True,
         default='',
         help_text='Application module this category belongs to.',
+    )
+    scope = models.CharField(
+        max_length=10,
+        choices=SCOPE_CHOICES,
+        default='all',
+        help_text='Data scope this category grants: all records, team records, or own records only.',
     )
     name = models.CharField(max_length=100, unique=True)
     description = models.TextField(blank=True, default='')

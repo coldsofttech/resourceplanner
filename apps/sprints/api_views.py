@@ -5,6 +5,7 @@ from django.db import DatabaseError
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from .engines import SprintEngineService
@@ -29,6 +30,11 @@ def _validation_details(e):
 
 
 class SprintViewSet(viewsets.ViewSet):
+
+    def get_permissions(self):
+        if getattr(self, 'action', None) == 'active':
+            return [IsAuthenticated()]
+        return super().get_permissions()
 
     # GET /sprints/
     def list(self, request):

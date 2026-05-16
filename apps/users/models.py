@@ -76,6 +76,20 @@ class UserProfile(models.Model):
         return self.user.username
 
 
+class PasswordHistory(models.Model):
+    """Stores hashed previous passwords to prevent reuse."""
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='password_history',
+    )
+    password_hash = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+
 class GroupProfile(models.Model):
     """Extends Django's built-in auth.Group with metadata for application-level role management."""
     group = models.OneToOneField(

@@ -38,11 +38,20 @@ def _err(msg, code=status.HTTP_400_BAD_REQUEST):
     return Response({'error': msg}, status=code)
 
 
+SCOPE_LABELS = {
+    'all': 'All',
+    'team': 'Team',
+    'self': 'Self',
+}
+
+
 def _serialize_category(cat):
     return {
         'id': cat.id,
         'module': cat.module,
         'module_label': MODULE_LABELS.get(cat.module, '') if cat.module else '',
+        'scope': cat.scope,
+        'scope_label': SCOPE_LABELS.get(cat.scope, cat.scope),
         'name': cat.name,
         'description': cat.description,
         'permission_ids': list(cat.permissions.values_list('id', flat=True)),
@@ -112,16 +121,20 @@ class PermissionCategoryViewSet(ViewSet):
 
         description = str(request.data.get('description', '')).strip()
         module = str(request.data.get('module', '')).strip()
-        from .models import MODULE_CHOICES
+        from .models import MODULE_CHOICES, SCOPE_CHOICES
         valid_modules = {m[0] for m in MODULE_CHOICES}
         if module and module not in valid_modules:
             return _err('Invalid module value.')
+        scope = str(request.data.get('scope', 'all')).strip()
+        valid_scopes = {s[0] for s in SCOPE_CHOICES}
+        if scope not in valid_scopes:
+            return _err('Invalid scope value.')
         perm_ids = request.data.get('permission_ids', [])
         if not isinstance(perm_ids, list):
             return _err('permission_ids must be a list.')
 
         try:
-            cat = PermissionCategory.objects.create(name=name, description=description, module=module)
+            cat = PermissionCategory.objects.create(name=name, description=description, module=module, scope=scope)
             if perm_ids:
                 cat.permissions.set(Permission.objects.filter(id__in=perm_ids))
         except Exception as exc:
@@ -165,6 +178,14 @@ class PermissionCategoryViewSet(ViewSet):
             if module and module not in valid_modules:
                 return _err('Invalid module value.')
             cat.module = module
+
+        if 'scope' in request.data:
+            from .models import SCOPE_CHOICES
+            scope = str(request.data['scope']).strip()
+            valid_scopes = {s[0] for s in SCOPE_CHOICES}
+            if scope not in valid_scopes:
+                return _err('Invalid scope value.')
+            cat.scope = scope
 
         cat.save()
 

@@ -95,12 +95,20 @@ def logout_view(request):
 
 @login_required
 def profile_view(request):
+    from apps.users.apps import DEFAULT_ADMIN_EMAIL
     user = request.user
+    is_default_admin = user.email.lower() == DEFAULT_ADMIN_EMAIL.lower()
+
     profile_form = ProfileForm(initial={
         'first_name': user.first_name,
         'last_name': user.last_name,
     }, user=user)
     password_form = ChangePasswordForm(user=user)
+
+    if is_default_admin:
+        _ro = {'readonly': True, 'style': 'cursor:not-allowed;background:var(--rp-surface-muted,#f8f9fa)'}
+        profile_form.fields['first_name'].widget.attrs.update(_ro)
+        profile_form.fields['last_name'].widget.attrs.update(_ro)
 
     try:
         sso_provider = user.profile.sso_provider
@@ -114,6 +122,7 @@ def profile_view(request):
         'password_form': password_form,
         'is_sso': is_sso,
         'sso_provider': sso_provider,
+        'is_default_admin': is_default_admin,
     })
 
 

@@ -59,6 +59,7 @@ class UserSerializer(serializers.ModelSerializer):
     avatar_display = serializers.SerializerMethodField()
     group_ids = serializers.SerializerMethodField()
     explicit_category_ids = serializers.SerializerMethodField()
+    group_category_ids = serializers.SerializerMethodField()
     effective_permission_ids = serializers.SerializerMethodField()
     group_permission_summary = serializers.SerializerMethodField()
 
@@ -69,7 +70,7 @@ class UserSerializer(serializers.ModelSerializer):
             'is_active', 'is_staff', 'is_superuser',
             'date_joined', 'last_login',
             'profile', 'avatar_display',
-            'group_ids', 'explicit_category_ids',
+            'group_ids', 'explicit_category_ids', 'group_category_ids',
             'effective_permission_ids', 'group_permission_summary',
         ]
         read_only_fields = ['date_joined', 'last_login', 'is_superuser']
@@ -96,6 +97,16 @@ class UserSerializer(serializers.ModelSerializer):
             return list(obj.profile.permission_categories.values_list('id', flat=True))
         except UserProfile.DoesNotExist:
             return []
+
+    def get_group_category_ids(self, obj):
+        """Category IDs inherited via group membership (read-only, not explicitly assigned)."""
+        cat_ids = set()
+        for group in obj.groups.select_related('profile').all():
+            try:
+                cat_ids.update(group.profile.permission_categories.values_list('id', flat=True))
+            except Exception:
+                pass
+        return list(cat_ids)
 
     def get_effective_permission_ids(self, obj):
         """Union of permissions from explicit categories + all group permissions."""

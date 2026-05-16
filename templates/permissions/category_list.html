@@ -33,6 +33,7 @@
                 <th>Module</th>
                 <th>Name</th>
                 <th>Description</th>
+                <th class="text-center">Scope</th>
                 <th class="text-center">Permissions</th>
                 <th class="text-center">Actions</th>
             </tr>
@@ -77,6 +78,18 @@
                         <option value="public_holidays">Public Holidays</option>
                     </select>
                     <div class="invalid-feedback" id="cat-module-error"></div>
+                </div>
+
+                <div class="rp-field mb-3">
+                    <label class="rp-label" for="cat-scope">
+                        Scope <span class="rp-required">*</span>
+                    </label>
+                    <select id="cat-scope" class="form-select rp-input">
+                        <option value="all">All — no restriction</option>
+                        <option value="team">Team — own delivery team only</option>
+                        <option value="self">Self — own records only</option>
+                    </select>
+                    <p class="rp-hint mt-1">Controls the data boundary this category's permissions apply to.</p>
                 </div>
 
                 <div class="rp-field mb-3">
