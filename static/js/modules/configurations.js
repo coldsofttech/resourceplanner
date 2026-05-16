@@ -47,11 +47,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+const MODULE_TITLES = {
+    integration_ai:       'AI Integration',
+    integration_email:    'Email Integration',
+    integration_sso:      'SSO Integration',
+    integration_jira:     'Jira Integration',
+    security:             'Security',
+    security_password:    'Password Policy',
+};
+
 /*
  * List View
  */
 function initListView() {
-    setPageTitle("Configurations");
+    const tableEl = document.getElementById('configs-table');
+    const moduleFilter = tableEl?.dataset.module ?? '';
+    setPageTitle(MODULE_TITLES[moduleFilter] ?? 'Configurations');
 
     const renderer = initRenderer({
         tbodyId: 'configs-tbody',
@@ -72,6 +83,7 @@ function initListView() {
 
     fetcher = initFetch({
         apiUrl: API_URLS.configurations.list.href,
+        defaultParams: moduleFilter ? { module: moduleFilter } : {},
         pageSize: 20,
         searchInputId: 'config-search',
         filters: [],
@@ -91,10 +103,10 @@ function initListView() {
 
     fetcher.refresh();
 
-    document.getElementById('export-csv').addEventListener('click', () => {
+    document.getElementById('export-csv')?.addEventListener('click', () => {
         runListExport('csv');
     });
-    document.getElementById('export-pdf').addEventListener('click', () => {
+    document.getElementById('export-pdf')?.addEventListener('click', () => {
         runListExport('pdf');
     });
 }

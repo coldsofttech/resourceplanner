@@ -10,6 +10,7 @@ from .models import Configuration
 logger = logging.getLogger(__name__)
 
 CONFIGURATION_DEFAULTS = {
+    # ── General ──────────────────────────────────────────────────────────────
     # Holidays
     "DEFAULT_HOLIDAYS": {
         "label": "Default holidays per financial year.",
@@ -20,6 +21,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     "DEFAULT_HOLIDAYS_PER_SPRINT": {
         "label": "Default holidays per sprint (placeholder engineers)",
@@ -30,6 +32,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     # Financial Years
     "FY_EXPIRY_WARNING_DAYS": {
@@ -42,6 +45,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     # Sprints
     "SPRINT_NAME_PREFIX": {
@@ -53,6 +57,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": False,
+        "module": "general",
     },
     "SPRINT_START_NUMBER": {
         "label": "Sprint Start Number",
@@ -63,6 +68,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     "SPRINT_DURATION_DAYS": {
         "label": "Sprint Duration (days)",
@@ -73,6 +79,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     "SPRINT_POINT_PRICE": {
         "label": "Sprint Point Price (£)",
@@ -82,6 +89,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     # Projects
     "BUDGET_THRESHOLD_PCT_DEFAULT": {
@@ -94,6 +102,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     "BUDGET_SIZE_XS_MAX_AMOUNT": {
         "label": "T-Shirt Size XS Upper Boundary (£)",
@@ -104,6 +113,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     "BUDGET_SIZE_S_MAX_AMOUNT": {
         "label": "T-Shirt Size S Upper Boundary (£)",
@@ -114,6 +124,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     "BUDGET_SIZE_M_MAX_AMOUNT": {
         "label": "T-Shirt Size M Upper Boundary (£)",
@@ -124,6 +135,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     "BUDGET_SIZE_L_MAX_AMOUNT": {
         "label": "T-Shirt Size L Upper Boundary (£)",
@@ -134,6 +146,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "general",
     },
     "BUDGET_SIZE_XS_GREEN_PCT": {
         "label": "T-Shirt Size XS Green Threshold (%)",
@@ -144,6 +157,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "float",
         "is_secret": False,
+        "module": "general",
     },
     "BUDGET_SIZE_S_GREEN_PCT": {
         "label": "T-Shirt Size S Green Threshold (%)",
@@ -154,6 +168,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "float",
         "is_secret": False,
+        "module": "general",
     },
     "BUDGET_SIZE_M_GREEN_PCT": {
         "label": "T-Shirt Size M Green Threshold (%)",
@@ -164,6 +179,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "float",
         "is_secret": False,
+        "module": "general",
     },
     "BUDGET_SIZE_L_GREEN_PCT": {
         "label": "T-Shirt Size L Green Threshold (%)",
@@ -174,6 +190,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "float",
         "is_secret": False,
+        "module": "general",
     },
     "BUDGET_SIZE_XL_GREEN_PCT": {
         "label": "T-Shirt Size XL Green Threshold (%)",
@@ -184,8 +201,10 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "float",
         "is_secret": False,
+        "module": "general",
     },
-    # AI
+
+    # ── AI Integration ────────────────────────────────────────────────────────
     "AI_ENABLED": {
         "label": "AI Enabled",
         "value": "false",
@@ -196,6 +215,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "boolean",
         "is_secret": False,
+        "module": "integration_ai",
     },
     "AI_PROVIDER": {
         "label": "AI Provider",
@@ -207,6 +227,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": False,
+        "module": "integration_ai",
     },
     "AI_MODEL": {
         "label": "AI Model",
@@ -219,6 +240,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": False,
+        "module": "integration_ai",
     },
     "AI_ANTHROPIC_API_KEY": {
         "label": "Anthropic API Key",
@@ -230,6 +252,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": True,
+        "module": "integration_ai",
     },
     "AI_BEDROCK_REGION": {
         "label": "Bedrock Region",
@@ -242,6 +265,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": False,
+        "module": "integration_ai",
     },
     "AI_BEDROCK_AUTH_MODE": {
         "label": "Bedrock Auth Mode",
@@ -255,6 +279,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": False,
+        "module": "integration_ai",
     },
     "AI_BEDROCK_IAM_KEY": {
         "label": "Bedrock IAM Access Key ID",
@@ -267,6 +292,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": True,
+        "module": "integration_ai",
     },
     "AI_BEDROCK_IAM_SECRET": {
         "label": "Bedrock IAM Secret Access Key",
@@ -278,248 +304,10 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": True,
+        "module": "integration_ai",
     },
-    # Authentication
-    "AUTH_MODE": {
-        "label": "Authentication Mode",
-        "value": "classic",
-        "description": (
-            "Controls how users authenticate. "
-            "'classic' — username and password via the built-in login screen. "
-            "'sso' — redirect to the configured identity provider; no local login screen."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    "ALLOW_REGISTRATION": {
-        "label": "Allow Self-Registration",
-        "value": "true",
-        "description": (
-            "When AUTH_MODE=classic, allow new users to create their own account "
-            "via the /register/ page. Set to 'false' to restrict access to admin-created accounts only."
-        ),
-        "data_type": "boolean",
-        "is_secret": False,
-    },
-    "SESSION_TIMEOUT_MINUTES": {
-        "label": "Session Timeout (minutes)",
-        "value": "480",
-        "description": (
-            "Number of idle minutes before an authenticated session expires and the user "
-            "is redirected to the login page. Default: 480 (8 hours)."
-        ),
-        "data_type": "integer",
-        "is_secret": False,
-    },
-    "PASSWORD_ROTATION_DAYS": {
-        "label": "Password Rotation Period (days)",
-        "value": "90",
-        "description": (
-            "Number of days after which classic-mode users are forced to change their password on next login. "
-            "Set to 0 to disable password rotation. Default: 90 days."
-        ),
-        "data_type": "integer",
-        "is_secret": False,
-    },
-    # SSO — General
-    "SSO_PROTOCOL": {
-        "label": "SSO Protocol",
-        "value": "oauth2",
-        "description": (
-            "SSO protocol to use when AUTH_MODE=sso. "
-            "'oauth2' — OpenID Connect / OAuth2 (GitHub, Azure AD, Google, Okta, etc.). "
-            "'saml' — SAML 2.0 (Azure AD SAML, Okta SAML, ADFS, etc.)."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    "SSO_PROVIDER_NAME": {
-        "label": "SSO Provider Name",
-        "value": "",
-        "description": (
-            "Display name of the identity provider shown on the login page and welcome message, "
-            "e.g. 'GitHub', 'Azure AD', 'Google', 'Okta'."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    # SSO — OAuth2 / OpenID Connect
-    "SSO_OAUTH2_CLIENT_ID": {
-        "label": "OAuth2 Client ID",
-        "value": "",
-        "description": (
-            "Client (application) ID issued by the identity provider. "
-            "Required when SSO_PROTOCOL=oauth2."
-        ),
-        "data_type": "string",
-        "is_secret": True,
-    },
-    "SSO_OAUTH2_CLIENT_SECRET": {
-        "label": "OAuth2 Client Secret",
-        "value": "",
-        "description": (
-            "Client secret issued by the identity provider. "
-            "Required when SSO_PROTOCOL=oauth2."
-        ),
-        "data_type": "string",
-        "is_secret": True,
-    },
-    "SSO_OAUTH2_AUTH_URL": {
-        "label": "OAuth2 Authorization Endpoint",
-        "value": "",
-        "description": (
-            "The identity provider's authorization URL where users are redirected to authenticate. "
-            "Example (GitHub): https://github.com/login/oauth/authorize. "
-            "Example (Azure AD): https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    "SSO_OAUTH2_TOKEN_URL": {
-        "label": "OAuth2 Token Endpoint",
-        "value": "",
-        "description": (
-            "The identity provider's token URL used to exchange the authorization code for tokens. "
-            "Example (GitHub): https://github.com/login/oauth/access_token. "
-            "Example (Azure AD): https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    "SSO_OAUTH2_USERINFO_URL": {
-        "label": "OAuth2 User Info Endpoint",
-        "value": "",
-        "description": (
-            "URL to fetch the authenticated user's profile. "
-            "Example (GitHub): https://api.github.com/user. "
-            "Example (Azure AD): https://graph.microsoft.com/oidc/userinfo. "
-            "Leave blank for providers that include claims in the ID token."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    "SSO_OAUTH2_SCOPE": {
-        "label": "OAuth2 Scope",
-        "value": "openid email profile",
-        "description": (
-            "Space-separated OAuth2 scopes to request. "
-            "Typical: 'openid email profile'. "
-            "GitHub does not use OpenID Connect — use 'user:email read:user' instead."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    # SSO — SAML 2.0
-    "SSO_SAML_IDP_ENTITY_ID": {
-        "label": "SAML IdP Entity ID",
-        "value": "",
-        "description": (
-            "The identity provider's entity ID (Issuer). Found in the IdP metadata XML. "
-            "Example (Azure AD): https://sts.windows.net/{tenant-id}/."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    "SSO_SAML_IDP_SSO_URL": {
-        "label": "SAML IdP SSO URL",
-        "value": "",
-        "description": (
-            "The identity provider's Single Sign-On URL (HTTP-Redirect binding). "
-            "Example (Azure AD): https://login.microsoftonline.com/{tenant}/saml2."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    "SSO_SAML_IDP_CERT": {
-        "label": "SAML IdP X.509 Certificate",
-        "value": "",
-        "description": (
-            "The identity provider's public X.509 certificate (PEM or base64, without header/footer). "
-            "Used to verify the SAML assertion signature."
-        ),
-        "data_type": "string",
-        "is_secret": True,
-    },
-    "SSO_SAML_SP_ENTITY_ID": {
-        "label": "SAML SP Entity ID",
-        "value": "",
-        "description": (
-            "This application's entity ID registered with the identity provider. "
-            "Typically the application's base URL, e.g. https://resourceplanner.example.com/."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    "SSO_SAML_SP_ACS_URL": {
-        "label": "SAML SP Assertion Consumer Service URL",
-        "value": "",
-        "description": (
-            "The URL the identity provider posts the SAML response to after authentication. "
-            "Typically: https://resourceplanner.example.com/sso/saml/acs/. "
-            "Leave blank to auto-detect from the request host."
-        ),
-        "data_type": "string",
-        "is_secret": False,
-    },
-    # Password policy
-    "PASSWORD_MIN_LENGTH": {
-        "label": "Password Minimum Length",
-        "value": "8",
-        "description": (
-            "Minimum number of characters required for user passwords. "
-            "Applies to registration, password change, and admin-created accounts."
-        ),
-        "data_type": "integer",
-        "is_secret": False,
-    },
-    "PASSWORD_REQUIRE_UPPERCASE": {
-        "label": "Require Uppercase Letter",
-        "value": "false",
-        "description": (
-            "When true, passwords must contain at least one uppercase letter (A–Z)."
-        ),
-        "data_type": "boolean",
-        "is_secret": False,
-    },
-    "PASSWORD_REQUIRE_LOWERCASE": {
-        "label": "Require Lowercase Letter",
-        "value": "false",
-        "description": (
-            "When true, passwords must contain at least one lowercase letter (a–z)."
-        ),
-        "data_type": "boolean",
-        "is_secret": False,
-    },
-    "PASSWORD_REQUIRE_DIGITS": {
-        "label": "Require Digit",
-        "value": "false",
-        "description": (
-            "When true, passwords must contain at least one digit (0–9)."
-        ),
-        "data_type": "boolean",
-        "is_secret": False,
-    },
-    "PASSWORD_REQUIRE_SPECIAL": {
-        "label": "Require Special Character",
-        "value": "false",
-        "description": (
-            "When true, passwords must contain at least one special character "
-            "(!@#$%^&*…)."
-        ),
-        "data_type": "boolean",
-        "is_secret": False,
-    },
-    "PASSWORD_HISTORY_COUNT": {
-        "label": "Password History Count",
-        "value": "3",
-        "description": (
-            "Number of previous passwords a user cannot reuse when changing their password. "
-            "Set to 0 to disable the history check. Default: 3."
-        ),
-        "data_type": "integer",
-        "is_secret": False,
-    },
-    # Email (outbound mail)
+
+    # ── Email Integration ─────────────────────────────────────────────────────
     "EMAIL_PROTOCOL": {
         "label": "Email Protocol",
         "value": "console",
@@ -532,6 +320,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": False,
+        "module": "integration_email",
     },
     "EMAIL_HOST": {
         "label": "Email Host (SMTP Server)",
@@ -542,6 +331,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": False,
+        "module": "integration_email",
     },
     "EMAIL_PORT": {
         "label": "Email Port",
@@ -552,6 +342,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "integer",
         "is_secret": False,
+        "module": "integration_email",
     },
     "EMAIL_HOST_USER": {
         "label": "Email Username",
@@ -562,6 +353,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": False,
+        "module": "integration_email",
     },
     "EMAIL_HOST_PASSWORD": {
         "label": "Email Password",
@@ -572,6 +364,7 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": True,
+        "module": "integration_email",
     },
     "EMAIL_FROM": {
         "label": "From Email Address",
@@ -582,15 +375,344 @@ CONFIGURATION_DEFAULTS = {
         ),
         "data_type": "string",
         "is_secret": False,
+        "module": "integration_email",
     },
-    # Add future built-in configs as below
-    # "CODE": {
-    #   "label": "Human readable label for the config.",
-    #   "value": "default value",
-    #   "description": "Information on how this config is used.",
-    #   "data_type": "string",   # string | integer | float | boolean
-    #   "is_secret": False,
-    # }
+
+    # ── SSO Integration ───────────────────────────────────────────────────────
+    "SSO_PROTOCOL": {
+        "label": "SSO Protocol",
+        "value": "oauth2",
+        "description": (
+            "SSO protocol to use when AUTH_MODE=sso. "
+            "'oauth2' — OpenID Connect / OAuth2 (GitHub, Azure AD, Google, Okta, etc.). "
+            "'saml' — SAML 2.0 (Azure AD SAML, Okta SAML, ADFS, etc.)."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_sso",
+    },
+    "SSO_PROVIDER_NAME": {
+        "label": "SSO Provider Name",
+        "value": "",
+        "description": (
+            "Display name of the identity provider shown on the login page and welcome message, "
+            "e.g. 'GitHub', 'Azure AD', 'Google', 'Okta'."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_sso",
+    },
+    "SSO_OAUTH2_CLIENT_ID": {
+        "label": "OAuth2 Client ID",
+        "value": "",
+        "description": (
+            "Client (application) ID issued by the identity provider. "
+            "Required when SSO_PROTOCOL=oauth2."
+        ),
+        "data_type": "string",
+        "is_secret": True,
+        "module": "integration_sso",
+    },
+    "SSO_OAUTH2_CLIENT_SECRET": {
+        "label": "OAuth2 Client Secret",
+        "value": "",
+        "description": (
+            "Client secret issued by the identity provider. "
+            "Required when SSO_PROTOCOL=oauth2."
+        ),
+        "data_type": "string",
+        "is_secret": True,
+        "module": "integration_sso",
+    },
+    "SSO_OAUTH2_AUTH_URL": {
+        "label": "OAuth2 Authorization Endpoint",
+        "value": "",
+        "description": (
+            "The identity provider's authorization URL where users are redirected to authenticate. "
+            "Example (GitHub): https://github.com/login/oauth/authorize. "
+            "Example (Azure AD): https://login.microsoftonline.com/{tenant}/oauth2/v2.0/authorize."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_sso",
+    },
+    "SSO_OAUTH2_TOKEN_URL": {
+        "label": "OAuth2 Token Endpoint",
+        "value": "",
+        "description": (
+            "The identity provider's token URL used to exchange the authorization code for tokens. "
+            "Example (GitHub): https://github.com/login/oauth/access_token. "
+            "Example (Azure AD): https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_sso",
+    },
+    "SSO_OAUTH2_USERINFO_URL": {
+        "label": "OAuth2 User Info Endpoint",
+        "value": "",
+        "description": (
+            "URL to fetch the authenticated user's profile. "
+            "Example (GitHub): https://api.github.com/user. "
+            "Example (Azure AD): https://graph.microsoft.com/oidc/userinfo. "
+            "Leave blank for providers that include claims in the ID token."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_sso",
+    },
+    "SSO_OAUTH2_SCOPE": {
+        "label": "OAuth2 Scope",
+        "value": "openid email profile",
+        "description": (
+            "Space-separated OAuth2 scopes to request. "
+            "Typical: 'openid email profile'. "
+            "GitHub does not use OpenID Connect — use 'user:email read:user' instead."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_sso",
+    },
+    "SSO_SAML_IDP_ENTITY_ID": {
+        "label": "SAML IdP Entity ID",
+        "value": "",
+        "description": (
+            "The identity provider's entity ID (Issuer). Found in the IdP metadata XML. "
+            "Example (Azure AD): https://sts.windows.net/{tenant-id}/."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_sso",
+    },
+    "SSO_SAML_IDP_SSO_URL": {
+        "label": "SAML IdP SSO URL",
+        "value": "",
+        "description": (
+            "The identity provider's Single Sign-On URL (HTTP-Redirect binding). "
+            "Example (Azure AD): https://login.microsoftonline.com/{tenant}/saml2."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_sso",
+    },
+    "SSO_SAML_IDP_CERT": {
+        "label": "SAML IdP X.509 Certificate",
+        "value": "",
+        "description": (
+            "The identity provider's public X.509 certificate (PEM or base64, without header/footer). "
+            "Used to verify the SAML assertion signature."
+        ),
+        "data_type": "string",
+        "is_secret": True,
+        "module": "integration_sso",
+    },
+    "SSO_SAML_SP_ENTITY_ID": {
+        "label": "SAML SP Entity ID",
+        "value": "",
+        "description": (
+            "This application's entity ID registered with the identity provider. "
+            "Typically the application's base URL, e.g. https://resourceplanner.example.com/."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_sso",
+    },
+    "SSO_SAML_SP_ACS_URL": {
+        "label": "SAML SP Assertion Consumer Service URL",
+        "value": "",
+        "description": (
+            "The URL the identity provider posts the SAML response to after authentication. "
+            "Typically: https://resourceplanner.example.com/sso/saml/acs/. "
+            "Leave blank to auto-detect from the request host."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_sso",
+    },
+
+    # ── Jira Integration ──────────────────────────────────────────────────────
+    "JIRA_ENABLED": {
+        "label": "Jira Integration Enabled",
+        "value": "false",
+        "description": (
+            "Master switch for Jira integration. "
+            "When enabled, the application can sync with your Jira instance. "
+            "Accepted values: true, false."
+        ),
+        "data_type": "boolean",
+        "is_secret": False,
+        "module": "integration_jira",
+    },
+    "JIRA_URL": {
+        "label": "Jira Base URL",
+        "value": "",
+        "description": (
+            "Base URL of your Jira instance. "
+            "Cloud example: https://yourcompany.atlassian.net. "
+            "Server example: https://jira.example.com."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_jira",
+    },
+    "JIRA_AUTH_MODE": {
+        "label": "Jira Auth Mode",
+        "value": "token",
+        "description": (
+            "Authentication method for the Jira API. "
+            "'token' — API token with email address (Jira Cloud). "
+            "'oauth2' — OAuth 2.0 (requires app registration in Jira)."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_jira",
+    },
+    "JIRA_EMAIL": {
+        "label": "Jira Account Email",
+        "value": "",
+        "description": (
+            "Email address of the Jira account used for API authentication. "
+            "Required when JIRA_AUTH_MODE=token."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_jira",
+    },
+    "JIRA_API_TOKEN": {
+        "label": "Jira API Token",
+        "value": "",
+        "description": (
+            "API token generated from your Jira account settings. "
+            "Required when JIRA_AUTH_MODE=token. "
+            "Stored encrypted at rest."
+        ),
+        "data_type": "string",
+        "is_secret": True,
+        "module": "integration_jira",
+    },
+    "JIRA_PROJECT_KEY": {
+        "label": "Jira Default Project Key",
+        "value": "",
+        "description": (
+            "Key of the default Jira project to use when no project is specified "
+            "(e.g. PROJ, RP, DEV). Leave blank to require explicit project selection."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "integration_jira",
+    },
+
+    # ── Security ──────────────────────────────────────────────────────────────
+    "AUTH_MODE": {
+        "label": "Authentication Mode",
+        "value": "classic",
+        "description": (
+            "Controls how users authenticate. "
+            "'classic' — username and password via the built-in login screen. "
+            "'sso' — redirect to the configured identity provider; no local login screen."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "security",
+    },
+    "ALLOW_REGISTRATION": {
+        "label": "Allow Self-Registration",
+        "value": "true",
+        "description": (
+            "When AUTH_MODE=classic, allow new users to create their own account "
+            "via the /register/ page. Set to 'false' to restrict access to admin-created accounts only."
+        ),
+        "data_type": "boolean",
+        "is_secret": False,
+        "module": "security",
+    },
+    "SESSION_TIMEOUT_MINUTES": {
+        "label": "Session Timeout (minutes)",
+        "value": "480",
+        "description": (
+            "Number of idle minutes before an authenticated session expires and the user "
+            "is redirected to the login page. Default: 480 (8 hours)."
+        ),
+        "data_type": "integer",
+        "is_secret": False,
+        "module": "security",
+    },
+
+    # ── Security — Password Policy ────────────────────────────────────────────
+    "PASSWORD_ROTATION_DAYS": {
+        "label": "Password Rotation Period (days)",
+        "value": "90",
+        "description": (
+            "Number of days after which classic-mode users are forced to change their password on next login. "
+            "Set to 0 to disable password rotation. Default: 90 days."
+        ),
+        "data_type": "integer",
+        "is_secret": False,
+        "module": "security_password",
+    },
+    "PASSWORD_MIN_LENGTH": {
+        "label": "Password Minimum Length",
+        "value": "8",
+        "description": (
+            "Minimum number of characters required for user passwords. "
+            "Applies to registration, password change, and admin-created accounts."
+        ),
+        "data_type": "integer",
+        "is_secret": False,
+        "module": "security_password",
+    },
+    "PASSWORD_REQUIRE_UPPERCASE": {
+        "label": "Require Uppercase Letter",
+        "value": "false",
+        "description": (
+            "When true, passwords must contain at least one uppercase letter (A–Z)."
+        ),
+        "data_type": "boolean",
+        "is_secret": False,
+        "module": "security_password",
+    },
+    "PASSWORD_REQUIRE_LOWERCASE": {
+        "label": "Require Lowercase Letter",
+        "value": "false",
+        "description": (
+            "When true, passwords must contain at least one lowercase letter (a–z)."
+        ),
+        "data_type": "boolean",
+        "is_secret": False,
+        "module": "security_password",
+    },
+    "PASSWORD_REQUIRE_DIGITS": {
+        "label": "Require Digit",
+        "value": "false",
+        "description": (
+            "When true, passwords must contain at least one digit (0–9)."
+        ),
+        "data_type": "boolean",
+        "is_secret": False,
+        "module": "security_password",
+    },
+    "PASSWORD_REQUIRE_SPECIAL": {
+        "label": "Require Special Character",
+        "value": "false",
+        "description": (
+            "When true, passwords must contain at least one special character "
+            "(!@#$%^&*…)."
+        ),
+        "data_type": "boolean",
+        "is_secret": False,
+        "module": "security_password",
+    },
+    "PASSWORD_HISTORY_COUNT": {
+        "label": "Password History Count",
+        "value": "3",
+        "description": (
+            "Number of previous passwords a user cannot reuse when changing their password. "
+            "Set to 0 to disable the history check. Default: 3."
+        ),
+        "data_type": "integer",
+        "is_secret": False,
+        "module": "security_password",
+    },
 }
 
 
@@ -605,6 +727,8 @@ class ConfigurationService:
         qs = Configuration.objects.all()
 
         if filters:
+            if filters.get("module"):
+                qs = qs.filter(module=filters["module"])
             if filters.get("search"):
                 s_term = filters["search"]
                 qs = (

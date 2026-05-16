@@ -31,6 +31,7 @@ def _seed_defaults(sender, **kwargs):
                         "description": meta["description"],
                         "data_type": meta.get("data_type", "string"),
                         "is_secret": meta.get("is_secret", False),
+                        "module": meta.get("module", "general"),
                     },
                 )
                 if not created:
@@ -39,6 +40,7 @@ def _seed_defaults(sender, **kwargs):
                     obj.description = meta["description"]
                     obj.data_type = meta.get("data_type", "string")
                     obj.is_secret = meta.get("is_secret", False)
-                    obj.save(update_fields=["label", "description", "data_type", "is_secret"])
+                    obj.module = meta.get("module", "general")
+                    obj.save(update_fields=["label", "description", "data_type", "is_secret", "module"])
             except Exception as e:
                 logger.exception("Failed to seed default configuration for %s: %s", code, e)

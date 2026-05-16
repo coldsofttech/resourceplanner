@@ -16,6 +16,16 @@ DATA_TYPE_CHOICES = [
     ('boolean', 'Boolean'),
 ]
 
+MODULE_CHOICES = [
+    ('general', 'General'),
+    ('integration_ai', 'AI Integration'),
+    ('integration_email', 'Email Integration'),
+    ('integration_sso', 'SSO Integration'),
+    ('integration_jira', 'Jira Integration'),
+    ('security', 'Security'),
+    ('security_password', 'Password Policy'),
+]
+
 
 class Configuration(models.Model):
     """
@@ -26,6 +36,7 @@ class Configuration(models.Model):
     * description: TEXT
     * data_type: TEXT — string | integer | float | boolean
     * is_secret: BOOL — if True, value is encrypted at rest
+    * module: TEXT — logical grouping (general | integration_* | security | security_password)
     * created_at: DATETIME
     * updated_at: DATETIME
     """
@@ -58,6 +69,12 @@ class Configuration(models.Model):
     is_secret = models.BooleanField(
         default=False,
         help_text='If true, the value is treated as a secret and stored encrypted.',
+    )
+    module = models.CharField(
+        max_length=30,
+        choices=MODULE_CHOICES,
+        default='general',
+        help_text='Logical grouping: general, integration_*, security, or security_password.',
     )
     created_at = models.DateTimeField(
         auto_now_add=True

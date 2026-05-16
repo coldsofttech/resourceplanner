@@ -968,6 +968,16 @@ export const URLS = {
         detail: (pk) => `/configurations/${pk}/`,
         edit: (pk) => `/configurations/${pk}/edit/`,
     },
+    integrations: {
+        ai:    '/integrations/ai/',
+        email: '/integrations/email/',
+        sso:   '/integrations/sso/',
+        jira:  '/integrations/jira/',
+    },
+    security: {
+        list:             '/security/',
+        password_policy:  '/security/password-policy/',
+    },
     resource_plans: {
         detail: (planId) => `/resource-plans/${planId}`,
         allocation_grid: (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/grid/`,

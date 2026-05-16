@@ -19,7 +19,7 @@ class ConfigurationSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = [
             'code', 'label', 'description',
-            'data_type', 'is_secret',
+            'data_type', 'is_secret', 'module',
             'created_at', 'updated_at',
         ]
 
