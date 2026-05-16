@@ -32,6 +32,8 @@ class UserSerializer(serializers.ModelSerializer):
     profile = UserProfileSerializer(read_only=True)
     full_name = serializers.SerializerMethodField()
     avatar_display = serializers.SerializerMethodField()
+    group_ids = serializers.SerializerMethodField()
+    explicit_permission_ids = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -40,6 +42,7 @@ class UserSerializer(serializers.ModelSerializer):
             'is_active', 'is_staff', 'is_superuser',
             'date_joined', 'last_login',
             'profile', 'avatar_display',
+            'group_ids', 'explicit_permission_ids',
         ]
         read_only_fields = ['date_joined', 'last_login', 'is_superuser']
 
@@ -56,6 +59,12 @@ class UserSerializer(serializers.ModelSerializer):
             return profile.avatar_url or ''
         except UserProfile.DoesNotExist:
             return ''
+
+    def get_group_ids(self, obj):
+        return list(obj.groups.values_list('id', flat=True))
+
+    def get_explicit_permission_ids(self, obj):
+        return list(obj.user_permissions.values_list('id', flat=True))
 
 
 class UserCreateSerializer(serializers.Serializer):
@@ -146,12 +155,13 @@ class UserGroupSerializer(serializers.ModelSerializer):
     created_at = serializers.SerializerMethodField()
     updated_at = serializers.SerializerMethodField()
     permission_ids = serializers.SerializerMethodField()
+    category_ids = serializers.SerializerMethodField()
 
     class Meta:
         model = Group
         fields = [
             'id', 'name', 'description', 'is_admin_group', 'is_system',
-            'member_count', 'permission_ids', 'created_at', 'updated_at',
+            'member_count', 'permission_ids', 'category_ids', 'created_at', 'updated_at',
         ]
 
     def get_member_count(self, obj):
@@ -190,6 +200,12 @@ class UserGroupSerializer(serializers.ModelSerializer):
     def get_permission_ids(self, obj):
         return list(obj.permissions.values_list('id', flat=True))
 
+    def get_category_ids(self, obj):
+        try:
+            return list(obj.profile.permission_categories.values_list('id', flat=True))
+        except Exception:
+            return []
+
     def validate_name(self, value):
         name = value.strip()
         if not name:
@@ -209,6 +225,9 @@ class UserGroupCreateSerializer(serializers.Serializer):
     permission_ids = serializers.ListField(
         child=serializers.IntegerField(), required=False, default=list
     )
+    category_ids = serializers.ListField(
+        child=serializers.IntegerField(), required=False, default=list
+    )
 
     def validate_name(self, value):
         name = value.strip()
@@ -219,15 +238,23 @@ class UserGroupCreateSerializer(serializers.Serializer):
         return name
 
     def create(self, validated_data):
+        from apps.permissions.models import PermissionCategory
         perm_ids = validated_data.pop('permission_ids', [])
+        cat_ids = validated_data.pop('category_ids', [])
         group = Group.objects.create(name=validated_data['name'])
-        GroupProfile.objects.create(
+        profile = GroupProfile.objects.create(
             group=group,
             description=validated_data.get('description', ''),
             is_admin_group=validated_data.get('is_admin_group', False),
             is_system=False,
         )
+        if cat_ids:
+            cats = PermissionCategory.objects.filter(id__in=cat_ids)
+            profile.permission_categories.set(cats)
+            # Include category permissions in the effective set
+            for cat in cats:
+                perm_ids += list(cat.permissions.values_list('id', flat=True))
         if perm_ids:
-            perms = Permission.objects.filter(id__in=perm_ids)
+            perms = Permission.objects.filter(id__in=set(perm_ids))
             group.permissions.set(perms)
         return group

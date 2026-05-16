@@ -77,6 +77,21 @@
             </ul>
         </div>
 
+        <!-- Permission Categories -->
+        <div class="rp-card mt-3" id="categories-card">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <h6 class="fw-600 mb-0"><i class="bi bi-collection me-2"></i>Permission Categories</h6>
+            </div>
+            <p class="rp-hint mb-2">
+                Assign pre-built permission bundles. Checking a category auto-selects its permissions below.
+            </p>
+            <div id="categories-loading" class="text-secondary small py-1">
+                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                Loading…
+            </div>
+            <div id="categories-list" class="d-flex flex-column gap-1"></div>
+        </div>
+
         <!-- Permissions accordion -->
         <div class="rp-card mt-3" id="permissions-card">
             <div class="d-flex align-items-center justify-content-between mb-3">
@@ -84,7 +99,7 @@
                 <span id="permissions-system-badge" class="rp-badge rp-badge--muted d-none">Read-only</span>
             </div>
             <p id="permissions-hint" class="rp-hint mb-2">
-                Select which actions members of this group can perform.
+                Fine-grained control. Permissions from categories above are auto-selected.
             </p>
             <div id="permissions-loading" class="text-secondary small py-2">
                 <div class="spinner-border spinner-border-sm me-2" role="status"></div>

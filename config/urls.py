@@ -71,6 +71,8 @@ urlpatterns = [
     path("api/v1/", include("apps.users.api_urls")),
     # REST API – permissions
     path("api/v1/", include("apps.permissions.api_urls")),
+    # Permission categories admin UI
+    path("permission-categories/", include("apps.permissions.urls")),
     # REST API – resource plans (includes nested version-config routes)
     path("api/v1/", include("apps.resource_plans.api_urls")),
     # REST API – all other apps

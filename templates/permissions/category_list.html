@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Permission Categories{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Permission Categories</h1>
+        <p class="rp-page-subtitle">Create named permission bundles that can be assigned to user groups.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm" id="new-category-btn">
+            <i class="bi bi-plus-lg me-1"></i>New Category
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Toolbar -->
+<div class="rp-toolbar d-flex gap-3 mb-3">
+    <div class="rp-search flex-grow-1">
+        <i class="bi bi-search rp-search-icon"></i>
+        <input type="text" id="category-search" class="form-control rp-search-input"
+               placeholder="Search categories…" />
+    </div>
+</div>
+
+<!-- Table -->
+<div class="rp-table-wrap">
+    <table class="table rp-table" id="categories-table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Description</th>
+                <th class="text-center">Permissions</th>
+                <th class="text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="categories-tbody"></tbody>
+    </table>
+</div>
+
+<!-- Create / Edit Modal -->
+<div class="modal fade" id="categoryModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="category-modal-title">New Category</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="category-modal-error" class="alert alert-danger d-none mb-3"></div>
+
+                <div class="rp-field mb-3">
+                    <label class="rp-label" for="cat-name">
+                        Name <span class="rp-required">*</span>
+                    </label>
+                    <input type="text" id="cat-name" class="form-control rp-input"
+                           placeholder="e.g. Team Member Management" maxlength="100">
+                    <div class="invalid-feedback" id="cat-name-error"></div>
+                </div>
+
+                <div class="rp-field mb-4">
+                    <label class="rp-label" for="cat-description">Description</label>
+                    <textarea id="cat-description" class="form-control rp-input" rows="2"
+                              placeholder="What access does this category grant?"></textarea>
+                </div>
+
+                <div class="rp-field">
+                    <label class="rp-label mb-2">
+                        <i class="bi bi-shield-check me-1"></i>Permissions
+                    </label>
+                    <p class="rp-hint mb-2">Select which permissions this category bundles together.</p>
+                    <div id="cat-perm-loading" class="text-secondary small py-2">
+                        <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                        Loading permissions…
+                    </div>
+                    <div id="cat-perm-accordion" class="accordion accordion-flush"
+                         style="max-height:380px;overflow-y:auto"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="category-save-btn">
+                    <span id="category-save-label">Save</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div class="modal fade" id="deleteCategoryModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Delete category?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    <strong id="delete-cat-name"></strong> will be permanently removed.
+                    Groups using this category will retain their current permissions.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-delete-cat-btn">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script type="module" src="{% static 'js/modules/permission_categories.js' %}"></script>
+{% endblock %}

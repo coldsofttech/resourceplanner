@@ -127,12 +127,14 @@ function wireDeleteModal() {
 // ── Form view (create / edit) ─────────────────────────────────────────────────
 
 let _allPermissions = [];     // [{app_label, label, permissions:[{id,codename,name}]}]
-let _groupIsSystem = false;
+let _allCategories  = [];     // [{id, name, permission_ids:[...]}]
+let _groupIsSystem  = false;
 
 function initFormView() {
     const form = document.getElementById('group-form');
     const groupPk = form.dataset.groupPk ? Number(form.dataset.groupPk) : null;
 
+    loadCategoriesSection();
     loadPermissionsAccordion(groupPk);
 
     if (groupPk) {
@@ -143,6 +145,72 @@ function initFormView() {
         e.preventDefault();
         await submitGroupForm(groupPk);
     });
+}
+
+async function loadCategoriesSection() {
+    const loadingEl = document.getElementById('categories-loading');
+    const listEl    = document.getElementById('categories-list');
+    if (!listEl) return;
+
+    try {
+        _allCategories = await apiFetch('/api/v1/permission-categories/');
+    } catch (_) {
+        if (loadingEl) loadingEl.textContent = 'Could not load categories.';
+        return;
+    }
+
+    if (loadingEl) loadingEl.classList.add('d-none');
+
+    if (!_allCategories.length) {
+        listEl.innerHTML = '<p class="text-secondary small mb-0">No categories configured yet. <a href="/permission-categories/" class="rp-link">Create one</a>.</p>';
+        return;
+    }
+
+    listEl.innerHTML = _allCategories.map(cat => `
+        <div class="form-check">
+            <input class="form-check-input cat-check" type="checkbox"
+                   value="${cat.id}" id="cat-${cat.id}"
+                   data-perm-ids="${escHtml(JSON.stringify(cat.permission_ids))}"
+                   onchange="onCategoryToggle(this)">
+            <label class="form-check-label" for="cat-${cat.id}">
+                <span class="fw-500">${escHtml(cat.name)}</span>
+                ${cat.description ? `<span class="text-secondary small ms-1">— ${escHtml(cat.description)}</span>` : ''}
+                <span class="rp-badge rp-badge--muted ms-1">${cat.permission_count} perms</span>
+            </label>
+        </div>`).join('');
+}
+
+window.onCategoryToggle = (checkbox) => {
+    const permIds = JSON.parse(checkbox.dataset.permIds || '[]');
+    permIds.forEach(id => {
+        const cb = document.getElementById(`perm-${id}`);
+        if (cb && !cb.disabled) {
+            cb.checked = checkbox.checked;
+        }
+    });
+    // Refresh all module counts
+    _allPermissions.forEach((_, i) => updatePermCount(i));
+};
+
+function _getSelectedCategoryIds() {
+    return [...document.querySelectorAll('.cat-check:checked')].map(cb => Number(cb.value));
+}
+
+function _applyGroupCategories(catIds) {
+    const idSet = new Set(catIds);
+    document.querySelectorAll('.cat-check').forEach(cb => {
+        cb.checked = idSet.has(Number(cb.value));
+    });
+    // Auto-select permissions from checked categories
+    catIds.forEach(catId => {
+        const cat = _allCategories.find(c => c.id === catId);
+        if (!cat) return;
+        cat.permission_ids.forEach(pid => {
+            const cb = document.getElementById(`perm-${pid}`);
+            if (cb && !cb.disabled) cb.checked = true;
+        });
+    });
+    _allPermissions.forEach((_, i) => updatePermCount(i));
 }
 
 async function loadPermissionsAccordion(groupPk) {
@@ -244,12 +312,16 @@ async function loadGroupForEdit(pk) {
             document.getElementById('id_is_admin_group').disabled = true;
         }
 
-        // Pre-check permissions and disable if system group
+        // Pre-check categories then permissions
+        if (g.category_ids && g.category_ids.length) {
+            _applyGroupCategories(g.category_ids);
+        }
         if (g.permission_ids) {
             _applyGroupPermissions(g.permission_ids);
         }
         if (g.is_system) {
             _disablePermissions();
+            document.querySelectorAll('.cat-check').forEach(cb => { cb.disabled = true; });
         }
     } catch (_) {
         showFlash('Failed to load group data.', 'error');
@@ -269,8 +341,10 @@ async function submitGroupForm(groupPk) {
         description:    document.getElementById('id_description').value.trim(),
         is_admin_group: document.getElementById('id_is_admin_group').checked,
         permission_ids: _groupIsSystem ? undefined : _getSelectedPermissionIds(),
+        category_ids:   _groupIsSystem ? undefined : _getSelectedCategoryIds(),
     };
     if (payload.permission_ids === undefined) delete payload.permission_ids;
+    if (payload.category_ids === undefined) delete payload.category_ids;
 
     const origLabel = submitBtn.dataset.originalLabel || submitLabel.textContent;
     submitBtn.disabled   = true;

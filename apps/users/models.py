@@ -86,6 +86,11 @@ class GroupProfile(models.Model):
         default=False,
         help_text='System groups are created automatically and cannot be deleted.',
     )
+    permission_categories = models.ManyToManyField(
+        'permissions.PermissionCategory',
+        blank=True,
+        related_name='groups',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

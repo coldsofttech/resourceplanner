@@ -259,7 +259,8 @@ class UserViewSet(ViewSet):
             logger.exception('Avatar upload failed: %s', exc)
             return _err('Could not save avatar.', status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        return Response(UserSerializer(request.user, context={'request': request}).data)
+        user = User.objects.select_related('profile').get(pk=request.user.pk)
+        return Response(UserSerializer(user, context={'request': request}).data)
 
     # ── /me/remove_avatar ────────────────────────────────────────────────────
     @action(detail=False, methods=['delete'], url_path='me/remove_avatar')
@@ -338,6 +339,46 @@ class UserViewSet(ViewSet):
             pass
 
         return Response({'message': 'Password reset successfully.'})
+
+    # ── /{pk}/set_groups ─────────────────────────────────────────────────────
+    @action(detail=True, methods=['post'], url_path='set_groups')
+    def set_groups(self, request, pk=None):
+        if not request.user.is_staff:
+            return _err('Admin access required.', status.HTTP_403_FORBIDDEN)
+        try:
+            user = User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return _err('User not found.', status.HTTP_404_NOT_FOUND)
+
+        group_ids = request.data.get('group_ids', [])
+        if not isinstance(group_ids, list):
+            return _err('group_ids must be a list.')
+
+        from django.contrib.auth.models import Group as DjangoGroup
+        groups = DjangoGroup.objects.filter(id__in=group_ids)
+        user.groups.set(groups)
+        _sync_staff_for_user(user)
+        user = User.objects.select_related('profile').get(pk=user.pk)
+        return Response(UserSerializer(user, context={'request': request}).data)
+
+    # ── /{pk}/set_permissions ────────────────────────────────────────────────
+    @action(detail=True, methods=['post'], url_path='set_permissions')
+    def set_permissions(self, request, pk=None):
+        if not request.user.is_staff:
+            return _err('Admin access required.', status.HTTP_403_FORBIDDEN)
+        try:
+            user = User.objects.get(pk=pk)
+        except User.DoesNotExist:
+            return _err('User not found.', status.HTTP_404_NOT_FOUND)
+
+        perm_ids = request.data.get('permission_ids', [])
+        if not isinstance(perm_ids, list):
+            return _err('permission_ids must be a list.')
+
+        perms = Permission.objects.filter(id__in=perm_ids)
+        user.user_permissions.set(perms)
+        user = User.objects.select_related('profile').get(pk=user.pk)
+        return Response(UserSerializer(user, context={'request': request}).data)
 
     # ── /stats ───────────────────────────────────────────────────────────────
     @action(detail=False, methods=['get'], url_path='stats')
@@ -488,11 +529,25 @@ class UserGroupViewSet(ViewSet):
         if profile_changed:
             profile.save(update_fields=profile_changed)
 
+        # Update permission categories (blocked for system groups)
+        if 'category_ids' in request.data and not is_system:
+            from apps.permissions.models import PermissionCategory
+            cat_ids = request.data.get('category_ids', [])
+            if isinstance(cat_ids, list):
+                cats = PermissionCategory.objects.filter(id__in=cat_ids)
+                profile.permission_categories.set(cats)
+
         # Update permissions (blocked for system groups)
         if 'permission_ids' in request.data and not is_system:
-            perm_ids = request.data.get('permission_ids', [])
+            perm_ids = list(request.data.get('permission_ids', []))
             if isinstance(perm_ids, list):
-                perms = Permission.objects.filter(id__in=perm_ids)
+                # Union with category permissions
+                try:
+                    for cat in profile.permission_categories.prefetch_related('permissions').all():
+                        perm_ids += list(cat.permissions.values_list('id', flat=True))
+                except Exception:
+                    pass
+                perms = Permission.objects.filter(id__in=set(perm_ids))
                 group.permissions.set(perms)
 
         # Re-sync staff flag for all members

@@ -144,12 +144,16 @@ function initAvatarUpload() {
         formData.append('avatar', file);
 
         try {
-            const data = await fetch('/api/v1/users/me/upload_avatar/', {
+            const r = await fetch('/api/v1/users/me/upload_avatar/', {
                 method: 'POST',
                 body: formData,
                 headers: { 'X-CSRFToken': getCsrfToken() },
-            }).then(r => r.json());
-
+            });
+            const data = await r.json();
+            if (!r.ok) {
+                if (errorEl) errorEl.textContent = data.error || 'Upload failed. Please try again.';
+                return;
+            }
             const newUrl = data.avatar_display;
             if (newUrl && imgWrap) {
                 imgWrap.innerHTML = `<img src="${escHtml(newUrl)}" alt="Avatar" class="rp-avatar-img" id="avatar-img">`;

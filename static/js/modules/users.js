@@ -88,7 +88,7 @@ function renderUserRow(user) {
                 <div class="d-flex align-items-center">
                     ${avatar}
                     <div>
-                        <div class="fw-500">${escHtml(fullName)}</div>
+                        <a href="/users/${user.id}/" class="fw-500 rp-link">${escHtml(fullName)}</a>
                         <div class="text-secondary small">${escHtml(user.email)}</div>
                     </div>
                 </div>
@@ -103,6 +103,9 @@ function renderUserRow(user) {
             <td class="text-secondary small">${formatDateTime(user.date_joined)}</td>
             <td class="text-center">
                 <div class="d-flex justify-content-center gap-1">
+                    <a href="/users/${user.id}/" class="btn btn-ghost-icon" title="Manage">
+                        <i class="bi bi-person-gear"></i>
+                    </a>
                     ${activateBtn}
                     <button class="btn btn-ghost-icon" title="Reset password"
                             onclick="showResetPwdModal(${user.id}, '${escHtml(user.email)}')">

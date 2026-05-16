@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}User Detail{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center gap-3">
+    <a href="/users/" class="btn btn-ghost-icon" title="Back to Users">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+        <h1 class="rp-page-title" id="page-user-name">Loading…</h1>
+        <p class="rp-page-subtitle" id="page-user-email"></p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+    <!-- Left column -->
+    <div class="col-lg-8">
+
+        <!-- Groups card -->
+        <div class="rp-card mb-4">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h6 class="fw-600 mb-0"><i class="bi bi-people me-2"></i>Group Membership</h6>
+                <button class="btn btn-primary btn-sm" id="manage-groups-btn">
+                    <i class="bi bi-pencil me-1"></i>Manage Groups
+                </button>
+            </div>
+            <div id="groups-empty" class="rp-empty-state d-none">
+                <i class="bi bi-people rp-empty-icon"></i>
+                <p class="rp-empty-text">Not a member of any group.</p>
+            </div>
+            <div id="groups-list" class="d-flex flex-wrap gap-2"></div>
+        </div>
+
+        <!-- Explicit Permissions card -->
+        <div class="rp-card">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h6 class="fw-600 mb-0"><i class="bi bi-shield-check me-2"></i>Explicit Permissions</h6>
+                <button class="btn btn-outline-secondary btn-sm" id="manage-perms-btn">
+                    <i class="bi bi-pencil me-1"></i>Manage Permissions
+                </button>
+            </div>
+            <p class="rp-hint mb-3">
+                Permissions assigned directly to this user (in addition to those inherited from groups).
+            </p>
+            <div id="perms-empty" class="rp-empty-state d-none">
+                <i class="bi bi-shield rp-empty-icon"></i>
+                <p class="rp-empty-text">No explicit permissions assigned.</p>
+            </div>
+            <div id="perms-list" class="d-flex flex-wrap gap-2"></div>
+        </div>
+    </div>
+
+    <!-- Right column -->
+    <div class="col-lg-4">
+        <!-- User info card -->
+        <div class="rp-card rp-card--muted mb-3" id="user-info-card">
+            <div class="text-center mb-3" id="user-avatar-wrap">
+                <div class="rp-avatar-lg mx-auto">
+                    <div class="rp-avatar-initials" id="user-initials">…</div>
+                </div>
+            </div>
+            <dl class="rp-meta-list">
+                <dt>Email</dt><dd id="info-email" class="text-secondary small"></dd>
+                <dt>Role</dt><dd id="info-role"></dd>
+                <dt>Status</dt><dd id="info-status"></dd>
+                <dt>Joined</dt><dd id="info-joined" class="text-secondary small"></dd>
+                <dt>Last login</dt><dd id="info-last-login" class="text-secondary small"></dd>
+            </dl>
+        </div>
+
+        <!-- Quick actions -->
+        <div class="rp-card rp-card--muted" id="actions-card">
+            <h6 class="fw-600 mb-3"><i class="bi bi-lightning me-2"></i>Actions</h6>
+            <div class="d-flex flex-column gap-2" id="action-buttons"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Groups Modal -->
+<div class="modal fade" id="manageGroupsModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Manage Group Membership</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="rp-hint mb-3">Select which groups this user belongs to.</p>
+                <div id="group-pick-loading" class="text-secondary small">
+                    <div class="spinner-border spinner-border-sm me-1" role="status"></div>Loading…
+                </div>
+                <div id="group-pick-list" class="d-flex flex-column gap-1"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="save-groups-btn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Manage Permissions Modal -->
+<div class="modal fade" id="managePermsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Manage Explicit Permissions</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="rp-hint mb-3">Permissions granted directly to this user (bypass group membership).</p>
+                <div id="perm-pick-loading" class="text-secondary small">
+                    <div class="spinner-border spinner-border-sm me-1" role="status"></div>Loading…
+                </div>
+                <div id="perm-pick-accordion" class="accordion accordion-flush"
+                     style="max-height:420px;overflow-y:auto"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="save-perms-btn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deactivate / Activate Confirm Modal -->
+<div class="modal fade" id="statusModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="status-modal-title"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0" id="status-modal-body"></p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="status-confirm-btn">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Reset Password Modal -->
+<div class="modal fade" id="resetPwdModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Reset password</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="rp-field">
+                    <label class="rp-label" for="reset-pwd-input">New password</label>
+                    <div class="rp-pwd-wrap">
+                        <input type="password" id="reset-pwd-input" class="form-control rp-input"
+                               placeholder="Enter new password" autocomplete="new-password">
+                        <button type="button" class="rp-pwd-eye"
+                                onclick="rpTogglePwd('reset-pwd-input', this)"
+                                tabindex="-1"><i class="bi bi-eye"></i></button>
+                    </div>
+                    <div class="invalid-feedback" id="reset-pwd-error"></div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="reset-pwd-confirm-btn">Set password</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% load static %}
+<script>
+window.USER_PK = {{ target_user_pk }};
+function rpTogglePwd(inputId, btn) {
+    const inp = document.getElementById(inputId);
+    const icon = btn.querySelector('i');
+    if (!inp) return;
+    const hidden = inp.type === 'password';
+    inp.type = hidden ? 'text' : 'password';
+    icon.className = hidden ? 'bi bi-eye-slash' : 'bi bi-eye';
+}
+</script>
+<script type="module" src="{% static 'js/modules/user_detail.js' %}"></script>
+{% endblock %}
