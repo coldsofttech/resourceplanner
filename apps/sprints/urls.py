@@ -1,7 +1,7 @@
 from django.urls import path
 
 from .views import SprintListView, SprintCreateView, SprintDetailView, SprintUpdateView
-from apps.sprint_forecast.views import SprintForecastPageView, SprintActualsPageView, SprintImportDetailPageView
+from apps.sprint_forecast.views import SprintForecastPageView, SprintActualsPageView, SprintImportDetailPageView, SprintComparePageView
 
 app_name = 'sprints'
 
@@ -14,4 +14,5 @@ urlpatterns = [
     path('<int:pk>/forecast/<int:import_pk>/', SprintImportDetailPageView.as_view(), name='forecast-import-detail'),
     path('<int:pk>/actuals/', SprintActualsPageView.as_view(), name='actuals'),
     path('<int:pk>/actuals/<int:import_pk>/', SprintImportDetailPageView.as_view(), name='actuals-import-detail'),
+    path('<int:pk>/compare/', SprintComparePageView.as_view(), name='compare'),
 ]

@@ -918,6 +918,10 @@ export const API_URLS = {
     recharge_details: {
         list: { method: 'GET', href: `${API_BASE}recharge-details/` },
     },
+
+    sprint_compare: {
+        data: (sprintId) => ({ method: 'GET', href: `${API_BASE}sprint-compare/?sprint_id=${sprintId}` }),
+    },
 };
 
 export const URLS = {
@@ -1008,6 +1012,7 @@ export const URLS = {
         detail: (pk) => `/sprints/${pk}/`,
         edit: (pk) => `/sprints/${pk}/edit/`,
         delete: (pk) => `/sprints/${pk}/delete/`,
+        compare: (pk) => `/sprints/${pk}/compare/`,
     },
     project_types: {
         list: '/project-types/',

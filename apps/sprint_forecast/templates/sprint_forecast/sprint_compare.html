@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Compare — {{ sprint.sprint_name }}{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/sprints/{{ sprint.id }}/" class="btn btn-ghost-icon" title="Back to Sprint">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span class="rp-code">{{ sprint.sprint_name }}</span>
+                <span class="rp-badge rp-badge--muted">
+                    <i class="bi bi-git me-1"></i>Compare
+                </span>
+            </h1>
+            <p class="rp-page-subtitle">Forecast vs Actuals — diff across all dimensions</p>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/sprints/{{ sprint.id }}/forecast/" class="btn btn-outline-info btn-sm">
+            <i class="bi bi-graph-up-arrow me-1"></i>Forecast
+        </a>
+        <a href="/sprints/{{ sprint.id }}/actuals/" class="btn btn-outline-warning btn-sm">
+            <i class="bi bi-bar-chart-line me-1"></i>Actuals
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="compare-root">
+
+    <!-- Loading state -->
+    <div class="text-center text-secondary py-5" id="compare-loading">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading comparison…
+    </div>
+
+    <!-- Not-ready / error state -->
+    <div id="compare-not-ready" class="d-none">
+        <div class="rp-card">
+            <div class="text-center py-5">
+                <i class="bi bi-git text-secondary" style="font-size:3rem;opacity:.4"></i>
+                <h5 class="mt-3 mb-2">Comparison not available</h5>
+                <p class="text-secondary mb-4">Both Forecast and Actuals must be review-complete before comparing.</p>
+                <div class="d-flex justify-content-center gap-5">
+                    <div class="text-center">
+                        <span id="forecast-status-badge" class="rp-badge rp-badge--muted">Pending</span>
+                        <p class="text-secondary small mt-2 mb-0">Forecast</p>
+                    </div>
+                    <div class="text-center">
+                        <span id="actual-status-badge" class="rp-badge rp-badge--muted">Pending</span>
+                        <p class="text-secondary small mt-2 mb-0">Actuals</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main compare content -->
+    <div id="compare-content" class="d-none">
+
+        <!-- Summary stat cards -->
+        <div class="row g-3 mb-4" id="summary-cards"></div>
+
+        <!-- Dimension filter tabs -->
+        <div class="d-flex gap-2 flex-wrap mb-3" id="dimension-tabs"></div>
+
+        <!-- Comparison table card -->
+        <div class="rp-card" id="compare-table-card">
+            <div id="compare-table-wrap"></div>
+        </div>
+
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    window.SPRINT_ID = {{ sprint.id }};
+    window.SPRINT_NAME = "{{ sprint.sprint_name|escapejs }}";
+</script>
+<script type="module" src="{% static 'js/modules/sprint_compare.js' %}"></script>
+{% endblock %}

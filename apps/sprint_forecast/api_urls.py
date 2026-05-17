@@ -6,6 +6,7 @@ from .api_views import (
     RechargeDetailViewSet,
     RechargeViewSet,
     SprintActualsViewSet,
+    SprintCompareViewSet,
     SprintConfirmedRowViewSet,
     SprintForecastViewSet,
 )
@@ -18,5 +19,6 @@ router.register(r'sprint-actuals', SprintActualsViewSet, basename='sprint-actual
 router.register(r'sprint-confirmed-rows', SprintConfirmedRowViewSet, basename='sprint-confirmed-row')
 router.register(r'recharges', RechargeViewSet, basename='recharge')
 router.register(r'recharge-details', RechargeDetailViewSet, basename='recharge-detail')
+router.register(r'sprint-compare', SprintCompareViewSet, basename='sprint-compare')
 
 urlpatterns = router.urls

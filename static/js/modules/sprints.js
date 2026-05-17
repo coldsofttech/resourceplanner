@@ -596,6 +596,8 @@ async function initDetailView() {
         showFlash(err?.data?.error || 'Could not load sprint details. Please refresh.', 'danger');
     }
 
+    checkCompareReady();
+
     // Rebuild capacity button
     const rebuildBtn = document.getElementById('rebuild-capacity-btn');
     if (rebuildBtn) {
@@ -636,6 +638,20 @@ async function initDetailView() {
     }
 
     loadCapacityTable(1);
+}
+
+async function checkCompareReady() {
+    try {
+        const [fcStatus, acStatus] = await Promise.all([
+            apiFetch(API_URLS.sprint_forecast.sprint_status(sprintPk).href, { method: 'GET' }),
+            apiFetch(API_URLS.sprint_actuals.sprint_status(sprintPk).href, { method: 'GET' }),
+        ]);
+        if (fcStatus.review_complete && acStatus.review_complete) {
+            document.getElementById('compare-btn')?.classList.remove('d-none');
+        }
+    } catch (_err) {
+        // silently ignore — Compare button remains hidden
+    }
 }
 
 function renderDetailHeader(sprint) {

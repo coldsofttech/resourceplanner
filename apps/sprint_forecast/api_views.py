@@ -1,4 +1,5 @@
 import logging
+from decimal import Decimal
 
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
@@ -492,3 +493,131 @@ class RechargeDetailViewSet(viewsets.ViewSet):
         if programme_id:
             qs = qs.filter(programme_id=programme_id)
         return Response(RechargeDetailSerializer(qs, many=True).data)
+
+
+class SprintCompareViewSet(viewsets.ViewSet):
+
+    def list(self, request):
+        sprint_id = request.query_params.get('sprint_id')
+        if not sprint_id:
+            return Response({'error': 'sprint_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            forecast_rc = SprintImportReviewComplete.objects.filter(
+                sprint_id=sprint_id, import_type=IMPORT_TYPE_FORECAST
+            ).first()
+            actual_rc = SprintImportReviewComplete.objects.filter(
+                sprint_id=sprint_id, import_type=IMPORT_TYPE_ACTUAL
+            ).first()
+
+            forecast_complete = forecast_rc is not None
+            actual_complete = actual_rc is not None
+            can_compare = forecast_complete and actual_complete
+
+            if not can_compare:
+                return Response({
+                    'forecast_complete': forecast_complete,
+                    'actual_complete': actual_complete,
+                    'can_compare': False,
+                    'rows': [],
+                    'summary': {},
+                })
+
+            base_qs = SprintConfirmedRow.objects.filter(sprint_id=sprint_id).select_related(
+                'team', 'assignee', 'label__project__programme', 'mapping'
+            )
+            forecast_rows = list(base_qs.filter(import_type=IMPORT_TYPE_FORECAST))
+            actual_rows = list(base_qs.filter(import_type=IMPORT_TYPE_ACTUAL))
+
+            def _make_key(row):
+                return (
+                    row.team_id,
+                    row.assignee_id if row.assignee_id is not None else f'__raw__{row.assignee_raw}',
+                    row.label_id if row.label_id is not None else f'__raw__{row.label_raw}',
+                    row.mapping_id if row.mapping_id is not None else f'__raw__{row.mapping_raw}',
+                )
+
+            def _row_meta(row):
+                project = row.label.project if (row.label and row.label.project_id) else None
+                programme = getattr(project, 'programme', None) if project else None
+                return {
+                    'team_id': row.team_id,
+                    'team': row.team.name if row.team else '—',
+                    'assignee_id': row.assignee_id,
+                    'assignee': row.assignee.display_name if row.assignee else (row.assignee_raw or '—'),
+                    'label_id': row.label_id,
+                    'label': row.label.label if row.label else (row.label_raw or '—'),
+                    'project_id': project.id if project else None,
+                    'project': project.name if project else '—',
+                    'programme_id': programme.id if programme else None,
+                    'programme': programme.name if programme else '—',
+                    'mapping_id': row.mapping_id,
+                    'mapping': row.mapping.code if row.mapping else (row.mapping_raw or '—'),
+                    'mapping_name': row.mapping.name if row.mapping else (row.mapping_raw or '—'),
+                }
+
+            def _agg(rows):
+                totals = {}
+                meta = {}
+                for row in rows:
+                    key = _make_key(row)
+                    totals[key] = totals.get(key, Decimal('0')) + (row.days or Decimal('0'))
+                    if key not in meta:
+                        meta[key] = _row_meta(row)
+                return totals, meta
+
+            f_totals, f_meta = _agg(forecast_rows)
+            a_totals, a_meta = _agg(actual_rows)
+
+            all_keys = set(f_totals.keys()) | set(a_totals.keys())
+            rows = []
+            for key in all_keys:
+                f_days = float(f_totals.get(key, Decimal('0')))
+                a_days = float(a_totals.get(key, Decimal('0')))
+                delta = a_days - f_days
+
+                if f_days == 0 and a_days > 0:
+                    diff_status = 'added'
+                elif f_days > 0 and a_days == 0:
+                    diff_status = 'removed'
+                elif abs(delta) > 0.0001:
+                    diff_status = 'changed'
+                else:
+                    diff_status = 'unchanged'
+
+                meta = f_meta.get(key) or a_meta.get(key, {})
+                rows.append({
+                    **meta,
+                    'forecast_days': round(f_days, 2),
+                    'actual_days': round(a_days, 2),
+                    'delta': round(delta, 2),
+                    'status': diff_status,
+                })
+
+            rows.sort(key=lambda r: (r.get('team', ''), r.get('assignee', ''), r.get('label', '')))
+
+            forecast_total = sum(r['forecast_days'] for r in rows)
+            actual_total = sum(r['actual_days'] for r in rows)
+            delta_total = actual_total - forecast_total
+
+            summary = {
+                'forecast_total_days': round(forecast_total, 2),
+                'actual_total_days': round(actual_total, 2),
+                'delta': round(delta_total, 2),
+                'added': sum(1 for r in rows if r['status'] == 'added'),
+                'removed': sum(1 for r in rows if r['status'] == 'removed'),
+                'changed': sum(1 for r in rows if r['status'] == 'changed'),
+                'unchanged': sum(1 for r in rows if r['status'] == 'unchanged'),
+            }
+
+            return Response({
+                'forecast_complete': True,
+                'actual_complete': True,
+                'can_compare': True,
+                'rows': rows,
+                'summary': summary,
+            })
+
+        except Exception as e:
+            logger.exception('Error running sprint compare: %s', e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

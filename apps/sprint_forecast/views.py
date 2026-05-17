@@ -34,6 +34,14 @@ class SprintImportDetailPageView(View):
         })
 
 
+class SprintComparePageView(View):
+    template_name = 'sprint_forecast/sprint_compare.html'
+
+    def get(self, request, pk, *args, **kwargs):
+        sprint = get_object_or_404(Sprint, pk=pk)
+        return render(request, self.template_name, {'sprint': sprint})
+
+
 class RechargesPageView(View):
     template_name = 'sprint_forecast/recharges.html'
 
