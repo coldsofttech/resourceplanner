@@ -15,6 +15,9 @@
 {% block content %}
 <!-- Filters -->
 <div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
+    <select id="filter-fy" class="form-select rp-select" style="max-width:160px">
+        <option value="">All FYs</option>
+    </select>
     <select id="filter-programme" class="form-select rp-select" style="max-width:220px">
         <option value="">All Programmes</option>
     </select>
@@ -35,20 +38,22 @@
     </div>
 
     <div class="rp-table-wrap d-none" id="actuals-table-wrap" style="overflow-x:auto">
-        <table class="table rp-table mb-0" style="min-width:1100px">
-            <thead>
-                <tr>
+        <table class="table rp-table mb-0" id="actuals-table" style="min-width:900px">
+            <thead id="actuals-thead">
+                <tr id="actuals-header-row">
                     <th>Programme</th>
                     <th>Project</th>
+                    <th>FY</th>
                     <th>Label</th>
                     <th>Code</th>
                     <th>Assigned Team</th>
                     <th>Collaborators</th>
                     <th class="text-end">Estimate</th>
-                    <th class="text-end">Estimate + Contingency</th>
+                    <th class="text-end">Est. + Contingency</th>
                     <th class="text-end">Total Cost</th>
                     <th class="text-end">Remaining</th>
                     <th class="text-center">Risk</th>
+                    <!-- sprint columns injected here -->
                     <th style="width:36px"></th>
                 </tr>
             </thead>
@@ -58,26 +63,25 @@
     <div id="actuals-empty" class="text-center text-secondary py-4 d-none">No project actuals found. Close a sprint to populate this table.</div>
 </div>
 
-<!-- Per-Sprint Breakdown Modal -->
-<div class="modal fade" id="sprintBreakdownModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+<!-- Per-Sprint Chart Modal -->
+<div class="modal fade" id="sprintChartModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content rp-modal">
             <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title" id="breakdown-modal-title">Per-Sprint Actuals</h5>
+                <div>
+                    <h5 class="modal-title mb-1" id="chart-modal-title">Per-Sprint Utilisation</h5>
+                    <span id="chart-modal-risk-badge"></span>
+                </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div class="rp-table-wrap">
-                    <table class="table rp-table table-sm mb-0">
-                        <thead>
-                            <tr>
-                                <th>Sprint</th>
-                                <th class="text-end">Days</th>
-                                <th class="text-end">Cost</th>
-                            </tr>
-                        </thead>
-                        <tbody id="breakdown-tbody"></tbody>
-                    </table>
+                <div style="position:relative;height:340px">
+                    <canvas id="sprintChart"></canvas>
+                </div>
+                <div class="d-flex gap-3 mt-3 flex-wrap" style="font-size:13px">
+                    <span><span class="d-inline-block me-1" style="width:12px;height:12px;background:rgba(99,102,241,0.75);border-radius:2px"></span>Sprint Cost %</span>
+                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#f59e0b;vertical-align:middle"></span>Estimate threshold</span>
+                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#ef4444;vertical-align:middle"></span>Est. + Contingency (100%)</span>
                 </div>
             </div>
         </div>

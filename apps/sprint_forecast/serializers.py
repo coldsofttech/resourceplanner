@@ -258,16 +258,19 @@ class SprintImportReviewCompleteSerializer(serializers.ModelSerializer):
 class ProjectSprintActualSerializer(serializers.ModelSerializer):
     sprint_name = serializers.CharField(source='sprint.sprint_name', read_only=True)
     sprint_number = serializers.IntegerField(source='sprint.sprint_number', read_only=True)
+    sprint_fy_id = serializers.IntegerField(source='sprint.financial_year_id', read_only=True)
+    sprint_fy_short = serializers.CharField(source='sprint.financial_year.short_fy', read_only=True)
 
     class Meta:
         model = ProjectSprintActual
-        fields = ['id', 'sprint', 'sprint_name', 'sprint_number', 'total_cost', 'total_days']
+        fields = ['id', 'sprint', 'sprint_name', 'sprint_number', 'sprint_fy_id', 'sprint_fy_short', 'total_cost', 'total_days']
 
 
 class ProjectActualsSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source='project.name', read_only=True)
     programme_name = serializers.CharField(source='programme.name', read_only=True)
     label_name = serializers.CharField(source='label.label', read_only=True)
+    all_labels = serializers.SerializerMethodField()
     assigned_team_name = serializers.CharField(source='assigned_team.name', read_only=True)
     collaborator_names = serializers.SerializerMethodField()
     sprint_actuals = ProjectSprintActualSerializer(many=True, read_only=True)
@@ -280,7 +283,7 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'project', 'project_name',
             'programme', 'programme_name',
-            'label', 'label_name',
+            'label', 'label_name', 'all_labels',
             'code',
             'assigned_team', 'assigned_team_name',
             'collaborators', 'collaborator_names',
@@ -292,6 +295,11 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
             'last_updated_sprint', 'last_updated_sprint_name',
             'created_at', 'updated_at',
         ]
+
+    def get_all_labels(self, obj):
+        if not obj.project_id:
+            return []
+        return list(obj.project.labels.values('id', 'label', 'is_primary').order_by('-is_primary', 'label'))
 
     def get_collaborator_names(self, obj):
         return list(obj.collaborators.values_list('name', flat=True))

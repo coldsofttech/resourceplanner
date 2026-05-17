@@ -656,25 +656,54 @@ class SprintCompareViewSet(viewsets.ViewSet):
 
 class ProjectActualsViewSet(viewsets.ViewSet):
 
-    def list(self, request):
-        qs = ProjectActuals.objects.select_related(
+    def _base_qs(self):
+        return ProjectActuals.objects.select_related(
             'project', 'programme', 'label', 'assigned_team', 'last_updated_sprint',
-        ).prefetch_related('collaborators', 'sprint_actuals__sprint')
+        ).prefetch_related(
+            'collaborators',
+            'project__labels',
+            'sprint_actuals__sprint__financial_year',
+        )
+
+    def list(self, request):
+        qs = self._base_qs()
 
         project_id = request.query_params.get('project_id')
         programme_id = request.query_params.get('programme_id')
+        fy_id = request.query_params.get('fy_id')
+
         if project_id:
             qs = qs.filter(project_id=project_id)
         if programme_id:
             qs = qs.filter(programme_id=programme_id)
+        if fy_id:
+            qs = qs.filter(sprint_actuals__sprint__financial_year_id=fy_id).distinct()
 
         return Response(ProjectActualsSerializer(qs, many=True).data)
 
     def retrieve(self, request, pk=None):
         try:
-            obj = ProjectActuals.objects.select_related(
-                'project', 'programme', 'label', 'assigned_team', 'last_updated_sprint',
-            ).prefetch_related('collaborators', 'sprint_actuals__sprint').get(pk=pk)
+            obj = self._base_qs().get(pk=pk)
         except ProjectActuals.DoesNotExist:
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(ProjectActualsSerializer(obj).data)
+
+    @action(detail=False, methods=['get'], url_path='fy-options')
+    def fy_options(self, request):
+        from apps.financial_years.models import FinancialYear
+        fy_ids = ProjectSprintActual.objects.values_list(
+            'sprint__financial_year_id', flat=True
+        ).distinct()
+        qs = FinancialYear.objects.filter(pk__in=fy_ids).order_by('-start_date').values('id', 'short_fy', 'long_fy')
+        return Response(list(qs))
+
+    @action(detail=False, methods=['get'], url_path='project-options')
+    def project_options(self, request):
+        qs = ProjectActuals.objects.select_related('project')
+        programme_id = request.query_params.get('programme_id')
+        if programme_id:
+            qs = qs.filter(programme_id=programme_id)
+        return Response([
+            {'id': pa.project_id, 'name': pa.project.name}
+            for pa in qs.order_by('project__name')
+        ])
