@@ -1,0 +1,662 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Sprint Forecast vs. Actuals — Resource Planner{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Filters ── */
+.rp-report-filters {
+    background: var(--rp-surface);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+}
+.rp-report-filters select, .rp-report-filters label { font-size: 13px; }
+
+/* ── Dimension pills ── */
+.fa-dim-pill {
+    font-size: 12px; padding: 4px 14px; border-radius: 20px;
+    border: 1px solid var(--bs-border-color);
+    background: transparent; cursor: pointer;
+    transition: background .15s, border-color .15s;
+}
+.fa-dim-pill.active {
+    background: var(--color-primary, #3b82f6);
+    border-color: var(--color-primary, #3b82f6);
+    color: #fff;
+}
+
+/* ── Table ── */
+.fa-table-wrap {
+    overflow-x: auto; max-height: 55vh;
+    border: 1px solid var(--bs-border-color); border-radius: 6px;
+}
+.fa-table {
+    font-size: 12px; white-space: nowrap; min-width: 500px; margin: 0;
+}
+.fa-table thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--rp-surface);
+    font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .04em;
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--bs-border-color);
+}
+.fa-table thead th.num { text-align: right; }
+.fa-table tbody td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    vertical-align: middle;
+}
+.fa-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.fa-table tfoot td {
+    position: sticky; bottom: 0; z-index: 2;
+    background: var(--rp-surface);
+    font-weight: 600; padding: 7px 10px;
+    border-top: 2px solid var(--bs-border-color);
+}
+.fa-table tfoot td.num { text-align: right; }
+
+/* diff row colours */
+.fa-table tr.diff-added   td { background: rgba(209,250,229,.45); }
+.fa-table tr.diff-removed  td { background: rgba(254,226,226,.45); }
+.fa-table tr.diff-changed  td { background: rgba(254,243,199,.45); }
+
+/* diff status badge */
+.diff-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 20px; height: 20px; border-radius: 4px;
+    font-size: 11px; font-weight: 700; font-family: var(--font-mono);
+}
+.diff-badge.added    { background:#d1fae5; color:#065f46; }
+.diff-badge.removed  { background:#fee2e2; color:#991b1b; }
+.diff-badge.changed  { background:#fef3c7; color:#92400e; }
+.diff-badge.unchanged{ background:#f3f4f6; color:#6b7280; }
+
+/* delta colouring */
+.delta-pos { color: #16a34a; }
+.delta-neg { color: #dc2626; }
+.delta-neu { color: var(--bs-secondary-color); }
+
+/* ── Summary cards ── */
+.fa-stat-card {
+    border-radius: 8px; padding: 14px 18px;
+    border: 1px solid var(--bs-border-color);
+    background: var(--rp-surface);
+}
+.fa-stat-val { font-size: 22px; font-weight: 700; font-family: var(--font-mono); line-height: 1; }
+.fa-stat-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--bs-secondary-color); margin-top: 4px; }
+
+/* ── Chart ── */
+#fa-chart-container { position: relative; height: 360px; }
+
+/* ── Placeholder / loading ── */
+.rp-placeholder {
+    min-height: 160px; display: flex; align-items: center;
+    justify-content: center; color: var(--bs-secondary-color);
+    font-size: 14px; flex-direction: column; gap: 8px;
+}
+
+/* ── Scenario banner ── */
+.fa-scenario-banner {
+    border-radius: 8px; padding: 10px 16px;
+    font-size: 13px; margin-bottom: 14px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1" style="font-size:13px">
+                <li class="breadcrumb-item"><a href="/reports/">Reports</a></li>
+                <li class="breadcrumb-item active">Sprint Forecast vs. Actuals</li>
+            </ol>
+        </nav>
+        <h1 class="rp-page-title mb-0">Sprint Forecast vs. Actuals</h1>
+        <p class="text-secondary mb-0" style="font-size:13px">Compare forecast allocations against actuals across all dimensions.</p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="rp-report-filters">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label mb-1">Financial Year</label>
+            <select id="filter-fy" class="form-select form-select-sm">
+                <option value="">— All years —</option>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label mb-1">Sprint</label>
+            <select id="filter-sprint" class="form-select form-select-sm">
+                <option value="">— Select sprint —</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label mb-1">Team</label>
+            <select id="filter-team" class="form-select form-select-sm">
+                <option value="">All teams</option>
+            </select>
+        </div>
+        <div class="col-auto d-flex gap-2 align-items-end">
+            <button id="btn-run" class="btn btn-sm btn-primary">
+                <i class="bi bi-play-fill me-1"></i>Run
+            </button>
+            <button id="btn-csv" class="btn btn-sm btn-outline-secondary" disabled>
+                <i class="bi bi-filetype-csv me-1"></i>CSV
+            </button>
+            <button id="btn-xlsx" class="btn btn-sm btn-outline-secondary" disabled>
+                <i class="bi bi-file-earmark-excel me-1"></i>XLSX
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Scenario banner (hidden until report runs) -->
+<div id="fa-banner" class="fa-scenario-banner d-none"></div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" id="faTabs" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-compare" type="button">
+            <i class="bi bi-table me-1"></i>Table
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-chart" type="button">
+            <i class="bi bi-bar-chart-grouped me-1"></i>Chart
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+    <!-- CHART TAB -->
+    <div class="tab-pane fade" id="pane-chart">
+        <div id="chart-placeholder" class="rp-placeholder">
+            <i class="bi bi-bar-chart-grouped display-5 opacity-25"></i>
+            <span>Run the report to see the chart.</span>
+        </div>
+        <div id="chart-content" class="d-none">
+            <div class="d-flex gap-2 flex-wrap mb-3" id="chart-dim-pills"></div>
+            <div class="rp-card">
+                <div id="fa-chart-container"><canvas id="fa-chart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABLE TAB -->
+    <div class="tab-pane fade show active" id="pane-compare">
+        <div id="cmp-placeholder" class="rp-placeholder">
+            <i class="bi bi-table display-5 opacity-25"></i>
+            <span>Select a sprint and click Run.</span>
+        </div>
+        <div id="cmp-no-data" class="d-none">
+            <div class="rp-card">
+                <div class="text-center py-5">
+                    <i class="bi bi-git text-secondary" style="font-size:3rem;opacity:.4"></i>
+                    <h5 class="mt-3 mb-2">Comparison not available</h5>
+                    <p class="text-secondary mb-4">Both forecast and actuals data must be present to compare.</p>
+                    <div class="d-flex justify-content-center gap-5" id="cmp-status-badges"></div>
+                </div>
+            </div>
+        </div>
+        <div id="cmp-content" class="d-none">
+            <div class="row g-3 mb-4" id="cmp-summary-cards"></div>
+            <div class="d-flex gap-2 flex-wrap mb-3" id="cmp-dim-pills"></div>
+            <div class="rp-card">
+                <div class="fa-table-wrap">
+                    <table class="fa-table table table-borderless mb-0">
+                        <thead id="cmp-thead"></thead>
+                        <tbody id="cmp-tbody"></tbody>
+                        <tfoot id="cmp-tfoot"></tfoot>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" crossorigin="anonymous"></script>
+<script>
+(function () {
+'use strict';
+
+const SLUG = '{{ slug }}';
+const DIMS = [
+    { key: 'all',      label: 'All' },
+    { key: 'label',    label: 'By Label' },
+    { key: 'project',  label: 'By Project' },
+    { key: 'team',     label: 'By Team' },
+    { key: 'engineer', label: 'By Engineer' },
+    { key: 'mapping',  label: 'By Finance Type' },
+];
+const CHART_DIMS = DIMS.filter(d => d.key !== 'all');
+
+let reportData  = null;
+let chartInst   = null;
+let chartDim    = 'label';
+let cmpDim      = 'all';
+let currentParams = {};
+
+const r2  = v => (parseFloat(v) || 0).toFixed(2);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const $   = id => document.getElementById(id);
+
+// ── Filters ────────────────────────────────────────────────────────────────
+async function loadFilters() {
+    const [fysRes, teamsRes] = await Promise.all([
+        fetch(`/api/v1/reports/standard/${SLUG}/financial-years/`),
+        fetch('/api/v1/delivery-teams/?page_size=200'),
+    ]);
+    const [fysData, teamsData] = await Promise.all([
+        fysRes.json(), teamsRes.json(),
+    ]);
+
+    const fySel = $('filter-fy');
+    (fysData.results || []).forEach(fy =>
+        fySel.insertAdjacentHTML('beforeend', `<option value="${fy.id}">${esc(fy.long_fy)}</option>`));
+
+    const teamSel = $('filter-team');
+    (teamsData.results || []).forEach(t =>
+        teamSel.insertAdjacentHTML('beforeend', `<option value="${t.id}">${esc(t.name)}</option>`));
+
+    // Load sprints unfiltered initially
+    await loadSprints();
+}
+
+async function loadSprints(fyId) {
+    const sprintSel = $('filter-sprint');
+    const prevVal   = sprintSel.value;
+    sprintSel.innerHTML = '<option value="">— Select sprint —</option>';
+
+    let url = `/api/v1/reports/standard/${SLUG}/sprints/`;
+    if (fyId) url += `?fy=${fyId}`;
+
+    const res  = await fetch(url);
+    const data = await res.json();
+    (data.results || []).forEach(s =>
+        sprintSel.insertAdjacentHTML('beforeend', `<option value="${s.id}">${esc(s.sprint_name)}</option>`));
+
+    // Re-select previous value if still present
+    if (prevVal) sprintSel.value = prevVal;
+}
+
+$('filter-fy').addEventListener('change', function () {
+    loadSprints(this.value || null);
+});
+
+// ── Run ────────────────────────────────────────────────────────────────────
+$('btn-run').addEventListener('click', runReport);
+
+async function runReport() {
+    const sprintId = $('filter-sprint').value;
+    if (!sprintId) { alert('Please select a sprint.'); return; }
+
+    const teamId = $('filter-team').value;
+    currentParams = { sprint: sprintId, team: teamId };
+
+    showLoading(true);
+    try {
+        let url = `/api/v1/reports/standard/${SLUG}/data/?sprint=${sprintId}`;
+        if (teamId) url += `&team=${teamId}`;
+
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) {
+            const e = await res.json();
+            throw new Error(e.error || 'Failed to load report');
+        }
+        reportData = await res.json();
+
+        renderBanner(reportData);
+        buildDimPills('chart-dim-pills', CHART_DIMS, chartDim, key => { chartDim = key; renderChart(); });
+        buildDimPills('cmp-dim-pills', DIMS, cmpDim, key => { cmpDim = key; renderCompare(); });
+
+        renderChart();
+        renderCompare();
+        setExportEnabled(true);
+        showContent();
+    } catch (err) {
+        showError(err.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
+// ── Scenario banner ────────────────────────────────────────────────────────
+function renderBanner(data) {
+    const el = $('fa-banner');
+    el.className = 'fa-scenario-banner';
+    if (!data.has_forecast && !data.has_actuals) {
+        el.className += ' alert alert-secondary';
+        el.innerHTML = '<i class="bi bi-info-circle me-2"></i>No forecast or actuals data found for this sprint.';
+    } else if (data.has_forecast && !data.has_actuals) {
+        el.className += ' alert alert-info';
+        el.innerHTML = '<i class="bi bi-info-circle me-2"></i>Forecast data loaded. <strong>Actuals not yet available</strong> — actual columns will show 0.';
+    } else if (!data.has_forecast && data.has_actuals) {
+        el.className += ' alert alert-warning';
+        el.innerHTML = '<i class="bi bi-exclamation-triangle me-2"></i>Actuals data loaded. <strong>Forecast not available</strong> — forecast columns will show 0.';
+    } else {
+        el.className += ' alert alert-success';
+        const fc = data.forecast_complete ? '✓ complete' : 'in progress';
+        const ac = data.actual_complete   ? '✓ complete' : 'in progress';
+        el.innerHTML = `<i class="bi bi-check-circle me-2"></i>Both forecast and actuals data available.
+            <span class="ms-3 text-secondary" style="font-size:12px">Forecast: <strong>${fc}</strong> &nbsp;·&nbsp; Actuals: <strong>${ac}</strong></span>`;
+    }
+    el.classList.remove('d-none');
+}
+
+// ── Aggregation ────────────────────────────────────────────────────────────
+function aggregateBy(rows, dim) {
+    const groups = new Map();
+
+    rows.forEach(row => {
+        let key, label, extraCols;
+        switch (dim) {
+            case 'all':
+                key = `${row.team_id}|${row.assignee_id ?? row.assignee}|${row.label_id ?? row.label}|${row.mapping_id ?? row.mapping}`;
+                label = row.label || '—';
+                extraCols = {
+                    team: row.team, engineer: row.assignee,
+                    label: row.label, project: row.project,
+                    programme: row.programme, mapping: row.mapping_name,
+                };
+                break;
+            case 'label':
+                key = String(row.label_id ?? ('raw:' + row.label));
+                label = row.label;
+                extraCols = { label: row.label, project: row.project, programme: row.programme };
+                break;
+            case 'project':
+                key = String(row.project_id ?? ('raw:' + row.project));
+                label = row.project;
+                extraCols = { project: row.project, programme: row.programme };
+                break;
+            case 'team':
+                key = String(row.team_id);
+                label = row.team;
+                extraCols = { team: row.team };
+                break;
+            case 'engineer':
+                key = String(row.assignee_id ?? ('raw:' + row.assignee));
+                label = row.assignee;
+                extraCols = { engineer: row.assignee, team: row.team };
+                break;
+            case 'mapping':
+                key = String(row.mapping_id ?? ('raw:' + row.mapping));
+                label = row.mapping_name || row.mapping;
+                extraCols = { mapping: label };
+                break;
+        }
+        if (!groups.has(key)) {
+            groups.set(key, { label, extraCols, forecast_days: 0, actual_days: 0, rows: [] });
+        }
+        const g = groups.get(key);
+        g.forecast_days += parseFloat(row.forecast_days) || 0;
+        g.actual_days   += parseFloat(row.actual_days)   || 0;
+        g.rows.push(row);
+    });
+
+    return Array.from(groups.values()).map(g => {
+        const delta = g.actual_days - g.forecast_days;
+        // status for aggregated group: use majority logic
+        const hasFc = g.rows.some(r => parseFloat(r.forecast_days) > 0);
+        const hasAc = g.rows.some(r => parseFloat(r.actual_days)   > 0);
+        let status;
+        if (!hasFc)              status = 'added';
+        else if (!hasAc)         status = 'removed';
+        else if (Math.abs(delta) > 0.001) status = 'changed';
+        else                     status = 'unchanged';
+        return { ...g, delta, status };
+    });
+}
+
+// ── Dim cell builder ────────────────────────────────────────────────────────
+function buildDimCells(extra, dim) {
+    switch (dim) {
+        case 'all':      return `<td>${esc(extra.team)}</td><td>${esc(extra.engineer)}</td><td>${esc(extra.label)}</td><td>${esc(extra.project)}</td><td>${esc(extra.programme)}</td><td>${esc(extra.mapping)}</td>`;
+        case 'label':    return `<td>${esc(extra.label)}</td><td>${esc(extra.project)}</td><td>${esc(extra.programme)}</td>`;
+        case 'project':  return `<td>${esc(extra.project)}</td><td>${esc(extra.programme)}</td>`;
+        case 'team':     return `<td>${esc(extra.team)}</td>`;
+        case 'engineer': return `<td>${esc(extra.engineer)}</td><td>${esc(extra.team)}</td>`;
+        case 'mapping':  return `<td>${esc(extra.mapping)}</td>`;
+        default:         return '';
+    }
+}
+
+// ── Chart ──────────────────────────────────────────────────────────────────
+function renderChart() {
+    if (!reportData) return;
+    const groups = aggregateBy(reportData.rows, chartDim);
+    const labels = groups.map(g => g.label);
+
+    const datasets = [
+        {
+            label: 'Forecast',
+            data: groups.map(g => parseFloat(r2(g.forecast_days))),
+            backgroundColor: '#3b82f6bb',
+            borderColor: '#3b82f6',
+            borderWidth: 1,
+        },
+        {
+            label: 'Actual',
+            data: groups.map(g => parseFloat(r2(g.actual_days))),
+            backgroundColor: '#f59e0bbb',
+            borderColor: '#f59e0b',
+            borderWidth: 1,
+        },
+    ];
+
+    const ctx = $('fa-chart').getContext('2d');
+    if (chartInst) chartInst.destroy();
+    chartInst = new Chart(ctx, {
+        type: 'bar',
+        data: { labels, datasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { position: 'top', labels: { font: { size: 12 } } },
+                tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} days` } },
+            },
+            scales: {
+                x: { ticks: { font: { size: 11 } } },
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Days', font: { size: 11 } },
+                    ticks: { font: { size: 11 } },
+                },
+            },
+        },
+    });
+}
+
+// ── Compare ────────────────────────────────────────────────────────────────
+const CMP_HEADERS = {
+    all:      ['', 'Team', 'Engineer', 'Label', 'Project', 'Programme', 'Finance Type'],
+    label:    ['', 'Label', 'Project', 'Programme'],
+    project:  ['', 'Project', 'Programme'],
+    team:     ['', 'Team'],
+    engineer: ['', 'Engineer', 'Team'],
+    mapping:  ['', 'Finance Type'],
+};
+
+function renderCompare() {
+    if (!reportData) return;
+
+    if (!reportData.can_compare) {
+        $('cmp-content').classList.add('d-none');
+        $('cmp-no-data').classList.remove('d-none');
+
+        const fcAvail = reportData.has_forecast;
+        const acAvail = reportData.has_actuals;
+        $('cmp-status-badges').innerHTML = `
+            <div class="text-center">
+                <span class="rp-badge ${fcAvail ? 'rp-badge--success' : 'rp-badge--muted'}">${fcAvail ? 'Available' : 'Not available'}</span>
+                <p class="text-secondary small mt-2 mb-0">Forecast</p>
+            </div>
+            <div class="text-center">
+                <span class="rp-badge ${acAvail ? 'rp-badge--success' : 'rp-badge--muted'}">${acAvail ? 'Available' : 'Not available'}</span>
+                <p class="text-secondary small mt-2 mb-0">Actuals</p>
+            </div>`;
+        return;
+    }
+
+    $('cmp-no-data').classList.add('d-none');
+    $('cmp-content').classList.remove('d-none');
+
+    // Summary cards
+    const s = reportData.summary;
+    const deltaSign = s.delta > 0 ? '+' : '';
+    const dClass = s.delta > 0.001 ? 'delta-pos' : s.delta < -0.001 ? 'delta-neg' : 'delta-neu';
+    $('cmp-summary-cards').innerHTML = `
+        <div class="col-6 col-md-3">
+            <div class="fa-stat-card">
+                <div class="fa-stat-val">${r2(s.forecast_total_days)}</div>
+                <div class="fa-stat-lbl">Forecast Days</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="fa-stat-card">
+                <div class="fa-stat-val">${r2(s.actual_total_days)}</div>
+                <div class="fa-stat-lbl">Actual Days</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="fa-stat-card">
+                <div class="fa-stat-val ${dClass}">${deltaSign}${r2(s.delta)}</div>
+                <div class="fa-stat-lbl">Delta (d)</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="fa-stat-card">
+                <div class="d-flex gap-2 flex-wrap">
+                    <span class="rp-badge rp-badge--success">+${s.added}</span>
+                    <span class="rp-badge rp-badge--danger">−${s.removed}</span>
+                    <span class="rp-badge rp-badge--warning">~${s.changed}</span>
+                    <span class="rp-badge rp-badge--muted">=${s.unchanged}</span>
+                </div>
+                <div class="fa-stat-lbl mt-2">Changes</div>
+            </div>
+        </div>`;
+
+    // Table
+    const groups = aggregateBy(reportData.rows, cmpDim);
+    const dimCols = CMP_HEADERS[cmpDim];
+
+    $('cmp-thead').innerHTML = `<tr>
+        ${dimCols.map(h => h ? `<th>${h}</th>` : '<th style="width:28px"></th>').join('')}
+        <th class="num">Forecast (d)</th>
+        <th class="num">Actual (d)</th>
+        <th class="num">Delta (d)</th>
+    </tr>`;
+
+    $('cmp-tbody').innerHTML = groups.map(g => {
+        const badge = diffBadge(g.status);
+        const dimCells = buildDimCells(g.extraCols, cmpDim);
+        const delta = g.delta;
+        const dCls = delta > 0.001 ? 'delta-pos' : delta < -0.001 ? 'delta-neg' : 'delta-neu';
+        const sign = delta > 0 ? '+' : '';
+        const rowCls = { added: 'diff-added', removed: 'diff-removed', changed: 'diff-changed', unchanged: '' }[g.status] || '';
+        return `<tr class="${rowCls}">
+            <td>${badge}</td>
+            ${dimCells}
+            <td class="num">${r2(g.forecast_days)}</td>
+            <td class="num">${r2(g.actual_days)}</td>
+            <td class="num ${dCls}">${sign}${r2(delta)}</td>
+        </tr>`;
+    }).join('') || `<tr><td colspan="${dimCols.length + 3}" class="text-center text-secondary py-4">No data</td></tr>`;
+
+    // tfoot
+    const fcTotal = groups.reduce((s, g) => s + g.forecast_days, 0);
+    const acTotal = groups.reduce((s, g) => s + g.actual_days,   0);
+    const dtTotal = acTotal - fcTotal;
+    const sign2   = dtTotal > 0 ? '+' : '';
+    const dCls2   = dtTotal > 0.001 ? 'delta-pos' : dtTotal < -0.001 ? 'delta-neg' : 'delta-neu';
+    $('cmp-tfoot').innerHTML = `<tr>
+        <td colspan="${dimCols.length}">Total</td>
+        <td class="num">${r2(fcTotal)}</td>
+        <td class="num">${r2(acTotal)}</td>
+        <td class="num ${dCls2}">${sign2}${r2(dtTotal)}</td>
+    </tr>`;
+}
+
+function diffBadge(status) {
+    const map = { added: ['+','added'], removed: ['−','removed'], changed: ['~','changed'], unchanged: ['=','unchanged'] };
+    const [sym, cls] = map[status] || ['?', 'unchanged'];
+    return `<span class="diff-badge ${cls}">${sym}</span>`;
+}
+
+// ── Dimension pills ────────────────────────────────────────────────────────
+function buildDimPills(containerId, dims, activeDim, onChange) {
+    const container = $(containerId);
+    container.innerHTML = dims.map(d => `
+        <button class="fa-dim-pill ${d.key === activeDim ? 'active' : ''}"
+                data-dim="${d.key}" onclick="(function(el){
+            el.closest('[id]').querySelectorAll('.fa-dim-pill').forEach(p => p.classList.remove('active'));
+            el.classList.add('active');
+        })(this)">${esc(d.label)}</button>
+    `).join('');
+
+    container.querySelectorAll('.fa-dim-pill').forEach(btn => {
+        btn.addEventListener('click', () => onChange(btn.dataset.dim));
+    });
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+function setExportEnabled(on) {
+    [$('btn-csv'), $('btn-xlsx')].forEach(b => { b.disabled = !on; });
+    if (!on) return;
+    const { sprint, team } = currentParams;
+    const base = `/api/v1/reports/standard/${SLUG}/export/?sprint=${sprint}` + (team ? `&team=${team}` : '');
+    $('btn-csv').onclick  = () => dlUrl(base + '&fmt=csv');
+    $('btn-xlsx').onclick = () => dlUrl(base + '&fmt=xlsx');
+}
+
+function dlUrl(url) {
+    const a = document.createElement('a');
+    a.href = url; a.style.display = 'none';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function showLoading(on) {
+    const ph = $('cmp-placeholder');
+    if (on) {
+        ph.innerHTML = '<div class="spinner-border spinner-border-sm text-primary"></div><span>Loading…</span>';
+        ph.classList.remove('d-none');
+        $('cmp-no-data').classList.add('d-none');
+        $('cmp-content').classList.add('d-none');
+    } else {
+        ph.innerHTML = '<i class="bi bi-table display-5 opacity-25"></i><span>Select a sprint and click Run.</span>';
+    }
+}
+
+function showContent() {
+    $('cmp-placeholder').classList.add('d-none');
+    $('chart-placeholder').classList.add('d-none');
+    $('chart-content').classList.remove('d-none');
+}
+
+function showError(msg) {
+    const ph = $('cmp-placeholder');
+    ph.innerHTML = `
+        <i class="bi bi-exclamation-circle display-5 text-danger opacity-50"></i>
+        <span class="text-danger">${esc(msg)}</span>`;
+    ph.classList.remove('d-none');
+    $('cmp-no-data').classList.add('d-none');
+    $('cmp-content').classList.add('d-none');
+}
+
+loadFilters();
+})();
+</script>
+{% endblock %}

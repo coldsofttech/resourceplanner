@@ -3,6 +3,10 @@ from django.urls import path
 from .api_views import (
     ReportDetailView,
     ReportListCreateView,
+    SprintFAFinancialYearListView,
+    SprintFAReportDataView,
+    SprintFAReportExportView,
+    SprintFASprintListView,
     StandardReportConfigureView,
     StandardReportDataView,
     StandardReportExportView,
@@ -11,10 +15,34 @@ from .api_views import (
     StandardReportMetaView,
 )
 
+_FA_SLUG = 'sprint-forecast-actuals'
+
 urlpatterns = [
     # Report registry
     path("reports/", ReportListCreateView.as_view(), name="report-list-create"),
     path("reports/<int:pk>/", ReportDetailView.as_view(), name="report-detail"),
+
+    # Sprint Forecast vs. Actuals — specific routes BEFORE generic slug routes
+    path(
+        f"reports/standard/{_FA_SLUG}/data/",
+        SprintFAReportDataView.as_view(),
+        name="sprint-fa-report-data",
+    ),
+    path(
+        f"reports/standard/{_FA_SLUG}/export/",
+        SprintFAReportExportView.as_view(),
+        name="sprint-fa-report-export",
+    ),
+    path(
+        f"reports/standard/{_FA_SLUG}/sprints/",
+        SprintFASprintListView.as_view(),
+        name="sprint-fa-sprint-list",
+    ),
+    path(
+        f"reports/standard/{_FA_SLUG}/financial-years/",
+        SprintFAFinancialYearListView.as_view(),
+        name="sprint-fa-fy-list",
+    ),
 
     # Standard report endpoints (slug-based)
     path(

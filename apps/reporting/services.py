@@ -654,6 +654,239 @@ def _risk_util(demand_by_month: dict, cap_fte: dict, months_order: list):
 
 
 # ---------------------------------------------------------------------------
+# Sprint Forecast vs. Actuals — report data service
+# ---------------------------------------------------------------------------
+
+class SprintForecastActualsService:
+
+    @staticmethod
+    def get_data(sprint_id, team_id=None):
+        from decimal import Decimal
+
+        from apps.sprint_forecast.models import (
+            IMPORT_TYPE_FORECAST,
+            IMPORT_TYPE_ACTUAL,
+            SprintConfirmedRow,
+            SprintImportReviewComplete,
+        )
+        from apps.sprints.models import Sprint
+
+        try:
+            sprint = Sprint.objects.get(pk=sprint_id)
+        except Sprint.DoesNotExist:
+            return None
+
+        forecast_rc = SprintImportReviewComplete.objects.filter(
+            sprint=sprint, import_type=IMPORT_TYPE_FORECAST
+        ).first()
+        actual_rc = SprintImportReviewComplete.objects.filter(
+            sprint=sprint, import_type=IMPORT_TYPE_ACTUAL
+        ).first()
+
+        qs = SprintConfirmedRow.objects.filter(sprint=sprint).select_related(
+            'team', 'assignee', 'label__project__programme', 'mapping'
+        )
+        if team_id:
+            qs = qs.filter(team_id=team_id)
+
+        fc_rows = [r for r in qs if r.import_type == IMPORT_TYPE_FORECAST]
+        ac_rows = [r for r in qs if r.import_type == IMPORT_TYPE_ACTUAL]
+
+        has_forecast = len(fc_rows) > 0
+        has_actuals = len(ac_rows) > 0
+
+        # Build lookup dicts keyed by (team_id, assignee_key, label_key, mapping_key)
+        def _row_key(row):
+            assignee_key = row.assignee_id if row.assignee_id else row.assignee_raw
+            label_key = row.label_id if row.label_id else row.label_raw
+            mapping_key = row.mapping_id if row.mapping_id else row.mapping_raw
+            return (row.team_id, assignee_key, label_key, mapping_key)
+
+        def _row_meta(row):
+            label = row.label
+            project = label.project if label else None
+            programme = project.programme if project else None
+            mapping = row.mapping
+            return {
+                'team_id': row.team_id,
+                'team': row.team.name if row.team else '—',
+                'assignee_id': row.assignee_id,
+                'assignee': row.assignee.display_name if row.assignee else row.assignee_raw or '—',
+                'label_id': row.label_id,
+                'label': label.label if label else row.label_raw or '—',
+                'project_id': project.id if project else None,
+                'project': project.name if project else '—',
+                'programme_id': programme.id if programme else None,
+                'programme': programme.name if programme else '—',
+                'mapping_id': row.mapping_id,
+                'mapping': mapping.code if mapping else row.mapping_raw or '—',
+                'mapping_name': mapping.name if mapping else row.mapping_raw or '—',
+            }
+
+        fc_by_key = {}
+        for row in fc_rows:
+            k = _row_key(row)
+            fc_by_key.setdefault(k, {'meta': _row_meta(row), 'days': Decimal('0')})
+            fc_by_key[k]['days'] += row.days
+
+        ac_by_key = {}
+        for row in ac_rows:
+            k = _row_key(row)
+            ac_by_key.setdefault(k, {'meta': _row_meta(row), 'days': Decimal('0')})
+            ac_by_key[k]['days'] += row.days
+
+        all_keys = set(fc_by_key) | set(ac_by_key)
+
+        rows = []
+        added = removed = changed = unchanged = 0
+        forecast_total = Decimal('0')
+        actual_total = Decimal('0')
+
+        for k in all_keys:
+            fc_entry = fc_by_key.get(k)
+            ac_entry = ac_by_key.get(k)
+            meta = (fc_entry or ac_entry)['meta']
+
+            fc_days = fc_entry['days'] if fc_entry else Decimal('0')
+            ac_days = ac_entry['days'] if ac_entry else Decimal('0')
+            delta = ac_days - fc_days
+
+            if not fc_entry:
+                status = 'added'
+                added += 1
+            elif not ac_entry:
+                status = 'removed'
+                removed += 1
+            elif fc_days != ac_days:
+                status = 'changed'
+                changed += 1
+            else:
+                status = 'unchanged'
+                unchanged += 1
+
+            forecast_total += fc_days
+            actual_total += ac_days
+
+            rows.append({
+                **meta,
+                'forecast_days': _r2(fc_days),
+                'actual_days': _r2(ac_days),
+                'delta': _r2(delta),
+                'status': status,
+            })
+
+        rows.sort(key=lambda r: (r['team'], r['assignee'], r['label']))
+
+        return {
+            'sprint': {'id': sprint.id, 'name': sprint.sprint_name},
+            'has_forecast': has_forecast,
+            'has_actuals': has_actuals,
+            'forecast_complete': forecast_rc is not None,
+            'actual_complete': actual_rc is not None,
+            'can_compare': has_forecast and has_actuals,
+            'rows': rows,
+            'summary': {
+                'forecast_total_days': _r2(forecast_total),
+                'actual_total_days': _r2(actual_total),
+                'delta': _r2(actual_total - forecast_total),
+                'added': added,
+                'removed': removed,
+                'changed': changed,
+                'unchanged': unchanged,
+            },
+        }
+
+    @staticmethod
+    def export_csv(data: dict, sprint_name: str = '') -> bytes:
+        rows = data.get('rows', [])
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow([
+            'Team', 'Engineer', 'Label', 'Project', 'Programme', 'Finance Type',
+            'Forecast Days', 'Actual Days', 'Delta', 'Status',
+        ])
+        for r in rows:
+            w.writerow([
+                r['team'], r['assignee'], r['label'], r['project'],
+                r['programme'], r['mapping_name'],
+                f"{r['forecast_days']:.2f}", f"{r['actual_days']:.2f}",
+                f"{r['delta']:.2f}", r['status'],
+            ])
+        s = data.get('summary', {})
+        w.writerow([])
+        w.writerow(['', '', '', '', '', 'TOTAL',
+                    f"{s.get('forecast_total_days', 0):.2f}",
+                    f"{s.get('actual_total_days', 0):.2f}",
+                    f"{s.get('delta', 0):.2f}", ''])
+        return buf.getvalue().encode('utf-8-sig')
+
+    @staticmethod
+    def export_xlsx(data: dict, sprint_name: str = '') -> bytes:
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill
+
+        rows = data.get('rows', [])
+        s = data.get('summary', {})
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Sprint FA'
+
+        H_FILL = PatternFill('solid', fgColor='1F4E79')
+        STATUS_FILLS = {
+            'added':     PatternFill('solid', fgColor='D1FAE5'),
+            'removed':   PatternFill('solid', fgColor='FEE2E2'),
+            'changed':   PatternFill('solid', fgColor='FEF3C7'),
+            'unchanged': PatternFill('solid', fgColor='F9FAFB'),
+        }
+        CENTER = Alignment(horizontal='center')
+
+        headers = [
+            'Team', 'Engineer', 'Label', 'Project', 'Programme', 'Finance Type',
+            'Forecast Days', 'Actual Days', 'Delta', 'Status',
+        ]
+        for ci, h in enumerate(headers, 1):
+            c = ws.cell(1, ci, h)
+            c.font = Font(bold=True, color='FFFFFF')
+            c.fill = H_FILL
+            c.alignment = CENTER
+
+        for ri, r in enumerate(rows, 2):
+            fill = STATUS_FILLS.get(r['status'], STATUS_FILLS['unchanged'])
+            vals = [
+                r['team'], r['assignee'], r['label'], r['project'],
+                r['programme'], r['mapping_name'],
+                float(r['forecast_days']), float(r['actual_days']),
+                float(r['delta']), r['status'],
+            ]
+            for ci, v in enumerate(vals, 1):
+                c = ws.cell(ri, ci, v)
+                c.fill = fill
+                if ci >= 7:
+                    c.alignment = CENTER
+
+        # Totals row
+        tr = len(rows) + 2
+        ws.cell(tr, 6, 'TOTAL').font = Font(bold=True)
+        for ci, v in [(7, s.get('forecast_total_days', 0)),
+                      (8, s.get('actual_total_days', 0)),
+                      (9, s.get('delta', 0))]:
+            c = ws.cell(tr, ci, float(v))
+            c.font = Font(bold=True)
+            c.alignment = CENTER
+
+        col_widths = [18, 20, 16, 20, 18, 18, 14, 14, 10, 12]
+        for ci, w in enumerate(col_widths, 1):
+            from openpyxl.utils import get_column_letter
+            ws.column_dimensions[get_column_letter(ci)].width = w
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf.read()
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 

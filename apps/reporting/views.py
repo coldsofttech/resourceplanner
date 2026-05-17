@@ -1,5 +1,9 @@
 from django.views.generic import TemplateView
 
+_SLUG_TEMPLATES = {
+    'sprint-forecast-actuals': 'reporting/sprint_fa_report.html',
+}
+
 
 class ReportingIndexView(TemplateView):
     template_name = "reporting/index.html"
@@ -7,6 +11,10 @@ class ReportingIndexView(TemplateView):
 
 class StandardReportView(TemplateView):
     template_name = "reporting/standard_report.html"
+
+    def get_template_names(self):
+        slug = self.kwargs.get('slug', '')
+        return [_SLUG_TEMPLATES.get(slug, self.template_name)]
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)

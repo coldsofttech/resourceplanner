@@ -24,6 +24,7 @@ from .services import (
     DemandCapacityConfigService,
     DemandCapacityService,
     ReportService,
+    SprintForecastActualsService,
 )
 
 logger = logging.getLogger(__name__)
@@ -253,6 +254,122 @@ class StandardReportExportView(APIView):
             return _db_error_response(e, "report export")
         except Exception as e:
             return _unexpected_error_response(e, "report export")
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/reports/standard/sprint-forecast-actuals/data/
+# ---------------------------------------------------------------------------
+
+class SprintFAReportDataView(APIView):
+    def get(self, request):
+        try:
+            sprint_id = _parse_int_param(request.query_params, 'sprint')
+            team_id = _parse_int_param(request.query_params, 'team')
+
+            if not sprint_id:
+                return Response(
+                    {'error': "'sprint' query parameter is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            data = SprintForecastActualsService.get_data(sprint_id=sprint_id, team_id=team_id)
+            if data is None:
+                return Response({'error': 'Sprint not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            response = Response(data, status=status.HTTP_200_OK)
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+            response['Pragma'] = 'no-cache'
+            return response
+
+        except DatabaseError as e:
+            return _db_error_response(e, 'sprint fa data')
+        except Exception as e:
+            return _unexpected_error_response(e, 'sprint fa data')
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/reports/standard/sprint-forecast-actuals/export/
+# ---------------------------------------------------------------------------
+
+class SprintFAReportExportView(APIView):
+    def get(self, request):
+        try:
+            sprint_id = _parse_int_param(request.query_params, 'sprint')
+            team_id = _parse_int_param(request.query_params, 'team')
+            fmt = request.query_params.get('fmt', 'csv').lower()
+
+            if not sprint_id:
+                return Response(
+                    {'error': "'sprint' query parameter is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            data = SprintForecastActualsService.get_data(sprint_id=sprint_id, team_id=team_id)
+            if data is None:
+                return Response({'error': 'Sprint not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            sprint_name = data['sprint']['name'].replace(' ', '_')
+            base_filename = f"sprint_fa_{sprint_name}"
+
+            if fmt == 'xlsx':
+                content = SprintForecastActualsService.export_xlsx(data, sprint_name)
+                resp = HttpResponse(
+                    content,
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                )
+                resp['Content-Disposition'] = f'attachment; filename="{base_filename}.xlsx"'
+                return resp
+
+            content = SprintForecastActualsService.export_csv(data, sprint_name)
+            resp = HttpResponse(content, content_type='text/csv; charset=utf-8-sig')
+            resp['Content-Disposition'] = f'attachment; filename="{base_filename}.csv"'
+            return resp
+
+        except DatabaseError as e:
+            return _db_error_response(e, 'sprint fa export')
+        except Exception as e:
+            return _unexpected_error_response(e, 'sprint fa export')
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/reports/standard/sprint-forecast-actuals/sprints/
+# ---------------------------------------------------------------------------
+
+class SprintFASprintListView(APIView):
+    def get(self, request):
+        try:
+            from apps.sprints.models import Sprint
+            qs = Sprint.objects.select_related('financial_year').order_by('-start_date')
+            fy_id = _parse_int_param(request.query_params, 'fy')
+            if fy_id:
+                qs = qs.filter(financial_year_id=fy_id)
+            sprints = [
+                {'id': s.id, 'sprint_name': s.sprint_name}
+                for s in qs[:200]
+            ]
+            return Response({'results': sprints}, status=status.HTTP_200_OK)
+        except DatabaseError as e:
+            return _db_error_response(e, 'sprint fa sprint list')
+        except Exception as e:
+            return _unexpected_error_response(e, 'sprint fa sprint list')
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/reports/standard/sprint-forecast-actuals/financial-years/
+# ---------------------------------------------------------------------------
+
+class SprintFAFinancialYearListView(APIView):
+    def get(self, request):
+        try:
+            from apps.financial_years.models import FinancialYear
+            fys = list(
+                FinancialYear.objects.order_by('-start_date').values('id', 'long_fy', 'short_fy')
+            )
+            return Response({'results': fys}, status=status.HTTP_200_OK)
+        except DatabaseError as e:
+            return _db_error_response(e, 'sprint fa fy list')
+        except Exception as e:
+            return _unexpected_error_response(e, 'sprint fa fy list')
 
 
 # ---------------------------------------------------------------------------
