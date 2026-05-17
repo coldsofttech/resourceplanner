@@ -14,7 +14,10 @@ from .models import (
     IMPORT_STATUS_ACTIVE,
     IMPORT_STATUS_CONFIRMED,
     IMPORT_STATUS_SUPERSEDED,
+    IMPORT_TYPE_FORECAST,
+    IMPORT_TYPE_ACTUAL,
     RECHARGE_TYPE_FORECAST,
+    RECHARGE_TYPE_ACTUAL,
     CHECK_LABEL,
     CHECK_MAPPING,
     CHECK_CAPACITY,
@@ -30,6 +33,7 @@ from .models import (
     RechargeDetail,
     RechargeStory,
     SprintForecastReviewComplete,
+    SprintActualReviewComplete,
     SprintForecastRow,
 )
 
@@ -105,30 +109,32 @@ def _match_finance_type(raw):
 class ForecastImportService:
 
     @staticmethod
-    def get_next_version(sprint_id, team_id):
+    def get_next_version(sprint_id, team_id, import_type=IMPORT_TYPE_FORECAST):
         last = ForecastImport.objects.filter(
-            sprint_id=sprint_id, team_id=team_id
+            sprint_id=sprint_id, team_id=team_id, import_type=import_type
         ).order_by('-version_number').first()
         return (last.version_number + 1) if last else 1
 
     @staticmethod
     @transaction.atomic
-    def import_csv(sprint_id, team_id, csv_file, user=None):
+    def import_csv(sprint_id, team_id, csv_file, user=None, import_type=IMPORT_TYPE_FORECAST):
         """
         Parse CSV, supersede previous active/confirmed import for this team,
         create new ForecastImport + ForecastImportRow records.
         """
-        version = ForecastImportService.get_next_version(sprint_id, team_id)
+        version = ForecastImportService.get_next_version(sprint_id, team_id, import_type)
 
         ForecastImport.objects.filter(
             sprint_id=sprint_id,
             team_id=team_id,
+            import_type=import_type,
             status__in=[IMPORT_STATUS_ACTIVE, IMPORT_STATUS_CONFIRMED],
         ).update(status=IMPORT_STATUS_SUPERSEDED)
         # Clean up any confirmed data for this team so the new import starts fresh
-        SprintForecastRow.objects.filter(sprint_id=sprint_id, team_id=team_id).delete()
+        SprintForecastRow.objects.filter(sprint_id=sprint_id, team_id=team_id, import_type=import_type).delete()
+        recharge_type = RECHARGE_TYPE_ACTUAL if import_type == IMPORT_TYPE_ACTUAL else RECHARGE_TYPE_FORECAST
         RechargeDetail.objects.filter(
-            sprint_id=sprint_id, team_id=team_id, type=RECHARGE_TYPE_FORECAST,
+            sprint_id=sprint_id, team_id=team_id, type=recharge_type,
         ).delete()
 
         forecast_import = ForecastImport.objects.create(
@@ -136,6 +142,7 @@ class ForecastImportService:
             team_id=team_id,
             version_number=version,
             status=IMPORT_STATUS_ACTIVE,
+            import_type=import_type,
             imported_by=user,
         )
 
@@ -201,13 +208,13 @@ class ForecastImportService:
         return qs.order_by('team__name', 'version_number')
 
     @staticmethod
-    def get_sprint_teams_status(sprint_id):
+    def get_sprint_teams_status(sprint_id, import_type=IMPORT_TYPE_FORECAST):
         """Return status summary per team for a sprint."""
         from apps.delivery_teams.models import DeliveryTeam
         teams = DeliveryTeam.objects.filter(is_active=True).order_by('name')
         result = []
         for team in teams:
-            imports = ForecastImport.objects.filter(sprint_id=sprint_id, team_id=team.id)
+            imports = ForecastImport.objects.filter(sprint_id=sprint_id, team_id=team.id, import_type=import_type)
             latest = imports.order_by('-version_number').first()
             has_imports = latest is not None
             confirmed = has_imports and latest.status == IMPORT_STATUS_CONFIRMED
@@ -399,11 +406,12 @@ class ForecastConfirmService:
         fi.status = IMPORT_STATUS_CONFIRMED
         fi.save(update_fields=['status'])
 
-        SprintForecastRow.objects.filter(sprint_id=fi.sprint_id, team_id=fi.team_id).delete()
+        recharge_type = RECHARGE_TYPE_ACTUAL if fi.import_type == IMPORT_TYPE_ACTUAL else RECHARGE_TYPE_FORECAST
+        SprintForecastRow.objects.filter(sprint_id=fi.sprint_id, team_id=fi.team_id, import_type=fi.import_type).delete()
         RechargeDetail.objects.filter(
             sprint_id=fi.sprint_id,
             team_id=fi.team_id,
-            type=RECHARGE_TYPE_FORECAST,
+            type=recharge_type,
         ).delete()
 
         rows = list(fi.rows.select_related(
@@ -420,6 +428,7 @@ class ForecastConfirmService:
                 sprint_id=fi.sprint_id,
                 team_id=fi.team_id,
                 forecast_import=fi,
+                import_type=fi.import_type,
                 story_type=row.effective_story_type,
                 jira_id=row.effective_jira_id,
                 title=row.effective_title,
@@ -473,7 +482,7 @@ class ForecastConfirmService:
                 programme=info['programme'],
                 project=info['project'],
                 label=info['label'],
-                type=RECHARGE_TYPE_FORECAST,
+                type=recharge_type,
                 total_days=info['total_days'],
                 total_cost=info['total_cost'],
                 forecast_import=fi,
@@ -486,7 +495,7 @@ class ForecastConfirmService:
 class ForecastReviewCompleteService:
 
     @staticmethod
-    def check_warnings(sprint_id):
+    def check_warnings(sprint_id, import_type=IMPORT_TYPE_FORECAST):
         """Return list of warning strings. Empty list = no warnings."""
         from apps.delivery_teams.models import DeliveryTeam
         teams = DeliveryTeam.objects.filter(is_active=True)
@@ -494,19 +503,20 @@ class ForecastReviewCompleteService:
             sc.team_member_id: sc.net_capacity
             for sc in SprintCapacity.objects.filter(sprint_id=sprint_id)
         }
+        label = 'actual' if import_type == IMPORT_TYPE_ACTUAL else 'forecast'
         warnings = []
 
         for team in teams:
-            imports = ForecastImport.objects.filter(sprint_id=sprint_id, team_id=team.id)
+            imports = ForecastImport.objects.filter(sprint_id=sprint_id, team_id=team.id, import_type=import_type)
             if not imports.exists():
-                warnings.append(f'Team "{team.name}" has no forecast imports.')
+                warnings.append(f'Team "{team.name}" has no {label} imports.')
                 continue
             if not imports.filter(status=IMPORT_STATUS_CONFIRMED).exists():
-                warnings.append(f'Team "{team.name}" has no confirmed import version.')
+                warnings.append(f'Team "{team.name}" has no confirmed {label} import version.')
 
-        # Per-engineer capacity check across all confirmed imports
+        # Per-engineer capacity check across all confirmed imports for this type
         confirmed_rows = SprintForecastRow.objects.filter(
-            sprint_id=sprint_id
+            sprint_id=sprint_id, import_type=import_type,
         ).select_related('assignee')
         member_days = {}
         for row in confirmed_rows:
@@ -525,28 +535,39 @@ class ForecastReviewCompleteService:
 
     @staticmethod
     @transaction.atomic
-    def complete(sprint_id, user=None, override=False, override_notes=''):
-        """Mark sprint forecast review as complete and write Recharge aggregate records."""
-        SprintForecastReviewComplete.objects.update_or_create(
-            sprint_id=sprint_id,
-            defaults={
-                'completed_by': user,
-                'override_applied': override,
-                'override_notes': override_notes,
-            },
-        )
+    def complete(sprint_id, user=None, override=False, override_notes='', import_type=IMPORT_TYPE_FORECAST):
+        """Mark sprint review as complete and write Recharge aggregate records."""
+        if import_type == IMPORT_TYPE_ACTUAL:
+            SprintActualReviewComplete.objects.update_or_create(
+                sprint_id=sprint_id,
+                defaults={
+                    'completed_by': user,
+                    'override_applied': override,
+                    'override_notes': override_notes,
+                },
+            )
+        else:
+            SprintForecastReviewComplete.objects.update_or_create(
+                sprint_id=sprint_id,
+                defaults={
+                    'completed_by': user,
+                    'override_applied': override,
+                    'override_notes': override_notes,
+                },
+            )
 
-        ForecastReviewCompleteService._write_recharges(sprint_id)
+        ForecastReviewCompleteService._write_recharges(sprint_id, import_type=import_type)
 
     @staticmethod
-    def _write_recharges(sprint_id):
+    def _write_recharges(sprint_id, import_type=IMPORT_TYPE_FORECAST):
         """Aggregate confirmed SprintForecastRows into Recharge + RechargeStory records."""
         price = Decimal(str(_get_sprint_point_price()))
+        recharge_type = RECHARGE_TYPE_ACTUAL if import_type == IMPORT_TYPE_ACTUAL else RECHARGE_TYPE_FORECAST
 
-        Recharge.objects.filter(sprint_id=sprint_id, type=RECHARGE_TYPE_FORECAST).delete()
+        Recharge.objects.filter(sprint_id=sprint_id, type=recharge_type).delete()
 
         rows = list(SprintForecastRow.objects.filter(
-            sprint_id=sprint_id
+            sprint_id=sprint_id, import_type=import_type,
         ).select_related(
             'label__project__programme',
             'mapping',
@@ -584,7 +605,7 @@ class ForecastReviewCompleteService:
             project = info['project']
             recharge = Recharge.objects.create(
                 sprint_id=sprint_id,
-                type=RECHARGE_TYPE_FORECAST,
+                type=recharge_type,
                 programme=info['programme'],
                 project=project,
                 total_days=info['total_days'],

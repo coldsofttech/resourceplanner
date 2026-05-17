@@ -4,6 +4,7 @@ import { API_URLS, URLS } from '../urls.js';
 import { apiFetch, showFlash, getCsrfToken } from '../main.js';
 
 const SPRINT_ID = window.SPRINT_ID;
+const IMPORT_TYPE = 'ACTUAL';
 
 let _teams = [];
 let _reviewComplete = null;
@@ -28,13 +29,13 @@ async function _loadFinanceTypes() {
 
 async function _loadForecast() {
     try {
-        const data = await apiFetch(API_URLS.sprint_forecast.sprint_status(SPRINT_ID, 'FORECAST').href);
+        const data = await apiFetch(API_URLS.sprint_forecast.sprint_status(SPRINT_ID, IMPORT_TYPE).href);
         _teams = data.teams || [];
         _reviewComplete = data.review_complete || null;
         _renderPage();
     } catch (e) {
         document.getElementById('forecast-loading').innerHTML =
-            '<span class="text-danger">Failed to load forecast.</span>';
+            '<span class="text-danger">Failed to load actuals.</span>';
     }
 }
 
@@ -77,7 +78,7 @@ function _renderTeamAccordion(ts, idx) {
                 ? 'btn-outline-secondary text-decoration-line-through'
                 : 'btn-outline-primary';
         return `<a class="btn btn-sm ${cls}"
-            href="/sprints/${SPRINT_ID}/forecast/${v.id}/"
+            href="/sprints/${SPRINT_ID}/actuals/${v.id}/"
             title="${_esc(v.status)}">
             v${v.version_number}
         </a>`;
@@ -175,7 +176,7 @@ function _downloadCsvTemplate() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'sprint_forecast_template.csv';
+    a.download = 'sprint_actuals_template.csv';
     a.click();
     URL.revokeObjectURL(url);
 }
@@ -186,6 +187,7 @@ async function _uploadCsv(teamId, file) {
     const formData = new FormData();
     formData.append('sprint_id', SPRINT_ID);
     formData.append('team_id', teamId);
+    formData.append('import_type', IMPORT_TYPE);
     formData.append('file', file);
 
     try {
@@ -201,8 +203,7 @@ async function _uploadCsv(teamId, file) {
         const fi = await res.json();
         showFlash('CSV imported successfully.', 'success');
         await _loadForecast();
-        // Navigate directly to the new import's detail page
-        window.location.href = `/sprints/${SPRINT_ID}/forecast/${fi.id}/`;
+        window.location.href = `/sprints/${SPRINT_ID}/actuals/${fi.id}/`;
     } catch (e) {
         showFlash(e.error || 'Import failed.', 'danger');
     }
@@ -220,7 +221,7 @@ async function _openReviewCompleteModal() {
     rcModal.show();
 
     try {
-        const data = await apiFetch(API_URLS.sprint_forecast.review_warnings(SPRINT_ID, 'FORECAST').href);
+        const data = await apiFetch(API_URLS.sprint_forecast.review_warnings(SPRINT_ID, IMPORT_TYPE).href);
         if (data.has_warnings) {
             const list = document.getElementById('rc-warnings-list');
             list.innerHTML = data.warnings.map(w => `<li>${_esc(w)}</li>`).join('');
@@ -249,7 +250,7 @@ async function _submitReviewComplete() {
     try {
         await apiFetch(API_URLS.sprint_forecast.review_complete.href, {
             method: 'POST',
-            body: JSON.stringify({ sprint_id: SPRINT_ID, override, override_notes: notes }),
+            body: JSON.stringify({ sprint_id: SPRINT_ID, override, override_notes: notes, import_type: IMPORT_TYPE }),
         });
         bootstrap.Modal.getInstance(document.getElementById('reviewCompleteModal'))?.hide();
         showFlash('Review marked as complete.', 'success');

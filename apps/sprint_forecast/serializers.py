@@ -10,6 +10,7 @@ from .models import (
     Recharge,
     RechargeDetail,
     RechargeStory,
+    SprintActualReviewComplete,
     SprintForecastReviewComplete,
     SprintForecastRow,
 )
@@ -239,6 +240,22 @@ class SprintForecastReviewCompleteSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SprintForecastReviewComplete
+        fields = [
+            'id', 'sprint', 'completed_at', 'completed_by', 'completed_by_name',
+            'override_applied', 'override_notes',
+        ]
+
+    def get_completed_by_name(self, obj):
+        if obj.completed_by:
+            return obj.completed_by.get_full_name() or obj.completed_by.username
+        return None
+
+
+class SprintActualReviewCompleteSerializer(serializers.ModelSerializer):
+    completed_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SprintActualReviewComplete
         fields = [
             'id', 'sprint', 'completed_at', 'completed_by', 'completed_by_name',
             'override_applied', 'override_notes',

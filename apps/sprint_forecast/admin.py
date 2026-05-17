@@ -10,6 +10,7 @@ from .models import (
     Recharge,
     RechargeDetail,
     RechargeStory,
+    SprintActualReviewComplete,
     SprintForecastReviewComplete,
     SprintForecastRow,
 )
@@ -61,6 +62,11 @@ class SprintForecastRowAdmin(admin.ModelAdmin):
 
 @admin.register(SprintForecastReviewComplete)
 class SprintForecastReviewCompleteAdmin(admin.ModelAdmin):
+    list_display = ['sprint', 'completed_at', 'completed_by', 'override_applied']
+
+
+@admin.register(SprintActualReviewComplete)
+class SprintActualReviewCompleteAdmin(admin.ModelAdmin):
     list_display = ['sprint', 'completed_at', 'completed_by', 'override_applied']
 
 

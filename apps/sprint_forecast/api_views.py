@@ -10,13 +10,17 @@ from rest_framework.response import Response
 from .models import (
     IMPORT_STATUS_ACTIVE,
     IMPORT_STATUS_CONFIRMED,
+    IMPORT_TYPE_FORECAST,
+    IMPORT_TYPE_ACTUAL,
     RECHARGE_TYPE_FORECAST,
+    RECHARGE_TYPE_ACTUAL,
     ForecastImport,
     ForecastImportRow,
     ProjectFinanceType,
     ProjectFinanceTypeMapping,
     Recharge,
     RechargeDetail,
+    SprintActualReviewComplete,
     SprintForecastReviewComplete,
     SprintForecastRow,
 )
@@ -28,6 +32,7 @@ from .serializers import (
     ProjectFinanceTypeSerializer,
     RechargeDetailSerializer,
     RechargeSerializer,
+    SprintActualReviewCompleteSerializer,
     SprintForecastReviewCompleteSerializer,
     SprintForecastRowSerializer,
 )
@@ -143,11 +148,14 @@ class ForecastImportViewSet(viewsets.ViewSet):
             return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def create(self, request):
-        """Import a CSV file. Required fields: sprint_id, team_id, file."""
+        """Import a CSV file. Required fields: sprint_id, team_id, file. Optional: import_type (FORECAST/ACTUAL)."""
         sprint_id = request.data.get('sprint_id')
         team_id = request.data.get('team_id')
         csv_file = request.FILES.get('file')
+        import_type = request.data.get('import_type', IMPORT_TYPE_FORECAST).upper()
 
+        if import_type not in (IMPORT_TYPE_FORECAST, IMPORT_TYPE_ACTUAL):
+            return Response({'error': 'import_type must be FORECAST or ACTUAL.'}, status=status.HTTP_400_BAD_REQUEST)
         if not sprint_id or not team_id:
             return Response({'error': 'sprint_id and team_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
         if not csv_file:
@@ -161,6 +169,7 @@ class ForecastImportViewSet(viewsets.ViewSet):
                 team_id=team_id,
                 csv_file=csv_file,
                 user=request.user,
+                import_type=import_type,
             )
             return Response(ForecastImportSerializer(fi).data, status=status.HTTP_201_CREATED)
         except Exception as e:
@@ -242,13 +251,14 @@ class ForecastImportViewSet(viewsets.ViewSet):
         row.save()
 
         # If the import was confirmed, editing a row reverts it to active (pending)
-        fi.refresh_from_db(fields=['status'])
+        fi.refresh_from_db(fields=['status', 'import_type'])
         if fi.status == IMPORT_STATUS_CONFIRMED:
+            recharge_type = RECHARGE_TYPE_ACTUAL if fi.import_type == IMPORT_TYPE_ACTUAL else RECHARGE_TYPE_FORECAST
             fi.status = IMPORT_STATUS_ACTIVE
             fi.save(update_fields=['status'])
-            SprintForecastRow.objects.filter(sprint_id=fi.sprint_id, team_id=fi.team_id).delete()
+            SprintForecastRow.objects.filter(sprint_id=fi.sprint_id, team_id=fi.team_id, import_type=fi.import_type).delete()
             RechargeDetail.objects.filter(
-                sprint_id=fi.sprint_id, team_id=fi.team_id, type=RECHARGE_TYPE_FORECAST,
+                sprint_id=fi.sprint_id, team_id=fi.team_id, type=recharge_type,
             ).delete()
 
         return Response(ForecastImportRowSerializer(row).data)
@@ -327,12 +337,15 @@ class ForecastImportViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path='sprint-status')
     def sprint_status(self, request):
-        """GET /sprint-forecast/sprint-status/?sprint_id=X — full team status for a sprint."""
+        """GET /sprint-forecast/sprint-status/?sprint_id=X&import_type=FORECAST — full team status."""
         sprint_id = request.query_params.get('sprint_id')
         if not sprint_id:
             return Response({'error': 'sprint_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        import_type = request.query_params.get('import_type', IMPORT_TYPE_FORECAST).upper()
+        if import_type not in (IMPORT_TYPE_FORECAST, IMPORT_TYPE_ACTUAL):
+            import_type = IMPORT_TYPE_FORECAST
         try:
-            team_statuses = ForecastImportService.get_sprint_teams_status(sprint_id)
+            team_statuses = ForecastImportService.get_sprint_teams_status(sprint_id, import_type=import_type)
             result = []
             for ts in team_statuses:
                 result.append({
@@ -343,11 +356,18 @@ class ForecastImportViewSet(viewsets.ViewSet):
                     'latest_import': ForecastImportSerializer(ts['latest_import']).data if ts['latest_import'] else None,
                     'versions': ForecastImportSerializer(ts['versions'], many=True).data,
                 })
-            try:
-                review_complete = SprintForecastReviewComplete.objects.get(sprint_id=sprint_id)
-                rc_data = SprintForecastReviewCompleteSerializer(review_complete).data
-            except SprintForecastReviewComplete.DoesNotExist:
-                rc_data = None
+            if import_type == IMPORT_TYPE_ACTUAL:
+                try:
+                    rc = SprintActualReviewComplete.objects.get(sprint_id=sprint_id)
+                    rc_data = SprintActualReviewCompleteSerializer(rc).data
+                except SprintActualReviewComplete.DoesNotExist:
+                    rc_data = None
+            else:
+                try:
+                    rc = SprintForecastReviewComplete.objects.get(sprint_id=sprint_id)
+                    rc_data = SprintForecastReviewCompleteSerializer(rc).data
+                except SprintForecastReviewComplete.DoesNotExist:
+                    rc_data = None
             return Response({'teams': result, 'review_complete': rc_data})
         except Exception as e:
             logger.exception('Error getting sprint status: %s', e)
@@ -355,12 +375,15 @@ class ForecastImportViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'], url_path='review-warnings')
     def review_warnings(self, request):
-        """GET /sprint-forecast/review-warnings/?sprint_id=X — check warnings before review complete."""
+        """GET /sprint-forecast/review-warnings/?sprint_id=X&import_type=FORECAST — check warnings."""
         sprint_id = request.query_params.get('sprint_id')
         if not sprint_id:
             return Response({'error': 'sprint_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        import_type = request.query_params.get('import_type', IMPORT_TYPE_FORECAST).upper()
+        if import_type not in (IMPORT_TYPE_FORECAST, IMPORT_TYPE_ACTUAL):
+            import_type = IMPORT_TYPE_FORECAST
         try:
-            warnings = ForecastReviewCompleteService.check_warnings(sprint_id)
+            warnings = ForecastReviewCompleteService.check_warnings(sprint_id, import_type=import_type)
             return Response({'warnings': warnings, 'has_warnings': bool(warnings)})
         except Exception as e:
             logger.exception('Error checking warnings: %s', e)
@@ -368,15 +391,18 @@ class ForecastImportViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['post'], url_path='review-complete')
     def review_complete(self, request):
-        """POST /sprint-forecast/review-complete/ — finalize sprint forecast."""
+        """POST /sprint-forecast/review-complete/ — finalize sprint forecast or actuals."""
         sprint_id = request.data.get('sprint_id')
         if not sprint_id:
             return Response({'error': 'sprint_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
         override = request.data.get('override', False)
         override_notes = request.data.get('override_notes', '')
+        import_type = (request.data.get('import_type', IMPORT_TYPE_FORECAST) or IMPORT_TYPE_FORECAST).upper()
+        if import_type not in (IMPORT_TYPE_FORECAST, IMPORT_TYPE_ACTUAL):
+            import_type = IMPORT_TYPE_FORECAST
 
         if not override:
-            warnings = ForecastReviewCompleteService.check_warnings(sprint_id)
+            warnings = ForecastReviewCompleteService.check_warnings(sprint_id, import_type=import_type)
             if warnings:
                 return Response(
                     {'warnings': warnings, 'has_warnings': True,
@@ -389,9 +415,14 @@ class ForecastImportViewSet(viewsets.ViewSet):
                 user=request.user,
                 override=override,
                 override_notes=override_notes,
+                import_type=import_type,
             )
-            rc = SprintForecastReviewComplete.objects.get(sprint_id=sprint_id)
-            return Response(SprintForecastReviewCompleteSerializer(rc).data)
+            if import_type == IMPORT_TYPE_ACTUAL:
+                rc = SprintActualReviewComplete.objects.get(sprint_id=sprint_id)
+                return Response(SprintActualReviewCompleteSerializer(rc).data)
+            else:
+                rc = SprintForecastReviewComplete.objects.get(sprint_id=sprint_id)
+                return Response(SprintForecastReviewCompleteSerializer(rc).data)
         except Exception as e:
             logger.exception('Error completing review: %s', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

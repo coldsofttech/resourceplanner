@@ -16,6 +16,13 @@ RECHARGE_TYPE_CHOICES = [
     (RECHARGE_TYPE_ACTUAL, 'Actual'),
 ]
 
+IMPORT_TYPE_FORECAST = 'FORECAST'
+IMPORT_TYPE_ACTUAL = 'ACTUAL'
+IMPORT_TYPE_CHOICES = [
+    (IMPORT_TYPE_FORECAST, 'Forecast'),
+    (IMPORT_TYPE_ACTUAL, 'Actual'),
+]
+
 IMPORT_STATUS_ACTIVE = 'active'
 IMPORT_STATUS_SUPERSEDED = 'superseded'
 IMPORT_STATUS_CONFIRMED = 'confirmed'
@@ -108,6 +115,11 @@ class ForecastImport(models.Model):
         choices=IMPORT_STATUS_CHOICES,
         default=IMPORT_STATUS_ACTIVE,
     )
+    import_type = models.CharField(
+        max_length=10,
+        choices=IMPORT_TYPE_CHOICES,
+        default=IMPORT_TYPE_FORECAST,
+    )
     imported_at = models.DateTimeField(auto_now_add=True)
     imported_by = models.ForeignKey(
         User,
@@ -121,7 +133,7 @@ class ForecastImport(models.Model):
         ordering = ['sprint', 'team', 'version_number']
         constraints = [
             models.UniqueConstraint(
-                fields=['sprint', 'team', 'version_number'],
+                fields=['sprint', 'team', 'import_type', 'version_number'],
                 name='unique_forecast_import_version',
             )
         ]
@@ -360,6 +372,11 @@ class SprintForecastRow(models.Model):
     )
     mapping_raw = models.CharField(max_length=100, blank=True)
     is_override = models.BooleanField(default=False)
+    import_type = models.CharField(
+        max_length=10,
+        choices=IMPORT_TYPE_CHOICES,
+        default=IMPORT_TYPE_FORECAST,
+    )
 
     class Meta:
         ordering = ['sprint', 'team', 'forecast_import', 'id']
@@ -388,6 +405,28 @@ class SprintForecastReviewComplete(models.Model):
 
     def __str__(self):
         return f'Review complete for {self.sprint}'
+
+
+class SprintActualReviewComplete(models.Model):
+    """Tracks sprint-level Review Complete action for Actuals."""
+    sprint = models.OneToOneField(
+        'sprints.Sprint',
+        on_delete=models.CASCADE,
+        related_name='actual_review_complete',
+    )
+    completed_at = models.DateTimeField(auto_now_add=True)
+    completed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='actual_review_completions',
+    )
+    override_applied = models.BooleanField(default=False)
+    override_notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f'Actual review complete for {self.sprint}'
 
 
 class RechargeDetail(models.Model):

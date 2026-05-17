@@ -13,6 +13,14 @@ class SprintForecastPageView(View):
         return render(request, self.template_name, {'sprint': sprint})
 
 
+class SprintActualsPageView(View):
+    template_name = 'sprint_forecast/actuals.html'
+
+    def get(self, request, pk, *args, **kwargs):
+        sprint = get_object_or_404(Sprint, pk=pk)
+        return render(request, self.template_name, {'sprint': sprint})
+
+
 class ForecastImportDetailPageView(View):
     template_name = 'sprint_forecast/import_detail.html'
 
