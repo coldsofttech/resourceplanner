@@ -937,6 +937,7 @@ export const API_URLS = {
         team_options: { method: 'GET', href: `${API_BASE}project-actuals/team-options/` },
         fy_sprints: (fyId) => ({ method: 'GET', href: `${API_BASE}project-actuals/fy-sprints/?fy_id=${fyId}` }),
         copy_from_previous_fy: { method: 'POST', href: `${API_BASE}project-actuals/copy-from-previous-fy/` },
+        mark_complete: (id) => ({ method: 'POST', href: `${API_BASE}project-actuals/${id}/mark-complete/` }),
     },
 };
 

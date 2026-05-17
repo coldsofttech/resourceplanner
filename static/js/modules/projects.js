@@ -167,7 +167,11 @@ async function populateFilterOptions() {
 
         document
             .getElementById('proj-modal-status')
-            ?.addEventListener('change', _cascadeModalSubStatus);
+            ?.addEventListener('change', () => {
+                _cascadeModalSubStatus();
+                _toggleModalCompletedSprint();
+            });
+        _populateModalSprintSelect();
     } catch (err) {
         console.error('[populateFilterOptions] Failed.', err);
     }
@@ -761,6 +765,33 @@ function _cascadeFilterProject() {
     }
 }
 
+function _toggleModalCompletedSprint() {
+    const statusVal = document.getElementById('proj-modal-status')?.value;
+    const row = document.getElementById('proj-modal-completed-sprint-row');
+    if (row) {
+        if (statusVal === 'COMPLETED') {
+            row.classList.remove('d-none');
+        } else {
+            row.classList.add('d-none');
+        }
+    }
+}
+
+async function _populateModalSprintSelect() {
+    const sel = document.getElementById('proj-modal-completed-sprint');
+    if (!sel || sel.options.length > 1) return;
+    try {
+        const data = await apiFetch(API_URLS.sprints.list.href + '?page_size=100');
+        const sorted = (data?.results || []).slice().reverse();
+        sorted.forEach(s => {
+            const o = document.createElement('option');
+            o.value = s.id;
+            o.textContent = s.sprint_name;
+            sel.appendChild(o);
+        });
+    } catch (_) { /* non-critical */ }
+}
+
 function _cascadeModalSubStatus() {
     const statusVal = document.getElementById('proj-modal-status')?.value ?? '';
     const matching = statusVal ? _allSubStatuses.filter((s) => s.main_status === statusVal) : [];
@@ -1088,17 +1119,22 @@ async function handleModalSave() {
             programme = await _resolveOrCreateProgramme(progInput);
         }
 
+        const newStatus = document.getElementById('proj-modal-status').value || 'NEW';
+        const completedSprintVal = document.getElementById('proj-modal-completed-sprint')?.value;
         const payload = {
             name,
             project_type: parseInt(project_type),
             programme: programme ? parseInt(programme) : null,
             code: document.getElementById('proj-modal-code').value.trim(),
-            status: document.getElementById('proj-modal-status').value || 'NEW',
+            status: newStatus,
             sub_status: document.getElementById('proj-modal-substatus').value || null,
             confidence: document.getElementById('proj-modal-confidence').value || '',
             priority: document.getElementById('proj-modal-priority').value || '',
             tentative_start_date: document.getElementById('proj-modal-start').value || null,
             tentative_end_date: document.getElementById('proj-modal-end').value || null,
+            completed_sprint: (newStatus === 'COMPLETED' && completedSprintVal)
+                ? parseInt(completedSprintVal, 10)
+                : null,
         };
 
         const { method, href } = API_URLS.projects.new;

@@ -268,6 +268,8 @@ class ProjectSprintActualSerializer(serializers.ModelSerializer):
 
 class ProjectActualsSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source='project.name', read_only=True)
+    project_status = serializers.CharField(source='project.status', read_only=True)
+    project_completed_sprint_name = serializers.SerializerMethodField()
     programme_name = serializers.CharField(source='programme.name', read_only=True)
     label_name = serializers.CharField(source='label.label', read_only=True)
     all_labels = serializers.SerializerMethodField()
@@ -285,7 +287,7 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectActuals
         fields = [
-            'id', 'project', 'project_name',
+            'id', 'project', 'project_name', 'project_status', 'project_completed_sprint_name',
             'programme', 'programme_name',
             'label', 'label_name', 'all_labels',
             'code',
@@ -303,7 +305,8 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
         read_only_fields = [
-            'project', 'project_name', 'programme', 'programme_name',
+            'project', 'project_name', 'project_status', 'project_completed_sprint_name',
+            'programme', 'programme_name',
             'label', 'label_name', 'all_labels', 'code',
             'assigned_team', 'assigned_team_name', 'collaborators', 'collaborator_names', 'collaborator_ids',
             'estimate_value', 'estimate_value_with_contingency', 'sprint_actuals',
@@ -367,6 +370,9 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
         if not obj.project_id:
             return []
         return list(obj.project.labels.values('id', 'label', 'is_primary').order_by('-is_primary', 'label'))
+
+    def get_project_completed_sprint_name(self, obj):
+        return obj.project.completed_sprint.sprint_name if obj.project.completed_sprint_id else None
 
     def get_collaborator_names(self, obj):
         return list(obj.collaborators.values_list('name', flat=True))

@@ -12,18 +12,39 @@ let _filteredActuals = [];
 let _currentPage     = 1;
 let _sprintChart     = null;
 let _riskConfigId    = null;
+let _markCompleteId  = null;
+let _activeTab       = 'in_progress'; // 'in_progress' | 'completed'
+let _allSprints      = [];            // for mark-complete sprint selector
 
 document.addEventListener('DOMContentLoaded', () => {
     setPageTitle('Project Actuals');
-    // Load dropdowns first (incl. active FY sprints pre-load), then actuals
     _loadDropdowns().then(() => _loadActuals());
+
+    // Tab switching
+    document.getElementById('actuals-tabs')?.addEventListener('click', e => {
+        const btn = e.target.closest('[data-tab]');
+        if (!btn) return;
+        document.querySelectorAll('#actuals-tabs .nav-link').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        _activeTab = btn.dataset.tab;
+        const riskKey = document.getElementById('risk-key');
+        const colLabel = document.getElementById('col-remaining-label');
+        if (_activeTab === 'completed') {
+            riskKey?.classList.add('d-none');
+            if (colLabel) colLabel.textContent = 'Completed Sprint';
+        } else {
+            riskKey?.classList.remove('d-none');
+            if (colLabel) colLabel.textContent = 'Remaining';
+        }
+        _currentPage = 1;
+        _applyFilters();
+    });
 
     document.getElementById('filter-fy')?.addEventListener('change', async e => {
         const val = e.target.value;
         if (val) {
             await _loadFySprints(val);
         } else {
-            // Filter cleared — revert to active FY sprints
             await _reloadActiveFySprints();
         }
         _currentPage = 1;
@@ -39,23 +60,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('filter-risk')?.addEventListener('change',    () => { _currentPage = 1; _applyFilters(); });
 
     document.getElementById('risk-config-save-btn')?.addEventListener('click', _saveRiskConfig);
+    document.getElementById('mark-complete-save-btn')?.addEventListener('click', _saveMarkComplete);
 });
 
 // ── Dropdowns ─────────────────────────────────────────────────────────────────
 
 async function _loadDropdowns() {
     try {
-        const [fys, programmes, teams, activeFy] = await Promise.all([
+        const [fys, programmes, teams, activeFy, sprintsData] = await Promise.all([
             apiFetch(API_URLS.project_actuals.fy_options.href).catch(() => []),
             apiFetch(API_URLS.recharges.programme_options.href).catch(() => []),
             apiFetch(API_URLS.project_actuals.team_options.href).catch(() => []),
             apiFetch(API_URLS.financial_years.active.href).catch(() => null),
+            apiFetch(API_URLS.sprints.list.href + '?page_size=100').catch(() => null),
         ]);
+
+        _allSprints = (sprintsData?.results || []).slice().reverse(); // most recent first
 
         const fySel      = document.getElementById('filter-fy');
         const activeFyId = activeFy?.id ? String(activeFy.id) : null;
 
-        // Populate FY dropdown — include active FY even if it has no actuals yet
         const fyList = [...(fys || [])];
         if (activeFy && !fyList.some(f => String(f.id) === activeFyId)) {
             fyList.unshift(activeFy);
@@ -67,7 +91,6 @@ async function _loadDropdowns() {
             fySel.appendChild(o);
         });
 
-        // Pre-load active FY sprints (for accordion + chart defaults, without filtering the list)
         if (activeFyId) await _loadFySprints(activeFyId);
 
         const progSel = document.getElementById('filter-programme');
@@ -145,10 +168,20 @@ async function _loadActuals() {
 
     try {
         _allActuals = await apiFetch(API_URLS.project_actuals.list.href);
+        _updateTabCounts();
         _applyFilters();
     } catch (_) {
         if (loadingEl) loadingEl.innerHTML = '<span class="text-danger">Failed to load project actuals.</span>';
     }
+}
+
+function _updateTabCounts() {
+    const inProgressCount = _allActuals.filter(a => a.project_status !== 'COMPLETED').length;
+    const completedCount  = _allActuals.filter(a => a.project_status === 'COMPLETED').length;
+    const ipEl = document.getElementById('tab-in-progress-count');
+    const cpEl = document.getElementById('tab-completed-count');
+    if (ipEl) ipEl.textContent = inProgressCount;
+    if (cpEl) cpEl.textContent = completedCount;
 }
 
 // ── Filters ───────────────────────────────────────────────────────────────────
@@ -160,7 +193,12 @@ function _applyFilters() {
     const teamId = document.getElementById('filter-team')?.value;
     const risk   = document.getElementById('filter-risk')?.value;
 
-    let filtered = _allActuals;
+    let filtered = _allActuals.filter(a =>
+        _activeTab === 'completed'
+            ? a.project_status === 'COMPLETED'
+            : a.project_status !== 'COMPLETED'
+    );
+
     if (progId) filtered = filtered.filter(a => String(a.programme) === progId);
     if (projId) filtered = filtered.filter(a => String(a.project) === projId);
     if (fyId)   filtered = filtered.filter(a =>
@@ -266,16 +304,50 @@ function _renderActuals(actuals, total, fyId) {
 }
 
 function _renderAccordionRows(a, fyId) {
+    const isCompleted = a.project_status === 'COMPLETED';
     const risk        = a.risk || 'NEUTRAL';
-    const rowClass    = risk === 'RISK' ? 'table-danger' : risk === 'WARNING' ? 'table-warning' : '';
+    const rowClass    = isCompleted ? '' : (risk === 'RISK' ? 'table-danger' : risk === 'WARNING' ? 'table-warning' : '');
     const collab      = (a.collaborator_names || []).join(', ') || '—';
     const estimate    = _fmt(a.estimate_value);
     const estimateWC  = _fmt(a.estimate_value_with_contingency);
     const total       = _fmt(a.total_cost_till_date);
-    const remaining   = _fmt(a.remaining_amount);
-    const remainClass = parseFloat(a.remaining_amount) >= 0 ? 'text-success' : 'text-danger';
     const fyText      = _fyLabel(a, fyId);
     const labelCell   = _labelCell(a);
+
+    // Last column: Remaining (in-progress) or Completed Sprint (completed)
+    let lastDataCell;
+    if (isCompleted) {
+        lastDataCell = `<td class="text-end text-secondary" style="font-size:12px">${escHtml(a.project_completed_sprint_name || '—')}</td>`;
+    } else {
+        const remaining   = _fmt(a.remaining_amount);
+        const remainClass = parseFloat(a.remaining_amount) >= 0 ? 'text-success' : 'text-danger';
+        lastDataCell = `<td class="text-end ${remainClass}">${remaining}</td>`;
+    }
+
+    // Action buttons
+    let actionBtns;
+    if (isCompleted) {
+        actionBtns = `
+            <button class="btn btn-ghost-icon btn-sm" title="Sprint utilisation chart"
+                    onclick="openChart(${a.id}, '${escHtml(a.project_name || '')}')">
+                <i class="bi bi-bar-chart-line"></i>
+            </button>`;
+    } else {
+        actionBtns = `
+            <button class="btn btn-ghost-icon btn-sm" title="Configure risk"
+                    onclick="openRiskConfig(${a.id})">
+                <i class="bi bi-gear${a.ignore_risk ? ' text-secondary' : ''}"></i>
+            </button>
+            <button class="btn btn-ghost-icon btn-sm" title="Sprint utilisation chart"
+                    onclick="openChart(${a.id}, '${escHtml(a.project_name || '')}')">
+                <i class="bi bi-bar-chart-line"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-success py-0" style="font-size:11px;line-height:1.6"
+                    title="Mark project as complete"
+                    onclick="openMarkComplete(${a.id})">
+                <i class="bi bi-check-circle me-1"></i>Done
+            </button>`;
+    }
 
     const summaryRow = `<tr class="${rowClass}" id="summary-${a.id}">
         <td style="width:32px;padding-left:8px;vertical-align:middle">
@@ -294,17 +366,8 @@ function _renderAccordionRows(a, fyId) {
         <td class="text-end">${estimate}</td>
         <td class="text-end">${estimateWC}</td>
         <td class="text-end fw-600">${total}</td>
-        <td class="text-end ${remainClass}">${remaining}</td>
-        <td class="text-end" style="white-space:nowrap">
-            <button class="btn btn-ghost-icon btn-sm" title="Configure risk"
-                    onclick="openRiskConfig(${a.id})">
-                <i class="bi bi-gear${a.ignore_risk ? ' text-secondary' : ''}"></i>
-            </button>
-            <button class="btn btn-ghost-icon btn-sm" title="Sprint utilisation chart"
-                    onclick="openChart(${a.id}, '${escHtml(a.project_name || '')}')">
-                <i class="bi bi-bar-chart-line"></i>
-            </button>
-        </td>
+        ${lastDataCell}
+        <td class="text-end" style="white-space:nowrap">${actionBtns}</td>
     </tr>`;
 
     const detailRow = `<tr class="d-none" id="detail-${a.id}">
@@ -444,6 +507,57 @@ async function _saveRiskConfig() {
     }
 }
 
+// ── Mark as Complete Modal ────────────────────────────────────────────────────
+
+window.openMarkComplete = function(actualsId) {
+    const a = _allActuals.find(x => x.id === actualsId);
+    if (!a) return;
+    _markCompleteId = actualsId;
+
+    document.getElementById('mark-complete-project-name').textContent =
+        `${a.programme_name || ''} › ${a.project_name || ''}`;
+
+    const sel = document.getElementById('mark-complete-sprint');
+    sel.innerHTML = '<option value="">Select sprint…</option>';
+    _allSprints.forEach(s => {
+        const o = document.createElement('option');
+        o.value = s.id;
+        o.textContent = s.sprint_name;
+        sel.appendChild(o);
+    });
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('markCompleteModal')).show();
+};
+
+async function _saveMarkComplete() {
+    if (!_markCompleteId) return;
+    const sprintId = document.getElementById('mark-complete-sprint')?.value;
+    if (!sprintId) {
+        showFlash('Please select a sprint.', 'warning');
+        return;
+    }
+
+    const btn = document.getElementById('mark-complete-save-btn');
+    if (btn) btn.disabled = true;
+
+    try {
+        const updated = await apiFetch(API_URLS.project_actuals.mark_complete(_markCompleteId).href, {
+            method: 'POST',
+            body: JSON.stringify({ sprint_id: parseInt(sprintId, 10) }),
+        });
+        const idx = _allActuals.findIndex(a => a.id === _markCompleteId);
+        if (idx !== -1) _allActuals[idx] = updated;
+        _updateTabCounts();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('markCompleteModal')).hide();
+        showFlash('Project marked as complete.', 'success');
+        _applyFilters();
+    } catch (_) {
+        showFlash('Failed to mark project as complete.', 'danger');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
+
 // ── Chart ─────────────────────────────────────────────────────────────────────
 
 window.openChart = function(actualsId, projectName) {
@@ -481,7 +595,6 @@ window.openChart = function(actualsId, projectName) {
     const labels   = rows.map(r => r.sprint_name);
     const costData = rows.map(r => parseFloat(r.total_cost) || 0);
 
-    // Cumulative cost for right axis
     const cumulativeData = [];
     let cumSum = 0;
     costData.forEach(v => { cumSum += v; cumulativeData.push(cumSum); });
@@ -640,7 +753,6 @@ function _fyLabel(a, fyId) {
         const match = (a.sprint_actuals || []).find(sa => String(sa.sprint_fy_id) === String(fyId));
         return match?.sprint_fy_short || '—';
     }
-    // When no FY filter, show FYs from actual sprint data
     const fys = [...new Set((a.sprint_actuals || []).map(sa => sa.sprint_fy_short).filter(Boolean))];
     return fys.join(', ') || '—';
 }

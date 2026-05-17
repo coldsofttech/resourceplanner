@@ -35,22 +35,35 @@
     </select>
 </div>
 
-<!-- Row colour key -->
-<div class="d-flex gap-3 mb-3 flex-wrap align-items-center" style="font-size:13px">
-    <span class="text-secondary fw-semibold">Row colour:</span>
-    <span class="d-inline-flex align-items-center gap-1">
-        <span style="display:inline-block;width:14px;height:14px;background:#fff3cd;border:1px solid #ffc107;border-radius:2px"></span>Warning
-    </span>
-    <span class="d-inline-flex align-items-center gap-1">
-        <span style="display:inline-block;width:14px;height:14px;background:#f8d7da;border:1px solid #dc3545;border-radius:2px"></span>Risk
-    </span>
-    <span class="text-secondary" style="font-size:12px"><i class="bi bi-gear me-1"></i>Gear icon = configure risk override</span>
-</div>
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-0" id="actuals-tabs">
+    <li class="nav-item">
+        <button class="nav-link active" id="tab-in-progress" data-tab="in_progress">
+            In Progress <span class="badge bg-secondary ms-1" id="tab-in-progress-count"></span>
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" id="tab-completed" data-tab="completed">
+            Completed <span class="badge bg-secondary ms-1" id="tab-completed-count"></span>
+        </button>
+    </li>
+</ul>
 
 <!-- Table card -->
-<div class="rp-card">
+<div class="rp-card" style="border-top-left-radius:0">
+    <!-- Row colour key (in-progress only) -->
+    <div id="risk-key" class="d-flex gap-3 mb-3 flex-wrap align-items-center" style="font-size:13px">
+        <span class="text-secondary fw-semibold">Row colour:</span>
+        <span class="d-inline-flex align-items-center gap-1">
+            <span style="display:inline-block;width:14px;height:14px;background:#fff3cd;border:1px solid #ffc107;border-radius:2px"></span>Warning
+        </span>
+        <span class="d-inline-flex align-items-center gap-1">
+            <span style="display:inline-block;width:14px;height:14px;background:#f8d7da;border:1px solid #dc3545;border-radius:2px"></span>Risk
+        </span>
+        <span class="text-secondary" style="font-size:12px"><i class="bi bi-gear me-1"></i>Gear icon = configure risk override</span>
+    </div>
+
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <h6 class="rp-card-heading mb-0">Project Actuals</h6>
         <span id="actuals-count" class="text-secondary small"></span>
     </div>
 
@@ -59,7 +72,7 @@
     </div>
 
     <div id="actuals-table-wrap" class="d-none" style="overflow-x:auto">
-        <table class="table rp-table mb-0" id="actuals-table" style="min-width:1000px;table-layout:fixed">
+        <table class="table rp-table mb-0" id="actuals-table" style="min-width:1100px;table-layout:fixed">
             <colgroup>
                 <col style="width:32px"><!-- expand toggle -->
                 <col style="width:120px">
@@ -72,8 +85,8 @@
                 <col style="width:90px">
                 <col style="width:100px">
                 <col style="width:90px">
-                <col style="width:90px">
-                <col style="width:56px"><!-- actions -->
+                <col style="width:100px"><!-- Remaining / Completed Sprint -->
+                <col style="width:104px"><!-- actions -->
             </colgroup>
             <thead>
                 <tr>
@@ -88,7 +101,7 @@
                     <th class="text-end">Estimate</th>
                     <th class="text-end">Est.+Contingency</th>
                     <th class="text-end">Total Cost</th>
-                    <th class="text-end">Remaining</th>
+                    <th class="text-end" id="col-remaining-label">Remaining</th>
                     <th></th>
                 </tr>
             </thead>
@@ -103,7 +116,7 @@
     </div>
 
     <div id="actuals-empty" class="text-center text-secondary py-4 d-none">
-        No project actuals found. Close a sprint to populate this table.
+        No project actuals found.
     </div>
 </div>
 
@@ -159,6 +172,36 @@
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-sm btn-primary" id="risk-config-save-btn">
                     <i class="bi bi-check-lg me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Mark as Complete Modal -->
+<div class="modal fade" id="markCompleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-check-circle me-2 text-success"></i>Mark Project as Complete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary small mb-3" id="mark-complete-project-name"></p>
+                <div class="mb-3">
+                    <label class="form-label small fw-500" for="mark-complete-sprint">
+                        Sprint completed in <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select" id="mark-complete-sprint">
+                        <option value="">Select sprint…</option>
+                    </select>
+                    <div class="form-text">Select the sprint in which this project was completed.</div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-success" id="mark-complete-save-btn">
+                    <i class="bi bi-check-circle me-1"></i>Mark Complete
                 </button>
             </div>
         </div>

@@ -1514,9 +1514,38 @@ function populateEditDropdowns(opts) {
             emptyLabel: 'All sub-statuses',
             showAllWhenBlank: false,
         });
+        _toggleCompletedSprintRow();
     });
     _bindProgrammeAutocomplete('edit-programme', 'edit-programme-id', 'edit-programme-suggestions');
     _buildCollaboratorCheckboxes(opts.delivery_teams ?? []);
+    _populateCompletedSprintSelect();
+}
+
+function _toggleCompletedSprintRow() {
+    const statusVal = document.getElementById('edit-status')?.value;
+    const row = document.getElementById('completed-sprint-row');
+    if (row) {
+        if (statusVal === 'COMPLETED') {
+            row.classList.remove('d-none');
+        } else {
+            row.classList.add('d-none');
+        }
+    }
+}
+
+async function _populateCompletedSprintSelect() {
+    const sel = document.getElementById('edit-completed-sprint');
+    if (!sel || sel.options.length > 1) return; // already populated
+    try {
+        const data = await apiFetch(API_URLS.sprints.list.href + '?page_size=100');
+        const sorted = (data?.results || []).slice().reverse(); // most recent first
+        sorted.forEach(s => {
+            const o = document.createElement('option');
+            o.value = s.id;
+            o.textContent = s.sprint_name;
+            sel.appendChild(o);
+        });
+    } catch (_) { /* non-critical */ }
 }
 
 function _cascadeSubStatus(statusSelectId, subStatusSelectId, { emptyLabel, showAllWhenBlank }) {
@@ -1907,6 +1936,11 @@ async function enterEditMode(tab) {
         document.getElementById('edit-tentative-start').value = project.tentative_start_date ?? '';
         document.getElementById('edit-tentative-end').value = project.tentative_end_date ?? '';
         document.getElementById('edit-is-active').checked = project.is_active ?? true;
+        await _populateCompletedSprintSelect();
+        if (project.completed_sprint) {
+            document.getElementById('edit-completed-sprint').value = project.completed_sprint;
+        }
+        _toggleCompletedSprintRow();
         setTimeout(() => document.getElementById('edit-name').focus(), 300);
     } else if (tab === 'operational') {
         const operational = await fetchOperational();
@@ -1944,16 +1978,22 @@ async function saveGeneral() {
         }
     }
 
+    const newStatus = document.getElementById('edit-status').value || 'NEW';
+    const completedSprintVal = document.getElementById('edit-completed-sprint')?.value;
+
     const payload = {
         name: document.getElementById('edit-name').value.trim(),
         project_type: parseInt(document.getElementById('edit-project-type').value) || null,
         programme: programme ? parseInt(programme) : null,
-        status: document.getElementById('edit-status').value || 'NEW',
+        status: newStatus,
         sub_status: document.getElementById('edit-sub-status').value || null,
         confidence: document.getElementById('edit-confidence').value || '',
         priority: document.getElementById('edit-priority').value || '',
         tentative_start_date: document.getElementById('edit-tentative-start').value || null,
         tentative_end_date: document.getElementById('edit-tentative-end').value || null,
+        completed_sprint: (newStatus === 'COMPLETED' && completedSprintVal)
+            ? parseInt(completedSprintVal, 10)
+            : null,
         is_active: document.getElementById('edit-is-active').checked,
     };
 

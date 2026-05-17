@@ -29,6 +29,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     priority_display = serializers.SerializerMethodField()
     tags = serializers.SerializerMethodField()
     code = serializers.SerializerMethodField()
+    completed_sprint_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -53,6 +54,8 @@ class ProjectSerializer(serializers.ModelSerializer):
             "priority_display",
             "tentative_start_date",
             "tentative_end_date",
+            "completed_sprint",
+            "completed_sprint_name",
             "is_active",
             "tags",
             "created_at",
@@ -83,6 +86,9 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def get_priority_display(self, obj):
         return obj.get_priority_display() if obj.priority else None
+
+    def get_completed_sprint_name(self, obj):
+        return obj.completed_sprint.sprint_name if obj.completed_sprint_id else None
 
     def validate_name(self, value):
         if not value or not value.strip():

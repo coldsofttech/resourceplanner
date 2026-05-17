@@ -658,7 +658,8 @@ class ProjectActualsViewSet(viewsets.ViewSet):
 
     def _base_qs(self):
         return ProjectActuals.objects.select_related(
-            'project', 'programme', 'label', 'assigned_team', 'last_updated_sprint',
+            'project', 'project__completed_sprint', 'programme', 'label',
+            'assigned_team', 'last_updated_sprint',
         ).prefetch_related(
             'collaborators',
             'project__labels',
@@ -705,6 +706,26 @@ class ProjectActualsViewSet(viewsets.ViewSet):
         if not s.is_valid():
             return Response(s.errors, status=status.HTTP_400_BAD_REQUEST)
         s.save()
+        return Response(ProjectActualsSerializer(self._base_qs().get(pk=pk)).data)
+
+    @action(detail=True, methods=['post'], url_path='mark-complete')
+    def mark_complete(self, request, pk=None):
+        try:
+            obj = self._base_qs().get(pk=pk)
+        except ProjectActuals.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        sprint_id = request.data.get('sprint_id')
+        if not sprint_id:
+            return Response({'error': 'sprint_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        from apps.sprints.models import Sprint
+        try:
+            sprint = Sprint.objects.get(pk=sprint_id)
+        except Sprint.DoesNotExist:
+            return Response({'error': 'Sprint not found.'}, status=status.HTTP_404_NOT_FOUND)
+        project = obj.project
+        project.status = project.STATUS_COMPLETED
+        project.completed_sprint = sprint
+        project.save(update_fields=['status', 'completed_sprint'])
         return Response(ProjectActualsSerializer(self._base_qs().get(pk=pk)).data)
 
     @action(detail=False, methods=['get'], url_path='fy-options')

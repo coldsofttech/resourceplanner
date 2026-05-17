@@ -90,6 +90,13 @@ class Project(models.Model):
     )
     tentative_start_date = models.DateField(blank=True, null=True)
     tentative_end_date = models.DateField(blank=True, null=True)
+    completed_sprint = models.ForeignKey(
+        'sprints.Sprint',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='completed_projects',
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
