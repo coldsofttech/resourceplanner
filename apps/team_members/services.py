@@ -3,6 +3,7 @@ import datetime
 import io
 import logging
 
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
 from django.db import DatabaseError, IntegrityError, transaction
@@ -33,13 +34,19 @@ class TeamMemberService:
             'first_name', 'last_name', 'email_address', 'display_name', 'location_id',
             'employment_type_id', 'role_id', 'team_id', 'is_active'
         }
-        qs = TeamMember.objects.all()
+        qs = TeamMember.objects.select_related(
+            'user', 'location', 'employment_type', 'role', 'team'
+        ).all()
 
         if filters:
             if filters.get('search'):
                 s_term = filters['search']
-                qs = qs.filter(first_name__icontains=s_term) | qs.filter(last_name__icontains=s_term) | qs.filter(
-                    email_address__icontains=s_term)
+                qs = (
+                    qs.filter(first_name__icontains=s_term) |
+                    qs.filter(last_name__icontains=s_term) |
+                    qs.filter(email_address__icontains=s_term) |
+                    qs.filter(display_name__icontains=s_term)
+                )
 
             if filters.get('is_active') is not None:
                 is_active_raw = filters['is_active']
@@ -129,52 +136,59 @@ class TeamMemberService:
         def wants(field):
             return fields is None or field in fields
 
+        User = get_user_model()
         from apps.skills.models import Skill
         from apps.office_locations.models import OfficeLocation
         from apps.employment_types.models import EmploymentType
         from apps.team_roles.models import TeamRole
         from apps.delivery_teams.models import DeliveryTeam
-        ds = {
-            "is_active": [
-                {"value": True, "label": "Active"},
-                {"value": False, "label": "Inactive"},
-            ],
-            "skills": [
-                {"value": skill.pk, "label": skill.skill}
-                for skill in Skill.objects.filter(is_active=True)
-            ],
-            "locations": [
-                {"value": location.pk, "label": f"{location.city}, {location.country}",
-                 "is_default": location.is_default}
-                for location in OfficeLocation.objects.filter(is_active=True)
-            ],
-            "employment_types": [
-                {"value": _type.pk, "label": _type.name, "is_default": _type.is_default}
-                for _type in EmploymentType.objects.filter(is_active=True)
-            ],
-            "roles": [
-                {"value": role.pk, "label": role.role, "is_default": role.is_default}
-                for role in TeamRole.objects.filter(is_active=True)
-            ],
-            "teams": [
-                {"value": team.pk, "label": team.name}
-                for team in DeliveryTeam.objects.filter(is_active=True)
-            ],
-        }
+
         result = {}
 
         if wants("is_active"):
-            result["is_active"] = ds["is_active"]
+            result["is_active"] = [
+                {"value": True, "label": "Active"},
+                {"value": False, "label": "Inactive"},
+            ]
         if wants("skills"):
-            result["skills"] = ds["skills"]
+            result["skills"] = [
+                {"value": s.pk, "label": s.skill}
+                for s in Skill.objects.filter(is_active=True)
+            ]
         if wants("locations"):
-            result["locations"] = ds["locations"]
+            result["locations"] = [
+                {"value": loc.pk, "label": f"{loc.city}, {loc.country}", "is_default": loc.is_default}
+                for loc in OfficeLocation.objects.filter(is_active=True)
+            ]
         if wants("employment_types"):
-            result["employment_types"] = ds["employment_types"]
+            result["employment_types"] = [
+                {"value": t.pk, "label": t.name, "is_default": t.is_default}
+                for t in EmploymentType.objects.filter(is_active=True)
+            ]
         if wants("roles"):
-            result["roles"] = ds["roles"]
+            result["roles"] = [
+                {"value": r.pk, "label": r.role, "is_default": r.is_default}
+                for r in TeamRole.objects.filter(is_active=True)
+            ]
         if wants("teams"):
-            result["teams"] = ds["teams"]
+            result["teams"] = [
+                {"value": t.pk, "label": t.name}
+                for t in DeliveryTeam.objects.filter(is_active=True)
+            ]
+        if wants("users"):
+            # Only active users who don't yet have a team member profile.
+            result["users"] = [
+                {
+                    "value": u.pk,
+                    "label": f"{u.first_name} {u.last_name} ({u.email})".strip(),
+                    "first_name": u.first_name,
+                    "last_name": u.last_name,
+                    "email": u.email,
+                }
+                for u in User.objects.filter(
+                    is_active=True, team_member__isnull=True
+                ).order_by('last_name', 'first_name')
+            ]
 
         return result
 
@@ -186,28 +200,43 @@ class TeamMemberService:
         if not member_id:
             raise ValidationError("Invalid: member_id must be an integer and greater than 0.")
 
-        return TeamMember.objects.get(pk=member_id)
+        return TeamMember.objects.select_related('user').get(pk=member_id)
 
     @staticmethod
     @transaction.atomic
     def create_member(data: dict):
         """
         Creates new member.
+
+        When a ``user`` (User instance) is present in data, first/last name and email are
+        sourced from that user account.  Without a user the caller must supply them directly.
         """
         if not isinstance(data, dict):
             raise ValidationError("Invalid: data must be a dictionary.")
 
-        # Verify whether member already exists
-        if TeamMember.objects.filter(email_address=data['email_address']).exists():
-            raise ValidationError(f"Member '{data['email_address']} already exists.")
+        user = data.get('user')
+
+        if user:
+            first_name = user.first_name
+            last_name = user.last_name
+            email_address = user.email
+            if TeamMember.objects.filter(user=user).exists():
+                raise ValidationError(f"User '{email_address}' already has a team member profile.")
+        else:
+            first_name = data.get('first_name', '')
+            last_name = data.get('last_name', '')
+            email_address = data.get('email_address', '')
+            if TeamMember.objects.filter(email_address=email_address).exists():
+                raise ValidationError(f"Member '{email_address}' already exists.")
 
         # Create the member
         try:
             member = TeamMember(
-                first_name=data['first_name'],
-                last_name=data['last_name'],
+                first_name=first_name,
+                last_name=last_name,
                 display_name=data.get('display_name', '').strip(),
-                email_address=data['email_address'],
+                email_address=email_address,
+                user=user,
                 location=data['location'],
                 employment_type=data['employment_type'],
                 role=data['role'],
@@ -259,18 +288,34 @@ class TeamMemberService:
         if not isinstance(data, dict):
             raise ValidationError("Invalid: data must be a dictionary.")
 
-        member = TeamMember.objects.get(pk=member_id)
+        member = TeamMember.objects.select_related('user').get(pk=member_id)
         if not member:
             raise ValidationError(f"Member '{member_id}' does not exist.")
 
         email = data.get('email_address')
-        if email and TeamMember.objects.filter(email_address=email).exclude(pk=member_id).exists():
-            raise ValidationError(f"Member '{email}' already exists.")
+        if email and not member.user_id:
+            # Only check email uniqueness for unlinked members; linked members' email is managed via User.
+            if TeamMember.objects.filter(email_address=email).exclude(pk=member_id).exists():
+                raise ValidationError(f"Member '{email}' already exists.")
 
         old_team = member.team
 
+        # When first/last name changes and the member has a linked user, propagate to the User model.
+        if member.user_id:
+            user_update_fields = []
+            if 'first_name' in data:
+                member.user.first_name = data['first_name']
+                user_update_fields.append('first_name')
+            if 'last_name' in data:
+                member.user.last_name = data['last_name']
+                user_update_fields.append('last_name')
+            if user_update_fields:
+                member.user.save(update_fields=user_update_fields)
+
         for field in ['first_name', 'last_name', 'display_name', 'email_address', 'location', 'employment_type',
                       'role', 'team', 'start_date', 'end_date', 'default_holidays', 'is_active']:
+            if field == 'email_address' and member.user_id:
+                continue  # email is managed through the linked user account
             if field in data:
                 value = data[field]
                 if field in ['first_name', 'last_name', 'display_name'] and isinstance(value, str):
@@ -286,6 +331,12 @@ class TeamMemberService:
                 if field == 'end_date' and not value:
                     value = None
                 setattr(member, field, value)
+
+        # Auto-regenerate display_name when first/last name changed but display_name wasn't explicitly provided.
+        if ('first_name' in data or 'last_name' in data) and 'display_name' not in data:
+            new_first = (member.first_name or '').strip()
+            new_last = (member.last_name or '').strip()
+            member.display_name = f"{new_last}, {new_first}" if new_last and new_first else new_last or new_first
 
         try:
             member.full_clean()

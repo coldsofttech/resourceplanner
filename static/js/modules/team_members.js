@@ -12,9 +12,9 @@ import { initRenderer } from './../list/render.js';
 import { exportToCsv, exportToPdf } from './../export.js';
 import { initLeavesPanel } from './../leave_panel.js';
 
-let fetcher       = null;
-let _teamOptions  = [];   // cached for move-team modal
-let _currentMember = null; // cached for detail view move-team
+let fetcher        = null;
+let _teamOptions   = [];
+let _currentMember = null;
 
 const memberPk = getPkFromUrl('team-members');
 const isEdit   = isSubPathUrl('team-members', 'edit');
@@ -143,7 +143,7 @@ async function renderRoleFilterOptions() {
             select.appendChild(opt);
         });
     } catch (err) {
-        console.error('[renderStatusFilterOptions]', err);
+        console.error('[renderRoleFilterOptions]', err);
     }
 }
 
@@ -159,7 +159,7 @@ async function renderLocationFilterOptions() {
             select.appendChild(opt);
         });
     } catch (err) {
-        console.error('[renderStatusFilterOptions]', err);
+        console.error('[renderLocationFilterOptions]', err);
     }
 }
 
@@ -175,7 +175,7 @@ async function renderEmploymentTypeFilterOptions() {
             select.appendChild(opt);
         });
     } catch (err) {
-        console.error('[renderStatusFilterOptions]', err);
+        console.error('[renderEmploymentTypeFilterOptions]', err);
     }
 }
 
@@ -191,7 +191,7 @@ async function renderTeamFilterOptions() {
             select.appendChild(opt);
         });
     } catch (err) {
-        console.error('[renderStatusFilterOptions]', err);
+        console.error('[renderTeamFilterOptions]', err);
     }
 }
 
@@ -213,6 +213,7 @@ function renderMemberRow(member) {
 
     const currentTeamId   = member.team ? member.team.id   : null;
     const currentTeamName = member.team ? member.team.name : '';
+    const hasUser         = !!member.user;
 
     return `
         <tr data-member-id="${member.id}">
@@ -244,7 +245,7 @@ function renderMemberRow(member) {
                     </button>` : ''}
                     ${hasPerm('team_members.delete_teammember') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger" title="Delete member"
-                            onclick="confirmDelete(${member.id}, '${escAttr(member.display_name)}', onDeleteFromList)">
+                            onclick="confirmDelete(${member.id}, '${escAttr(member.display_name)}', onDeleteFromList, ${hasUser})">
                         <i class="bi bi-trash"></i>
                     </button>` : ''}
                 </div>
@@ -267,17 +268,94 @@ function onDeleteFromList(id, name) {
 }
 
 /* =========================================================
- * Create & Edit View
+ * Create View
  * ========================================================= */
 async function initCreateView() {
     setPageTitle('New Team Member');
     document.getElementById('page-title').textContent    = 'New Team Member';
-    document.getElementById('page-subtitle').textContent = 'Add a new member to your organisation';
+    document.getElementById('page-subtitle').textContent = 'Create a team member profile linked to an existing user account';
     document.getElementById('submit-label').textContent  = 'Create member';
     document.getElementById('submit-btn').dataset.originalLabel = 'Create member';
+
+    // Show user selector; name/email are readonly (auto-filled from selected user).
+    document.getElementById('user-selector-section').classList.remove('d-none');
+    _setNameEmailReadonly(true);
+
     await loadFormOptions(null);
+    await _loadUserSelectOptions();
+
+    document.getElementById('id_user').addEventListener('change', _onUserSelectChange);
 }
 
+async function _loadUserSelectOptions() {
+    try {
+        const { method, href } = API_URLS.team_members.options;
+        const options = await apiFetch(`${href}?fields=users`, { method });
+        const select  = document.getElementById('id_user');
+        if (!select) return;
+        (options?.users ?? []).forEach(u => {
+            const opt = document.createElement('option');
+            opt.value           = u.value;
+            opt.textContent     = u.label;
+            opt.dataset.firstName = u.first_name || '';
+            opt.dataset.lastName  = u.last_name  || '';
+            opt.dataset.email     = u.email      || '';
+            select.appendChild(opt);
+        });
+    } catch (err) {
+        console.error('[_loadUserSelectOptions]', err);
+    }
+}
+
+function _onUserSelectChange() {
+    const select = document.getElementById('id_user');
+    const opt    = select.options[select.selectedIndex];
+
+    if (!opt || !opt.value) {
+        document.getElementById('id_first_name').value    = '';
+        document.getElementById('id_last_name').value     = '';
+        document.getElementById('id_email_address').value = '';
+        document.getElementById('id_display_name').value  = '';
+        document.getElementById('id_display_name').placeholder = '';
+        select.classList.remove('is-invalid');
+        return;
+    }
+
+    const firstName = opt.dataset.firstName || '';
+    const lastName  = opt.dataset.lastName  || '';
+    const email     = opt.dataset.email     || '';
+
+    document.getElementById('id_first_name').value    = firstName;
+    document.getElementById('id_last_name').value     = lastName;
+    document.getElementById('id_email_address').value = email;
+
+    // Auto-suggest display name only when field is still blank.
+    const displayInput = document.getElementById('id_display_name');
+    if (!displayInput.value.trim()) {
+        displayInput.value = (lastName && firstName) ? `${lastName}, ${firstName}` : lastName || firstName;
+    }
+
+    select.classList.remove('is-invalid');
+    document.getElementById('user-error').textContent = '';
+}
+
+function _setNameEmailReadonly(readonly) {
+    ['id_first_name', 'id_last_name', 'id_email_address'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.readOnly = readonly;
+        el.classList.toggle('rp-input--readonly', readonly);
+    });
+    const star = document.getElementById('email-required-star');
+    if (star) star.classList.toggle('d-none', readonly);
+    const hint = document.getElementById('email-readonly-hint');
+    if (hint && readonly) hint.classList.remove('d-none');
+    if (hint && !readonly) hint.classList.add('d-none');
+}
+
+/* =========================================================
+ * Edit View
+ * ========================================================= */
 async function initEditView() {
     setPageTitle('Edit Team Member');
     const submitBtn = document.getElementById('submit-btn');
@@ -372,42 +450,64 @@ function _renderSkillsCheckboxes(skills, selectedIds) {
     });
 }
 
+/* =========================================================
+ * Create & Edit Submit
+ * ========================================================= */
 async function handleCreateEditSubmit(e) {
     e.preventDefault();
-    clearErrors(['first_name', 'last_name', 'email_address', 'role', 'location',
+    clearErrors(['user', 'first_name', 'last_name', 'email_address', 'role', 'location',
                  'employment_type', 'start_date', 'end_date', 'default_holidays']);
 
-    const firstName = document.getElementById('id_first_name').value.trim();
-    const lastName  = document.getElementById('id_last_name').value.trim();
-    const email     = document.getElementById('id_email_address').value.trim();
     const role      = document.getElementById('id_role').value;
     const location  = document.getElementById('id_location').value;
     const empType   = document.getElementById('id_employment_type').value;
     const startDate = document.getElementById('id_start_date').value;
 
+    const userSelect    = document.getElementById('id_user');
+    const userId        = userSelect ? userSelect.value : null;
+    const linkedSection = document.getElementById('user-linked-section');
+    const hasLinkedUser = linkedSection && !linkedSection.classList.contains('d-none');
+
     let valid = true;
-    if (!firstName) { _fieldError('id_first_name',    'first_name-error',    'First name is required.');      valid = false; }
-    if (!lastName)  { _fieldError('id_last_name',     'last_name-error',     'Last name is required.');       valid = false; }
-    if (!email)     { _fieldError('id_email_address', 'email_address-error', 'Email address is required.');   valid = false; }
-    if (!role)      { _fieldError('id_role',          'role-error',          'Role is required.');             valid = false; }
-    if (!location)  { _fieldError('id_location',      'location-error',      'Office location is required.'); valid = false; }
-    if (!empType)   { _fieldError('id_employment_type', 'employment_type-error', 'Employment type is required.'); valid = false; }
-    if (!startDate) { _fieldError('id_start_date',    'start_date-error',    'Start date is required.');      valid = false; }
+
+    if (!isEdit) {
+        // Create mode: a user account is required.
+        if (!userId) {
+            userSelect?.classList.add('is-invalid');
+            const errEl = document.getElementById('user-error');
+            if (errEl) errEl.textContent = 'Please select a user account.';
+            valid = false;
+        }
+    } else {
+        // Edit mode: first/last name are always required.
+        const firstName = document.getElementById('id_first_name').value.trim();
+        const lastName  = document.getElementById('id_last_name').value.trim();
+        if (!firstName) { _fieldError('id_first_name', 'first_name-error', 'First name is required.'); valid = false; }
+        if (!lastName)  { _fieldError('id_last_name',  'last_name-error',  'Last name is required.');  valid = false; }
+        if (!hasLinkedUser) {
+            const email = document.getElementById('id_email_address').value.trim();
+            if (!email) { _fieldError('id_email_address', 'email_address-error', 'Email address is required.'); valid = false; }
+        }
+    }
+
+    if (!role)      { _fieldError('id_role',              'role-error',              'Role is required.');             valid = false; }
+    if (!location)  { _fieldError('id_location',          'location-error',          'Office location is required.'); valid = false; }
+    if (!empType)   { _fieldError('id_employment_type',   'employment_type-error',   'Employment type is required.'); valid = false; }
+    if (!startDate) { _fieldError('id_start_date',        'start_date-error',        'Start date is required.');       valid = false; }
     if (!valid) return;
 
-    const skillIds    = Array.from(document.querySelectorAll('.skill-checkbox:checked'))
-                            .map(cb => parseInt(cb.value));
-    const teamVal     = document.getElementById('id_team').value;
+    const firstName   = document.getElementById('id_first_name').value.trim();
+    const lastName    = document.getElementById('id_last_name').value.trim();
+    const email       = document.getElementById('id_email_address').value.trim();
     const displayName = document.getElementById('id_display_name').value.trim();
+    const teamVal     = document.getElementById('id_team').value;
     const endDate     = document.getElementById('id_end_date').value || null;
     const defHolidays = parseInt(document.getElementById('id_default_holidays').value) || 0;
     const isActive    = document.getElementById('id_is_active').checked;
+    const skillIds    = Array.from(document.querySelectorAll('.skill-checkbox:checked'))
+                            .map(cb => parseInt(cb.value));
 
     const payload = {
-        first_name:       firstName,
-        last_name:        lastName,
-        display_name:     displayName,
-        email_address:    email,
         role:             parseInt(role),
         location:         parseInt(location),
         employment_type:  parseInt(empType),
@@ -417,7 +517,20 @@ async function handleCreateEditSubmit(e) {
         default_holidays: defHolidays,
         skills:           skillIds,
         is_active:        isActive,
+        display_name:     displayName,
     };
+
+    if (!isEdit) {
+        // Create: link to user; server populates name/email from the user account.
+        payload.user = parseInt(userId);
+    } else {
+        // Edit: first/last name updates the member (and linked user if present).
+        payload.first_name = firstName;
+        payload.last_name  = lastName;
+        if (!hasLinkedUser) {
+            payload.email_address = email;
+        }
+    }
 
     const { method, href } = isEdit
         ? API_URLS.team_members.partial_edit(memberPk)
@@ -429,7 +542,7 @@ async function handleCreateEditSubmit(e) {
         window.location.href = URLS.team_members.list;
     } catch (err) {
         if (err?.status === 400) {
-            applyErrors(err.data ?? {}, ['first_name', 'last_name', 'email_address', 'role',
+            applyErrors(err.data ?? {}, ['user', 'first_name', 'last_name', 'email_address', 'role',
                                           'location', 'employment_type', 'start_date', 'default_holidays']);
             return;
         }
@@ -451,25 +564,36 @@ function _fieldError(inputId, errorId, message) {
 }
 
 function populateForm(member) {
-    document.getElementById('id_first_name').value     = member.first_name     ?? '';
-    document.getElementById('id_last_name').value      = member.last_name      ?? '';
-    document.getElementById('id_display_name').value   = member.display_name   ?? '';
-    document.getElementById('id_email_address').value  = member.email_address  ?? '';
-    document.getElementById('id_start_date').value     = member.start_date     ?? '';
-    document.getElementById('id_end_date').value       = member.end_date       ?? '';
+    document.getElementById('id_first_name').value      = member.first_name    ?? '';
+    document.getElementById('id_last_name').value       = member.last_name     ?? '';
+    document.getElementById('id_display_name').value    = member.display_name  ?? '';
+    document.getElementById('id_email_address').value   = member.email_address ?? '';
+    document.getElementById('id_start_date').value      = member.start_date    ?? '';
+    document.getElementById('id_end_date').value        = member.end_date      ?? '';
     document.getElementById('id_default_holidays').value = member.default_holidays ?? 0;
-    document.getElementById('id_is_active').checked    = member.is_active      ?? true;
+    document.getElementById('id_is_active').checked     = member.is_active     ?? true;
 
     if (member.role)            document.getElementById('id_role').value            = member.role.id;
     if (member.location)        document.getElementById('id_location').value        = member.location.id;
     if (member.employment_type) document.getElementById('id_employment_type').value = member.employment_type.id;
     if (member.team)            document.getElementById('id_team').value            = member.team.id;
 
-    // Tick correct skill checkboxes
     const selectedIds = new Set((member.skills || []).map(s => s.id));
     document.querySelectorAll('.skill-checkbox').forEach(cb => {
         cb.checked = selectedIds.has(parseInt(cb.value));
     });
+
+    if (member.user) {
+        // Show linked user badge; make email readonly.
+        document.getElementById('user-linked-section').classList.remove('d-none');
+        document.getElementById('user-linked-email').textContent = member.user.email;
+        _setNameEmailReadonly(false);  // first/last remain editable in edit mode
+        const emailInput = document.getElementById('id_email_address');
+        emailInput.readOnly = true;
+        emailInput.classList.add('rp-input--readonly');
+        document.getElementById('email-readonly-hint').classList.remove('d-none');
+        document.getElementById('email-required-star').classList.add('d-none');
+    }
 
     document.getElementById('page-subtitle').innerHTML =
         `Updating <strong>${escHtml(member.display_name)}</strong>`;
@@ -477,12 +601,13 @@ function populateForm(member) {
     document.getElementById('meta-updated').textContent = formatDateTime(member.updated_at);
     document.getElementById('metadata-card').classList.remove('d-none');
 
+    const hasUser = !!member.user;
     document.getElementById('delete-btn-slot').innerHTML = `
         <button type="button" class="btn btn-outline-danger" id="delete-member-btn">
             <i class="bi bi-trash me-1"></i> Delete
         </button>`;
     document.getElementById('delete-member-btn')
-        .addEventListener('click', () => confirmDelete(member.id, member.display_name, onDeleteFromEdit));
+        .addEventListener('click', () => confirmDelete(member.id, member.display_name, onDeleteFromEdit, hasUser));
 }
 
 function onDeleteFromEdit() {
@@ -533,9 +658,8 @@ function renderDetailTitle(member) {
 
 function renderMemberDetails(member) {
     document.getElementById('member-first-name').textContent = member.first_name ?? '—';
-    document.getElementById('member-last-name').textContent = member.last_name ?? '—';
-    document.getElementById('member-email').textContent =
-        member.email_address ?? '—';
+    document.getElementById('member-last-name').textContent  = member.last_name  ?? '—';
+    document.getElementById('member-email').textContent      = member.email_address ?? '—';
     document.getElementById('member-role').textContent =
         member.role ? member.role.role : '—';
     document.getElementById('member-location').textContent =
@@ -580,7 +704,6 @@ function onDeleteFromDetail() {
 
 async function onMoveFromDetail(id, toTeamName) {
     showFlash(`Moved to ${toTeamName || 'no team'} successfully.`, 'success');
-    // Reload the page to reflect updated team + new history entry
     setTimeout(() => window.location.reload(), 800);
 }
 
@@ -613,8 +736,6 @@ async function loadHistoryTimeline() {
             countBtn.style.display = '';
             countBtn.addEventListener('click', () => _openHistoryModal(entries));
         }
-
-        // Show at most 3 in the inline panel
         renderHistoryTimeline(entries.slice(0, 3), entries.length > 3);
     } catch (_err) {
         el.innerHTML = '<p class="text-secondary small">Could not load history.</p>';
@@ -631,7 +752,6 @@ function renderHistoryTimeline(entries, hasMore = false) {
             </div>`;
         return;
     }
-
     el.innerHTML = `<div class="rp-timeline d-flex flex-column">${_buildTimelineItems(entries, hasMore)}</div>`;
 }
 
@@ -689,7 +809,7 @@ function _buildTimelineItems(entries, addEllipsis = false) {
 }
 
 function _openHistoryModal(entries) {
-    const body  = document.getElementById('history-modal-body');
+    const body = document.getElementById('history-modal-body');
     if (body) {
         body.innerHTML = `<div class="rp-timeline d-flex flex-column">${_buildTimelineItems(entries)}</div>`;
     }
@@ -711,7 +831,7 @@ async function _loadTeamOptions() {
 }
 
 function confirmMoveTeam(memberId, memberName, currentTeamId, currentTeamName, onSuccess) {
-    const modal  = document.getElementById('moveTeamModal');
+    const modal   = document.getElementById('moveTeamModal');
     const moveBtn = document.getElementById('confirm-move-btn');
     if (!modal || !moveBtn) return;
 
@@ -722,7 +842,7 @@ function confirmMoveTeam(memberId, memberName, currentTeamId, currentTeamName, o
     const select = document.getElementById('move-to-team');
     select.innerHTML = '<option value="">— Unassign from team —</option>';
     _teamOptions.forEach(({ value, label }) => {
-        if (value == currentTeamId) return;   // skip current team
+        if (value == currentTeamId) return;
         const opt = document.createElement('option');
         opt.value       = value;
         opt.textContent = label;
@@ -768,13 +888,18 @@ function confirmMoveTeam(memberId, memberName, currentTeamId, currentTeamName, o
 /* =========================================================
  * Delete Modal – shared
  * ========================================================= */
-function confirmDelete(id, name, onSuccess) {
+function confirmDelete(id, name, onSuccess, hasUser = false) {
     const modal  = document.getElementById('deleteModal');
     const nameEl = document.getElementById('delete-member-name');
     const btn    = document.getElementById('confirm-delete-btn');
     if (!modal || !btn) return;
 
     nameEl.textContent = name;
+
+    // Show the user-account note only when the member has a linked user.
+    const userNote = document.getElementById('delete-user-note');
+    if (userNote) userNote.classList.toggle('d-none', !hasUser);
+
     const newBtn = btn.cloneNode(true);
     btn.parentNode.replaceChild(newBtn, btn);
     const { method, href } = API_URLS.team_members.delete(id);
@@ -812,20 +937,20 @@ function confirmDelete(id, name, onSuccess) {
  * Export
  * ========================================================= */
 const LIST_EXPORT_COLUMNS = [
-    { key: 'id',              label: 'ID' },
-    { key: 'first_name',      label: 'First Name' },
-    { key: 'last_name',       label: 'Last Name' },
-    { key: 'display_name',    label: 'Display Name' },
-    { key: 'email_address',   label: 'Email' },
-    { key: 'role',            label: 'Role' },
-    { key: 'location',        label: 'Location' },
-    { key: 'employment_type', label: 'Employment Type' },
-    { key: 'team',            label: 'Team' },
-    { key: 'skills',          label: 'Skills' },
-    { key: 'start_date',      label: 'Start Date' },
-    { key: 'end_date',        label: 'End Date' },
+    { key: 'id',               label: 'ID' },
+    { key: 'first_name',       label: 'First Name' },
+    { key: 'last_name',        label: 'Last Name' },
+    { key: 'display_name',     label: 'Display Name' },
+    { key: 'email_address',    label: 'Email' },
+    { key: 'role',             label: 'Role' },
+    { key: 'location',         label: 'Location' },
+    { key: 'employment_type',  label: 'Employment Type' },
+    { key: 'team',             label: 'Team' },
+    { key: 'skills',           label: 'Skills' },
+    { key: 'start_date',       label: 'Start Date' },
+    { key: 'end_date',         label: 'End Date' },
     { key: 'default_holidays', label: 'Default Holidays' },
-    { key: 'is_active',       label: 'Active' },
+    { key: 'is_active',        label: 'Active' },
 ];
 
 async function runListExport(format) {
@@ -857,7 +982,7 @@ async function runListExport(format) {
 /* =========================================================
  * Window Exports
  * ========================================================= */
-window.confirmDelete   = confirmDelete;
-window.confirmMoveTeam = confirmMoveTeam;
+window.confirmDelete    = confirmDelete;
+window.confirmMoveTeam  = confirmMoveTeam;
 window.onDeleteFromList = onDeleteFromList;
 window.onMoveFromList   = onMoveFromList;

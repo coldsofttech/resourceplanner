@@ -196,3 +196,25 @@ def on_user_save_link_member(sender, instance, **kwargs):
         )
         if not conflict:
             TeamMember.objects.filter(pk=member.pk).update(user=instance)
+
+
+@receiver(post_save, sender=User)
+def on_user_save_sync_member_name(sender, instance, **kwargs):
+    """
+    When a User's first_name or last_name is updated, keep the linked TeamMember's
+    stored name fields and display_name in sync so ORM searches and exports stay accurate.
+    """
+    update_fields = kwargs.get('update_fields')
+    if update_fields is not None:
+        if 'first_name' not in update_fields and 'last_name' not in update_fields:
+            return
+
+    first = instance.first_name or ''
+    last = instance.last_name or ''
+    new_display = f"{last.strip()}, {first.strip()}" if last.strip() and first.strip() else (last or first).strip()
+
+    TeamMember.objects.filter(user=instance).update(
+        first_name=first,
+        last_name=last,
+        display_name=new_display,
+    )
