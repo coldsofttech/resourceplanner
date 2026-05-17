@@ -642,16 +642,94 @@ async function initDetailView() {
 
 async function checkCompareReady() {
     try {
-        const [fcStatus, acStatus] = await Promise.all([
+        const [fcStatus, acStatus, sprint] = await Promise.all([
             apiFetch(API_URLS.sprint_forecast.sprint_status(sprintPk).href, { method: 'GET' }),
             apiFetch(API_URLS.sprint_actuals.sprint_status(sprintPk).href, { method: 'GET' }),
+            apiFetch(API_URLS.sprints.detail(sprintPk).href, { method: 'GET' }),
         ]);
-        if (fcStatus.review_complete && acStatus.review_complete) {
+        const bothComplete = !!(fcStatus.review_complete && acStatus.review_complete);
+        if (bothComplete) {
             document.getElementById('compare-btn')?.classList.remove('d-none');
         }
+
+        const closedBadge = document.getElementById('sprint-closed-badge');
+        const closeBtn    = document.getElementById('close-sprint-btn');
+        const unlockBtn   = document.getElementById('unlock-sprint-btn');
+
+        if (sprint.is_closed) {
+            closedBadge?.classList.remove('d-none');
+            unlockBtn?.classList.remove('d-none');
+        } else if (bothComplete) {
+            closeBtn?.classList.remove('d-none');
+        }
+
+        _wireCloseSprintBtn(sprint);
+        _wireUnlockSprintBtn(sprint);
     } catch (_err) {
-        // silently ignore — Compare button remains hidden
+        // silently ignore — buttons remain hidden
     }
+}
+
+function _wireCloseSprintBtn(sprint) {
+    const btn = document.getElementById('close-sprint-btn');
+    if (!btn) return;
+    const labelEl = document.getElementById('close-sprint-label');
+    if (labelEl) labelEl.textContent = sprint.sprint_name;
+
+    const confirmBtn = document.getElementById('confirm-close-sprint-btn');
+    if (!confirmBtn) return;
+    confirmBtn.addEventListener('click', async () => {
+        confirmBtn.disabled  = true;
+        confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Closing…';
+        try {
+            const { method, href } = API_URLS.sprints.close_sprint(sprintPk);
+            await apiFetch(href, { method });
+            bootstrap.Modal.getInstance(document.getElementById('closeSprintModal'))?.hide();
+            showFlash(`${sprint.sprint_name} has been closed and Project Actuals updated.`, 'success');
+            window.location.reload();
+        } catch (err) {
+            bootstrap.Modal.getInstance(document.getElementById('closeSprintModal'))?.hide();
+            showFlash(err?.data?.error || 'Failed to close sprint.', 'danger');
+        } finally {
+            confirmBtn.disabled  = false;
+            confirmBtn.innerHTML = '<i class="bi bi-lock me-1"></i>Close Sprint';
+        }
+    });
+
+    btn.addEventListener('click', () => {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('closeSprintModal')).show();
+    });
+}
+
+function _wireUnlockSprintBtn(sprint) {
+    const btn = document.getElementById('unlock-sprint-btn');
+    if (!btn) return;
+    const labelEl = document.getElementById('unlock-sprint-label');
+    if (labelEl) labelEl.textContent = sprint.sprint_name;
+
+    const confirmBtn = document.getElementById('confirm-unlock-sprint-btn');
+    if (!confirmBtn) return;
+    confirmBtn.addEventListener('click', async () => {
+        confirmBtn.disabled  = true;
+        confirmBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Unlocking…';
+        try {
+            const { method, href } = API_URLS.sprints.unlock_sprint(sprintPk);
+            await apiFetch(href, { method });
+            bootstrap.Modal.getInstance(document.getElementById('unlockSprintModal'))?.hide();
+            showFlash(`${sprint.sprint_name} has been unlocked.`, 'success');
+            window.location.reload();
+        } catch (err) {
+            bootstrap.Modal.getInstance(document.getElementById('unlockSprintModal'))?.hide();
+            showFlash(err?.data?.error || 'Failed to unlock sprint.', 'danger');
+        } finally {
+            confirmBtn.disabled  = false;
+            confirmBtn.innerHTML = '<i class="bi bi-unlock me-1"></i>Unlock';
+        }
+    });
+
+    btn.addEventListener('click', () => {
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('unlockSprintModal')).show();
+    });
 }
 
 function renderDetailHeader(sprint) {

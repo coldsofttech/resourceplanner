@@ -203,6 +203,8 @@ export const API_URLS = {
         export: { method: 'GET', href: `${API_BASE}sprints/export/` },
         run_engine: { method: 'POST', href: `${API_BASE}sprints/run-engine/` },
         capacity: (pk) => ({ method: 'GET', href: `${API_BASE}sprints/${pk}/capacity/` }),
+        close_sprint: (pk) => ({ method: 'POST', href: `${API_BASE}sprints/${pk}/close-sprint/` }),
+        unlock_sprint: (pk) => ({ method: 'POST', href: `${API_BASE}sprints/${pk}/unlock-sprint/` }),
     },
     sprint_capacity: {
         list: { method: 'GET', href: `${API_BASE}sprint-capacity/` },
@@ -922,6 +924,11 @@ export const API_URLS = {
     sprint_compare: {
         data: (sprintId) => ({ method: 'GET', href: `${API_BASE}sprint-compare/?sprint_id=${sprintId}` }),
     },
+
+    project_actuals: {
+        list: { method: 'GET', href: `${API_BASE}project-actuals/` },
+        detail: (id) => ({ method: 'GET', href: `${API_BASE}project-actuals/${id}/` }),
+    },
 };
 
 export const URLS = {
@@ -1013,6 +1020,9 @@ export const URLS = {
         edit: (pk) => `/sprints/${pk}/edit/`,
         delete: (pk) => `/sprints/${pk}/delete/`,
         compare: (pk) => `/sprints/${pk}/compare/`,
+    },
+    project_actuals: {
+        list: '/project-actuals/',
     },
     project_types: {
         list: '/project-types/',

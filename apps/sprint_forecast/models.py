@@ -533,6 +533,109 @@ class Recharge(models.Model):
         return f'{self.sprint} / {proj} ({self.type})'
 
 
+RISK_NEUTRAL = 'NEUTRAL'
+RISK_WARNING = 'WARNING'
+RISK_RISK = 'RISK'
+
+
+class ProjectActuals(models.Model):
+    """Aggregated actuals per project, updated each time a sprint is closed."""
+    project = models.OneToOneField(
+        'projects.Project',
+        on_delete=models.CASCADE,
+        related_name='actuals',
+    )
+    programme = models.ForeignKey(
+        'programmes.Programme',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='project_actuals',
+    )
+    label = models.ForeignKey(
+        'projects.ProjectLabel',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='project_actuals',
+    )
+    code = models.CharField(max_length=255, blank=True)
+    assigned_team = models.ForeignKey(
+        'delivery_teams.DeliveryTeam',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='project_actuals',
+    )
+    collaborators = models.ManyToManyField(
+        'delivery_teams.DeliveryTeam',
+        related_name='collaborating_project_actuals',
+        blank=True,
+    )
+    estimate_value = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    estimate_value_with_contingency = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_cost_till_date = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    last_updated_sprint = models.ForeignKey(
+        'sprints.Sprint',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='updated_project_actuals',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['project']
+
+    def __str__(self):
+        return f'Actuals — {self.project}'
+
+    @property
+    def remaining_amount(self):
+        total = self.total_cost_till_date
+        if total <= self.estimate_value:
+            return self.estimate_value - total
+        return self.estimate_value_with_contingency - total
+
+    @property
+    def risk(self):
+        total = self.total_cost_till_date
+        if total < self.estimate_value:
+            return RISK_NEUTRAL
+        if total <= self.estimate_value_with_contingency:
+            return RISK_WARNING
+        return RISK_RISK
+
+
+class ProjectSprintActual(models.Model):
+    """Per-sprint cost breakdown linked to a ProjectActuals record."""
+    project_actuals = models.ForeignKey(
+        ProjectActuals,
+        on_delete=models.CASCADE,
+        related_name='sprint_actuals',
+    )
+    sprint = models.ForeignKey(
+        'sprints.Sprint',
+        on_delete=models.CASCADE,
+        related_name='project_sprint_actuals',
+    )
+    total_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    total_days = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ['sprint__sprint_number']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project_actuals', 'sprint'],
+                name='unique_project_sprint_actual',
+            )
+        ]
+
+    def __str__(self):
+        return f'{self.project_actuals} — {self.sprint}'
+
+
 class RechargeStory(models.Model):
     """Individual Jira stories linked to an aggregate Recharge (for future email use)."""
     recharge = models.ForeignKey(

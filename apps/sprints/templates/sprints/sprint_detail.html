@@ -12,11 +12,12 @@
                 <span id="sprint-name" class="rp-code"></span>
                 <span id="sprint-status" class="rp-badge"></span>
                 <span id="sprint-overridden" class="rp-badge rp-badge--warning d-none">Overridden</span>
+                <span id="sprint-closed-badge" class="rp-badge rp-badge--danger d-none"><i class="bi bi-lock-fill me-1"></i>Closed</span>
             </h1>
             <p class="rp-page-subtitle" id="sprint-subtitle"></p>
         </div>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 flex-wrap">
         <button class="btn btn-outline-success btn-sm d-none"
                 id="set-active-btn"
                 data-bs-toggle="modal"
@@ -32,6 +33,12 @@
         <a href="compare/" class="btn btn-outline-secondary btn-sm d-none" id="compare-btn">
             <i class="bi bi-git me-1"></i>Compare
         </a>
+        <button class="btn btn-danger btn-sm d-none" id="close-sprint-btn">
+            <i class="bi bi-lock me-1"></i>Close Sprint
+        </button>
+        <button class="btn btn-outline-warning btn-sm d-none" id="unlock-sprint-btn">
+            <i class="bi bi-unlock me-1"></i>Unlock
+        </button>
         <a href="#" id="edit-sprint-btn" class="btn btn-primary btn-sm">
             <i class="bi bi-pencil me-1"></i>Edit sprint
         </a>
@@ -186,6 +193,54 @@
                 <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-sm btn-success" id="confirm-set-active-btn">
                     <i class="bi bi-check-circle me-1"></i>Set as Active
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Close Sprint Modal -->
+<div class="modal fade" id="closeSprintModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-lock me-2 text-danger"></i>Close Sprint?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    Closing <strong id="close-sprint-label"></strong> will lock all forecast and actuals data
+                    and update <strong>Project Actuals</strong>. This cannot be undone without admin access.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="confirm-close-sprint-btn">
+                    <i class="bi bi-lock me-1"></i>Close Sprint
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Unlock Sprint Modal -->
+<div class="modal fade" id="unlockSprintModal" tabindex="-1">
+    <div class="modal-dialog modal-sm modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-unlock me-2 text-warning"></i>Unlock Sprint?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary mb-0">
+                    Unlocking <strong id="unlock-sprint-label"></strong> will allow changes to forecast and actuals data again.
+                    Project Actuals will need to be recalculated by closing the sprint again.
+                </p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-warning" id="confirm-unlock-sprint-btn">
+                    <i class="bi bi-unlock me-1"></i>Unlock
                 </button>
             </div>
         </div>

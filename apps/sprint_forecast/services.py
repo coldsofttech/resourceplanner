@@ -29,6 +29,8 @@ from .models import (
     ImportReviewResult,
     ProjectFinanceType,
     ProjectFinanceTypeMapping,
+    ProjectActuals,
+    ProjectSprintActual,
     Recharge,
     RechargeDetail,
     RechargeStory,
@@ -605,3 +607,67 @@ class ImportReviewCompleteService:
                     total_days=sinfo['days'],
                 ))
             RechargeStory.objects.bulk_create(story_objs)
+
+
+class ProjectActualsService:
+
+    @staticmethod
+    @transaction.atomic
+    def update_for_sprint(sprint_id):
+        """Called when a sprint is closed. Creates/updates ProjectActuals + ProjectSprintActual."""
+        from apps.sprints.models import Sprint
+
+        sprint = Sprint.objects.get(pk=sprint_id)
+
+        recharges = Recharge.objects.filter(
+            sprint_id=sprint_id,
+            type=RECHARGE_TYPE_ACTUAL,
+        ).select_related(
+            'project__programme',
+            'project__assigned_team',
+        )
+
+        for recharge in recharges:
+            project = recharge.project
+            if not project:
+                continue
+
+            pa, _ = ProjectActuals.objects.get_or_create(project=project)
+
+            pa.programme = project.programme
+            pa.assigned_team = project.assigned_team
+
+            primary_label = project.labels.filter(is_primary=True).first() or project.labels.first()
+            pa.label = primary_label
+
+            latest_code = project.codes.first()
+            pa.code = latest_code.code if latest_code else ''
+
+            active_estimate = project.estimates.filter(is_active=True).first()
+            if active_estimate:
+                base = active_estimate.estimate_days * active_estimate.day_rate
+                with_contingency = base * (1 + active_estimate.contingency_pct / Decimal('100'))
+                pa.estimate_value = base.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+                pa.estimate_value_with_contingency = with_contingency.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+            pa.last_updated_sprint = sprint
+            pa.save()
+
+            collaborator_team_ids = list(
+                project.project_collaborators.values_list('team_id', flat=True)
+            )
+            pa.collaborators.set(collaborator_team_ids)
+
+            ProjectSprintActual.objects.update_or_create(
+                project_actuals=pa,
+                sprint=sprint,
+                defaults={
+                    'total_cost': recharge.total_cost,
+                    'total_days': recharge.total_days,
+                },
+            )
+
+            from django.db.models import Sum
+            total = pa.sprint_actuals.aggregate(s=Sum('total_cost'))['s'] or Decimal('0')
+            pa.total_cost_till_date = total
+            pa.save(update_fields=['total_cost_till_date'])

@@ -1,6 +1,7 @@
 from rest_framework.routers import DefaultRouter
 
 from .api_views import (
+    ProjectActualsViewSet,
     ProjectFinanceTypeMappingViewSet,
     ProjectFinanceTypeViewSet,
     RechargeDetailViewSet,
@@ -20,5 +21,6 @@ router.register(r'sprint-confirmed-rows', SprintConfirmedRowViewSet, basename='s
 router.register(r'recharges', RechargeViewSet, basename='recharge')
 router.register(r'recharge-details', RechargeDetailViewSet, basename='recharge-detail')
 router.register(r'sprint-compare', SprintCompareViewSet, basename='sprint-compare')
+router.register(r'project-actuals', ProjectActualsViewSet, basename='project-actuals')
 
 urlpatterns = router.urls

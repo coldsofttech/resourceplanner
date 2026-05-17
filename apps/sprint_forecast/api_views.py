@@ -13,8 +13,10 @@ from .models import (
     IMPORT_TYPE_ACTUAL,
     RECHARGE_TYPE_FORECAST,
     RECHARGE_TYPE_ACTUAL,
+    ProjectActuals,
     ProjectFinanceType,
     ProjectFinanceTypeMapping,
+    ProjectSprintActual,
     Recharge,
     RechargeDetail,
     SprintConfirmedRow,
@@ -24,6 +26,7 @@ from .models import (
 )
 from .serializers import (
     ImportReviewSerializer,
+    ProjectActualsSerializer,
     ProjectFinanceTypeMappingSerializer,
     ProjectFinanceTypeSerializer,
     RechargeDetailSerializer,
@@ -128,6 +131,18 @@ class ProjectFinanceTypeMappingViewSet(viewsets.ViewSet):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
+def _sprint_locked_response():
+    return Response({'error': 'This sprint is closed and locked. Ask an admin to unlock it.'}, status=status.HTTP_423_LOCKED)
+
+
+def _is_sprint_locked(sprint_id):
+    from apps.sprints.models import Sprint
+    try:
+        return Sprint.objects.filter(pk=sprint_id, is_closed=True).exists()
+    except Exception:
+        return False
+
+
 class BaseSprintImportViewSet(viewsets.ViewSet):
     """Shared logic for forecast and actuals import endpoints.
 
@@ -155,6 +170,8 @@ class BaseSprintImportViewSet(viewsets.ViewSet):
 
         if not sprint_id or not team_id:
             return Response({'error': 'sprint_id and team_id are required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if _is_sprint_locked(sprint_id):
+            return _sprint_locked_response()
         if not csv_file:
             return Response({'error': 'No file uploaded.'}, status=status.HTTP_400_BAD_REQUEST)
         if not csv_file.name.lower().endswith('.csv'):
@@ -210,6 +227,8 @@ class BaseSprintImportViewSet(viewsets.ViewSet):
             row = SprintImportRow.objects.get(pk=row_id, sprint_import=fi)
         except (SprintImport.DoesNotExist, SprintImportRow.DoesNotExist):
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if _is_sprint_locked(fi.sprint_id):
+            return _sprint_locked_response()
 
         for field in ('story_type_override', 'jira_id_override', 'title_override',
                       'assignee_raw_override', 'sprint_name_override'):
@@ -265,6 +284,8 @@ class BaseSprintImportViewSet(viewsets.ViewSet):
             fi = SprintImport.objects.get(pk=pk, import_type=self.import_type)
         except SprintImport.DoesNotExist:
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if _is_sprint_locked(fi.sprint_id):
+            return _sprint_locked_response()
 
         last_order = fi.rows.order_by('-order').values_list('order', flat=True).first() or 0
         data = request.data.copy()
@@ -285,6 +306,8 @@ class BaseSprintImportViewSet(viewsets.ViewSet):
             row = SprintImportRow.objects.get(pk=row_id, sprint_import=fi)
         except (SprintImport.DoesNotExist, SprintImportRow.DoesNotExist):
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if _is_sprint_locked(fi.sprint_id):
+            return _sprint_locked_response()
         row.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -310,6 +333,12 @@ class BaseSprintImportViewSet(viewsets.ViewSet):
 
     @action(detail=True, methods=['post'], url_path='confirm')
     def confirm(self, request, pk=None):
+        try:
+            fi = SprintImport.objects.get(pk=pk, import_type=self.import_type)
+        except SprintImport.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if _is_sprint_locked(fi.sprint_id):
+            return _sprint_locked_response()
         try:
             fi = ImportConfirmService.confirm(pk, user=request.user)
             return Response(SprintImportSerializer(fi).data)
@@ -375,6 +404,8 @@ class BaseSprintImportViewSet(viewsets.ViewSet):
         sprint_id = request.data.get('sprint_id')
         if not sprint_id:
             return Response({'error': 'sprint_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if _is_sprint_locked(sprint_id):
+            return _sprint_locked_response()
         override = request.data.get('override', False)
         override_notes = request.data.get('override_notes', '')
 
@@ -621,3 +652,29 @@ class SprintCompareViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.exception('Error running sprint compare: %s', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ProjectActualsViewSet(viewsets.ViewSet):
+
+    def list(self, request):
+        qs = ProjectActuals.objects.select_related(
+            'project', 'programme', 'label', 'assigned_team', 'last_updated_sprint',
+        ).prefetch_related('collaborators', 'sprint_actuals__sprint')
+
+        project_id = request.query_params.get('project_id')
+        programme_id = request.query_params.get('programme_id')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        if programme_id:
+            qs = qs.filter(programme_id=programme_id)
+
+        return Response(ProjectActualsSerializer(qs, many=True).data)
+
+    def retrieve(self, request, pk=None):
+        try:
+            obj = ProjectActuals.objects.select_related(
+                'project', 'programme', 'label', 'assigned_team', 'last_updated_sprint',
+            ).prefetch_related('collaborators', 'sprint_actuals__sprint').get(pk=pk)
+        except ProjectActuals.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ProjectActualsSerializer(obj).data)

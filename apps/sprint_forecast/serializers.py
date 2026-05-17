@@ -3,11 +3,16 @@ from rest_framework import serializers
 from .models import (
     ImportReview,
     ImportReviewResult,
+    ProjectActuals,
     ProjectFinanceType,
     ProjectFinanceTypeMapping,
+    ProjectSprintActual,
     Recharge,
     RechargeDetail,
     RechargeStory,
+    RISK_NEUTRAL,
+    RISK_WARNING,
+    RISK_RISK,
     SprintConfirmedRow,
     SprintImport,
     SprintImportReviewComplete,
@@ -248,3 +253,45 @@ class SprintImportReviewCompleteSerializer(serializers.ModelSerializer):
         if obj.completed_by:
             return obj.completed_by.get_full_name() or obj.completed_by.username
         return None
+
+
+class ProjectSprintActualSerializer(serializers.ModelSerializer):
+    sprint_name = serializers.CharField(source='sprint.sprint_name', read_only=True)
+    sprint_number = serializers.IntegerField(source='sprint.sprint_number', read_only=True)
+
+    class Meta:
+        model = ProjectSprintActual
+        fields = ['id', 'sprint', 'sprint_name', 'sprint_number', 'total_cost', 'total_days']
+
+
+class ProjectActualsSerializer(serializers.ModelSerializer):
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    programme_name = serializers.CharField(source='programme.name', read_only=True)
+    label_name = serializers.CharField(source='label.label', read_only=True)
+    assigned_team_name = serializers.CharField(source='assigned_team.name', read_only=True)
+    collaborator_names = serializers.SerializerMethodField()
+    sprint_actuals = ProjectSprintActualSerializer(many=True, read_only=True)
+    remaining_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
+    risk = serializers.CharField(read_only=True)
+    last_updated_sprint_name = serializers.CharField(source='last_updated_sprint.sprint_name', read_only=True)
+
+    class Meta:
+        model = ProjectActuals
+        fields = [
+            'id', 'project', 'project_name',
+            'programme', 'programme_name',
+            'label', 'label_name',
+            'code',
+            'assigned_team', 'assigned_team_name',
+            'collaborators', 'collaborator_names',
+            'estimate_value', 'estimate_value_with_contingency',
+            'sprint_actuals',
+            'total_cost_till_date',
+            'remaining_amount',
+            'risk',
+            'last_updated_sprint', 'last_updated_sprint_name',
+            'created_at', 'updated_at',
+        ]
+
+    def get_collaborator_names(self, obj):
+        return list(obj.collaborators.values_list('name', flat=True))

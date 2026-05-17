@@ -1,5 +1,8 @@
+from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import models
+
+User = get_user_model()
 
 
 class Sprint(models.Model):
@@ -59,6 +62,26 @@ class Sprint(models.Model):
         ),
     )
     notes = models.TextField(blank=True)
+    is_closed = models.BooleanField(
+        default=False,
+        help_text=(
+            "True when the sprint has been formally closed after both forecast "
+            "and actuals review are complete. Locks further import changes."
+        ),
+    )
+    closed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the sprint was closed.",
+    )
+    closed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='closed_sprints',
+        help_text="User who closed the sprint.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

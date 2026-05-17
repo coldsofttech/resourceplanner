@@ -54,3 +54,10 @@ class FinanceTypesPageView(View):
 
     def get(self, request, *args, **kwargs):
         return render(request, self.template_name)
+
+
+class ProjectActualsPageView(View):
+    template_name = 'sprint_forecast/project_actuals.html'
+
+    def get(self, request, *args, **kwargs):
+        return render(request, self.template_name)

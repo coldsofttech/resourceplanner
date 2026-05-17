@@ -30,6 +30,13 @@
 {% endblock %}
 
 {% block content %}
+{% if sprint.is_closed %}
+<div class="alert alert-danger mx-4 mt-3 mb-0 d-flex align-items-center gap-2" role="alert">
+    <i class="bi bi-lock-fill"></i>
+    <strong>Sprint Locked.</strong>&nbsp;This sprint is closed. No further changes can be made.
+    {% if request.user.is_staff %}<span class="ms-2 text-secondary small">Admins can unlock it from the sprint detail page.</span>{% endif %}
+</div>
+{% endif %}
 <div id="forecast-root">
     <div class="text-center text-secondary py-5" id="forecast-loading">
         <div class="spinner-border spinner-border-sm me-2"></div>{% block loading_text %}Loading…{% endblock %}
@@ -103,6 +110,7 @@
 <script>
     window.SPRINT_ID = {{ sprint.id }};
     window.SPRINT_NAME = "{{ sprint.sprint_name|escapejs }}";
+    window.SPRINT_CLOSED = {{ sprint.is_closed|yesno:"true,false" }};
 </script>
 {% block import_js %}{% endblock %}
 {% endblock %}

@@ -12,7 +12,10 @@ class SprintSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sprint
         fields = '__all__'
-        read_only_fields = ['month', 'created_at', 'updated_at', 'remaining_days', 'fy_long', 'fy_short']
+        read_only_fields = [
+            'month', 'created_at', 'updated_at', 'remaining_days',
+            'fy_long', 'fy_short', 'is_closed', 'closed_at', 'closed_by',
+        ]
 
     def get_remaining_days(self, obj) -> int | None:
         from django.utils import timezone

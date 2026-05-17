@@ -59,6 +59,14 @@ function _renderPage() {
     loading.style.display = 'none';
     teamsEl.style.display = '';
 
+    const sprintClosed = window.SPRINT_CLOSED === true;
+    const rcBtn = document.getElementById('review-complete-btn');
+
+    if (sprintClosed && rcBtn) {
+        rcBtn.disabled = true;
+        rcBtn.title = 'Sprint is closed and locked.';
+    }
+
     if (_reviewComplete) {
         document.getElementById('review-complete-badge').classList.remove('d-none');
         const by = _reviewComplete.completed_by_name || '';
@@ -66,8 +74,10 @@ function _renderPage() {
         document.getElementById('review-complete-info').textContent =
             `Completed${by ? ' by ' + by : ''} on ${at}`;
         document.getElementById('review-complete-info').classList.remove('d-none');
-        const hasAnyImports = _teams.some(ts => ts.has_imports);
-        document.getElementById('review-complete-btn').disabled = !hasAnyImports;
+        if (!sprintClosed) {
+            const hasAnyImports = _teams.some(ts => ts.has_imports);
+            if (rcBtn) rcBtn.disabled = !hasAnyImports;
+        }
     }
 
     teamsEl.innerHTML = _teams.map((ts, idx) => _renderTeamAccordion(ts, idx)).join('');

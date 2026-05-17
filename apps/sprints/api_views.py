@@ -321,6 +321,66 @@ class SprintViewSet(viewsets.ViewSet):
             logger.exception("Unexpected error in run_engine: %s", e)
             return Response({'error': 'An unexpected error occurred.'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+    # POST /sprints/<id>/close-sprint/
+    @action(detail=True, methods=['post'], url_path='close-sprint')
+    def close_sprint(self, request, pk=None):
+        """Close a sprint: requires both forecast and actuals review complete. Locks the sprint."""
+        try:
+            sprint = Sprint.objects.get(pk=pk)
+        except Sprint.DoesNotExist:
+            return Response({'error': 'Sprint not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if sprint.is_closed:
+            return Response({'error': 'Sprint is already closed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from apps.sprint_forecast.models import SprintImportReviewComplete, IMPORT_TYPE_FORECAST, IMPORT_TYPE_ACTUAL
+            forecast_rc = SprintImportReviewComplete.objects.filter(sprint_id=pk, import_type=IMPORT_TYPE_FORECAST).first()
+            actual_rc = SprintImportReviewComplete.objects.filter(sprint_id=pk, import_type=IMPORT_TYPE_ACTUAL).first()
+            if not forecast_rc:
+                return Response({'error': 'Forecast review has not been completed for this sprint.'}, status=status.HTTP_400_BAD_REQUEST)
+            if not actual_rc:
+                return Response({'error': 'Actuals review has not been completed for this sprint.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            from django.utils import timezone
+            sprint.is_closed = True
+            sprint.closed_at = timezone.now()
+            sprint.closed_by = request.user
+            sprint.save(update_fields=['is_closed', 'closed_at', 'closed_by'])
+
+            from apps.sprint_forecast.services import ProjectActualsService
+            ProjectActualsService.update_for_sprint(pk)
+
+            return Response(SprintSerializer(sprint).data, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception('Error closing sprint %s: %s', pk, e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # POST /sprints/<id>/unlock-sprint/
+    @action(detail=True, methods=['post'], url_path='unlock-sprint')
+    def unlock_sprint(self, request, pk=None):
+        """Unlock a closed sprint. Restricted to staff/admins."""
+        if not (request.user.is_staff or request.user.is_superuser):
+            return Response({'error': 'Only staff or admins can unlock a sprint.'}, status=status.HTTP_403_FORBIDDEN)
+
+        try:
+            sprint = Sprint.objects.get(pk=pk)
+        except Sprint.DoesNotExist:
+            return Response({'error': 'Sprint not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not sprint.is_closed:
+            return Response({'error': 'Sprint is not closed.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            sprint.is_closed = False
+            sprint.closed_at = None
+            sprint.closed_by = None
+            sprint.save(update_fields=['is_closed', 'closed_at', 'closed_by'])
+            return Response(SprintSerializer(sprint).data, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception('Error unlocking sprint %s: %s', pk, e)
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     # GET /sprints/<id>/capacity/
     @action(detail=True, methods=['get'], url_path='capacity')
     def capacity(self, request, pk=None):
