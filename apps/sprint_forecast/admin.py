@@ -1,18 +1,17 @@
 from django.contrib import admin
 
 from .models import (
-    ForecastImport,
-    ForecastImportRow,
-    ForecastReview,
-    ForecastReviewResult,
+    ImportReview,
+    ImportReviewResult,
     ProjectFinanceType,
     ProjectFinanceTypeMapping,
     Recharge,
     RechargeDetail,
     RechargeStory,
-    SprintActualReviewComplete,
-    SprintForecastReviewComplete,
-    SprintForecastRow,
+    SprintConfirmedRow,
+    SprintImport,
+    SprintImportReviewComplete,
+    SprintImportRow,
 )
 
 
@@ -29,45 +28,41 @@ class ProjectFinanceTypeMappingAdmin(admin.ModelAdmin):
     list_filter = ['finance_type']
 
 
-class ForecastImportRowInline(admin.TabularInline):
-    model = ForecastImportRow
+class SprintImportRowInline(admin.TabularInline):
+    model = SprintImportRow
     extra = 0
     fields = ['order', 'story_type', 'jira_id', 'title', 'assignee', 'efforts_ms', 'label', 'mapping', 'is_manually_added']
     readonly_fields = ['order']
 
 
-@admin.register(ForecastImport)
-class ForecastImportAdmin(admin.ModelAdmin):
-    list_display = ['sprint', 'team', 'version_number', 'status', 'imported_at', 'imported_by']
-    list_filter = ['status', 'sprint', 'team']
-    inlines = [ForecastImportRowInline]
+@admin.register(SprintImport)
+class SprintImportAdmin(admin.ModelAdmin):
+    list_display = ['sprint', 'team', 'import_type', 'version_number', 'status', 'imported_at', 'imported_by']
+    list_filter = ['import_type', 'status', 'sprint', 'team']
+    inlines = [SprintImportRowInline]
 
 
-@admin.register(ForecastReview)
-class ForecastReviewAdmin(admin.ModelAdmin):
-    list_display = ['forecast_import', 'reviewed_at', 'reviewed_by']
+@admin.register(ImportReview)
+class ImportReviewAdmin(admin.ModelAdmin):
+    list_display = ['sprint_import', 'reviewed_at', 'reviewed_by']
 
 
-@admin.register(ForecastReviewResult)
-class ForecastReviewResultAdmin(admin.ModelAdmin):
+@admin.register(ImportReviewResult)
+class ImportReviewResultAdmin(admin.ModelAdmin):
     list_display = ['review', 'row', 'check_type', 'status', 'message']
     list_filter = ['check_type', 'status']
 
 
-@admin.register(SprintForecastRow)
-class SprintForecastRowAdmin(admin.ModelAdmin):
-    list_display = ['sprint', 'team', 'jira_id', 'title', 'assignee', 'days', 'mapping', 'is_override']
-    list_filter = ['sprint', 'team', 'is_override']
+@admin.register(SprintConfirmedRow)
+class SprintConfirmedRowAdmin(admin.ModelAdmin):
+    list_display = ['sprint', 'team', 'import_type', 'jira_id', 'title', 'assignee', 'days', 'mapping', 'is_override']
+    list_filter = ['sprint', 'team', 'import_type', 'is_override']
 
 
-@admin.register(SprintForecastReviewComplete)
-class SprintForecastReviewCompleteAdmin(admin.ModelAdmin):
-    list_display = ['sprint', 'completed_at', 'completed_by', 'override_applied']
-
-
-@admin.register(SprintActualReviewComplete)
-class SprintActualReviewCompleteAdmin(admin.ModelAdmin):
-    list_display = ['sprint', 'completed_at', 'completed_by', 'override_applied']
+@admin.register(SprintImportReviewComplete)
+class SprintImportReviewCompleteAdmin(admin.ModelAdmin):
+    list_display = ['sprint', 'import_type', 'completed_at', 'completed_by', 'override_applied']
+    list_filter = ['import_type']
 
 
 @admin.register(RechargeDetail)

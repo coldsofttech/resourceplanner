@@ -7,7 +7,9 @@
 <div class="rp-page-header px-4 pt-4 pb-3">
     <div class="d-flex align-items-start align-items-md-center justify-content-between flex-wrap gap-3">
         <div class="d-flex align-items-center gap-3">
-            <a href="/sprints/{{ sprint.id }}/forecast/" class="btn btn-ghost-icon" title="Back to Forecast">
+            <a href="/sprints/{{ sprint.id }}/{% if import_type == 'ACTUAL' %}actuals{% else %}forecast{% endif %}/"
+               class="btn btn-ghost-icon"
+               title="Back to {% if import_type == 'ACTUAL' %}Actuals{% else %}Forecast{% endif %}">
                 <i class="bi bi-arrow-left"></i>
             </a>
             <div>
@@ -116,6 +118,7 @@
 <script>
     window.SPRINT_ID = {{ sprint.id }};
     window.IMPORT_ID = {{ forecast_import.id }};
+    window.IMPORT_TYPE = "{{ import_type }}";
 </script>
 <script type="module" src="{% static 'js/modules/import_detail.js' %}"></script>
 {% endblock %}

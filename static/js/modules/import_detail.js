@@ -5,6 +5,8 @@ import { apiFetch, showFlash, getCsrfToken } from '../main.js';
 
 const SPRINT_ID = window.SPRINT_ID;
 const IMPORT_ID = window.IMPORT_ID;
+const IMPORT_TYPE = window.IMPORT_TYPE || 'FORECAST';
+const _apiNs = IMPORT_TYPE === 'ACTUAL' ? API_URLS.sprint_actuals : API_URLS.sprint_forecast;
 
 let _currentRows = [];
 let _memberCapacities = {};
@@ -30,9 +32,9 @@ async function _loadFinanceTypes() {
 async function _loadAll() {
     try {
         const [fi, rowsResp, labelsData] = await Promise.all([
-            apiFetch(API_URLS.sprint_forecast.detail(IMPORT_ID).href),
-            apiFetch(API_URLS.sprint_forecast.rows(IMPORT_ID).href),
-            apiFetch(API_URLS.sprint_forecast.labels_options.href).catch(() => []),
+            apiFetch(_apiNs.detail(IMPORT_ID).href),
+            apiFetch(_apiNs.rows(IMPORT_ID).href),
+            apiFetch(_apiNs.labels_options.href).catch(() => []),
         ]);
         _currentRows = rowsResp.rows || [];
         _memberCapacities = rowsResp.member_capacities || {};
@@ -66,17 +68,21 @@ function _renderHeader(fi) {
     document.getElementById('import-meta').textContent =
         `Imported by ${by} on ${at} · ${fi.row_count} rows`;
 
-    const summaryEl = document.getElementById('review-summary');
     if (fi.latest_review) {
         const r = fi.latest_review;
-        const cls = r.error_count > 0 ? 'alert-danger' : 'alert-success';
-        const icon = r.error_count > 0 ? 'bi-exclamation-triangle' : 'bi-check-circle';
-        summaryEl.innerHTML = `<i class="bi ${icon} me-2"></i>Last review: ${r.error_count} error(s), ${r.pass_count} pass(es)`;
-        summaryEl.className = `alert ${cls} py-2 mb-4`;
-        summaryEl.classList.remove('d-none');
+        _renderReviewSummary(r.error_count, r.pass_count);
     } else {
-        summaryEl.classList.add('d-none');
+        document.getElementById('review-summary').classList.add('d-none');
     }
+}
+
+function _renderReviewSummary(errorCount, passCount) {
+    const summaryEl = document.getElementById('review-summary');
+    const cls = errorCount > 0 ? 'alert-danger' : 'alert-success';
+    const icon = errorCount > 0 ? 'bi-exclamation-triangle' : 'bi-check-circle';
+    summaryEl.innerHTML = `<i class="bi ${icon} me-2"></i>Last review: ${errorCount} error(s), ${passCount} pass(es)`;
+    summaryEl.className = `alert ${cls} py-2 mb-4`;
+    summaryEl.classList.remove('d-none');
 }
 
 // ── Rows tab ─────────────────────────────────────────────────────────────────
@@ -281,14 +287,14 @@ async function _saveRowEdit(rowId, editEl) {
 
     try {
         const updated = await apiFetch(
-            API_URLS.sprint_forecast.update_row(IMPORT_ID, rowId).href,
+            _apiNs.update_row(IMPORT_ID, rowId).href,
             { method: 'PATCH', body: JSON.stringify(patch) },
         );
         const idx = _currentRows.findIndex(r => r.id === rowId);
         if (idx >= 0) _currentRows[idx] = updated;
         editEl.remove();
 
-        const fi = await apiFetch(API_URLS.sprint_forecast.detail(IMPORT_ID).href);
+        const fi = await apiFetch(_apiNs.detail(IMPORT_ID).href);
         _renderHeader(fi);
         _renderRows(_currentRows);
         _renderCapacityPivot(_currentRows);
@@ -307,7 +313,7 @@ async function _addRow() {
     };
     try {
         const row = await apiFetch(
-            API_URLS.sprint_forecast.add_row(IMPORT_ID).href,
+            _apiNs.add_row(IMPORT_ID).href,
             { method: 'POST', body: JSON.stringify(payload) },
         );
         _currentRows.push(row);
@@ -327,23 +333,26 @@ async function _runReview() {
     btn.innerHTML = '<div class="spinner-border spinner-border-sm me-1"></div>Reviewing…';
     try {
         const review = await apiFetch(
-            API_URLS.sprint_forecast.review(IMPORT_ID).href,
+            _apiNs.review(IMPORT_ID).href,
             { method: 'POST', body: '{}' },
         );
         const errorCount = review.results.filter(r => r.status === 'error').length;
+        const passCount = review.results.filter(r => r.status === 'pass').length;
         showFlash(
             `Review complete: ${errorCount} error(s).`,
             errorCount > 0 ? 'warning' : 'success',
         );
         const [fi, rowsResp] = await Promise.all([
-            apiFetch(API_URLS.sprint_forecast.detail(IMPORT_ID).href),
-            apiFetch(API_URLS.sprint_forecast.rows(IMPORT_ID).href),
+            apiFetch(_apiNs.detail(IMPORT_ID).href),
+            apiFetch(_apiNs.rows(IMPORT_ID).href),
         ]);
         _currentRows = rowsResp.rows || [];
         _memberCapacities = rowsResp.member_capacities || {};
         _renderHeader(fi);
         _renderRows(_currentRows);
         _renderCapacityPivot(_currentRows);
+        // Update summary from the review response directly — always reflects the latest run
+        _renderReviewSummary(errorCount, passCount);
     } catch (e) {
         showFlash(e.data?.error || 'Review failed.', 'danger');
     } finally {
@@ -358,11 +367,11 @@ async function _confirmImport() {
     btn.innerHTML = '<div class="spinner-border spinner-border-sm me-1"></div>Confirming…';
     try {
         await apiFetch(
-            API_URLS.sprint_forecast.confirm(IMPORT_ID).href,
+            _apiNs.confirm(IMPORT_ID).href,
             { method: 'POST', body: '{}' },
         );
         showFlash('Version confirmed.', 'success');
-        const fi = await apiFetch(API_URLS.sprint_forecast.detail(IMPORT_ID).href);
+        const fi = await apiFetch(_apiNs.detail(IMPORT_ID).href);
         btn.innerHTML = '<i class="bi bi-check-circle me-1"></i>Confirm';
         _renderHeader(fi);
     } catch (e) {

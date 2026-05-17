@@ -886,9 +886,26 @@ export const API_URLS = {
         reviews: (id) => ({ method: 'GET', href: `${API_BASE}sprint-forecast/${id}/reviews/` }),
         confirm: (id) => ({ method: 'POST', href: `${API_BASE}sprint-forecast/${id}/confirm/` }),
         labels_options: { method: 'GET', href: `${API_BASE}sprint-forecast/labels-options/` },
-        sprint_status: (sprintId, importType) => ({ method: 'GET', href: `${API_BASE}sprint-forecast/sprint-status/?sprint_id=${sprintId}${importType ? '&import_type=' + importType : ''}` }),
-        review_warnings: (sprintId, importType) => ({ method: 'GET', href: `${API_BASE}sprint-forecast/review-warnings/?sprint_id=${sprintId}${importType ? '&import_type=' + importType : ''}` }),
+        sprint_status: (sprintId) => ({ method: 'GET', href: `${API_BASE}sprint-forecast/sprint-status/?sprint_id=${sprintId}` }),
+        review_warnings: (sprintId) => ({ method: 'GET', href: `${API_BASE}sprint-forecast/review-warnings/?sprint_id=${sprintId}` }),
         review_complete: { method: 'POST', href: `${API_BASE}sprint-forecast/review-complete/` },
+    },
+
+    sprint_actuals: {
+        list: { method: 'GET', href: `${API_BASE}sprint-actuals/` },
+        import: { method: 'POST', href: `${API_BASE}sprint-actuals/` },
+        detail: (id) => ({ method: 'GET', href: `${API_BASE}sprint-actuals/${id}/` }),
+        rows: (id) => ({ method: 'GET', href: `${API_BASE}sprint-actuals/${id}/rows/` }),
+        update_row: (importId, rowId) => ({ method: 'PATCH', href: `${API_BASE}sprint-actuals/${importId}/rows/${rowId}/` }),
+        add_row: (importId) => ({ method: 'POST', href: `${API_BASE}sprint-actuals/${importId}/add-row/` }),
+        delete_row: (importId, rowId) => ({ method: 'DELETE', href: `${API_BASE}sprint-actuals/${importId}/rows/${rowId}/delete/` }),
+        review: (id) => ({ method: 'POST', href: `${API_BASE}sprint-actuals/${id}/review/` }),
+        reviews: (id) => ({ method: 'GET', href: `${API_BASE}sprint-actuals/${id}/reviews/` }),
+        confirm: (id) => ({ method: 'POST', href: `${API_BASE}sprint-actuals/${id}/confirm/` }),
+        labels_options: { method: 'GET', href: `${API_BASE}sprint-actuals/labels-options/` },
+        sprint_status: (sprintId) => ({ method: 'GET', href: `${API_BASE}sprint-actuals/sprint-status/?sprint_id=${sprintId}` }),
+        review_warnings: (sprintId) => ({ method: 'GET', href: `${API_BASE}sprint-actuals/review-warnings/?sprint_id=${sprintId}` }),
+        review_complete: { method: 'POST', href: `${API_BASE}sprint-actuals/review-complete/` },
     },
 
     recharges: {

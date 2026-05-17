@@ -1,18 +1,17 @@
 from rest_framework import serializers
 
 from .models import (
-    ForecastImport,
-    ForecastImportRow,
-    ForecastReview,
-    ForecastReviewResult,
+    ImportReview,
+    ImportReviewResult,
     ProjectFinanceType,
     ProjectFinanceTypeMapping,
     Recharge,
     RechargeDetail,
     RechargeStory,
-    SprintActualReviewComplete,
-    SprintForecastReviewComplete,
-    SprintForecastRow,
+    SprintConfirmedRow,
+    SprintImport,
+    SprintImportReviewComplete,
+    SprintImportRow,
 )
 
 
@@ -38,19 +37,19 @@ class ProjectFinanceTypeMappingSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
-class ForecastReviewResultSerializer(serializers.ModelSerializer):
+class ImportReviewResultSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ForecastReviewResult
+        model = ImportReviewResult
         fields = ['id', 'row', 'check_type', 'status', 'message']
 
 
-class ForecastReviewSerializer(serializers.ModelSerializer):
-    results = ForecastReviewResultSerializer(many=True, read_only=True)
+class ImportReviewSerializer(serializers.ModelSerializer):
+    results = ImportReviewResultSerializer(many=True, read_only=True)
     reviewed_by_name = serializers.SerializerMethodField()
 
     class Meta:
-        model = ForecastReview
-        fields = ['id', 'forecast_import', 'reviewed_at', 'reviewed_by', 'reviewed_by_name', 'results']
+        model = ImportReview
+        fields = ['id', 'sprint_import', 'reviewed_at', 'reviewed_by', 'reviewed_by_name', 'results']
 
     def get_reviewed_by_name(self, obj):
         if obj.reviewed_by:
@@ -58,7 +57,7 @@ class ForecastReviewSerializer(serializers.ModelSerializer):
         return None
 
 
-class ForecastImportRowSerializer(serializers.ModelSerializer):
+class SprintImportRowSerializer(serializers.ModelSerializer):
     days = serializers.SerializerMethodField()
     effective_story_type = serializers.CharField(read_only=True)
     effective_jira_id = serializers.CharField(read_only=True)
@@ -76,9 +75,9 @@ class ForecastImportRowSerializer(serializers.ModelSerializer):
     latest_review_results = serializers.SerializerMethodField()
 
     class Meta:
-        model = ForecastImportRow
+        model = SprintImportRow
         fields = [
-            'id', 'forecast_import', 'order', 'is_manually_added',
+            'id', 'sprint_import', 'order', 'is_manually_added',
             'story_type', 'jira_id', 'title', 'assignee_raw', 'assignee',
             'efforts_ms', 'sprint_name', 'label_raw', 'label', 'mapping_raw', 'mapping',
             'story_type_override', 'jira_id_override', 'title_override',
@@ -123,19 +122,19 @@ class ForecastImportRowSerializer(serializers.ModelSerializer):
 
     def get_latest_review_results(self, obj):
         results = list(obj.review_results.order_by('-review__reviewed_at')[:3])
-        return ForecastReviewResultSerializer(results, many=True).data
+        return ImportReviewResultSerializer(results, many=True).data
 
 
-class ForecastImportSerializer(serializers.ModelSerializer):
+class SprintImportSerializer(serializers.ModelSerializer):
     team_name = serializers.CharField(source='team.name', read_only=True)
     imported_by_name = serializers.SerializerMethodField()
     row_count = serializers.SerializerMethodField()
     latest_review = serializers.SerializerMethodField()
 
     class Meta:
-        model = ForecastImport
+        model = SprintImport
         fields = [
-            'id', 'sprint', 'team', 'team_name', 'version_number',
+            'id', 'sprint', 'team', 'team_name', 'import_type', 'version_number',
             'status', 'imported_at', 'imported_by', 'imported_by_name',
             'row_count', 'latest_review',
         ]
@@ -163,15 +162,15 @@ class ForecastImportSerializer(serializers.ModelSerializer):
         }
 
 
-class SprintForecastRowSerializer(serializers.ModelSerializer):
+class SprintConfirmedRowSerializer(serializers.ModelSerializer):
     assignee_name = serializers.CharField(source='assignee.display_name', read_only=True)
     label_name = serializers.CharField(source='label.label', read_only=True)
     mapping_code = serializers.CharField(source='mapping.code', read_only=True)
 
     class Meta:
-        model = SprintForecastRow
+        model = SprintConfirmedRow
         fields = [
-            'id', 'sprint', 'team', 'forecast_import',
+            'id', 'sprint', 'team', 'sprint_import', 'import_type',
             'story_type', 'jira_id', 'title',
             'assignee', 'assignee_name', 'assignee_raw',
             'efforts_ms', 'days', 'sprint_name',
@@ -198,7 +197,7 @@ class RechargeDetailSerializer(serializers.ModelSerializer):
             'project', 'project_name',
             'label', 'label_name',
             'type', 'total_days', 'total_cost',
-            'forecast_import', 'created_at', 'updated_at',
+            'sprint_import', 'created_at', 'updated_at',
         ]
 
 
@@ -235,29 +234,13 @@ class RechargeSerializer(serializers.ModelSerializer):
         return list(obj.project_contacts.select_related('contact').values_list('contact__email', flat=True))
 
 
-class SprintForecastReviewCompleteSerializer(serializers.ModelSerializer):
+class SprintImportReviewCompleteSerializer(serializers.ModelSerializer):
     completed_by_name = serializers.SerializerMethodField()
 
     class Meta:
-        model = SprintForecastReviewComplete
+        model = SprintImportReviewComplete
         fields = [
-            'id', 'sprint', 'completed_at', 'completed_by', 'completed_by_name',
-            'override_applied', 'override_notes',
-        ]
-
-    def get_completed_by_name(self, obj):
-        if obj.completed_by:
-            return obj.completed_by.get_full_name() or obj.completed_by.username
-        return None
-
-
-class SprintActualReviewCompleteSerializer(serializers.ModelSerializer):
-    completed_by_name = serializers.SerializerMethodField()
-
-    class Meta:
-        model = SprintActualReviewComplete
-        fields = [
-            'id', 'sprint', 'completed_at', 'completed_by', 'completed_by_name',
+            'id', 'sprint', 'import_type', 'completed_at', 'completed_by', 'completed_by_name',
             'override_applied', 'override_notes',
         ]
 

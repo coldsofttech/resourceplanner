@@ -23,18 +23,17 @@ from .models import (
     CHECK_CAPACITY,
     CHECK_PASS,
     CHECK_ERROR,
-    ForecastImport,
-    ForecastImportRow,
-    ForecastReview,
-    ForecastReviewResult,
+    SprintImport,
+    SprintImportRow,
+    ImportReview,
+    ImportReviewResult,
     ProjectFinanceType,
     ProjectFinanceTypeMapping,
     Recharge,
     RechargeDetail,
     RechargeStory,
-    SprintForecastReviewComplete,
-    SprintActualReviewComplete,
-    SprintForecastRow,
+    SprintImportReviewComplete,
+    SprintConfirmedRow,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,11 +105,11 @@ def _match_finance_type(raw):
     return ProjectFinanceType.objects.filter(code__iexact=raw.strip().upper()).first()
 
 
-class ForecastImportService:
+class SprintImportService:
 
     @staticmethod
     def get_next_version(sprint_id, team_id, import_type=IMPORT_TYPE_FORECAST):
-        last = ForecastImport.objects.filter(
+        last = SprintImport.objects.filter(
             sprint_id=sprint_id, team_id=team_id, import_type=import_type
         ).order_by('-version_number').first()
         return (last.version_number + 1) if last else 1
@@ -118,26 +117,21 @@ class ForecastImportService:
     @staticmethod
     @transaction.atomic
     def import_csv(sprint_id, team_id, csv_file, user=None, import_type=IMPORT_TYPE_FORECAST):
-        """
-        Parse CSV, supersede previous active/confirmed import for this team,
-        create new ForecastImport + ForecastImportRow records.
-        """
-        version = ForecastImportService.get_next_version(sprint_id, team_id, import_type)
+        """Parse CSV, supersede previous active/confirmed import, create new SprintImport + SprintImportRow records."""
+        version = SprintImportService.get_next_version(sprint_id, team_id, import_type)
 
-        ForecastImport.objects.filter(
+        SprintImport.objects.filter(
             sprint_id=sprint_id,
             team_id=team_id,
             import_type=import_type,
             status__in=[IMPORT_STATUS_ACTIVE, IMPORT_STATUS_CONFIRMED],
         ).update(status=IMPORT_STATUS_SUPERSEDED)
-        # Clean up any confirmed data for this team so the new import starts fresh
-        SprintForecastRow.objects.filter(sprint_id=sprint_id, team_id=team_id, import_type=import_type).delete()
-        recharge_type = RECHARGE_TYPE_ACTUAL if import_type == IMPORT_TYPE_ACTUAL else RECHARGE_TYPE_FORECAST
-        RechargeDetail.objects.filter(
-            sprint_id=sprint_id, team_id=team_id, type=recharge_type,
-        ).delete()
 
-        forecast_import = ForecastImport.objects.create(
+        recharge_type = RECHARGE_TYPE_ACTUAL if import_type == IMPORT_TYPE_ACTUAL else RECHARGE_TYPE_FORECAST
+        SprintConfirmedRow.objects.filter(sprint_id=sprint_id, team_id=team_id, import_type=import_type).delete()
+        RechargeDetail.objects.filter(sprint_id=sprint_id, team_id=team_id, type=recharge_type).delete()
+
+        sprint_import = SprintImport.objects.create(
             sprint_id=sprint_id,
             team_id=team_id,
             version_number=version,
@@ -161,10 +155,9 @@ class ForecastImportService:
             jira_id = raw.get('jira_id', raw.get('jira', ''))
             title = raw.get('title_description', raw.get('title', raw.get('description', '')))
             assignee_raw = raw.get('assignee', '')
-            # "Efforts (s)" → efforts_s after normalization; "Efforts (ms)" → efforts_ms
             if 'efforts_s' in raw:
                 efforts_str = raw['efforts_s']
-                efforts_scale = 1000  # seconds → ms
+                efforts_scale = 1000
             else:
                 efforts_str = raw.get('efforts_ms', raw.get('efforts', '0'))
                 efforts_scale = 1
@@ -181,8 +174,8 @@ class ForecastImportService:
             label = _match_label(label_raw)
             mapping = _match_finance_type(mapping_raw)
 
-            rows.append(ForecastImportRow(
-                forecast_import=forecast_import,
+            rows.append(SprintImportRow(
+                sprint_import=sprint_import,
                 order=order,
                 story_type=story_type,
                 jira_id=jira_id,
@@ -197,14 +190,16 @@ class ForecastImportService:
                 mapping=mapping,
             ))
 
-        ForecastImportRow.objects.bulk_create(rows)
-        return forecast_import
+        SprintImportRow.objects.bulk_create(rows)
+        return sprint_import
 
     @staticmethod
-    def list_imports(sprint_id, team_id=None):
-        qs = ForecastImport.objects.filter(sprint_id=sprint_id).select_related('team', 'imported_by')
+    def list_imports(sprint_id, team_id=None, import_type=None):
+        qs = SprintImport.objects.filter(sprint_id=sprint_id).select_related('team', 'imported_by')
         if team_id:
             qs = qs.filter(team_id=team_id)
+        if import_type:
+            qs = qs.filter(import_type=import_type)
         return qs.order_by('team__name', 'version_number')
 
     @staticmethod
@@ -214,7 +209,7 @@ class ForecastImportService:
         teams = DeliveryTeam.objects.filter(is_active=True).order_by('name')
         result = []
         for team in teams:
-            imports = ForecastImport.objects.filter(sprint_id=sprint_id, team_id=team.id, import_type=import_type)
+            imports = SprintImport.objects.filter(sprint_id=sprint_id, team_id=team.id, import_type=import_type)
             latest = imports.order_by('-version_number').first()
             has_imports = latest is not None
             confirmed = has_imports and latest.status == IMPORT_STATUS_CONFIRMED
@@ -228,32 +223,28 @@ class ForecastImportService:
         return result
 
 
-class ForecastReviewService:
+class ImportReviewService:
 
     @staticmethod
     @transaction.atomic
-    def run_review(forecast_import_id, user=None):
-        """Run all three checks against the rows of a ForecastImport."""
-        fi = ForecastImport.objects.select_related('sprint').get(pk=forecast_import_id)
-        rows = list(fi.rows.select_related(
+    def run_review(sprint_import_id, user=None):
+        """Run all three checks against the rows of a SprintImport."""
+        si = SprintImport.objects.select_related('sprint').get(pk=sprint_import_id)
+        rows = list(si.rows.select_related(
             'assignee', 'assignee_override',
             'label', 'label_override',
             'mapping', 'mapping_override',
         ).order_by('order'))
 
-        review = ForecastReview.objects.create(forecast_import=fi, reviewed_by=user)
+        review = ImportReview.objects.create(sprint_import=si, reviewed_by=user)
         results = []
 
-        # Collect all valid label codes globally
         valid_labels = set(ProjectLabel.objects.values_list('label', flat=True))
-        # Collect valid finance-type mappings: {project_type_id: set(finance_type_id)}
         ft_map = {}
         for ftm in ProjectFinanceTypeMapping.objects.select_related('finance_type'):
             ft_map.setdefault(ftm.project_type_id, set()).add(ftm.finance_type_id)
-        # Finance type lookup by id for building helpful error messages
         ft_by_id = {ft.id: ft for ft in ProjectFinanceType.objects.all()}
 
-        # Per-assignee days accumulator for capacity check
         member_days = {}
         hours_per_day = _get_hours_per_day()
 
@@ -265,14 +256,14 @@ class ForecastReviewService:
 
             # ── Check 1: label exists globally ───────────────────────────────
             if eff_label and eff_label.label in valid_labels:
-                results.append(ForecastReviewResult(
+                results.append(ImportReviewResult(
                     review=review, row=row,
                     check_type=CHECK_LABEL, status=CHECK_PASS,
                     message='',
                 ))
             else:
                 raw = row.label_override if row.label_override else row.label_raw
-                results.append(ForecastReviewResult(
+                results.append(ImportReviewResult(
                     review=review, row=row,
                     check_type=CHECK_LABEL, status=CHECK_ERROR,
                     message=f'Label "{raw}" not found in any project labels.',
@@ -281,19 +272,19 @@ class ForecastReviewService:
             # ── Check 2: mapping valid for project type ───────────────────────
             raw_mapping_code = (row.mapping_override.code if row.mapping_override else row.mapping_raw) or ''
             if not eff_mapping:
-                results.append(ForecastReviewResult(
+                results.append(ImportReviewResult(
                     review=review, row=row,
                     check_type=CHECK_MAPPING, status=CHECK_ERROR,
                     message=f'Finance type "{raw_mapping_code}" not found. Add it at Finance Types settings.',
                 ))
             elif not (eff_label and eff_label.project):
-                results.append(ForecastReviewResult(
+                results.append(ImportReviewResult(
                     review=review, row=row,
                     check_type=CHECK_MAPPING, status=CHECK_ERROR,
                     message='Label is not linked to a project; cannot validate mapping.',
                 ))
             elif not eff_label.project.project_type_id:
-                results.append(ForecastReviewResult(
+                results.append(ImportReviewResult(
                     review=review, row=row,
                     check_type=CHECK_MAPPING, status=CHECK_ERROR,
                     message=f'Project "{eff_label.project.name}" has no Project Type assigned.',
@@ -302,7 +293,7 @@ class ForecastReviewService:
                 pt_id = eff_label.project.project_type_id
                 allowed = ft_map.get(pt_id, set())
                 if eff_mapping.id in allowed:
-                    results.append(ForecastReviewResult(
+                    results.append(ImportReviewResult(
                         review=review, row=row,
                         check_type=CHECK_MAPPING, status=CHECK_PASS,
                         message='',
@@ -312,7 +303,7 @@ class ForecastReviewService:
                         ft_by_id[fid].code for fid in allowed if fid in ft_by_id
                     )
                     expected = ', '.join(allowed_codes) if allowed_codes else '(none configured)'
-                    results.append(ForecastReviewResult(
+                    results.append(ImportReviewResult(
                         review=review, row=row,
                         check_type=CHECK_MAPPING, status=CHECK_ERROR,
                         message=f'Finance type should be "{expected}" for project "{eff_label.project.name}".',
@@ -321,7 +312,7 @@ class ForecastReviewService:
             # ── Jira ID required (unless mapping is HOLIDAY) ──────────────────
             mapping_code = eff_mapping.code if eff_mapping else ''
             if mapping_code != 'HOLIDAY' and not eff_jira_id:
-                results.append(ForecastReviewResult(
+                results.append(ImportReviewResult(
                     review=review, row=row,
                     check_type=CHECK_LABEL, status=CHECK_ERROR,
                     message='Jira ID is required for non-HOLIDAY rows.',
@@ -336,7 +327,7 @@ class ForecastReviewService:
         # ── Check 3: per-engineer capacity ────────────────────────────────────
         sprint_capacities = {
             sc.team_member_id: sc.net_capacity
-            for sc in SprintCapacity.objects.filter(sprint_id=fi.sprint_id)
+            for sc in SprintCapacity.objects.filter(sprint_id=si.sprint_id)
         }
 
         capacity_results_by_member = {}
@@ -354,7 +345,6 @@ class ForecastReviewService:
                 )
             capacity_results_by_member[member_id] = (status, msg)
 
-        # Attach capacity result to each row based on its assignee
         for row in rows:
             eff_assignee = row.effective_assignee
             if eff_assignee and eff_assignee.id in capacity_results_by_member:
@@ -363,31 +353,31 @@ class ForecastReviewService:
                 st, msg = CHECK_ERROR, f'{eff_assignee.display_name}: no sprint capacity record found.'
             else:
                 st, msg = CHECK_ERROR, 'Assignee not matched to a team member.'
-            results.append(ForecastReviewResult(
+            results.append(ImportReviewResult(
                 review=review, row=row,
                 check_type=CHECK_CAPACITY, status=st, message=msg,
             ))
 
-        ForecastReviewResult.objects.bulk_create(results)
+        ImportReviewResult.objects.bulk_create(results)
         return review
 
 
-class ForecastConfirmService:
+class ImportConfirmService:
 
     @staticmethod
     @transaction.atomic
-    def confirm(forecast_import_id, user=None):
+    def confirm(sprint_import_id, user=None):
         """
         Confirm a version:
         - Reject if no review has been run or any label/mapping check is failing
         - Mark import as confirmed
-        - Delete any previously confirmed rows for this sprint+team
-        - Write SprintForecastRow records
+        - Delete any previously confirmed rows for this sprint+team+type
+        - Write SprintConfirmedRow records
         - Write RechargeDetail records
         """
-        fi = ForecastImport.objects.select_related('sprint', 'team').get(pk=forecast_import_id)
+        si = SprintImport.objects.select_related('sprint', 'team').get(pk=sprint_import_id)
 
-        latest_review = fi.reviews.order_by('-reviewed_at').first()
+        latest_review = si.reviews.order_by('-reviewed_at').first()
         if not latest_review:
             raise ValueError('No review has been run. Run a review before confirming.')
 
@@ -402,33 +392,29 @@ class ForecastConfirmService:
             )
         hours_per_day = _get_hours_per_day()
         price = Decimal(str(_get_sprint_point_price()))
+        recharge_type = RECHARGE_TYPE_ACTUAL if si.import_type == IMPORT_TYPE_ACTUAL else RECHARGE_TYPE_FORECAST
 
-        fi.status = IMPORT_STATUS_CONFIRMED
-        fi.save(update_fields=['status'])
+        si.status = IMPORT_STATUS_CONFIRMED
+        si.save(update_fields=['status'])
 
-        recharge_type = RECHARGE_TYPE_ACTUAL if fi.import_type == IMPORT_TYPE_ACTUAL else RECHARGE_TYPE_FORECAST
-        SprintForecastRow.objects.filter(sprint_id=fi.sprint_id, team_id=fi.team_id, import_type=fi.import_type).delete()
-        RechargeDetail.objects.filter(
-            sprint_id=fi.sprint_id,
-            team_id=fi.team_id,
-            type=recharge_type,
-        ).delete()
+        SprintConfirmedRow.objects.filter(sprint_id=si.sprint_id, team_id=si.team_id, import_type=si.import_type).delete()
+        RechargeDetail.objects.filter(sprint_id=si.sprint_id, team_id=si.team_id, type=recharge_type).delete()
 
-        rows = list(fi.rows.select_related(
+        rows = list(si.rows.select_related(
             'assignee', 'assignee_override',
-            'label', 'label__project__programme',
+            'label__project__programme',
             'label_override', 'label_override__project__programme',
             'mapping', 'mapping_override',
         ).order_by('order'))
 
-        forecast_rows = []
+        confirmed_rows = []
         for row in rows:
             days = row.compute_days(hours_per_day)
-            forecast_rows.append(SprintForecastRow(
-                sprint_id=fi.sprint_id,
-                team_id=fi.team_id,
-                forecast_import=fi,
-                import_type=fi.import_type,
+            confirmed_rows.append(SprintConfirmedRow(
+                sprint_id=si.sprint_id,
+                team_id=si.team_id,
+                sprint_import=si,
+                import_type=si.import_type,
                 story_type=row.effective_story_type,
                 jira_id=row.effective_jira_id,
                 title=row.effective_title,
@@ -443,7 +429,7 @@ class ForecastConfirmService:
                 mapping_raw=row.mapping_override.code if row.mapping_override else row.mapping_raw,
                 is_override=row.has_overrides,
             ))
-        SprintForecastRow.objects.bulk_create(forecast_rows)
+        SprintConfirmedRow.objects.bulk_create(confirmed_rows)
 
         # Build RechargeDetail: group by (assignee, project, programme, label)
         detail_map = {}
@@ -476,8 +462,8 @@ class ForecastConfirmService:
         details = []
         for info in detail_map.values():
             details.append(RechargeDetail(
-                sprint_id=fi.sprint_id,
-                team_id=fi.team_id,
+                sprint_id=si.sprint_id,
+                team_id=si.team_id,
                 assignee=info['assignee'],
                 programme=info['programme'],
                 project=info['project'],
@@ -485,14 +471,14 @@ class ForecastConfirmService:
                 type=recharge_type,
                 total_days=info['total_days'],
                 total_cost=info['total_cost'],
-                forecast_import=fi,
+                sprint_import=si,
             ))
         RechargeDetail.objects.bulk_create(details)
 
-        return fi
+        return si
 
 
-class ForecastReviewCompleteService:
+class ImportReviewCompleteService:
 
     @staticmethod
     def check_warnings(sprint_id, import_type=IMPORT_TYPE_FORECAST):
@@ -507,15 +493,14 @@ class ForecastReviewCompleteService:
         warnings = []
 
         for team in teams:
-            imports = ForecastImport.objects.filter(sprint_id=sprint_id, team_id=team.id, import_type=import_type)
+            imports = SprintImport.objects.filter(sprint_id=sprint_id, team_id=team.id, import_type=import_type)
             if not imports.exists():
                 warnings.append(f'Team "{team.name}" has no {label} imports.')
                 continue
             if not imports.filter(status=IMPORT_STATUS_CONFIRMED).exists():
                 warnings.append(f'Team "{team.name}" has no confirmed {label} import version.')
 
-        # Per-engineer capacity check across all confirmed imports for this type
-        confirmed_rows = SprintForecastRow.objects.filter(
+        confirmed_rows = SprintConfirmedRow.objects.filter(
             sprint_id=sprint_id, import_type=import_type,
         ).select_related('assignee')
         member_days = {}
@@ -537,43 +522,32 @@ class ForecastReviewCompleteService:
     @transaction.atomic
     def complete(sprint_id, user=None, override=False, override_notes='', import_type=IMPORT_TYPE_FORECAST):
         """Mark sprint review as complete and write Recharge aggregate records."""
-        if import_type == IMPORT_TYPE_ACTUAL:
-            SprintActualReviewComplete.objects.update_or_create(
-                sprint_id=sprint_id,
-                defaults={
-                    'completed_by': user,
-                    'override_applied': override,
-                    'override_notes': override_notes,
-                },
-            )
-        else:
-            SprintForecastReviewComplete.objects.update_or_create(
-                sprint_id=sprint_id,
-                defaults={
-                    'completed_by': user,
-                    'override_applied': override,
-                    'override_notes': override_notes,
-                },
-            )
-
-        ForecastReviewCompleteService._write_recharges(sprint_id, import_type=import_type)
+        SprintImportReviewComplete.objects.update_or_create(
+            sprint_id=sprint_id,
+            import_type=import_type,
+            defaults={
+                'completed_by': user,
+                'override_applied': override,
+                'override_notes': override_notes,
+            },
+        )
+        ImportReviewCompleteService._write_recharges(sprint_id, import_type=import_type)
 
     @staticmethod
     def _write_recharges(sprint_id, import_type=IMPORT_TYPE_FORECAST):
-        """Aggregate confirmed SprintForecastRows into Recharge + RechargeStory records."""
+        """Aggregate confirmed SprintConfirmedRows into Recharge + RechargeStory records."""
         price = Decimal(str(_get_sprint_point_price()))
         recharge_type = RECHARGE_TYPE_ACTUAL if import_type == IMPORT_TYPE_ACTUAL else RECHARGE_TYPE_FORECAST
 
         Recharge.objects.filter(sprint_id=sprint_id, type=recharge_type).delete()
 
-        rows = list(SprintForecastRow.objects.filter(
+        rows = list(SprintConfirmedRow.objects.filter(
             sprint_id=sprint_id, import_type=import_type,
         ).select_related(
             'label__project__programme',
             'mapping',
         ))
 
-        # Group by (programme, project) — label is detail-level, not aggregate-level
         agg = {}
         for row in rows:
             project = row.label.project if row.label else None

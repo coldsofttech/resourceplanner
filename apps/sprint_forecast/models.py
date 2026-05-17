@@ -50,7 +50,7 @@ CHECK_STATUS_CHOICES = [
 
 
 class ProjectFinanceType(models.Model):
-    """Finance type used for sprint forecast mapping (e.g. PROJECT, BAU, HOLIDAY)."""
+    """Finance type used for sprint import mapping (e.g. PROJECT, BAU, HOLIDAY)."""
     code = models.CharField(
         max_length=50,
         unique=True,
@@ -97,17 +97,17 @@ class ProjectFinanceTypeMapping(models.Model):
         return f'{self.project_type} → {self.finance_type.code}'
 
 
-class ForecastImport(models.Model):
+class SprintImport(models.Model):
     """One CSV upload per team per sprint. Versioned — new upload creates new version."""
     sprint = models.ForeignKey(
         'sprints.Sprint',
         on_delete=models.CASCADE,
-        related_name='forecast_imports',
+        related_name='sprint_imports',
     )
     team = models.ForeignKey(
         'delivery_teams.DeliveryTeam',
         on_delete=models.CASCADE,
-        related_name='forecast_imports',
+        related_name='sprint_imports',
     )
     version_number = models.PositiveIntegerField()
     status = models.CharField(
@@ -126,7 +126,7 @@ class ForecastImport(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='forecast_imports',
+        related_name='sprint_imports',
     )
 
     class Meta:
@@ -134,18 +134,18 @@ class ForecastImport(models.Model):
         constraints = [
             models.UniqueConstraint(
                 fields=['sprint', 'team', 'import_type', 'version_number'],
-                name='unique_forecast_import_version',
+                name='unique_sprint_import_version',
             )
         ]
 
     def __str__(self):
-        return f'{self.sprint} / {self.team} — v{self.version_number} ({self.status})'
+        return f'{self.sprint} / {self.team} — v{self.version_number} ({self.import_type}/{self.status})'
 
 
-class ForecastImportRow(models.Model):
+class SprintImportRow(models.Model):
     """One row from the imported CSV. Override fields store user edits."""
-    forecast_import = models.ForeignKey(
-        ForecastImport,
+    sprint_import = models.ForeignKey(
+        SprintImport,
         on_delete=models.CASCADE,
         related_name='rows',
     )
@@ -162,7 +162,7 @@ class ForecastImportRow(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='forecast_rows',
+        related_name='import_rows',
     )
     efforts_ms = models.BigIntegerField(default=0)
     sprint_name = models.CharField(max_length=200, blank=True)
@@ -172,7 +172,7 @@ class ForecastImportRow(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='forecast_rows',
+        related_name='import_rows',
     )
     mapping_raw = models.CharField(max_length=100, blank=True)
     mapping = models.ForeignKey(
@@ -180,7 +180,7 @@ class ForecastImportRow(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='forecast_rows',
+        related_name='import_rows',
     )
 
     # ── Override fields (null = not overridden) ───────────────────────────────
@@ -193,7 +193,7 @@ class ForecastImportRow(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='forecast_row_overrides',
+        related_name='import_row_overrides',
     )
     efforts_ms_override = models.BigIntegerField(null=True, blank=True)
     sprint_name_override = models.CharField(max_length=200, null=True, blank=True)
@@ -202,21 +202,21 @@ class ForecastImportRow(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='forecast_row_overrides',
+        related_name='import_row_overrides',
     )
     mapping_override = models.ForeignKey(
         ProjectFinanceType,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='forecast_row_overrides',
+        related_name='import_row_overrides',
     )
 
     class Meta:
-        ordering = ['forecast_import', 'order']
+        ordering = ['sprint_import', 'order']
 
     def __str__(self):
-        return f'Import {self.forecast_import_id} row {self.order}: {self.effective_jira_id or "(no jira)"}'
+        return f'Import {self.sprint_import_id} row {self.order}: {self.effective_jira_id or "(no jira)"}'
 
     # ── Effective value helpers ───────────────────────────────────────────────
     @property
@@ -278,10 +278,10 @@ class ForecastImportRow(models.Model):
         ])
 
 
-class ForecastReview(models.Model):
-    """One review run against a ForecastImport."""
-    forecast_import = models.ForeignKey(
-        ForecastImport,
+class ImportReview(models.Model):
+    """One review run against a SprintImport."""
+    sprint_import = models.ForeignKey(
+        SprintImport,
         on_delete=models.CASCADE,
         related_name='reviews',
     )
@@ -291,25 +291,25 @@ class ForecastReview(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='forecast_reviews',
+        related_name='import_reviews',
     )
 
     class Meta:
         ordering = ['-reviewed_at']
 
     def __str__(self):
-        return f'Review for import {self.forecast_import_id} at {self.reviewed_at}'
+        return f'Review for import {self.sprint_import_id} at {self.reviewed_at}'
 
 
-class ForecastReviewResult(models.Model):
+class ImportReviewResult(models.Model):
     """Per-row per-check result from a review run."""
     review = models.ForeignKey(
-        ForecastReview,
+        ImportReview,
         on_delete=models.CASCADE,
         related_name='results',
     )
     row = models.ForeignKey(
-        ForecastImportRow,
+        SprintImportRow,
         on_delete=models.CASCADE,
         related_name='review_results',
     )
@@ -324,22 +324,27 @@ class ForecastReviewResult(models.Model):
         return f'{self.check_type} → {self.status} (row {self.row_id})'
 
 
-class SprintForecastRow(models.Model):
+class SprintConfirmedRow(models.Model):
     """Confirmed snapshot written when a team confirms their import version."""
     sprint = models.ForeignKey(
         'sprints.Sprint',
         on_delete=models.CASCADE,
-        related_name='forecast_rows',
+        related_name='confirmed_rows',
     )
     team = models.ForeignKey(
         'delivery_teams.DeliveryTeam',
         on_delete=models.CASCADE,
-        related_name='sprint_forecast_rows',
+        related_name='sprint_confirmed_rows',
     )
-    forecast_import = models.ForeignKey(
-        ForecastImport,
+    sprint_import = models.ForeignKey(
+        SprintImport,
         on_delete=models.CASCADE,
         related_name='confirmed_rows',
+    )
+    import_type = models.CharField(
+        max_length=10,
+        choices=IMPORT_TYPE_CHOICES,
+        default=IMPORT_TYPE_FORECAST,
     )
     story_type = models.CharField(max_length=200, blank=True)
     jira_id = models.CharField(max_length=100, blank=True)
@@ -349,7 +354,7 @@ class SprintForecastRow(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='sprint_forecast_rows',
+        related_name='sprint_confirmed_rows',
     )
     assignee_raw = models.CharField(max_length=300, blank=True)
     efforts_ms = models.BigIntegerField(default=0)
@@ -360,7 +365,7 @@ class SprintForecastRow(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='sprint_forecast_rows',
+        related_name='sprint_confirmed_rows',
     )
     label_raw = models.CharField(max_length=200, blank=True)
     mapping = models.ForeignKey(
@@ -368,29 +373,29 @@ class SprintForecastRow(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='sprint_forecast_rows',
+        related_name='sprint_confirmed_rows',
     )
     mapping_raw = models.CharField(max_length=100, blank=True)
     is_override = models.BooleanField(default=False)
-    import_type = models.CharField(
-        max_length=10,
-        choices=IMPORT_TYPE_CHOICES,
-        default=IMPORT_TYPE_FORECAST,
-    )
 
     class Meta:
-        ordering = ['sprint', 'team', 'forecast_import', 'id']
+        ordering = ['sprint', 'team', 'sprint_import', 'id']
 
     def __str__(self):
         return f'{self.sprint} / {self.team} — {self.jira_id or "(manual)"}'
 
 
-class SprintForecastReviewComplete(models.Model):
-    """Tracks sprint-level Review Complete action."""
-    sprint = models.OneToOneField(
+class SprintImportReviewComplete(models.Model):
+    """Tracks sprint-level Review Complete for both forecast and actual imports."""
+    sprint = models.ForeignKey(
         'sprints.Sprint',
         on_delete=models.CASCADE,
-        related_name='forecast_review_complete',
+        related_name='import_review_completions',
+    )
+    import_type = models.CharField(
+        max_length=10,
+        choices=IMPORT_TYPE_CHOICES,
+        default=IMPORT_TYPE_FORECAST,
     )
     completed_at = models.DateTimeField(auto_now_add=True)
     completed_by = models.ForeignKey(
@@ -398,35 +403,21 @@ class SprintForecastReviewComplete(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='forecast_review_completions',
+        related_name='import_review_completions',
     )
     override_applied = models.BooleanField(default=False)
     override_notes = models.TextField(blank=True)
 
-    def __str__(self):
-        return f'Review complete for {self.sprint}'
-
-
-class SprintActualReviewComplete(models.Model):
-    """Tracks sprint-level Review Complete action for Actuals."""
-    sprint = models.OneToOneField(
-        'sprints.Sprint',
-        on_delete=models.CASCADE,
-        related_name='actual_review_complete',
-    )
-    completed_at = models.DateTimeField(auto_now_add=True)
-    completed_by = models.ForeignKey(
-        User,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='actual_review_completions',
-    )
-    override_applied = models.BooleanField(default=False)
-    override_notes = models.TextField(blank=True)
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['sprint', 'import_type'],
+                name='unique_sprint_import_review_complete',
+            )
+        ]
 
     def __str__(self):
-        return f'Actual review complete for {self.sprint}'
+        return f'{self.import_type} review complete for {self.sprint}'
 
 
 class RechargeDetail(models.Model):
@@ -472,8 +463,8 @@ class RechargeDetail(models.Model):
     type = models.CharField(max_length=10, choices=RECHARGE_TYPE_CHOICES, default=RECHARGE_TYPE_FORECAST)
     total_days = models.DecimalField(max_digits=8, decimal_places=2, default=0)
     total_cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
-    forecast_import = models.ForeignKey(
-        ForecastImport,
+    sprint_import = models.ForeignKey(
+        SprintImport,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
