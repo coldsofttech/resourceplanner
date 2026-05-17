@@ -3,41 +3,72 @@
 import { API_URLS } from '../urls.js';
 import { apiFetch, escHtml, setPageTitle, showFlash } from '../main.js';
 
-let _allActuals = [];
-let _sprintChart = null;
+const PAGE_SIZE = 20;
+
+let _allActuals      = [];
+let _fySprintsList   = [];   // sprints for the "current" FY (active or user-selected)
+let _fySprintsFyId   = null; // which FY _fySprintsList belongs to
+let _filteredActuals = [];
+let _currentPage     = 1;
+let _sprintChart     = null;
+let _riskConfigId    = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     setPageTitle('Project Actuals');
-    _loadDropdowns();
-    _loadActuals();
+    // Load dropdowns first (incl. active FY sprints pre-load), then actuals
+    _loadDropdowns().then(() => _loadActuals());
 
-    document.getElementById('filter-fy')?.addEventListener('change', _applyFilters);
-    document.getElementById('filter-programme')?.addEventListener('change', async e => {
-        await _loadProjectOptions(e.target.value);
+    document.getElementById('filter-fy')?.addEventListener('change', async e => {
+        const val = e.target.value;
+        if (val) {
+            await _loadFySprints(val);
+        } else {
+            // Filter cleared — revert to active FY sprints
+            await _reloadActiveFySprints();
+        }
+        _currentPage = 1;
         _applyFilters();
     });
-    document.getElementById('filter-project')?.addEventListener('change', _applyFilters);
-    document.getElementById('filter-team')?.addEventListener('change', _applyFilters);
-    document.getElementById('filter-risk')?.addEventListener('change', _applyFilters);
+    document.getElementById('filter-programme')?.addEventListener('change', async e => {
+        await _loadProjectOptions(e.target.value);
+        _currentPage = 1;
+        _applyFilters();
+    });
+    document.getElementById('filter-project')?.addEventListener('change', () => { _currentPage = 1; _applyFilters(); });
+    document.getElementById('filter-team')?.addEventListener('change',    () => { _currentPage = 1; _applyFilters(); });
+    document.getElementById('filter-risk')?.addEventListener('change',    () => { _currentPage = 1; _applyFilters(); });
+
+    document.getElementById('risk-config-save-btn')?.addEventListener('click', _saveRiskConfig);
 });
 
 // ── Dropdowns ─────────────────────────────────────────────────────────────────
 
 async function _loadDropdowns() {
     try {
-        const [fys, programmes, teams] = await Promise.all([
-            apiFetch(API_URLS.project_actuals.fy_options.href),
-            apiFetch(API_URLS.recharges.programme_options.href),
-            apiFetch(API_URLS.project_actuals.team_options.href),
+        const [fys, programmes, teams, activeFy] = await Promise.all([
+            apiFetch(API_URLS.project_actuals.fy_options.href).catch(() => []),
+            apiFetch(API_URLS.recharges.programme_options.href).catch(() => []),
+            apiFetch(API_URLS.project_actuals.team_options.href).catch(() => []),
+            apiFetch(API_URLS.financial_years.active.href).catch(() => null),
         ]);
 
-        const fySel = document.getElementById('filter-fy');
-        (fys || []).forEach(f => {
+        const fySel      = document.getElementById('filter-fy');
+        const activeFyId = activeFy?.id ? String(activeFy.id) : null;
+
+        // Populate FY dropdown — include active FY even if it has no actuals yet
+        const fyList = [...(fys || [])];
+        if (activeFy && !fyList.some(f => String(f.id) === activeFyId)) {
+            fyList.unshift(activeFy);
+        }
+        fyList.forEach(f => {
             const o = document.createElement('option');
             o.value = f.id;
             o.textContent = f.short_fy;
             fySel.appendChild(o);
         });
+
+        // Pre-load active FY sprints (for accordion + chart defaults, without filtering the list)
+        if (activeFyId) await _loadFySprints(activeFyId);
 
         const progSel = document.getElementById('filter-programme');
         (programmes || []).forEach(p => {
@@ -74,6 +105,31 @@ async function _loadProjectOptions(programmeId) {
             projSel.value = currentVal;
         }
     } catch (_) { /* non-critical */ }
+}
+
+async function _loadFySprints(fyId) {
+    if (!fyId) {
+        _fySprintsList = [];
+        _fySprintsFyId = null;
+        return;
+    }
+    try {
+        _fySprintsList = await apiFetch(API_URLS.project_actuals.fy_sprints(fyId).href) || [];
+        _fySprintsFyId = String(fyId);
+    } catch (_) {
+        _fySprintsList = [];
+        _fySprintsFyId = null;
+    }
+}
+
+async function _reloadActiveFySprints() {
+    try {
+        const activeFy = await apiFetch(API_URLS.financial_years.active.href);
+        await _loadFySprints(activeFy?.id || null);
+    } catch (_) {
+        _fySprintsList = [];
+        _fySprintsFyId = null;
+    }
 }
 
 // ── Data load ─────────────────────────────────────────────────────────────────
@@ -116,12 +172,72 @@ function _applyFilters() {
     );
     if (risk)   filtered = filtered.filter(a => a.risk === risk);
 
-    _renderActuals(filtered, fyId);
+    _filteredActuals = filtered;
+    _renderPage(fyId);
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+
+function _renderPage(fyId) {
+    const total  = _filteredActuals.length;
+    const pages  = Math.ceil(total / PAGE_SIZE) || 1;
+    _currentPage = Math.max(1, Math.min(_currentPage, pages));
+
+    const start = (_currentPage - 1) * PAGE_SIZE;
+    const page  = _filteredActuals.slice(start, start + PAGE_SIZE);
+
+    _renderActuals(page, total, fyId);
+    _renderPagination(total, pages);
+}
+
+function _renderPagination(total, pages) {
+    const paginationEl = document.getElementById('actuals-pagination');
+    const infoEl       = document.getElementById('actuals-page-info');
+    const controlsEl   = document.getElementById('actuals-page-controls');
+
+    if (pages <= 1) {
+        paginationEl?.classList.add('d-none');
+        return;
+    }
+
+    paginationEl?.classList.remove('d-none');
+
+    const start = (_currentPage - 1) * PAGE_SIZE + 1;
+    const end   = Math.min(_currentPage * PAGE_SIZE, total);
+    if (infoEl) infoEl.textContent = `Showing ${start}–${end} of ${total}`;
+
+    if (!controlsEl) return;
+
+    const items = [];
+    items.push(`<li class="page-item${_currentPage === 1 ? ' disabled' : ''}">
+        <a class="page-link" href="#" data-page="${_currentPage - 1}">&laquo;</a></li>`);
+
+    const windowStart = Math.max(1, _currentPage - 2);
+    const windowEnd   = Math.min(pages, windowStart + 4);
+    for (let p = windowStart; p <= windowEnd; p++) {
+        items.push(`<li class="page-item${p === _currentPage ? ' active' : ''}">
+            <a class="page-link" href="#" data-page="${p}">${p}</a></li>`);
+    }
+
+    items.push(`<li class="page-item${_currentPage === pages ? ' disabled' : ''}">
+        <a class="page-link" href="#" data-page="${_currentPage + 1}">&raquo;</a></li>`);
+
+    controlsEl.innerHTML = items.join('');
+    controlsEl.querySelectorAll('.page-link').forEach(a => {
+        a.addEventListener('click', e => {
+            e.preventDefault();
+            const p = parseInt(a.dataset.page, 10);
+            if (p >= 1 && p <= pages) {
+                _currentPage = p;
+                _renderPage(document.getElementById('filter-fy')?.value || null);
+            }
+        });
+    });
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function _renderActuals(actuals, fyId) {
+function _renderActuals(actuals, total, fyId) {
     const loadingEl   = document.getElementById('actuals-loading');
     const tableWrapEl = document.getElementById('actuals-table-wrap');
     const emptyEl     = document.getElementById('actuals-empty');
@@ -130,92 +246,44 @@ function _renderActuals(actuals, fyId) {
 
     loadingEl?.classList.add('d-none');
 
-    if (!actuals || actuals.length === 0) {
+    if (!_filteredActuals.length) {
         tableWrapEl?.classList.add('d-none');
         emptyEl?.classList.remove('d-none');
+        document.getElementById('actuals-pagination')?.classList.add('d-none');
         if (countEl) countEl.textContent = '';
         return;
     }
 
-    // Collect all sprints visible under the current FY filter, sorted by number
-    const sprintMap = new Map();
-    actuals.forEach(a => {
-        (a.sprint_actuals || []).forEach(sa => {
-            if (fyId && String(sa.sprint_fy_id) !== String(fyId)) return;
-            if (!sprintMap.has(sa.sprint)) {
-                sprintMap.set(sa.sprint, {
-                    id: sa.sprint,
-                    name: sa.sprint_name,
-                    number: sa.sprint_number,
-                    fy_id: sa.sprint_fy_id,
-                    fy_short: sa.sprint_fy_short,
-                });
-            }
-        });
-    });
-    const sprints = [...sprintMap.values()].sort((a, b) => a.number - b.number);
-
-    // Rebuild header row
-    const headerRow = document.getElementById('actuals-header-row');
-    const fixedHeaders = [
-        '<th>Programme</th>',
-        '<th>Project</th>',
-        '<th>FY</th>',
-        '<th>Label</th>',
-        '<th>Code</th>',
-        '<th>Assigned Team</th>',
-        '<th>Collaborators</th>',
-        '<th class="text-end">Estimate</th>',
-        '<th class="text-end">Est. + Contingency</th>',
-        '<th class="text-end">Total Cost</th>',
-        '<th class="text-end">Remaining</th>',
-    ];
-    const sprintHeaders = sprints.map(s =>
-        `<th class="text-end" style="min-width:90px;font-size:11px">${escHtml(s.name)}</th>`
-    );
-    headerRow.innerHTML = [...fixedHeaders, ...sprintHeaders, '<th style="width:60px"></th>'].join('');
-
     tableWrapEl?.classList.remove('d-none');
     emptyEl?.classList.add('d-none');
-    if (countEl) countEl.textContent = `${actuals.length} project${actuals.length !== 1 ? 's' : ''}`;
+    if (countEl) countEl.textContent = `${total} project${total !== 1 ? 's' : ''}`;
 
-    tbody.innerHTML = actuals.map(a => _renderRow(a, sprints, fyId)).join('');
+    tbody.innerHTML = actuals.map(a => _renderAccordionRows(a, fyId)).join('');
 
     tbody.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => {
         bootstrap.Tooltip.getOrCreateInstance(el);
     });
 }
 
-function _renderRow(a, sprints, fyId) {
-    const risk       = a.risk || 'NEUTRAL';
-    const rowClass   = risk === 'RISK' ? 'table-danger' : risk === 'WARNING' ? 'table-warning' : '';
-    const collab     = (a.collaborator_names || []).join(', ') || '—';
-    const estimate   = _fmt(a.estimate_value);
-    const estimateWC = _fmt(a.estimate_value_with_contingency);
-    const total      = _fmt(a.total_cost_till_date);
-    const remaining  = _fmt(a.remaining_amount);
+function _renderAccordionRows(a, fyId) {
+    const risk        = a.risk || 'NEUTRAL';
+    const rowClass    = risk === 'RISK' ? 'table-danger' : risk === 'WARNING' ? 'table-warning' : '';
+    const collab      = (a.collaborator_names || []).join(', ') || '—';
+    const estimate    = _fmt(a.estimate_value);
+    const estimateWC  = _fmt(a.estimate_value_with_contingency);
+    const total       = _fmt(a.total_cost_till_date);
+    const remaining   = _fmt(a.remaining_amount);
     const remainClass = parseFloat(a.remaining_amount) >= 0 ? 'text-success' : 'text-danger';
-    const fyText     = _fyLabel(a, fyId);
-    const labelCell  = _labelCell(a);
+    const fyText      = _fyLabel(a, fyId);
+    const labelCell   = _labelCell(a);
 
-    const costBySprint = {};
-    (a.sprint_actuals || []).forEach(sa => {
-        if (!fyId || String(sa.sprint_fy_id) === String(fyId)) {
-            costBySprint[sa.sprint] = sa.total_cost;
-        }
-    });
-    const sprintCols = sprints.map(s => {
-        const val = costBySprint[s.id];
-        return val != null
-            ? `<td class="text-end" style="font-size:12px">${_fmt(val)}</td>`
-            : `<td class="text-end text-secondary" style="font-size:12px">—</td>`;
-    }).join('');
-
-    const ignoreIcon = a.ignore_risk
-        ? `<i class="bi bi-eye-slash text-secondary" title="Risk ignored"></i>`
-        : '';
-
-    return `<tr class="${rowClass}">
+    const summaryRow = `<tr class="${rowClass}" id="summary-${a.id}">
+        <td style="width:32px;padding-left:8px;vertical-align:middle">
+            <button class="btn btn-ghost-icon btn-sm p-0" style="width:22px;height:22px;line-height:1"
+                    onclick="toggleAccordion(${a.id})" title="Expand sprint breakdown">
+                <i class="bi bi-chevron-right" style="font-size:11px" id="toggle-icon-${a.id}"></i>
+            </button>
+        </td>
         <td>${escHtml(a.programme_name || '—')}</td>
         <td class="fw-500">${escHtml(a.project_name || '—')}</td>
         <td class="text-secondary" style="font-size:12px">${escHtml(fyText)}</td>
@@ -227,12 +295,10 @@ function _renderRow(a, sprints, fyId) {
         <td class="text-end">${estimateWC}</td>
         <td class="text-end fw-600">${total}</td>
         <td class="text-end ${remainClass}">${remaining}</td>
-        ${sprintCols}
         <td class="text-end" style="white-space:nowrap">
-            ${ignoreIcon}
-            <button class="btn btn-ghost-icon btn-sm" title="${a.ignore_risk ? 'Un-ignore risk' : 'Ignore risk'}"
-                    onclick="toggleIgnoreRisk(${a.id}, ${a.ignore_risk})">
-                <i class="bi bi-${a.ignore_risk ? 'eye' : 'eye-slash'}"></i>
+            <button class="btn btn-ghost-icon btn-sm" title="Configure risk"
+                    onclick="openRiskConfig(${a.id})">
+                <i class="bi bi-gear${a.ignore_risk ? ' text-secondary' : ''}"></i>
             </button>
             <button class="btn btn-ghost-icon btn-sm" title="Sprint utilisation chart"
                     onclick="openChart(${a.id}, '${escHtml(a.project_name || '')}')">
@@ -240,54 +306,129 @@ function _renderRow(a, sprints, fyId) {
             </button>
         </td>
     </tr>`;
+
+    const detailRow = `<tr class="d-none" id="detail-${a.id}">
+        <td colspan="13" style="padding:0">
+            ${_renderDetailContent(a, fyId)}
+        </td>
+    </tr>`;
+
+    return summaryRow + detailRow;
 }
 
-function _labelCell(a) {
-    const labels = a.all_labels || [];
-    if (!labels.length) return '<td class="text-secondary">—</td>';
+function _renderDetailContent(a, fyId) {
+    // Always use _fySprintsList (active or selected FY) when available
+    const hasFySprints = _fySprintsList.length > 0 && _fySprintsFyId;
 
-    const primary    = labels.find(l => l.is_primary) || labels[0];
-    const secondaries = labels.filter(l => l !== primary);
-
-    if (!secondaries.length) {
-        return `<td><span class="rp-code text-secondary" style="font-size:12px">${escHtml(primary.label)}</span></td>`;
+    // Prior FYs: costs from sprint actuals NOT in the current sprint FY
+    let priorCost = 0;
+    if (hasFySprints) {
+        priorCost = (a.sprint_actuals || [])
+            .filter(sa => String(sa.sprint_fy_id) !== _fySprintsFyId)
+            .reduce((sum, sa) => sum + (parseFloat(sa.total_cost) || 0), 0);
     }
 
-    const tooltip = secondaries.map(l => l.label).join(', ');
-    return `<td>
-        <span class="rp-code text-secondary" style="font-size:12px"
-              title="Also: ${escHtml(tooltip)}"
-              data-bs-toggle="tooltip" data-bs-placement="top">
-            ${escHtml(primary.label)}
-            <i class="bi bi-info-circle ms-1" style="font-size:10px;opacity:.6"></i>
-        </span>
-    </td>`;
-}
-
-function _fyLabel(a, fyId) {
-    if (fyId) {
-        const match = (a.sprint_actuals || []).find(sa => String(sa.sprint_fy_id) === String(fyId));
-        return match?.sprint_fy_short || '—';
+    let sprintItems = [];
+    if (hasFySprints) {
+        const costBySprint = {};
+        (a.sprint_actuals || [])
+            .filter(sa => String(sa.sprint_fy_id) === _fySprintsFyId)
+            .forEach(sa => { costBySprint[sa.sprint] = parseFloat(sa.total_cost) || 0; });
+        sprintItems = _fySprintsList.map(s => ({
+            name: s.sprint_name,
+            cost: s.id in costBySprint ? costBySprint[s.id] : null,
+        }));
+    } else {
+        // Fallback: only sprints with actuals
+        sprintItems = (a.sprint_actuals || [])
+            .filter(sa => !fyId || String(sa.sprint_fy_id) === String(fyId))
+            .sort((x, y) => x.sprint_number - y.sprint_number)
+            .map(sa => ({ name: sa.sprint_name, cost: parseFloat(sa.total_cost) || 0 }));
     }
-    const fys = [...new Set((a.sprint_actuals || []).map(sa => sa.sprint_fy_short).filter(Boolean))];
-    return fys.join(', ') || '—';
+
+    const priorCell = hasFySprints
+        ? `<div class="d-flex flex-column align-items-end" style="min-width:90px;border-right:1px solid rgba(0,0,0,.1);padding-right:16px;margin-right:4px">
+               <span class="text-secondary mb-1" style="font-size:11px">Prior FYs</span>
+               <strong>${priorCost > 0 ? _fmt(priorCost) : '<span class="text-secondary">—</span>'}</strong>
+           </div>`
+        : '';
+
+    const sprintCells = sprintItems.map(s =>
+        `<div class="d-flex flex-column align-items-end" style="min-width:82px">
+             <span class="text-secondary mb-1 text-truncate" style="font-size:11px;max-width:82px"
+                   title="${escHtml(s.name)}">${escHtml(s.name)}</span>
+             <strong>${s.cost !== null ? _fmt(s.cost) : '<span class="text-secondary">—</span>'}</strong>
+         </div>`
+    ).join('');
+
+    const noData = !priorCell && !sprintItems.length;
+
+    return `<div class="px-4 py-3 d-flex gap-3 flex-wrap align-items-start"
+                 style="font-size:12px;background:rgba(0,0,0,.02);border-top:1px solid rgba(0,0,0,.06)">
+        ${priorCell}
+        ${noData ? '<span class="text-secondary fst-italic">No sprint actuals yet.</span>' : sprintCells}
+    </div>`;
 }
 
-// ── Ignore Risk toggle ────────────────────────────────────────────────────────
+// ── Accordion toggle ──────────────────────────────────────────────────────────
 
-window.toggleIgnoreRisk = async function(actualsId, currentIgnore) {
-    try {
-        const updated = await apiFetch(API_URLS.project_actuals.patch(actualsId).href, {
-            method: 'PATCH',
-            body: JSON.stringify({ ignore_risk: !currentIgnore }),
-        });
-        const idx = _allActuals.findIndex(a => a.id === actualsId);
-        if (idx !== -1) _allActuals[idx] = updated;
-        _applyFilters();
-    } catch (_) {
-        showFlash('Failed to update risk setting.', 'danger');
+window.toggleAccordion = function(actualsId) {
+    const detailRow = document.getElementById(`detail-${actualsId}`);
+    const icon      = document.getElementById(`toggle-icon-${actualsId}`);
+    if (!detailRow) return;
+
+    const isOpen = !detailRow.classList.contains('d-none');
+    detailRow.classList.toggle('d-none');
+    if (icon) {
+        icon.classList.toggle('bi-chevron-right', isOpen);
+        icon.classList.toggle('bi-chevron-down', !isOpen);
     }
 };
+
+// ── Risk Config Modal ─────────────────────────────────────────────────────────
+
+window.openRiskConfig = function(actualsId) {
+    const a = _allActuals.find(x => x.id === actualsId);
+    if (!a) return;
+    _riskConfigId = actualsId;
+
+    document.getElementById('risk-config-project-name').textContent =
+        `${a.programme_name || ''} › ${a.project_name || ''}`;
+    document.getElementById('risk-config-current-badge').innerHTML =
+        _riskBadge(a.risk || 'NEUTRAL') +
+        (a.ignore_risk
+            ? ' <span class="rp-badge rp-badge--muted ms-2"><i class="bi bi-eye-slash me-1"></i>Ignored</span>'
+            : '');
+    document.getElementById('risk-config-ignore-check').checked = Boolean(a.ignore_risk);
+    document.getElementById('risk-config-notes').value = a.ignore_risk_notes || '';
+
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('riskConfigModal')).show();
+};
+
+async function _saveRiskConfig() {
+    if (!_riskConfigId) return;
+    const ignore_risk       = document.getElementById('risk-config-ignore-check')?.checked ?? false;
+    const ignore_risk_notes = document.getElementById('risk-config-notes')?.value || '';
+
+    const btn = document.getElementById('risk-config-save-btn');
+    if (btn) btn.disabled = true;
+
+    try {
+        const updated = await apiFetch(API_URLS.project_actuals.patch(_riskConfigId).href, {
+            method: 'PATCH',
+            body: JSON.stringify({ ignore_risk, ignore_risk_notes }),
+        });
+        const idx = _allActuals.findIndex(a => a.id === _riskConfigId);
+        if (idx !== -1) _allActuals[idx] = updated;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('riskConfigModal')).hide();
+        _applyFilters();
+        showFlash('Risk configuration saved.', 'success');
+    } catch (_) {
+        showFlash('Failed to save risk configuration.', 'danger');
+    } finally {
+        if (btn) btn.disabled = false;
+    }
+}
 
 // ── Chart ─────────────────────────────────────────────────────────────────────
 
@@ -295,15 +436,31 @@ window.openChart = function(actualsId, projectName) {
     const a = _allActuals.find(x => x.id === actualsId);
     if (!a) return;
 
-    const fyId = document.getElementById('filter-fy')?.value || null;
-
-    const rows = (a.sprint_actuals || [])
-        .filter(sa => !fyId || String(sa.sprint_fy_id) === String(fyId))
-        .sort((x, y) => x.sprint_number - y.sprint_number);
+    // Use _fySprintsList (active/selected FY) when available; otherwise fall back to actuals only
+    let rows;
+    if (_fySprintsList.length && _fySprintsFyId) {
+        const costBySprint = {};
+        (a.sprint_actuals || [])
+            .filter(sa => String(sa.sprint_fy_id) === _fySprintsFyId)
+            .forEach(sa => { costBySprint[sa.sprint] = parseFloat(sa.total_cost) || 0; });
+        rows = _fySprintsList.map(s => ({
+            sprint_name:   s.sprint_name,
+            sprint_number: s.sprint_number,
+            total_cost:    costBySprint[s.id] ?? 0,
+        }));
+    } else {
+        const fyId = document.getElementById('filter-fy')?.value || null;
+        rows = (a.sprint_actuals || [])
+            .filter(sa => !fyId || String(sa.sprint_fy_id) === String(fyId))
+            .sort((x, y) => x.sprint_number - y.sprint_number);
+    }
 
     document.getElementById('chart-modal-title').textContent = `Sprint Utilisation — ${projectName}`;
-    document.getElementById('chart-modal-risk-badge').innerHTML = _riskBadge(a.risk || 'NEUTRAL') +
-        (a.ignore_risk ? ' <span class="rp-badge rp-badge--muted ms-1"><i class="bi bi-eye-slash me-1"></i>Risk Ignored</span>' : '');
+    document.getElementById('chart-modal-risk-badge').innerHTML =
+        _riskBadge(a.risk || 'NEUTRAL') +
+        (a.ignore_risk
+            ? ' <span class="rp-badge rp-badge--muted ms-1"><i class="bi bi-eye-slash me-1"></i>Risk Ignored</span>'
+            : '');
 
     const estimateWC  = parseFloat(a.estimate_value_with_contingency) || 0;
     const estimateVal = parseFloat(a.estimate_value) || 0;
@@ -312,26 +469,23 @@ window.openChart = function(actualsId, projectName) {
     const labels   = rows.map(r => r.sprint_name);
     const costData = rows.map(r => parseFloat(r.total_cost) || 0);
 
-    // Bar colors based on cumulative %
     const barColors = costData.map((_, i) => {
         const cumCost = costData.slice(0, i + 1).reduce((s, v) => s + v, 0);
         const cumPct  = estimateWC > 0 ? (cumCost / estimateWC) * 100 : 0;
-        if (cumPct > 100) return 'rgba(239,68,68,0.75)';
+        if (cumPct > 100)        return 'rgba(239,68,68,0.75)';
         if (cumPct > estimatePct) return 'rgba(245,158,11,0.75)';
         return 'rgba(99,102,241,0.75)';
     });
 
     if (_sprintChart) { _sprintChart.destroy(); _sprintChart = null; }
 
-    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('sprintChartModal'));
-    modal.show();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('sprintChartModal')).show();
 
     requestAnimationFrame(() => {
         const ctx = document.getElementById('sprintChart')?.getContext('2d');
         if (!ctx) return;
 
-        // Y1 max: align so 100% on right = estimateWC on left, with 10% headroom
-        const yMax  = estimateWC > 0 ? estimateWC * 1.15 : Math.max(...costData) * 1.2 || 1;
+        const yMax  = estimateWC > 0 ? estimateWC * 1.15 : Math.max(...costData, 1) * 1.2;
         const y1Max = 115;
 
         _sprintChart = new Chart(ctx, {
@@ -402,7 +556,7 @@ window.openChart = function(actualsId, projectName) {
                         ticks: {
                             callback: v => {
                                 if (v >= 1_000_000) return `£${(v / 1_000_000).toFixed(1)}M`;
-                                if (v >= 1_000) return `£${(v / 1_000).toFixed(0)}k`;
+                                if (v >= 1_000)     return `£${(v / 1_000).toFixed(0)}k`;
                                 return `£${v}`;
                             },
                         },
@@ -424,6 +578,38 @@ window.openChart = function(actualsId, projectName) {
 };
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
+
+function _labelCell(a) {
+    const labels = a.all_labels || [];
+    if (!labels.length) return '<td class="text-secondary">—</td>';
+
+    const primary     = labels.find(l => l.is_primary) || labels[0];
+    const secondaries = labels.filter(l => l !== primary);
+
+    if (!secondaries.length) {
+        return `<td><span class="rp-code text-secondary" style="font-size:12px">${escHtml(primary.label)}</span></td>`;
+    }
+
+    const tooltip = secondaries.map(l => l.label).join(', ');
+    return `<td>
+        <span class="rp-code text-secondary" style="font-size:12px"
+              title="Also: ${escHtml(tooltip)}"
+              data-bs-toggle="tooltip" data-bs-placement="top">
+            ${escHtml(primary.label)}
+            <i class="bi bi-info-circle ms-1" style="font-size:10px;opacity:.6"></i>
+        </span>
+    </td>`;
+}
+
+function _fyLabel(a, fyId) {
+    if (fyId) {
+        const match = (a.sprint_actuals || []).find(sa => String(sa.sprint_fy_id) === String(fyId));
+        return match?.sprint_fy_short || '—';
+    }
+    // When no FY filter, show FYs from actual sprint data
+    const fys = [...new Set((a.sprint_actuals || []).map(sa => sa.sprint_fy_short).filter(Boolean))];
+    return fys.join(', ') || '—';
+}
 
 function _riskBadge(risk) {
     if (risk === 'RISK')    return '<span class="rp-badge rp-badge--danger">Risk</span>';

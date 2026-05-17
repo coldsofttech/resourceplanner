@@ -253,6 +253,9 @@ async function initEditView() {
     if (!fyPk) return;
     setPageTitle('Edit Financial Year');
 
+    // Copy actuals is a create-only option
+    document.getElementById('copy-actuals-field')?.classList.add('d-none');
+
     try {
         const { method, href } = API_URLS.financial_years.detail(fyPk);
         const data = await apiFetch(href, { method });
@@ -331,9 +334,20 @@ async function handleCreateEditSubmit(e) {
     setSubmitting(true);
 
     try {
-        await apiFetch(url, { method, body: JSON.stringify(payload) });
+        const fy = await apiFetch(url, { method, body: JSON.stringify(payload) });
         // Saved — refresh the navbar so the new/updated FY appears immediately.
         await refreshNavbarDropdown();
+
+        // On create: optionally copy project actuals from the preceding FY
+        if (!isEdit && document.getElementById('id_copy_actuals')?.checked && fy?.id) {
+            try {
+                await apiFetch(API_URLS.project_actuals.copy_from_previous_fy.href, {
+                    method: 'POST',
+                    body: JSON.stringify({ fy_id: fy.id }),
+                });
+            } catch (_) { /* non-critical — proceed regardless */ }
+        }
+
         window.location.href = URLS.financial_years.list;
     } catch (err) {
         if (err?.status === 400) {

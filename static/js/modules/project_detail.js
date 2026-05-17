@@ -2949,8 +2949,9 @@ window.submitRemoveContact = submitRemoveContact;
 
 // ── Actuals Tab ───────────────────────────────────────────────────────────────
 
-let _actualsTabData = null;
-let _actualsTabChart = null;
+let _actualsTabData      = null;
+let _actualsTabChart     = null;
+let _actualsTabFySprints = [];  // all sprints for selected/active FY
 
 async function renderActualsTab() {
     if (_actualsTabData !== null) {
@@ -2970,7 +2971,10 @@ async function renderActualsTab() {
 
         if (_actualsTabData) {
             await _populateActualsFyFilter(_actualsTabData);
-            document.getElementById('actuals-tab-fy')?.addEventListener('change', () => {
+            await _loadActualsTabFySprints();
+
+            document.getElementById('actuals-tab-fy')?.addEventListener('change', async () => {
+                await _loadActualsTabFySprints();
                 _renderActualsTabContent(_actualsTabData);
             });
         }
@@ -2985,15 +2989,40 @@ async function _populateActualsFyFilter(a) {
     const fySel = document.getElementById('actuals-tab-fy');
     if (!fySel) return;
     try {
-        const fys = await apiFetch(API_URLS.project_actuals.fy_options.href);
-        const fyIds = new Set((a.sprint_actuals || []).map(sa => String(sa.sprint_fy_id)));
-        (fys || []).filter(f => fyIds.has(String(f.id))).forEach(f => {
+        const [fys, activeFy] = await Promise.all([
+            apiFetch(API_URLS.project_actuals.fy_options.href).catch(() => []),
+            apiFetch(API_URLS.financial_years.active.href).catch(() => null),
+        ]);
+        const fyIds    = new Set((a.sprint_actuals || []).map(sa => String(sa.sprint_fy_id)));
+        const activeFyId = activeFy?.id ? String(activeFy.id) : null;
+
+        // Show FYs with actuals for this project; also include active FY even if it has none yet
+        const fyList = (fys || []).filter(f => fyIds.has(String(f.id)));
+        if (activeFy && !fyList.some(f => String(f.id) === activeFyId)) {
+            fyList.unshift(activeFy);
+        }
+        fyList.forEach(f => {
             const o = document.createElement('option');
             o.value = f.id;
             o.textContent = f.short_fy;
             fySel.appendChild(o);
         });
+
+        // Auto-select active FY if present
+        if (activeFyId && [...fySel.options].some(o => o.value === activeFyId)) {
+            fySel.value = activeFyId;
+        } else if (fySel.options.length > 1) {
+            fySel.selectedIndex = 1;
+        }
     } catch (_) { /* non-critical */ }
+}
+
+async function _loadActualsTabFySprints() {
+    const fyId = document.getElementById('actuals-tab-fy')?.value || null;
+    if (!fyId) { _actualsTabFySprints = []; return; }
+    try {
+        _actualsTabFySprints = await apiFetch(API_URLS.project_actuals.fy_sprints(fyId).href) || [];
+    } catch (_) { _actualsTabFySprints = []; }
 }
 
 function _renderActualsTabContent(a) {
@@ -3013,9 +3042,27 @@ function _renderActualsTabContent(a) {
     emptyEl?.classList.add('d-none');
 
     const fyId = document.getElementById('actuals-tab-fy')?.value || null;
-    const rows = (a.sprint_actuals || [])
-        .filter(sa => !fyId || String(sa.sprint_fy_id) === String(fyId))
-        .sort((x, y) => x.sprint_number - y.sprint_number);
+
+    // Build rows: all FY sprints merged with actuals data (shows "—" for missing sprints)
+    let rows;
+    if (_actualsTabFySprints.length) {
+        const costBySprint = {};
+        (a.sprint_actuals || [])
+            .filter(sa => !fyId || String(sa.sprint_fy_id) === String(fyId))
+            .forEach(sa => { costBySprint[sa.sprint] = sa; });
+        rows = _actualsTabFySprints.map(s => ({
+            sprint:         s.id,
+            sprint_name:    s.sprint_name,
+            sprint_number:  s.sprint_number,
+            sprint_fy_short: '',
+            total_cost:     costBySprint[s.id]?.total_cost  ?? null,
+            total_days:     costBySprint[s.id]?.total_days  ?? null,
+        }));
+    } else {
+        rows = (a.sprint_actuals || [])
+            .filter(sa => !fyId || String(sa.sprint_fy_id) === String(fyId))
+            .sort((x, y) => x.sprint_number - y.sprint_number);
+    }
 
     const estimateWC  = parseFloat(a.estimate_value_with_contingency) || 0;
     const estimateVal = parseFloat(a.estimate_value) || 0;
@@ -3060,29 +3107,30 @@ function _renderActualsTabContent(a) {
         tbody.innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-3">No sprint data for the selected FY.</td></tr>';
     } else {
         tbody.innerHTML = rows.map(r => {
-            const cost = parseFloat(r.total_cost) || 0;
-            cumCost += cost;
-            const cumPct = estimateWC > 0 ? ((cumCost / estimateWC) * 100).toFixed(1) : '—';
+            const hasActuals = r.total_cost !== null;
+            const cost = hasActuals ? (parseFloat(r.total_cost) || 0) : 0;
+            if (hasActuals) cumCost += cost;
+            const cumPct = (hasActuals && estimateWC > 0) ? ((cumCost / estimateWC) * 100).toFixed(1) : null;
             const pctCls = cumCost > estimateWC ? 'text-danger' : cumCost > estimateVal ? 'text-warning' : '';
-            return `<tr>
-                <td class="text-secondary" style="font-size:12px">${escHtml(r.sprint_fy_short || '—')}</td>
+            return `<tr${!hasActuals ? ' class="text-secondary"' : ''}>
+                <td style="font-size:12px">${escHtml(r.sprint_fy_short || '—')}</td>
                 <td>${escHtml(r.sprint_name)}</td>
-                <td class="text-end">${parseFloat(r.total_days).toFixed(2)}</td>
-                <td class="text-end">${_actualsTabFmt(cost)}</td>
-                <td class="text-end fw-500">${_actualsTabFmt(cumCost)}</td>
-                <td class="text-end ${pctCls}">${cumPct}%</td>
+                <td class="text-end">${hasActuals ? parseFloat(r.total_days || 0).toFixed(2) : '—'}</td>
+                <td class="text-end">${hasActuals ? _actualsTabFmt(cost) : '—'}</td>
+                <td class="text-end fw-500">${hasActuals ? _actualsTabFmt(cumCost) : '—'}</td>
+                <td class="text-end ${pctCls}">${cumPct !== null ? cumPct + '%' : '—'}</td>
             </tr>`;
         }).join('');
     }
 
-    // Chart
+    // Chart — include all FY sprints; use 0 for those without actuals
     if (_actualsTabChart) { _actualsTabChart.destroy(); _actualsTabChart = null; }
     const ctx = document.getElementById('actuals-tab-chart')?.getContext('2d');
     if (!ctx || !rows.length) return;
 
     const labels   = rows.map(r => r.sprint_name);
-    const costData = rows.map(r => parseFloat(r.total_cost) || 0);
-    const yMax     = estimateWC > 0 ? estimateWC * 1.15 : Math.max(...costData) * 1.2 || 1;
+    const costData = rows.map(r => r.total_cost !== null ? (parseFloat(r.total_cost) || 0) : 0);
+    const yMax     = estimateWC > 0 ? estimateWC * 1.15 : Math.max(...costData, 1) * 1.2;
 
     const barColors = costData.map((_, i) => {
         const cum = costData.slice(0, i + 1).reduce((s, v) => s + v, 0);

@@ -586,6 +586,10 @@ class ProjectActuals(models.Model):
         default=False,
         help_text='When True, this project is excluded from risk calculations and treated as Neutral.',
     )
+    ignore_risk_notes = models.TextField(
+        blank=True,
+        help_text='Optional reason for ignoring risk on this project.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

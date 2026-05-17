@@ -294,6 +294,7 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
             'remaining_amount',
             'risk',
             'ignore_risk',
+            'ignore_risk_notes',
             'last_updated_sprint', 'last_updated_sprint_name',
             'created_at', 'updated_at',
         ]

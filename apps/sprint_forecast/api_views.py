@@ -699,7 +699,7 @@ class ProjectActualsViewSet(viewsets.ViewSet):
             obj = self._base_qs().get(pk=pk)
         except ProjectActuals.DoesNotExist:
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        allowed = {'ignore_risk'}
+        allowed = {'ignore_risk', 'ignore_risk_notes'}
         data = {k: v for k, v in request.data.items() if k in allowed}
         s = ProjectActualsSerializer(obj, data=data, partial=True)
         if not s.is_valid():
@@ -726,6 +726,57 @@ class ProjectActualsViewSet(viewsets.ViewSet):
             {'id': pa.project_id, 'name': pa.project.name}
             for pa in qs.order_by('project__name')
         ])
+
+    @action(detail=False, methods=['get'], url_path='fy-sprints')
+    def fy_sprints(self, request):
+        from apps.sprints.models import Sprint
+        fy_id = request.query_params.get('fy_id')
+        if not fy_id:
+            return Response([])
+        sprints = (
+            Sprint.objects
+            .filter(financial_year_id=fy_id)
+            .order_by('sprint_number')
+            .values('id', 'sprint_name', 'sprint_number')
+        )
+        return Response(list(sprints))
+
+    @action(detail=False, methods=['post'], url_path='copy-from-previous-fy')
+    def copy_from_previous_fy(self, request):
+        from apps.financial_years.models import FinancialYear
+        from apps.projects.models import Project
+        fy_id = request.data.get('fy_id')
+        if not fy_id:
+            return Response({'error': 'fy_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            fy = FinancialYear.objects.get(pk=fy_id)
+        except FinancialYear.DoesNotExist:
+            return Response({'error': 'Financial year not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        prev_fy = FinancialYear.objects.filter(
+            start_date__lt=fy.start_date
+        ).order_by('-start_date').first()
+
+        if not prev_fy:
+            return Response({'created': 0, 'existing': 0})
+
+        prev_pa_ids = ProjectSprintActual.objects.filter(
+            sprint__financial_year=prev_fy
+        ).values_list('project_actuals_id', flat=True).distinct()
+
+        project_ids = ProjectActuals.objects.filter(
+            pk__in=prev_pa_ids
+        ).values_list('project_id', flat=True)
+
+        created = existing = 0
+        for project in Project.objects.filter(pk__in=project_ids):
+            _, was_created = ProjectActuals.objects.get_or_create(project=project)
+            if was_created:
+                created += 1
+            else:
+                existing += 1
+
+        return Response({'created': created, 'existing': existing})
 
     @action(detail=False, methods=['get'], url_path='team-options')
     def team_options(self, request):

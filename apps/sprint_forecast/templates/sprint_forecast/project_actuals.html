@@ -35,21 +35,19 @@
     </select>
 </div>
 
-<!-- Risk row colour key -->
+<!-- Row colour key -->
 <div class="d-flex gap-3 mb-3 flex-wrap align-items-center" style="font-size:13px">
     <span class="text-secondary fw-semibold">Row colour:</span>
     <span class="d-inline-flex align-items-center gap-1">
-        <span style="display:inline-block;width:14px;height:14px;background:var(--rp-table-warning-bg,#fff3cd);border:1px solid #ffc107;border-radius:2px"></span> Warning
+        <span style="display:inline-block;width:14px;height:14px;background:#fff3cd;border:1px solid #ffc107;border-radius:2px"></span>Warning
     </span>
     <span class="d-inline-flex align-items-center gap-1">
-        <span style="display:inline-block;width:14px;height:14px;background:var(--rp-table-danger-bg,#f8d7da);border:1px solid #dc3545;border-radius:2px"></span> Risk
+        <span style="display:inline-block;width:14px;height:14px;background:#f8d7da;border:1px solid #dc3545;border-radius:2px"></span>Risk
     </span>
-    <span class="text-secondary" style="font-size:12px">
-        <i class="bi bi-eye-slash me-1"></i>Eye-slash icon = risk ignored (treated as Neutral)
-    </span>
+    <span class="text-secondary" style="font-size:12px"><i class="bi bi-gear me-1"></i>Gear icon = configure risk override</span>
 </div>
 
-<!-- Table -->
+<!-- Table card -->
 <div class="rp-card">
     <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
         <h6 class="rp-card-heading mb-0">Project Actuals</h6>
@@ -60,10 +58,26 @@
         <div class="spinner-border spinner-border-sm me-2"></div>Loading…
     </div>
 
-    <div class="rp-table-wrap d-none" id="actuals-table-wrap" style="overflow-x:auto">
-        <table class="table rp-table mb-0" id="actuals-table" style="min-width:900px">
-            <thead id="actuals-thead">
-                <tr id="actuals-header-row">
+    <div id="actuals-table-wrap" class="d-none" style="overflow-x:auto">
+        <table class="table rp-table mb-0" id="actuals-table" style="min-width:1000px;table-layout:fixed">
+            <colgroup>
+                <col style="width:32px"><!-- expand toggle -->
+                <col style="width:120px">
+                <col style="width:160px">
+                <col style="width:65px">
+                <col style="width:120px">
+                <col style="width:75px">
+                <col style="width:120px">
+                <col style="width:130px">
+                <col style="width:90px">
+                <col style="width:100px">
+                <col style="width:90px">
+                <col style="width:90px">
+                <col style="width:56px"><!-- actions -->
+            </colgroup>
+            <thead>
+                <tr>
+                    <th></th>
                     <th>Programme</th>
                     <th>Project</th>
                     <th>FY</th>
@@ -72,38 +86,89 @@
                     <th>Assigned Team</th>
                     <th>Collaborators</th>
                     <th class="text-end">Estimate</th>
-                    <th class="text-end">Est. + Contingency</th>
+                    <th class="text-end">Est.+Contingency</th>
                     <th class="text-end">Total Cost</th>
                     <th class="text-end">Remaining</th>
-                    <!-- sprint columns injected here -->
-                    <th style="width:60px"></th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody id="actuals-tbody"></tbody>
         </table>
     </div>
-    <div id="actuals-empty" class="text-center text-secondary py-4 d-none">No project actuals found. Close a sprint to populate this table.</div>
+
+    <!-- Pagination -->
+    <div id="actuals-pagination" class="d-flex align-items-center justify-content-between px-1 pt-3 flex-wrap gap-2 d-none">
+        <span class="text-secondary small" id="actuals-page-info"></span>
+        <nav><ul class="pagination pagination-sm mb-0" id="actuals-page-controls"></ul></nav>
+    </div>
+
+    <div id="actuals-empty" class="text-center text-secondary py-4 d-none">
+        No project actuals found. Close a sprint to populate this table.
+    </div>
 </div>
 
-<!-- Per-Sprint Chart Modal -->
+<!-- Risk Config Modal -->
+<div class="modal fade" id="riskConfigModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-gear me-2"></i>Risk Configuration</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary small mb-3" id="risk-config-project-name"></p>
+
+                <div class="mb-3 d-flex align-items-start gap-3">
+                    <div class="text-secondary small">Current risk:</div>
+                    <span id="risk-config-current-badge"></span>
+                </div>
+
+                <div class="rp-card rp-card--muted p-3 mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="risk-config-ignore-check" role="switch">
+                        <label class="form-check-label fw-500" for="risk-config-ignore-check">
+                            Ignore risk for this project
+                        </label>
+                    </div>
+                    <p class="text-secondary small mb-0 mt-2">
+                        When enabled, this project will always display as <strong>Neutral</strong>
+                        regardless of spend vs. estimate.
+                    </p>
+                </div>
+
+                <div class="mb-1">
+                    <label class="form-label small fw-500" for="risk-config-notes">Reason / Notes <span class="text-secondary fw-normal">(optional)</span></label>
+                    <textarea class="form-control" id="risk-config-notes" rows="3"
+                              placeholder="e.g. Budget approved to overspend, risk acknowledged by stakeholders"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="risk-config-save-btn">
+                    <i class="bi bi-check-lg me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Sprint Chart Modal -->
 <div class="modal fade" id="sprintChartModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content rp-modal">
             <div class="modal-header border-0 pb-0">
                 <div>
-                    <h5 class="modal-title mb-1" id="chart-modal-title">Per-Sprint Utilisation</h5>
+                    <h5 class="modal-title mb-1" id="chart-modal-title">Sprint Utilisation</h5>
                     <span id="chart-modal-risk-badge"></span>
                 </div>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div style="position:relative;height:360px">
-                    <canvas id="sprintChart"></canvas>
-                </div>
+                <div style="position:relative;height:360px"><canvas id="sprintChart"></canvas></div>
                 <div class="d-flex gap-3 mt-3 flex-wrap" style="font-size:13px">
-                    <span><span class="d-inline-block me-1" style="width:12px;height:12px;background:rgba(99,102,241,0.75);border-radius:2px"></span>Sprint Cost (£)</span>
-                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#f59e0b;vertical-align:middle"></span>Estimate threshold (%)</span>
-                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#ef4444;vertical-align:middle"></span>Est. + Contingency = 100% (right axis)</span>
+                    <span><span class="d-inline-block me-1" style="width:12px;height:12px;background:rgba(99,102,241,0.75);border-radius:2px"></span>Sprint Cost (£, left axis)</span>
+                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#f59e0b;vertical-align:middle"></span>Estimate % (right axis)</span>
+                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#ef4444;vertical-align:middle"></span>100% = Est.+Contingency (right axis)</span>
                 </div>
             </div>
         </div>
