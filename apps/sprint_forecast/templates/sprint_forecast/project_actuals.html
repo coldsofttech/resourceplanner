@@ -24,6 +24,29 @@
     <select id="filter-project" class="form-select rp-select" style="max-width:240px">
         <option value="">All Projects</option>
     </select>
+    <select id="filter-team" class="form-select rp-select" style="max-width:220px">
+        <option value="">All Teams</option>
+    </select>
+    <select id="filter-risk" class="form-select rp-select" style="max-width:160px">
+        <option value="">All Risks</option>
+        <option value="NEUTRAL">Neutral</option>
+        <option value="WARNING">Warning</option>
+        <option value="RISK">Risk</option>
+    </select>
+</div>
+
+<!-- Risk row colour key -->
+<div class="d-flex gap-3 mb-3 flex-wrap align-items-center" style="font-size:13px">
+    <span class="text-secondary fw-semibold">Row colour:</span>
+    <span class="d-inline-flex align-items-center gap-1">
+        <span style="display:inline-block;width:14px;height:14px;background:var(--rp-table-warning-bg,#fff3cd);border:1px solid #ffc107;border-radius:2px"></span> Warning
+    </span>
+    <span class="d-inline-flex align-items-center gap-1">
+        <span style="display:inline-block;width:14px;height:14px;background:var(--rp-table-danger-bg,#f8d7da);border:1px solid #dc3545;border-radius:2px"></span> Risk
+    </span>
+    <span class="text-secondary" style="font-size:12px">
+        <i class="bi bi-eye-slash me-1"></i>Eye-slash icon = risk ignored (treated as Neutral)
+    </span>
 </div>
 
 <!-- Table -->
@@ -52,9 +75,8 @@
                     <th class="text-end">Est. + Contingency</th>
                     <th class="text-end">Total Cost</th>
                     <th class="text-end">Remaining</th>
-                    <th class="text-center">Risk</th>
                     <!-- sprint columns injected here -->
-                    <th style="width:36px"></th>
+                    <th style="width:60px"></th>
                 </tr>
             </thead>
             <tbody id="actuals-tbody"></tbody>
@@ -75,13 +97,13 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div style="position:relative;height:340px">
+                <div style="position:relative;height:360px">
                     <canvas id="sprintChart"></canvas>
                 </div>
                 <div class="d-flex gap-3 mt-3 flex-wrap" style="font-size:13px">
-                    <span><span class="d-inline-block me-1" style="width:12px;height:12px;background:rgba(99,102,241,0.75);border-radius:2px"></span>Sprint Cost %</span>
-                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#f59e0b;vertical-align:middle"></span>Estimate threshold</span>
-                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#ef4444;vertical-align:middle"></span>Est. + Contingency (100%)</span>
+                    <span><span class="d-inline-block me-1" style="width:12px;height:12px;background:rgba(99,102,241,0.75);border-radius:2px"></span>Sprint Cost (£)</span>
+                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#f59e0b;vertical-align:middle"></span>Estimate threshold (%)</span>
+                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#ef4444;vertical-align:middle"></span>Est. + Contingency = 100% (right axis)</span>
                 </div>
             </div>
         </div>

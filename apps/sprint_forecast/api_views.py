@@ -666,11 +666,13 @@ class ProjectActualsViewSet(viewsets.ViewSet):
         )
 
     def list(self, request):
+        from django.db.models import Q
         qs = self._base_qs()
 
         project_id = request.query_params.get('project_id')
         programme_id = request.query_params.get('programme_id')
         fy_id = request.query_params.get('fy_id')
+        team_id = request.query_params.get('team_id')
 
         if project_id:
             qs = qs.filter(project_id=project_id)
@@ -678,6 +680,10 @@ class ProjectActualsViewSet(viewsets.ViewSet):
             qs = qs.filter(programme_id=programme_id)
         if fy_id:
             qs = qs.filter(sprint_actuals__sprint__financial_year_id=fy_id).distinct()
+        if team_id:
+            qs = qs.filter(
+                Q(assigned_team_id=team_id) | Q(collaborators__id=team_id)
+            ).distinct()
 
         return Response(ProjectActualsSerializer(qs, many=True).data)
 
@@ -687,6 +693,19 @@ class ProjectActualsViewSet(viewsets.ViewSet):
         except ProjectActuals.DoesNotExist:
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(ProjectActualsSerializer(obj).data)
+
+    def partial_update(self, request, pk=None):
+        try:
+            obj = self._base_qs().get(pk=pk)
+        except ProjectActuals.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        allowed = {'ignore_risk'}
+        data = {k: v for k, v in request.data.items() if k in allowed}
+        s = ProjectActualsSerializer(obj, data=data, partial=True)
+        if not s.is_valid():
+            return Response(s.errors, status=status.HTTP_400_BAD_REQUEST)
+        s.save()
+        return Response(ProjectActualsSerializer(self._base_qs().get(pk=pk)).data)
 
     @action(detail=False, methods=['get'], url_path='fy-options')
     def fy_options(self, request):
@@ -707,3 +726,17 @@ class ProjectActualsViewSet(viewsets.ViewSet):
             {'id': pa.project_id, 'name': pa.project.name}
             for pa in qs.order_by('project__name')
         ])
+
+    @action(detail=False, methods=['get'], url_path='team-options')
+    def team_options(self, request):
+        from apps.delivery_teams.models import DeliveryTeam
+        assigned_ids = set(
+            ProjectActuals.objects.exclude(assigned_team=None)
+            .values_list('assigned_team_id', flat=True)
+        )
+        collab_ids = set(
+            ProjectActuals.objects.values_list('collaborators__id', flat=True)
+        ) - {None}
+        all_ids = assigned_ids | collab_ids
+        qs = DeliveryTeam.objects.filter(pk__in=all_ids).order_by('name').values('id', 'name')
+        return Response(list(qs))

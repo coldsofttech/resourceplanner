@@ -82,6 +82,9 @@ function bindTabEvents() {
     document.getElementById('tab-links').addEventListener('shown.bs.tab', function () {
         renderLinks();
     });
+    document.getElementById('tab-actuals')?.addEventListener('shown.bs.tab', function () {
+        renderActualsTab();
+    });
 }
 
 async function fetchOptions() {
@@ -2943,3 +2946,237 @@ document.addEventListener('click', (e) => {
 window.submitAddContact = submitAddContact;
 window.openRemoveContactModal = openRemoveContactModal;
 window.submitRemoveContact = submitRemoveContact;
+
+// ── Actuals Tab ───────────────────────────────────────────────────────────────
+
+let _actualsTabData = null;
+let _actualsTabChart = null;
+
+async function renderActualsTab() {
+    if (_actualsTabData !== null) {
+        _renderActualsTabContent(_actualsTabData);
+        return;
+    }
+    const loadingEl = document.getElementById('actuals-tab-loading');
+    const emptyEl   = document.getElementById('actuals-tab-empty');
+    const contentEl = document.getElementById('actuals-tab-content');
+    loadingEl?.classList.remove('d-none');
+    emptyEl?.classList.add('d-none');
+    contentEl?.classList.add('d-none');
+
+    try {
+        const results = await apiFetch(`${API_URLS.project_actuals.list.href}?project_id=${projectPk}`);
+        _actualsTabData = (results || [])[0] || null;
+
+        if (_actualsTabData) {
+            await _populateActualsFyFilter(_actualsTabData);
+            document.getElementById('actuals-tab-fy')?.addEventListener('change', () => {
+                _renderActualsTabContent(_actualsTabData);
+            });
+        }
+
+        _renderActualsTabContent(_actualsTabData);
+    } catch (_) {
+        if (loadingEl) loadingEl.innerHTML = '<span class="text-danger">Failed to load actuals.</span>';
+    }
+}
+
+async function _populateActualsFyFilter(a) {
+    const fySel = document.getElementById('actuals-tab-fy');
+    if (!fySel) return;
+    try {
+        const fys = await apiFetch(API_URLS.project_actuals.fy_options.href);
+        const fyIds = new Set((a.sprint_actuals || []).map(sa => String(sa.sprint_fy_id)));
+        (fys || []).filter(f => fyIds.has(String(f.id))).forEach(f => {
+            const o = document.createElement('option');
+            o.value = f.id;
+            o.textContent = f.short_fy;
+            fySel.appendChild(o);
+        });
+    } catch (_) { /* non-critical */ }
+}
+
+function _renderActualsTabContent(a) {
+    const loadingEl = document.getElementById('actuals-tab-loading');
+    const emptyEl   = document.getElementById('actuals-tab-empty');
+    const contentEl = document.getElementById('actuals-tab-content');
+
+    loadingEl?.classList.add('d-none');
+
+    if (!a) {
+        emptyEl?.classList.remove('d-none');
+        contentEl?.classList.add('d-none');
+        return;
+    }
+
+    contentEl?.classList.remove('d-none');
+    emptyEl?.classList.add('d-none');
+
+    const fyId = document.getElementById('actuals-tab-fy')?.value || null;
+    const rows = (a.sprint_actuals || [])
+        .filter(sa => !fyId || String(sa.sprint_fy_id) === String(fyId))
+        .sort((x, y) => x.sprint_number - y.sprint_number);
+
+    const estimateWC  = parseFloat(a.estimate_value_with_contingency) || 0;
+    const estimateVal = parseFloat(a.estimate_value) || 0;
+    const estimatePct = estimateWC > 0 ? (estimateVal / estimateWC) * 100 : 0;
+
+    // Summary cards
+    const risk    = a.risk || 'NEUTRAL';
+    const riskCls = risk === 'RISK' ? 'rp-badge--danger' : risk === 'WARNING' ? 'rp-badge--warning' : 'rp-badge--muted';
+    document.getElementById('actuals-tab-summary').innerHTML = `
+        <div class="col-sm-6 col-md-3">
+            <div class="rp-card rp-card--muted p-3 text-center">
+                <div class="rp-view-label mb-1">Estimate</div>
+                <div class="rp-metric-value fs-5">${_actualsTabFmt(a.estimate_value)}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+            <div class="rp-card rp-card--muted p-3 text-center">
+                <div class="rp-view-label mb-1">Est. + Contingency</div>
+                <div class="rp-metric-value fs-5">${_actualsTabFmt(a.estimate_value_with_contingency)}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+            <div class="rp-card rp-card--muted p-3 text-center">
+                <div class="rp-view-label mb-1">Total Cost</div>
+                <div class="rp-metric-value fs-5 fw-600">${_actualsTabFmt(a.total_cost_till_date)}</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-md-3">
+            <div class="rp-card rp-card--muted p-3 text-center">
+                <div class="rp-view-label mb-1">Remaining</div>
+                <div class="rp-metric-value fs-5 ${parseFloat(a.remaining_amount) >= 0 ? 'text-success' : 'text-danger'}">${_actualsTabFmt(a.remaining_amount)}</div>
+                <span class="rp-badge ${riskCls} mt-1">${risk.charAt(0) + risk.slice(1).toLowerCase()}</span>
+                ${a.ignore_risk ? '<span class="rp-badge rp-badge--muted mt-1 ms-1"><i class="bi bi-eye-slash"></i> Ignored</span>' : ''}
+            </div>
+        </div>
+    `;
+
+    // Sprint breakdown table
+    let cumCost = 0;
+    const tbody = document.getElementById('actuals-tab-sprint-tbody');
+    if (!rows.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-secondary py-3">No sprint data for the selected FY.</td></tr>';
+    } else {
+        tbody.innerHTML = rows.map(r => {
+            const cost = parseFloat(r.total_cost) || 0;
+            cumCost += cost;
+            const cumPct = estimateWC > 0 ? ((cumCost / estimateWC) * 100).toFixed(1) : '—';
+            const pctCls = cumCost > estimateWC ? 'text-danger' : cumCost > estimateVal ? 'text-warning' : '';
+            return `<tr>
+                <td class="text-secondary" style="font-size:12px">${escHtml(r.sprint_fy_short || '—')}</td>
+                <td>${escHtml(r.sprint_name)}</td>
+                <td class="text-end">${parseFloat(r.total_days).toFixed(2)}</td>
+                <td class="text-end">${_actualsTabFmt(cost)}</td>
+                <td class="text-end fw-500">${_actualsTabFmt(cumCost)}</td>
+                <td class="text-end ${pctCls}">${cumPct}%</td>
+            </tr>`;
+        }).join('');
+    }
+
+    // Chart
+    if (_actualsTabChart) { _actualsTabChart.destroy(); _actualsTabChart = null; }
+    const ctx = document.getElementById('actuals-tab-chart')?.getContext('2d');
+    if (!ctx || !rows.length) return;
+
+    const labels   = rows.map(r => r.sprint_name);
+    const costData = rows.map(r => parseFloat(r.total_cost) || 0);
+    const yMax     = estimateWC > 0 ? estimateWC * 1.15 : Math.max(...costData) * 1.2 || 1;
+
+    const barColors = costData.map((_, i) => {
+        const cum = costData.slice(0, i + 1).reduce((s, v) => s + v, 0);
+        const pct = estimateWC > 0 ? (cum / estimateWC) * 100 : 0;
+        if (pct > 100) return 'rgba(239,68,68,0.75)';
+        if (pct > estimatePct) return 'rgba(245,158,11,0.75)';
+        return 'rgba(99,102,241,0.75)';
+    });
+
+    _actualsTabChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels,
+            datasets: [
+                {
+                    type: 'bar',
+                    label: 'Sprint Cost',
+                    data: costData,
+                    backgroundColor: barColors,
+                    borderColor: barColors.map(c => c.replace('0.75', '1')),
+                    borderWidth: 1,
+                    yAxisID: 'y',
+                    order: 2,
+                },
+                {
+                    type: 'line',
+                    label: `Estimate (${estimatePct.toFixed(1)}%)`,
+                    data: Array(labels.length).fill(parseFloat(estimatePct.toFixed(2))),
+                    borderColor: '#f59e0b',
+                    borderWidth: 2,
+                    borderDash: [6, 3],
+                    pointRadius: 0,
+                    fill: false,
+                    yAxisID: 'y1',
+                    order: 1,
+                },
+                {
+                    type: 'line',
+                    label: 'Est. + Contingency (100%)',
+                    data: Array(labels.length).fill(100),
+                    borderColor: '#ef4444',
+                    borderWidth: 2,
+                    borderDash: [6, 3],
+                    pointRadius: 0,
+                    fill: false,
+                    yAxisID: 'y1',
+                    order: 0,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ctx.dataset.yAxisID === 'y1'
+                            ? `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`
+                            : `${ctx.dataset.label}: ${_actualsTabFmt(ctx.parsed.y)}`,
+                    },
+                },
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    position: 'left',
+                    min: 0,
+                    max: yMax,
+                    title: { display: true, text: 'Cost (£)' },
+                    ticks: {
+                        callback: v => v >= 1_000_000 ? `£${(v/1_000_000).toFixed(1)}M`
+                            : v >= 1_000 ? `£${(v/1_000).toFixed(0)}k`
+                            : `£${v}`,
+                    },
+                },
+                y1: {
+                    type: 'linear',
+                    position: 'right',
+                    min: 0,
+                    max: 115,
+                    title: { display: true, text: '% of Est. + Contingency' },
+                    ticks: { callback: v => `${v}%` },
+                    grid: { drawOnChartArea: false },
+                },
+                x: { ticks: { maxRotation: 45, minRotation: 0 } },
+            },
+        },
+    });
+}
+
+function _actualsTabFmt(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return '—';
+    return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'GBP', minimumFractionDigits: 2 }).format(n);
+}

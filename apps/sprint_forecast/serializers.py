@@ -273,6 +273,7 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
     all_labels = serializers.SerializerMethodField()
     assigned_team_name = serializers.CharField(source='assigned_team.name', read_only=True)
     collaborator_names = serializers.SerializerMethodField()
+    collaborator_ids = serializers.SerializerMethodField()
     sprint_actuals = ProjectSprintActualSerializer(many=True, read_only=True)
     remaining_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
     risk = serializers.CharField(read_only=True)
@@ -286,14 +287,23 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
             'label', 'label_name', 'all_labels',
             'code',
             'assigned_team', 'assigned_team_name',
-            'collaborators', 'collaborator_names',
+            'collaborators', 'collaborator_names', 'collaborator_ids',
             'estimate_value', 'estimate_value_with_contingency',
             'sprint_actuals',
             'total_cost_till_date',
             'remaining_amount',
             'risk',
+            'ignore_risk',
             'last_updated_sprint', 'last_updated_sprint_name',
             'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'project', 'project_name', 'programme', 'programme_name',
+            'label', 'label_name', 'all_labels', 'code',
+            'assigned_team', 'assigned_team_name', 'collaborators', 'collaborator_names', 'collaborator_ids',
+            'estimate_value', 'estimate_value_with_contingency', 'sprint_actuals',
+            'total_cost_till_date', 'remaining_amount', 'risk',
+            'last_updated_sprint', 'last_updated_sprint_name', 'created_at', 'updated_at',
         ]
 
     def get_all_labels(self, obj):
@@ -303,3 +313,6 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
 
     def get_collaborator_names(self, obj):
         return list(obj.collaborators.values_list('name', flat=True))
+
+    def get_collaborator_ids(self, obj):
+        return list(obj.collaborators.values_list('id', flat=True))

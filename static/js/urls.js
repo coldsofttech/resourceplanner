@@ -928,11 +928,13 @@ export const API_URLS = {
     project_actuals: {
         list: { method: 'GET', href: `${API_BASE}project-actuals/` },
         detail: (id) => ({ method: 'GET', href: `${API_BASE}project-actuals/${id}/` }),
+        patch: (id) => ({ method: 'PATCH', href: `${API_BASE}project-actuals/${id}/` }),
         fy_options: { method: 'GET', href: `${API_BASE}project-actuals/fy-options/` },
         project_options: (programmeId) => ({
             method: 'GET',
             href: `${API_BASE}project-actuals/project-options/${programmeId ? `?programme_id=${programmeId}` : ''}`,
         }),
+        team_options: { method: 'GET', href: `${API_BASE}project-actuals/team-options/` },
     },
 };
 

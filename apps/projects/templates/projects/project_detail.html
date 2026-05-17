@@ -107,6 +107,18 @@
         <li class="nav-item" role="presentation">
             <button
                 class="nav-link"
+                id="tab-actuals"
+                data-bs-toggle="tab"
+                data-bs-target="#pane-actuals"
+                type="button"
+                role="tab"
+            >
+                <i class="bi bi-graph-up-arrow"></i>Actuals
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
                 id="tab-links"
                 data-bs-toggle="tab"
                 data-bs-target="#pane-links"
@@ -907,6 +919,70 @@
 
             <div class="rp-card rp-edit-card d-none" id="history-edit-mode"></div>
         </div>
+
+        <!-- ── Actuals tab ─────────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="pane-actuals" role="tabpanel">
+            <div class="row g-4 rp-view-layout" id="actuals-tab-view">
+                <div class="col-12 rp-view-main">
+
+                    <!-- Loading / empty state -->
+                    <div id="actuals-tab-loading" class="text-center text-secondary py-5">
+                        <div class="spinner-border spinner-border-sm me-2"></div>Loading actuals…
+                    </div>
+                    <div id="actuals-tab-empty" class="text-center text-secondary py-5 d-none">
+                        No actuals found for this project. Close a sprint to populate this data.
+                    </div>
+
+                    <!-- Content shown when actuals exist -->
+                    <div id="actuals-tab-content" class="d-none">
+
+                        <!-- FY filter -->
+                        <div class="d-flex gap-2 mb-4 flex-wrap align-items-center">
+                            <select id="actuals-tab-fy" class="form-select rp-select" style="max-width:160px">
+                                <option value="">All FYs</option>
+                            </select>
+                        </div>
+
+                        <!-- Summary cards -->
+                        <div class="row g-3 mb-4" id="actuals-tab-summary"></div>
+
+                        <!-- Sprint breakdown table -->
+                        <div class="rp-card mb-4">
+                            <h6 class="rp-card-heading mb-3">Sprint Breakdown</h6>
+                            <div class="rp-table-wrap" style="overflow-x:auto">
+                                <table class="table rp-table table-sm mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>FY</th>
+                                            <th>Sprint</th>
+                                            <th class="text-end">Days</th>
+                                            <th class="text-end">Cost</th>
+                                            <th class="text-end">Cumulative</th>
+                                            <th class="text-end">% of Est+C</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="actuals-tab-sprint-tbody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Chart -->
+                        <div class="rp-card">
+                            <h6 class="rp-card-heading mb-3">Sprint Cost vs Budget</h6>
+                            <div style="position:relative;height:300px">
+                                <canvas id="actuals-tab-chart"></canvas>
+                            </div>
+                            <div class="d-flex gap-3 mt-3 flex-wrap" style="font-size:13px">
+                                <span><span class="d-inline-block me-1" style="width:12px;height:12px;background:rgba(99,102,241,0.75);border-radius:2px"></span>Sprint Cost (£, left)</span>
+                                <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#f59e0b;vertical-align:middle"></span>Estimate % (right)</span>
+                                <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#ef4444;vertical-align:middle"></span>Est.+Contingency 100% (right)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ── /Actuals tab ───────────────────────────────────────────────── -->
 
         <div class="tab-pane fade" id="pane-links" role="tabpanel">
             <div class="row g-4 rp-view-layout" id="links-view-mode">

@@ -582,6 +582,10 @@ class ProjectActuals(models.Model):
         blank=True,
         related_name='updated_project_actuals',
     )
+    ignore_risk = models.BooleanField(
+        default=False,
+        help_text='When True, this project is excluded from risk calculations and treated as Neutral.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -600,6 +604,8 @@ class ProjectActuals(models.Model):
 
     @property
     def risk(self):
+        if self.ignore_risk:
+            return RISK_NEUTRAL
         total = self.total_cost_till_date
         if total < self.estimate_value:
             return RISK_NEUTRAL
