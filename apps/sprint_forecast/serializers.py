@@ -275,8 +275,11 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
     collaborator_names = serializers.SerializerMethodField()
     collaborator_ids = serializers.SerializerMethodField()
     sprint_actuals = ProjectSprintActualSerializer(many=True, read_only=True)
-    remaining_amount = serializers.DecimalField(max_digits=14, decimal_places=2, read_only=True)
-    risk = serializers.CharField(read_only=True)
+    # Overridden as SerializerMethodFields so ignore_previous_fy_cost and
+    # the "no estimate → neutral" rule are respected without extra model queries.
+    total_cost_till_date = serializers.SerializerMethodField()
+    remaining_amount = serializers.SerializerMethodField()
+    risk = serializers.SerializerMethodField()
     last_updated_sprint_name = serializers.CharField(source='last_updated_sprint.sprint_name', read_only=True)
 
     class Meta:
@@ -295,6 +298,7 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
             'risk',
             'ignore_risk',
             'ignore_risk_notes',
+            'ignore_previous_fy_cost',
             'last_updated_sprint', 'last_updated_sprint_name',
             'created_at', 'updated_at',
         ]
@@ -306,6 +310,58 @@ class ProjectActualsSerializer(serializers.ModelSerializer):
             'total_cost_till_date', 'remaining_amount', 'risk',
             'last_updated_sprint', 'last_updated_sprint_name', 'created_at', 'updated_at',
         ]
+
+    # ── Helpers ───────────────────────────────────────────────────────────────
+
+    def _active_fy_id(self):
+        """Cached per-serializer-call to avoid N queries on many=True."""
+        ctx = self.context
+        if '_active_fy_id' not in ctx:
+            from apps.financial_years.models import FinancialYear
+            fy = FinancialYear.objects.filter(is_active=True).first()
+            ctx['_active_fy_id'] = fy.id if fy else None
+        return ctx['_active_fy_id']
+
+    def _effective_total(self, obj):
+        """Cost used for risk/remaining: current-FY-only when ignore_previous_fy_cost."""
+        if not obj.ignore_previous_fy_cost:
+            return float(obj.total_cost_till_date)
+        active_fy_id = self._active_fy_id()
+        if not active_fy_id:
+            return float(obj.total_cost_till_date)
+        return float(sum(
+            sa.total_cost
+            for sa in obj.sprint_actuals.all()
+            if sa.sprint.financial_year_id == active_fy_id
+        ))
+
+    # ── SerializerMethodFields ────────────────────────────────────────────────
+
+    def get_total_cost_till_date(self, obj):
+        return self._effective_total(obj)
+
+    def get_remaining_amount(self, obj):
+        total      = self._effective_total(obj)
+        estimate   = float(obj.estimate_value)
+        estimate_wc = float(obj.estimate_value_with_contingency)
+        if total <= estimate:
+            return estimate - total
+        return estimate_wc - total
+
+    def get_risk(self, obj):
+        if obj.ignore_risk:
+            return RISK_NEUTRAL
+        estimate   = float(obj.estimate_value)
+        estimate_wc = float(obj.estimate_value_with_contingency)
+        # No estimate configured → always neutral
+        if estimate <= 0 and estimate_wc <= 0:
+            return RISK_NEUTRAL
+        total = self._effective_total(obj)
+        if total < estimate:
+            return RISK_NEUTRAL
+        if total <= estimate_wc:
+            return RISK_WARNING
+        return RISK_RISK
 
     def get_all_labels(self, obj):
         if not obj.project_id:

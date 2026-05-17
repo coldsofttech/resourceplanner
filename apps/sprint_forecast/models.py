@@ -590,6 +590,10 @@ class ProjectActuals(models.Model):
         blank=True,
         help_text='Optional reason for ignoring risk on this project.',
     )
+    ignore_previous_fy_cost = models.BooleanField(
+        default=False,
+        help_text='When True, only the active FY cost is used for risk and remaining calculations.',
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -610,10 +614,15 @@ class ProjectActuals(models.Model):
     def risk(self):
         if self.ignore_risk:
             return RISK_NEUTRAL
-        total = self.total_cost_till_date
-        if total < self.estimate_value:
+        estimate = self.estimate_value
+        estimate_wc = self.estimate_value_with_contingency
+        # No estimate configured → always neutral (req: only apply risk when estimate exists)
+        if (not estimate or estimate <= 0) and (not estimate_wc or estimate_wc <= 0):
             return RISK_NEUTRAL
-        if total <= self.estimate_value_with_contingency:
+        total = self.total_cost_till_date
+        if total < estimate:
+            return RISK_NEUTRAL
+        if total <= estimate_wc:
             return RISK_WARNING
         return RISK_RISK
 

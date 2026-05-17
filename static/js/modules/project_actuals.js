@@ -317,10 +317,8 @@ function _renderAccordionRows(a, fyId) {
 }
 
 function _renderDetailContent(a, fyId) {
-    // Always use _fySprintsList (active or selected FY) when available
     const hasFySprints = _fySprintsList.length > 0 && _fySprintsFyId;
 
-    // Prior FYs: costs from sprint actuals NOT in the current sprint FY
     let priorCost = 0;
     if (hasFySprints) {
         priorCost = (a.sprint_actuals || [])
@@ -339,34 +337,48 @@ function _renderDetailContent(a, fyId) {
             cost: s.id in costBySprint ? costBySprint[s.id] : null,
         }));
     } else {
-        // Fallback: only sprints with actuals
         sprintItems = (a.sprint_actuals || [])
             .filter(sa => !fyId || String(sa.sprint_fy_id) === String(fyId))
             .sort((x, y) => x.sprint_number - y.sprint_number)
             .map(sa => ({ name: sa.sprint_name, cost: parseFloat(sa.total_cost) || 0 }));
     }
 
-    const priorCell = hasFySprints
-        ? `<div class="d-flex flex-column align-items-end" style="min-width:90px;border-right:1px solid rgba(0,0,0,.1);padding-right:16px;margin-right:4px">
-               <span class="text-secondary mb-1" style="font-size:11px">Prior FYs</span>
-               <strong>${priorCost > 0 ? _fmt(priorCost) : '<span class="text-secondary">—</span>'}</strong>
-           </div>`
+    if (!hasFySprints && !sprintItems.length) {
+        return `<div class="px-4 py-3 text-secondary fst-italic" style="font-size:12px;background:rgba(0,0,0,.02);border-top:1px solid rgba(0,0,0,.06)">No sprint actuals yet.</div>`;
+    }
+
+    const priorTh = hasFySprints
+        ? `<th class="text-end pe-3" style="min-width:90px;border-right:2px solid rgba(0,0,0,.12);font-weight:500;white-space:nowrap">Prior FYs</th>`
+        : '';
+    const priorTd = hasFySprints
+        ? `<td class="text-end pe-3" style="border-right:2px solid rgba(0,0,0,.12)">
+               ${priorCost > 0 ? `<strong>${_fmt(priorCost)}</strong>` : '<span class="text-secondary">—</span>'}
+           </td>`
         : '';
 
+    const sprintHeaders = sprintItems.map(s =>
+        `<th class="text-end" style="min-width:90px;font-weight:500;white-space:nowrap"
+              title="${escHtml(s.name)}">${escHtml(s.name)}</th>`
+    ).join('');
     const sprintCells = sprintItems.map(s =>
-        `<div class="d-flex flex-column align-items-end" style="min-width:82px">
-             <span class="text-secondary mb-1 text-truncate" style="font-size:11px;max-width:82px"
-                   title="${escHtml(s.name)}">${escHtml(s.name)}</span>
-             <strong>${s.cost !== null ? _fmt(s.cost) : '<span class="text-secondary">—</span>'}</strong>
-         </div>`
+        `<td class="text-end">
+             ${s.cost !== null ? `<strong>${_fmt(s.cost)}</strong>` : '<span class="text-secondary">—</span>'}
+         </td>`
     ).join('');
 
-    const noData = !priorCell && !sprintItems.length;
-
-    return `<div class="px-4 py-3 d-flex gap-3 flex-wrap align-items-start"
-                 style="font-size:12px;background:rgba(0,0,0,.02);border-top:1px solid rgba(0,0,0,.06)">
-        ${priorCell}
-        ${noData ? '<span class="text-secondary fst-italic">No sprint actuals yet.</span>' : sprintCells}
+    return `<div style="overflow-x:auto;background:rgba(0,0,0,.02);border-top:1px solid rgba(0,0,0,.06)">
+        <table class="table table-sm mb-0" style="min-width:max-content;font-size:12px">
+            <thead>
+                <tr class="text-secondary">
+                    ${priorTh}${sprintHeaders}
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    ${priorTd}${sprintCells}
+                </tr>
+            </tbody>
+        </table>
     </div>`;
 }
 
@@ -400,6 +412,7 @@ window.openRiskConfig = function(actualsId) {
             ? ' <span class="rp-badge rp-badge--muted ms-2"><i class="bi bi-eye-slash me-1"></i>Ignored</span>'
             : '');
     document.getElementById('risk-config-ignore-check').checked = Boolean(a.ignore_risk);
+    document.getElementById('risk-config-ignore-prev-fy-check').checked = Boolean(a.ignore_previous_fy_cost);
     document.getElementById('risk-config-notes').value = a.ignore_risk_notes || '';
 
     bootstrap.Modal.getOrCreateInstance(document.getElementById('riskConfigModal')).show();
@@ -407,8 +420,9 @@ window.openRiskConfig = function(actualsId) {
 
 async function _saveRiskConfig() {
     if (!_riskConfigId) return;
-    const ignore_risk       = document.getElementById('risk-config-ignore-check')?.checked ?? false;
-    const ignore_risk_notes = document.getElementById('risk-config-notes')?.value || '';
+    const ignore_risk              = document.getElementById('risk-config-ignore-check')?.checked ?? false;
+    const ignore_previous_fy_cost  = document.getElementById('risk-config-ignore-prev-fy-check')?.checked ?? false;
+    const ignore_risk_notes        = document.getElementById('risk-config-notes')?.value || '';
 
     const btn = document.getElementById('risk-config-save-btn');
     if (btn) btn.disabled = true;
@@ -416,7 +430,7 @@ async function _saveRiskConfig() {
     try {
         const updated = await apiFetch(API_URLS.project_actuals.patch(_riskConfigId).href, {
             method: 'PATCH',
-            body: JSON.stringify({ ignore_risk, ignore_risk_notes }),
+            body: JSON.stringify({ ignore_risk, ignore_risk_notes, ignore_previous_fy_cost }),
         });
         const idx = _allActuals.findIndex(a => a.id === _riskConfigId);
         if (idx !== -1) _allActuals[idx] = updated;
@@ -436,7 +450,6 @@ window.openChart = function(actualsId, projectName) {
     const a = _allActuals.find(x => x.id === actualsId);
     if (!a) return;
 
-    // Use _fySprintsList (active/selected FY) when available; otherwise fall back to actuals only
     let rows;
     if (_fySprintsList.length && _fySprintsFyId) {
         const costBySprint = {};
@@ -464,18 +477,79 @@ window.openChart = function(actualsId, projectName) {
 
     const estimateWC  = parseFloat(a.estimate_value_with_contingency) || 0;
     const estimateVal = parseFloat(a.estimate_value) || 0;
-    const estimatePct = estimateWC > 0 ? (estimateVal / estimateWC) * 100 : 0;
 
     const labels   = rows.map(r => r.sprint_name);
     const costData = rows.map(r => parseFloat(r.total_cost) || 0);
 
-    const barColors = costData.map((_, i) => {
-        const cumCost = costData.slice(0, i + 1).reduce((s, v) => s + v, 0);
-        const cumPct  = estimateWC > 0 ? (cumCost / estimateWC) * 100 : 0;
-        if (cumPct > 100)        return 'rgba(239,68,68,0.75)';
-        if (cumPct > estimatePct) return 'rgba(245,158,11,0.75)';
-        return 'rgba(99,102,241,0.75)';
-    });
+    // Cumulative cost for right axis
+    const cumulativeData = [];
+    let cumSum = 0;
+    costData.forEach(v => { cumSum += v; cumulativeData.push(cumSum); });
+
+    const _cumColor = v => {
+        if (estimateWC > 0 && v > estimateWC) return 'rgba(239,68,68,1)';
+        if (estimateVal > 0 && v > estimateVal) return 'rgba(245,158,11,1)';
+        return 'rgba(34,197,94,1)';
+    };
+
+    const yMax  = Math.max(...costData, 1) * 1.2;
+    const y1Max = Math.max(estimateWC > 0 ? estimateWC : 0, ...cumulativeData, 1) * 1.15;
+
+    const datasets = [
+        {
+            type: 'bar',
+            label: 'Sprint Cost',
+            data: costData,
+            backgroundColor: 'rgba(99,102,241,0.7)',
+            borderColor: 'rgba(99,102,241,1)',
+            borderWidth: 1,
+            yAxisID: 'y',
+            order: 3,
+        },
+        {
+            type: 'line',
+            label: 'Cumulative Cost',
+            data: cumulativeData,
+            borderWidth: 2.5,
+            pointRadius: 3,
+            pointBackgroundColor: cumulativeData.map(_cumColor),
+            fill: false,
+            yAxisID: 'y1',
+            order: 0,
+            segment: {
+                borderColor: ctx => _cumColor(ctx.p1.parsed.y),
+            },
+        },
+    ];
+
+    if (estimateVal > 0) {
+        datasets.push({
+            type: 'line',
+            label: 'Estimate',
+            data: Array(labels.length).fill(estimateVal),
+            borderColor: '#d1d5db',
+            borderWidth: 1.5,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            fill: false,
+            yAxisID: 'y1',
+            order: 2,
+        });
+    }
+    if (estimateWC > 0) {
+        datasets.push({
+            type: 'line',
+            label: 'Est. + Contingency',
+            data: Array(labels.length).fill(estimateWC),
+            borderColor: '#6b7280',
+            borderWidth: 1.5,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            fill: false,
+            yAxisID: 'y1',
+            order: 1,
+        });
+    }
 
     if (_sprintChart) { _sprintChart.destroy(); _sprintChart = null; }
 
@@ -485,50 +559,9 @@ window.openChart = function(actualsId, projectName) {
         const ctx = document.getElementById('sprintChart')?.getContext('2d');
         if (!ctx) return;
 
-        const yMax  = estimateWC > 0 ? estimateWC * 1.15 : Math.max(...costData, 1) * 1.2;
-        const y1Max = 115;
-
         _sprintChart = new Chart(ctx, {
             type: 'bar',
-            data: {
-                labels,
-                datasets: [
-                    {
-                        type: 'bar',
-                        label: 'Sprint Cost',
-                        data: costData,
-                        backgroundColor: barColors,
-                        borderColor: barColors.map(c => c.replace('0.75', '1')),
-                        borderWidth: 1,
-                        yAxisID: 'y',
-                        order: 2,
-                    },
-                    {
-                        type: 'line',
-                        label: `Estimate (${estimatePct.toFixed(1)}%)`,
-                        data: Array(labels.length).fill(parseFloat(estimatePct.toFixed(2))),
-                        borderColor: '#f59e0b',
-                        borderWidth: 2,
-                        borderDash: [6, 3],
-                        pointRadius: 0,
-                        fill: false,
-                        yAxisID: 'y1',
-                        order: 1,
-                    },
-                    {
-                        type: 'line',
-                        label: 'Est. + Contingency (100%)',
-                        data: Array(labels.length).fill(100),
-                        borderColor: '#ef4444',
-                        borderWidth: 2,
-                        borderDash: [6, 3],
-                        pointRadius: 0,
-                        fill: false,
-                        yAxisID: 'y1',
-                        order: 0,
-                    },
-                ],
-            },
+            data: { labels, datasets },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
@@ -537,12 +570,7 @@ window.openChart = function(actualsId, projectName) {
                     legend: { display: false },
                     tooltip: {
                         callbacks: {
-                            label: ctx => {
-                                if (ctx.dataset.yAxisID === 'y1') {
-                                    return `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`;
-                                }
-                                return `${ctx.dataset.label}: ${_fmt(ctx.parsed.y)}`;
-                            },
+                            label: ctx => `${ctx.dataset.label}: ${_fmt(ctx.parsed.y)}`,
                         },
                     },
                 },
@@ -552,7 +580,7 @@ window.openChart = function(actualsId, projectName) {
                         position: 'left',
                         min: 0,
                         max: yMax,
-                        title: { display: true, text: 'Cost (£)' },
+                        title: { display: true, text: 'Sprint Cost (£)' },
                         ticks: {
                             callback: v => {
                                 if (v >= 1_000_000) return `£${(v / 1_000_000).toFixed(1)}M`;
@@ -566,8 +594,14 @@ window.openChart = function(actualsId, projectName) {
                         position: 'right',
                         min: 0,
                         max: y1Max,
-                        title: { display: true, text: '% of Est. + Contingency' },
-                        ticks: { callback: v => `${v}%` },
+                        title: { display: true, text: 'Cumulative Cost (£)' },
+                        ticks: {
+                            callback: v => {
+                                if (v >= 1_000_000) return `£${(v / 1_000_000).toFixed(1)}M`;
+                                if (v >= 1_000)     return `£${(v / 1_000).toFixed(0)}k`;
+                                return `£${v}`;
+                            },
+                        },
                         grid: { drawOnChartArea: false },
                     },
                     x: { ticks: { maxRotation: 45, minRotation: 0 } },

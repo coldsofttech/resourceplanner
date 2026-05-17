@@ -136,6 +136,19 @@
                     </p>
                 </div>
 
+                <div class="rp-card rp-card--muted p-3 mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="risk-config-ignore-prev-fy-check" role="switch">
+                        <label class="form-check-label fw-500" for="risk-config-ignore-prev-fy-check">
+                            Ignore previous FY cost in risk calculation
+                        </label>
+                    </div>
+                    <p class="text-secondary small mb-0 mt-2">
+                        When enabled, only the <strong>current financial year's</strong> cost is used
+                        for risk and remaining calculations.
+                    </p>
+                </div>
+
                 <div class="mb-1">
                     <label class="form-label small fw-500" for="risk-config-notes">Reason / Notes <span class="text-secondary fw-normal">(optional)</span></label>
                     <textarea class="form-control" id="risk-config-notes" rows="3"
@@ -166,9 +179,10 @@
             <div class="modal-body">
                 <div style="position:relative;height:360px"><canvas id="sprintChart"></canvas></div>
                 <div class="d-flex gap-3 mt-3 flex-wrap" style="font-size:13px">
-                    <span><span class="d-inline-block me-1" style="width:12px;height:12px;background:rgba(99,102,241,0.75);border-radius:2px"></span>Sprint Cost (£, left axis)</span>
-                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#f59e0b;vertical-align:middle"></span>Estimate % (right axis)</span>
-                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#ef4444;vertical-align:middle"></span>100% = Est.+Contingency (right axis)</span>
+                    <span><span class="d-inline-block me-1" style="width:12px;height:12px;background:rgba(99,102,241,0.75);border-radius:2px"></span>Sprint Cost (left axis)</span>
+                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#d1d5db;vertical-align:middle;border-top:2px dashed #d1d5db"></span>Estimate (right axis)</span>
+                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:#6b7280;vertical-align:middle;border-top:2px dashed #6b7280"></span>Est.+Contingency (right axis)</span>
+                    <span><span class="d-inline-block me-1" style="width:20px;height:2px;background:linear-gradient(to right,#22c55e,#f59e0b,#ef4444);vertical-align:middle"></span>Cumulative Cost (right axis)</span>
                 </div>
             </div>
         </div>

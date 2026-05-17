@@ -3130,57 +3130,80 @@ function _renderActualsTabContent(a) {
 
     const labels   = rows.map(r => r.sprint_name);
     const costData = rows.map(r => r.total_cost !== null ? (parseFloat(r.total_cost) || 0) : 0);
-    const yMax     = estimateWC > 0 ? estimateWC * 1.15 : Math.max(...costData, 1) * 1.2;
 
-    const barColors = costData.map((_, i) => {
-        const cum = costData.slice(0, i + 1).reduce((s, v) => s + v, 0);
-        const pct = estimateWC > 0 ? (cum / estimateWC) * 100 : 0;
-        if (pct > 100) return 'rgba(239,68,68,0.75)';
-        if (pct > estimatePct) return 'rgba(245,158,11,0.75)';
-        return 'rgba(99,102,241,0.75)';
-    });
+    // Cumulative cost for right axis
+    const cumulativeData = [];
+    let _cumSum = 0;
+    costData.forEach(v => { _cumSum += v; cumulativeData.push(_cumSum); });
+
+    const _cumColor = v => {
+        if (estimateWC > 0 && v > estimateWC) return 'rgba(239,68,68,1)';
+        if (estimateVal > 0 && v > estimateVal) return 'rgba(245,158,11,1)';
+        return 'rgba(34,197,94,1)';
+    };
+
+    const yMax  = Math.max(...costData, 1) * 1.2;
+    const y1Max = Math.max(estimateWC > 0 ? estimateWC : 0, ...cumulativeData, 1) * 1.15;
+
+    const datasets = [
+        {
+            type: 'bar',
+            label: 'Sprint Cost',
+            data: costData,
+            backgroundColor: 'rgba(99,102,241,0.7)',
+            borderColor: 'rgba(99,102,241,1)',
+            borderWidth: 1,
+            yAxisID: 'y',
+            order: 3,
+        },
+        {
+            type: 'line',
+            label: 'Cumulative Cost',
+            data: cumulativeData,
+            borderWidth: 2.5,
+            pointRadius: 3,
+            pointBackgroundColor: cumulativeData.map(_cumColor),
+            fill: false,
+            yAxisID: 'y1',
+            order: 0,
+            segment: {
+                borderColor: ctx => _cumColor(ctx.p1.parsed.y),
+            },
+        },
+    ];
+
+    if (estimateVal > 0) {
+        datasets.push({
+            type: 'line',
+            label: 'Estimate',
+            data: Array(labels.length).fill(estimateVal),
+            borderColor: '#d1d5db',
+            borderWidth: 1.5,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            fill: false,
+            yAxisID: 'y1',
+            order: 2,
+        });
+    }
+    if (estimateWC > 0) {
+        datasets.push({
+            type: 'line',
+            label: 'Est. + Contingency',
+            data: Array(labels.length).fill(estimateWC),
+            borderColor: '#6b7280',
+            borderWidth: 1.5,
+            borderDash: [6, 4],
+            pointRadius: 0,
+            fill: false,
+            yAxisID: 'y1',
+            order: 1,
+        });
+    }
 
     _actualsTabChart = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels,
-            datasets: [
-                {
-                    type: 'bar',
-                    label: 'Sprint Cost',
-                    data: costData,
-                    backgroundColor: barColors,
-                    borderColor: barColors.map(c => c.replace('0.75', '1')),
-                    borderWidth: 1,
-                    yAxisID: 'y',
-                    order: 2,
-                },
-                {
-                    type: 'line',
-                    label: `Estimate (${estimatePct.toFixed(1)}%)`,
-                    data: Array(labels.length).fill(parseFloat(estimatePct.toFixed(2))),
-                    borderColor: '#f59e0b',
-                    borderWidth: 2,
-                    borderDash: [6, 3],
-                    pointRadius: 0,
-                    fill: false,
-                    yAxisID: 'y1',
-                    order: 1,
-                },
-                {
-                    type: 'line',
-                    label: 'Est. + Contingency (100%)',
-                    data: Array(labels.length).fill(100),
-                    borderColor: '#ef4444',
-                    borderWidth: 2,
-                    borderDash: [6, 3],
-                    pointRadius: 0,
-                    fill: false,
-                    yAxisID: 'y1',
-                    order: 0,
-                },
-            ],
-        },
+        data: { labels, datasets },
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -3189,9 +3212,7 @@ function _renderActualsTabContent(a) {
                 legend: { display: false },
                 tooltip: {
                     callbacks: {
-                        label: ctx => ctx.dataset.yAxisID === 'y1'
-                            ? `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%`
-                            : `${ctx.dataset.label}: ${_actualsTabFmt(ctx.parsed.y)}`,
+                        label: ctx => `${ctx.dataset.label}: ${_actualsTabFmt(ctx.parsed.y)}`,
                     },
                 },
             },
@@ -3201,7 +3222,7 @@ function _renderActualsTabContent(a) {
                     position: 'left',
                     min: 0,
                     max: yMax,
-                    title: { display: true, text: 'Cost (£)' },
+                    title: { display: true, text: 'Sprint Cost (£)' },
                     ticks: {
                         callback: v => v >= 1_000_000 ? `£${(v/1_000_000).toFixed(1)}M`
                             : v >= 1_000 ? `£${(v/1_000).toFixed(0)}k`
@@ -3212,9 +3233,13 @@ function _renderActualsTabContent(a) {
                     type: 'linear',
                     position: 'right',
                     min: 0,
-                    max: 115,
-                    title: { display: true, text: '% of Est. + Contingency' },
-                    ticks: { callback: v => `${v}%` },
+                    max: y1Max,
+                    title: { display: true, text: 'Cumulative Cost (£)' },
+                    ticks: {
+                        callback: v => v >= 1_000_000 ? `£${(v/1_000_000).toFixed(1)}M`
+                            : v >= 1_000 ? `£${(v/1_000).toFixed(0)}k`
+                            : `£${v}`,
+                    },
                     grid: { drawOnChartArea: false },
                 },
                 x: { ticks: { maxRotation: 45, minRotation: 0 } },

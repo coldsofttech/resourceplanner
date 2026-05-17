@@ -699,7 +699,7 @@ class ProjectActualsViewSet(viewsets.ViewSet):
             obj = self._base_qs().get(pk=pk)
         except ProjectActuals.DoesNotExist:
             return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
-        allowed = {'ignore_risk', 'ignore_risk_notes'}
+        allowed = {'ignore_risk', 'ignore_risk_notes', 'ignore_previous_fy_cost'}
         data = {k: v for k, v in request.data.items() if k in allowed}
         s = ProjectActualsSerializer(obj, data=data, partial=True)
         if not s.is_valid():
