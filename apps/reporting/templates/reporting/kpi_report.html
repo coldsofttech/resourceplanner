@@ -220,6 +220,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <script>
 (function () {
     'use strict';
@@ -421,7 +422,7 @@
                 datasets: [{
                     data: counts,
                     backgroundColor: bgs,
-                    borderWidth: 1,
+                    borderWidth: 2,
                     borderColor: '#ffffff',
                 }],
             },
@@ -431,18 +432,53 @@
                 plugins: {
                     legend: {
                         position: 'right',
-                        labels: { font: { size: 12 }, padding: 14 },
+                        labels: {
+                            font: { size: 12 },
+                            padding: 14,
+                            generateLabels: chart => {
+                                const ds    = chart.data.datasets[0];
+                                const sum   = ds.data.reduce((a, b) => a + b, 0);
+                                return chart.data.labels.map((lbl, i) => {
+                                    const val = ds.data[i];
+                                    const pct = sum > 0
+                                        ? ((val / sum) * 100).toFixed(1)
+                                        : '0.0';
+                                    return {
+                                        text:            `${lbl}: ${val} (${pct}%)`,
+                                        fillStyle:       ds.backgroundColor[i],
+                                        strokeStyle:     '#ffffff',
+                                        lineWidth:       1,
+                                        hidden:          false,
+                                        index:           i,
+                                    };
+                                });
+                            },
+                        },
                     },
                     tooltip: {
                         callbacks: {
                             label: ctx => {
                                 const val = ctx.parsed;
                                 const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
-                                return ` ${ctx.label}: ${val} (${pct}%)`;
+                                return ` ${ctx.label}: ${val} project${val !== 1 ? 's' : ''} (${pct}%)`;
                             },
                         },
                     },
-                    datalabels: { display: false },
+                    datalabels: {
+                        formatter: (value, ctx) => {
+                            const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                            if (sum === 0) return '';
+                            const pct = (value / sum) * 100;
+                            return pct >= 5 ? pct.toFixed(1) + '%' : '';
+                        },
+                        color: '#1f2937',
+                        font: { weight: 'bold', size: 11 },
+                        display: 'auto',
+                        anchor: 'center',
+                        align: 'center',
+                        textShadowBlur: 4,
+                        textShadowColor: 'rgba(255,255,255,0.8)',
+                    },
                 },
             },
         }));

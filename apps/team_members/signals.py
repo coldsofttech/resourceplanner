@@ -1,11 +1,14 @@
 import logging
 
+from django.contrib.auth import get_user_model
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
 from .models import TeamMember
 
 logger = logging.getLogger(__name__)
+
+User = get_user_model()
 
 
 @receiver(pre_save, sender=TeamMember)
@@ -98,3 +101,98 @@ def on_member_delete(sender, instance, **kwargs):
     Sync whichever team the member belonged to.
     """
     _sync_team_count(instance.team)
+
+
+# ---------------------------------------------------------------------------
+# User ↔ TeamMember email-based linking
+# ---------------------------------------------------------------------------
+
+def _sync_member_user_link(member):
+    """
+    Look up a User whose email matches the member's email_address (case-insensitive)
+    and store the FK on the member row.  Uses queryset.update() so no further
+    signals are fired and no other fields are touched.
+    """
+    try:
+        matched_user = User.objects.get(email__iexact=member.email_address)
+    except User.DoesNotExist:
+        matched_user = None
+    except User.MultipleObjectsReturned:
+        logger.warning(
+            "Multiple users share email '%s' — skipping auto-link for TeamMember pk=%s.",
+            member.email_address, member.pk,
+        )
+        return
+
+    current_user_id = member.user_id
+
+    if matched_user is not None:
+        if current_user_id != matched_user.pk:
+            # Before claiming, make sure no other member already holds this user.
+            conflict = (
+                TeamMember.objects
+                .filter(user=matched_user)
+                .exclude(pk=member.pk)
+                .exists()
+            )
+            if conflict:
+                logger.warning(
+                    "User pk=%s is already linked to another TeamMember — "
+                    "skipping auto-link for TeamMember pk=%s.",
+                    matched_user.pk, member.pk,
+                )
+                return
+            TeamMember.objects.filter(pk=member.pk).update(user=matched_user)
+    else:
+        if current_user_id is not None:
+            TeamMember.objects.filter(pk=member.pk).update(user=None)
+
+
+@receiver(post_save, sender=TeamMember)
+def on_member_save_link_user(sender, instance, **kwargs):
+    """
+    After a TeamMember is saved, attempt to resolve the linked user by email.
+    Only runs when email_address was created or changed.
+    """
+    update_fields = kwargs.get('update_fields')
+
+    # Skip if update_fields is set and 'email_address' is not among them
+    # (e.g. the team-count sync writes only 'user', so we must also skip that).
+    if update_fields is not None and 'email_address' not in update_fields:
+        return
+
+    _sync_member_user_link(instance)
+
+
+@receiver(post_save, sender=User)
+def on_user_save_link_member(sender, instance, **kwargs):
+    """
+    After a User is saved (or their email changes), find any TeamMember whose
+    email_address matches and update the FK so the link stays consistent.
+    """
+    update_fields = kwargs.get('update_fields')
+
+    # Only care about changes that touch the email.
+    if update_fields is not None and 'email' not in update_fields:
+        return
+
+    try:
+        member = TeamMember.objects.get(email_address__iexact=instance.email)
+    except TeamMember.DoesNotExist:
+        return
+    except TeamMember.MultipleObjectsReturned:
+        logger.warning(
+            "Multiple TeamMembers share email '%s' — skipping auto-link for User pk=%s.",
+            instance.email, instance.pk,
+        )
+        return
+
+    if member.user_id != instance.pk:
+        conflict = (
+            TeamMember.objects
+            .filter(user=instance)
+            .exclude(pk=member.pk)
+            .exists()
+        )
+        if not conflict:
+            TeamMember.objects.filter(pk=member.pk).update(user=instance)

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.core.validators import EmailValidator
 from django.db import models
@@ -83,6 +84,17 @@ class TeamMember(models.Model):
     default_holidays = models.PositiveIntegerField(
         default=get_default_holidays,
         help_text="Holiday days per financial year. Defaults to the system DEFAULT_HOLIDAYS.",
+    )
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name='team_member',
+        help_text=(
+            'Linked login account. Auto-populated by matching email_address '
+            'to the user\'s email. Cleared automatically if the user is deleted.'
+        ),
     )
     is_active = models.BooleanField(
         default=True
