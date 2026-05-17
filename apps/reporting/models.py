@@ -105,3 +105,46 @@ class ProgrammeCategoryMapping(models.Model):
 
     def __str__(self):
         return f"{self.programme.name} → {self.category_label}"
+
+
+class KPIReportComment(models.Model):
+    """Per-project comment for a specific month's KPI Estimate % Accuracy report."""
+
+    project = models.ForeignKey(
+        "projects.Project",
+        on_delete=models.CASCADE,
+        related_name="kpi_comments",
+    )
+    month = models.CharField(
+        max_length=7,
+        help_text="Month in YYYY-MM format (e.g. 2025-03).",
+    )
+    comment = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_kpi_comments",
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="updated_kpi_comments",
+    )
+
+    class Meta:
+        ordering = ["project__name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "month"],
+                name="unique_kpi_comment_project_month",
+            )
+        ]
+
+    def __str__(self):
+        return f"KPI Comment — {self.project} ({self.month})"

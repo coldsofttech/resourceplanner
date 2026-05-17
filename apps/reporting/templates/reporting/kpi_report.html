@@ -1,0 +1,497 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}KPI Report (Estimate % Accuracy) — Resource Planner{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Filters ── */
+.kpi-filters {
+    background: var(--rp-surface);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+}
+.kpi-filters label, .kpi-filters select { font-size: 13px; }
+
+/* ── Table ── */
+.kpi-table-wrap {
+    overflow-x: auto; max-height: 58vh;
+    border: 1px solid var(--bs-border-color); border-radius: 6px;
+}
+.kpi-table {
+    font-size: 12px; white-space: nowrap; min-width: 900px; margin: 0;
+}
+.kpi-table thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--rp-surface);
+    font-weight: 600; font-size: 11px;
+    text-transform: uppercase; letter-spacing: .04em;
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--bs-border-color);
+}
+.kpi-table thead th.num { text-align: right; }
+.kpi-table tbody td {
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    vertical-align: middle;
+}
+.kpi-table tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.kpi-table tfoot td {
+    position: sticky; bottom: 0; z-index: 2;
+    background: var(--rp-surface); font-weight: 600;
+    padding: 7px 10px; border-top: 2px solid var(--bs-border-color);
+}
+.kpi-table tfoot td.num { text-align: right; }
+
+/* ── Band badge ── */
+.band-badge {
+    display: inline-block;
+    padding: 2px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+
+/* ── Charts ── */
+.kpi-chart-container { position: relative; height: 380px; max-width: 500px; margin: 0 auto; }
+
+/* ── Placeholder ── */
+.kpi-placeholder {
+    min-height: 160px; display: flex; align-items: center;
+    justify-content: center; color: var(--bs-secondary-color);
+    font-size: 14px; flex-direction: column; gap: 8px;
+}
+
+/* ── Comment cell truncation ── */
+.comment-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1" style="font-size:13px">
+                <li class="breadcrumb-item"><a href="/reports/">Reports</a></li>
+                <li class="breadcrumb-item active">KPI Report (Estimate % Accuracy)</li>
+            </ol>
+        </nav>
+        <h1 class="rp-page-title mb-0">KPI Report — Estimate % Accuracy</h1>
+        <p class="text-secondary mb-0" style="font-size:13px">
+            Review completed projects for a selected month and measure estimate accuracy.
+        </p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="kpi-filters">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label mb-1">Month</label>
+            <select id="filter-month" class="form-select form-select-sm">
+                <option value="">— Select month —</option>
+            </select>
+        </div>
+        <div class="col-auto d-flex gap-2 align-items-end">
+            <button id="btn-run" class="btn btn-sm btn-primary">
+                <i class="bi bi-play-fill me-1"></i>Run
+            </button>
+            <button id="btn-csv" class="btn btn-sm btn-outline-secondary" disabled title="Download CSV">
+                <i class="bi bi-filetype-csv me-1"></i>CSV
+            </button>
+            <button id="btn-xlsx" class="btn btn-sm btn-outline-secondary" disabled title="Download XLSX">
+                <i class="bi bi-file-earmark-excel me-1"></i>XLSX
+            </button>
+            <button id="btn-pdf" class="btn btn-sm btn-outline-secondary" disabled title="Download PDF">
+                <i class="bi bi-file-earmark-pdf me-1"></i>PDF
+            </button>
+            <a id="btn-configure" href="#" class="btn btn-sm btn-outline-secondary d-none" title="Add/edit comments">
+                <i class="bi bi-pencil-square me-1"></i>Configure
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-3" id="kpiTabs" role="tablist">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#pane-table" type="button">
+            <i class="bi bi-table me-1"></i>Table
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#pane-charts" type="button">
+            <i class="bi bi-pie-chart me-1"></i>Charts
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+
+    <!-- TABLE TAB -->
+    <div class="tab-pane fade show active" id="pane-table">
+        <div id="tbl-placeholder" class="kpi-placeholder">
+            <i class="bi bi-table display-5 opacity-25"></i>
+            <span>Select a month and click Run.</span>
+        </div>
+        <div id="tbl-empty" class="d-none text-secondary py-4" style="font-size:14px;text-align:center">
+            No completed projects found for the selected month.
+        </div>
+        <div id="tbl-wrap" class="kpi-table-wrap d-none">
+            <table class="table kpi-table">
+                <thead>
+                    <tr>
+                        <th>Programme</th>
+                        <th>Project</th>
+                        <th>Assigned Team</th>
+                        <th>Collaborators</th>
+                        <th class="num">Estimate Value</th>
+                        <th class="num">Est. w/Contingency</th>
+                        <th class="num">Total Cost Till Date</th>
+                        <th>T-Shirt</th>
+                        <th class="num">% Accuracy</th>
+                        <th style="min-width:120px">Band</th>
+                        <th>Comment</th>
+                    </tr>
+                </thead>
+                <tbody id="kpi-tbody"></tbody>
+                <tfoot id="kpi-tfoot" class="d-none">
+                    <tr>
+                        <td colspan="4"><strong>Total</strong></td>
+                        <td class="num" id="ft-estimate"></td>
+                        <td class="num" id="ft-estimate-wc"></td>
+                        <td class="num" id="ft-total-cost"></td>
+                        <td colspan="4"></td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- CHARTS TAB -->
+    <div class="tab-pane fade" id="pane-charts">
+        <div id="chart-placeholder" class="kpi-placeholder">
+            <i class="bi bi-pie-chart display-5 opacity-25"></i>
+            <span>Run the report to see charts.</span>
+        </div>
+        <div id="chart-content" class="d-none">
+            <ul class="nav nav-pills mb-3" id="chartSubTabs" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link active" data-bs-toggle="pill"
+                            data-bs-target="#pane-chart-xs-s" type="button">
+                        Chart — XS &amp; S
+                    </button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link" data-bs-toggle="pill"
+                            data-bs-target="#pane-chart-m-plus" type="button">
+                        Chart — M+
+                    </button>
+                </li>
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="pane-chart-xs-s">
+                    <p class="text-secondary mb-2" style="font-size:12px">
+                        Projects with T-shirt size <strong>XS</strong> or <strong>S</strong>
+                    </p>
+                    <div id="no-xs-s" class="text-secondary py-3 d-none" style="font-size:13px">
+                        No XS/S projects in this month.
+                    </div>
+                    <div class="kpi-chart-container" id="container-xs-s">
+                        <canvas id="chart-xs-s"></canvas>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="pane-chart-m-plus">
+                    <p class="text-secondary mb-2" style="font-size:12px">
+                        Projects with T-shirt size <strong>M</strong>, <strong>L</strong>, or <strong>XL</strong>
+                    </p>
+                    <div id="no-m-plus" class="text-secondary py-3 d-none" style="font-size:13px">
+                        No M/L/XL projects in this month.
+                    </div>
+                    <div class="kpi-chart-container" id="container-m-plus">
+                        <canvas id="chart-m-plus"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    const SLUG = '{{ slug }}';
+
+    // Band definitions — order matters for display
+    const BAND_ORDER = ['> 90%', '> 80%', 'In Range', '> 70%', '> 60%', '> 50%', '< 50%', 'Exception'];
+    const BAND_BG    = {
+        '> 90%':     '#dcfce7',
+        '> 80%':     '#ecfccb',
+        'In Range':  '#fef3c7',
+        '> 70%':     '#ffedd5',
+        '> 60%':     '#fee2e2',
+        '> 50%':     '#fecaca',
+        '< 50%':     '#fca5a5',
+        'Exception': '#ede9fe',
+        '—':         '#f9fafb',
+    };
+    const BAND_TEXT = {
+        '> 90%':     '#15803d',
+        '> 80%':     '#3f6212',
+        'In Range':  '#92400e',
+        '> 70%':     '#9a3412',
+        '> 60%':     '#991b1b',
+        '> 50%':     '#7f1d1d',
+        '< 50%':     '#450a0a',
+        'Exception': '#4c1d95',
+        '—':         '#6b7280',
+    };
+
+    // Chart.js pie colours aligned to band order
+    const PIE_COLORS = [
+        '#86efac', '#bef264', '#fcd34d',
+        '#fb923c', '#fca5a5', '#f87171',
+        '#ef4444', '#c4b5fd',
+    ];
+
+    let currentMonth  = '';
+    let currentData   = null;
+    let chartXS       = null;
+    let chartMPlus    = null;
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    async function init() {
+        await loadMonths();
+        // Fetch report name
+        const metaRes = await fetch(`/api/v1/reports/standard/${SLUG}/`);
+        if (!metaRes.ok) return;
+        const meta = await metaRes.json();
+        document.title = `${meta.name} — Resource Planner`;
+    }
+
+    async function loadMonths() {
+        const res  = await fetch(`/api/v1/reports/standard/${SLUG}/months/`);
+        if (!res.ok) return;
+        const json = await res.json();
+        const sel  = document.getElementById('filter-month');
+        (json.results || []).forEach(m => {
+            sel.insertAdjacentHTML('beforeend',
+                `<option value="${esc(m.value)}">${esc(m.label)}</option>`);
+        });
+    }
+
+    // ── Run ───────────────────────────────────────────────────────────────────
+    document.getElementById('btn-run').addEventListener('click', async () => {
+        const month = document.getElementById('filter-month').value;
+        if (!month) { alert('Please select a month.'); return; }
+        currentMonth = month;
+        await runReport(month);
+    });
+
+    async function runReport(month) {
+        setBusy(true);
+        try {
+            const res = await fetch(`/api/v1/reports/standard/${SLUG}/data/?month=${month}`);
+            if (!res.ok) { alert('Failed to load report data.'); return; }
+            currentData = await res.json();
+            renderTable(currentData);
+            renderCharts(currentData);
+            enableExports(true);
+            document.getElementById('btn-configure').href =
+                `/reports/standard/${SLUG}/configure/?month=${month}`;
+            document.getElementById('btn-configure').classList.remove('d-none');
+        } catch (e) {
+            alert('An error occurred: ' + e.message);
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    // ── Table ─────────────────────────────────────────────────────────────────
+    function renderTable(data) {
+        const rows   = data.rows || [];
+        const tbody  = document.getElementById('kpi-tbody');
+        const tfoot  = document.getElementById('kpi-tfoot');
+        const wrap   = document.getElementById('tbl-wrap');
+        const empty  = document.getElementById('tbl-empty');
+        const ph     = document.getElementById('tbl-placeholder');
+
+        ph.classList.add('d-none');
+
+        if (!rows.length) {
+            wrap.classList.add('d-none');
+            empty.classList.remove('d-none');
+            tfoot.classList.add('d-none');
+            return;
+        }
+        empty.classList.add('d-none');
+        wrap.classList.remove('d-none');
+
+        let sumEst = 0, sumEstWC = 0, sumCost = 0;
+
+        tbody.innerHTML = rows.map(r => {
+            sumEst  += r.estimate_value;
+            sumEstWC += r.estimate_value_with_contingency;
+            sumCost += r.total_cost_till_date;
+
+            const bg   = BAND_BG[r.accuracy_band]  || '#f9fafb';
+            const txt  = BAND_TEXT[r.accuracy_band] || '#6b7280';
+            const acc  = r.accuracy_pct != null ? `${r.accuracy_pct.toFixed(2)}%` : '—';
+            const cols = r.collaborators_str || '—';
+            const com  = r.comment ? esc(r.comment) : '<span class="text-secondary">—</span>';
+
+            return `<tr>
+                <td>${esc(r.programme)}</td>
+                <td class="fw-500">${esc(r.project)}</td>
+                <td>${esc(r.assigned_team)}</td>
+                <td>${esc(cols)}</td>
+                <td class="num">${fmtGBP(r.estimate_value)}</td>
+                <td class="num">${fmtGBP(r.estimate_value_with_contingency)}</td>
+                <td class="num">${fmtGBP(r.total_cost_till_date)}</td>
+                <td class="text-center"><span class="badge text-bg-secondary">${esc(r.tshirt_size)}</span></td>
+                <td class="num">${acc}</td>
+                <td>
+                    <span class="band-badge"
+                          style="background:${bg};color:${txt}">
+                        ${esc(r.accuracy_band)}
+                    </span>
+                </td>
+                <td class="comment-cell" title="${esc(r.comment || '')}">${com}</td>
+            </tr>`;
+        }).join('');
+
+        document.getElementById('ft-estimate').textContent  = fmtGBP(sumEst);
+        document.getElementById('ft-estimate-wc').textContent = fmtGBP(sumEstWC);
+        document.getElementById('ft-total-cost').textContent = fmtGBP(sumCost);
+        tfoot.classList.remove('d-none');
+    }
+
+    // ── Charts ────────────────────────────────────────────────────────────────
+    function renderCharts(data) {
+        const ph      = document.getElementById('chart-placeholder');
+        const content = document.getElementById('chart-content');
+        ph.classList.add('d-none');
+        content.classList.remove('d-none');
+
+        buildPie('chart-xs-s',   'no-xs-s',   'container-xs-s',   data.charts.xs_s,   chartXS,
+            inst => { chartXS = inst; });
+        buildPie('chart-m-plus', 'no-m-plus', 'container-m-plus', data.charts.m_plus, chartMPlus,
+            inst => { chartMPlus = inst; });
+    }
+
+    function buildPie(canvasId, emptyId, containerId, bandsObj, existing, setter) {
+        const labels = [];
+        const counts = [];
+        const bgs    = [];
+
+        BAND_ORDER.forEach((b, i) => {
+            const cnt = bandsObj[b];
+            if (cnt) {
+                labels.push(b);
+                counts.push(cnt);
+                bgs.push(PIE_COLORS[i] || '#94a3b8');
+            }
+        });
+
+        const noEl        = document.getElementById(emptyId);
+        const containerEl = document.getElementById(containerId);
+
+        if (!counts.length) {
+            noEl.classList.remove('d-none');
+            containerEl.classList.add('d-none');
+            if (existing) { existing.destroy(); setter(null); }
+            return;
+        }
+        noEl.classList.add('d-none');
+        containerEl.classList.remove('d-none');
+
+        if (existing) existing.destroy();
+
+        const total = counts.reduce((a, b) => a + b, 0);
+        const ctx   = document.getElementById(canvasId).getContext('2d');
+
+        setter(new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: counts,
+                    backgroundColor: bgs,
+                    borderWidth: 1,
+                    borderColor: '#ffffff',
+                }],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        labels: { font: { size: 12 }, padding: 14 },
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => {
+                                const val = ctx.parsed;
+                                const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+                                return ` ${ctx.label}: ${val} (${pct}%)`;
+                            },
+                        },
+                    },
+                    datalabels: { display: false },
+                },
+            },
+        }));
+    }
+
+    // ── Exports ───────────────────────────────────────────────────────────────
+    function enableExports(on) {
+        ['btn-csv','btn-xlsx','btn-pdf'].forEach(id => {
+            document.getElementById(id).disabled = !on;
+        });
+    }
+
+    document.getElementById('btn-csv').addEventListener('click', () => {
+        if (currentMonth) triggerExport('csv');
+    });
+    document.getElementById('btn-xlsx').addEventListener('click', () => {
+        if (currentMonth) triggerExport('xlsx');
+    });
+    document.getElementById('btn-pdf').addEventListener('click', () => {
+        if (currentMonth) triggerExport('pdf');
+    });
+
+    function triggerExport(fmt) {
+        window.location.href =
+            `/api/v1/reports/standard/${SLUG}/export/?month=${currentMonth}&fmt=${fmt}`;
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function setBusy(on) {
+        const btn = document.getElementById('btn-run');
+        btn.disabled = on;
+        btn.innerHTML = on
+            ? '<span class="spinner-border spinner-border-sm me-1"></span>Running…'
+            : '<i class="bi bi-play-fill me-1"></i>Run';
+    }
+
+    function fmtGBP(v) {
+        return '£' + Number(v || 0).toLocaleString('en-GB', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2,
+        });
+    }
+
+    function esc(s) {
+        return String(s || '')
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    init();
+})();
+</script>
+{% endblock %}

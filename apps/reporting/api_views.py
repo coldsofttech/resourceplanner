@@ -15,6 +15,7 @@ from .serializers import (
     BulkMappingUpsertSerializer,
     CustomReportCreateSerializer,
     DemandCapacityConfigSerializer,
+    KPIBulkCommentSerializer,
     MappingUpsertSerializer,
     ProgrammeCategoryMappingSerializer,
     ReportSerializer,
@@ -23,6 +24,7 @@ from .services import (
     REPORT_REGISTRY,
     DemandCapacityConfigService,
     DemandCapacityService,
+    KPIReportService,
     ReportService,
     SprintForecastActualsService,
 )
@@ -551,3 +553,173 @@ class StandardReportMappingDetailView(APIView):
             return _db_error_response(e, "mapping delete")
         except Exception as e:
             return _unexpected_error_response(e, "mapping delete")
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/reports/standard/kpi-estimate-accuracy/months/
+# ---------------------------------------------------------------------------
+
+class KPIReportMonthListView(APIView):
+    def get(self, request):
+        try:
+            months = KPIReportService.get_months()
+            return Response({'results': months}, status=status.HTTP_200_OK)
+        except DatabaseError as e:
+            return _db_error_response(e, 'kpi months list')
+        except Exception as e:
+            return _unexpected_error_response(e, 'kpi months list')
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/reports/standard/kpi-estimate-accuracy/data/?month=YYYY-MM
+# ---------------------------------------------------------------------------
+
+class KPIReportDataView(APIView):
+    def get(self, request):
+        try:
+            month_str = request.query_params.get('month', '').strip()
+            if not month_str:
+                return Response(
+                    {'error': "'month' query parameter is required (format: YYYY-MM)."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            data = KPIReportService.get_data(month_str)
+            if data is None:
+                return Response(
+                    {'error': 'Invalid month format. Use YYYY-MM.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            response = Response(data, status=status.HTTP_200_OK)
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+            response['Pragma'] = 'no-cache'
+            return response
+        except DatabaseError as e:
+            return _db_error_response(e, 'kpi data')
+        except Exception as e:
+            return _unexpected_error_response(e, 'kpi data')
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/reports/standard/kpi-estimate-accuracy/export/?month=YYYY-MM&fmt=csv|xlsx|pdf
+# ---------------------------------------------------------------------------
+
+class KPIReportExportView(APIView):
+    def get(self, request):
+        try:
+            month_str = request.query_params.get('month', '').strip()
+            fmt       = request.query_params.get('fmt', 'csv').lower()
+
+            if not month_str:
+                return Response(
+                    {'error': "'month' query parameter is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            data = KPIReportService.get_data(month_str)
+            if data is None:
+                return Response(
+                    {'error': 'Invalid month format. Use YYYY-MM.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            safe_month = month_str.replace('-', '_')
+            base_name  = f"kpi_estimate_accuracy_{safe_month}"
+
+            if fmt == 'xlsx':
+                content  = KPIReportService.export_xlsx(data)
+                response = HttpResponse(
+                    content,
+                    content_type=(
+                        'application/vnd.openxmlformats-officedocument'
+                        '.spreadsheetml.sheet'
+                    ),
+                )
+                response['Content-Disposition'] = (
+                    f'attachment; filename="{base_name}.xlsx"'
+                )
+                return response
+
+            if fmt == 'pdf':
+                content  = KPIReportService.export_pdf(data)
+                response = HttpResponse(content, content_type='application/pdf')
+                response['Content-Disposition'] = (
+                    f'attachment; filename="{base_name}.pdf"'
+                )
+                return response
+
+            # Default: CSV
+            content  = KPIReportService.export_csv(data)
+            response = HttpResponse(content, content_type='text/csv; charset=utf-8-sig')
+            response['Content-Disposition'] = (
+                f'attachment; filename="{base_name}.csv"'
+            )
+            return response
+
+        except DatabaseError as e:
+            return _db_error_response(e, 'kpi export')
+        except Exception as e:
+            return _unexpected_error_response(e, 'kpi export')
+
+
+# ---------------------------------------------------------------------------
+# GET  /api/v1/reports/standard/kpi-estimate-accuracy/configure/?month=YYYY-MM
+# POST /api/v1/reports/standard/kpi-estimate-accuracy/configure/?month=YYYY-MM
+# ---------------------------------------------------------------------------
+
+class KPIReportConfigureView(APIView):
+    def _get_month(self, request):
+        month_str = request.query_params.get('month', '').strip()
+        if not month_str:
+            return None, Response(
+                {'error': "'month' query parameter is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return month_str, None
+
+    def get(self, request):
+        try:
+            month_str, err = self._get_month(request)
+            if err:
+                return err
+
+            result = KPIReportService.get_configure_data(month_str)
+            if result is None:
+                return Response(
+                    {'error': 'Invalid month format. Use YYYY-MM.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            return Response(result, status=status.HTTP_200_OK)
+        except DatabaseError as e:
+            return _db_error_response(e, 'kpi configure get')
+        except Exception as e:
+            return _unexpected_error_response(e, 'kpi configure get')
+
+    def post(self, request):
+        try:
+            month_str, err = self._get_month(request)
+            if err:
+                return err
+
+            serializer = KPIBulkCommentSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
+            KPIReportService.save_comments(
+                month_str=month_str,
+                comments=serializer.validated_data['comments'],
+                user=request.user,
+            )
+
+            result = KPIReportService.get_configure_data(month_str)
+            return Response(result, status=status.HTTP_200_OK)
+        except (DjangoValidationError, DRFValidationError) as e:
+            return Response(
+                {'error': 'Invalid data.', 'details': view_set_validation_details(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            return _db_error_response(e, 'kpi configure post')
+        except Exception as e:
+            return _unexpected_error_response(e, 'kpi configure post')

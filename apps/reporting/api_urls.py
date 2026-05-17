@@ -1,6 +1,10 @@
 from django.urls import path
 
 from .api_views import (
+    KPIReportConfigureView,
+    KPIReportDataView,
+    KPIReportExportView,
+    KPIReportMonthListView,
     ReportDetailView,
     ReportListCreateView,
     SprintFAFinancialYearListView,
@@ -15,7 +19,8 @@ from .api_views import (
     StandardReportMetaView,
 )
 
-_FA_SLUG = 'sprint-forecast-actuals'
+_FA_SLUG  = 'sprint-forecast-actuals'
+_KPI_SLUG = 'kpi-estimate-accuracy'
 
 urlpatterns = [
     # Report registry
@@ -42,6 +47,28 @@ urlpatterns = [
         f"reports/standard/{_FA_SLUG}/financial-years/",
         SprintFAFinancialYearListView.as_view(),
         name="sprint-fa-fy-list",
+    ),
+
+    # KPI Estimate % Accuracy — specific routes BEFORE generic slug routes
+    path(
+        f"reports/standard/{_KPI_SLUG}/months/",
+        KPIReportMonthListView.as_view(),
+        name="kpi-report-months",
+    ),
+    path(
+        f"reports/standard/{_KPI_SLUG}/data/",
+        KPIReportDataView.as_view(),
+        name="kpi-report-data",
+    ),
+    path(
+        f"reports/standard/{_KPI_SLUG}/export/",
+        KPIReportExportView.as_view(),
+        name="kpi-report-export",
+    ),
+    path(
+        f"reports/standard/{_KPI_SLUG}/configure/",
+        KPIReportConfigureView.as_view(),
+        name="kpi-report-configure",
     ),
 
     # Standard report endpoints (slug-based)

@@ -1,0 +1,324 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Configure KPI Report — Resource Planner{% endblock %}
+
+{% block extra_css %}
+<style>
+.kpi-cfg-wrap { max-width: 900px; }
+
+.kpi-cfg-filters {
+    background: var(--rp-surface);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+}
+
+.kpi-cfg-table { font-size: 13px; }
+.kpi-cfg-table thead th {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-weight: 600;
+    background: var(--rp-surface);
+    border-bottom: 2px solid var(--bs-border-color);
+    padding: 8px 12px;
+}
+.kpi-cfg-table tbody td { padding: 8px 12px; vertical-align: middle; }
+.kpi-cfg-table .project-name { font-weight: 500; }
+.kpi-cfg-table .comment-input { font-size: 13px; }
+
+.band-badge {
+    display: inline-block;
+    padding: 2px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="kpi-cfg-wrap">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb mb-1" style="font-size:13px">
+                    <li class="breadcrumb-item"><a href="/reports/">Reports</a></li>
+                    <li class="breadcrumb-item">
+                        <a href="/reports/standard/{{ slug }}/" id="report-link">KPI Report</a>
+                    </li>
+                    <li class="breadcrumb-item active">Configure</li>
+                </ol>
+            </nav>
+            <h1 class="rp-page-title mb-0">Configure: KPI Report — Comments</h1>
+            <p class="text-secondary mb-0" style="font-size:13px">
+                Add or update comments for completed projects. Rows with comments are
+                classified as <strong>Exception</strong> in the report.
+            </p>
+        </div>
+    </div>
+
+    <!-- Month selector -->
+    <div class="kpi-cfg-filters">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label mb-1" style="font-size:12px">Month</label>
+                <select id="filter-month" class="form-select form-select-sm">
+                    <option value="">— Select month —</option>
+                </select>
+            </div>
+            <div class="col-auto">
+                <button id="btn-load" class="btn btn-sm btn-primary">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Load
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Configure panel -->
+    <div id="cfg-panel" class="d-none">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+            <h2 style="font-size:15px;font-weight:600" class="mb-0">
+                Project Comments
+            </h2>
+            <div class="d-flex gap-2">
+                <button id="btn-save" class="btn btn-sm btn-primary">
+                    <i class="bi bi-floppy me-1"></i>Save All
+                </button>
+            </div>
+        </div>
+
+        <div class="alert alert-info d-flex gap-2 align-items-start py-2" style="font-size:13px">
+            <i class="bi bi-info-circle-fill mt-1 flex-shrink-0"></i>
+            <div>
+                Projects listed below were completed during the selected month.
+                Enter a comment to flag a project as <strong>Exception</strong> in the KPI report.
+                Clear the comment to revert to the calculated accuracy band.
+            </div>
+        </div>
+
+        <div id="tbl-loading" class="text-center py-4 d-none">
+            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+        </div>
+
+        <div id="cfg-table-wrap">
+            <table class="table kpi-cfg-table">
+                <thead>
+                    <tr>
+                        <th style="width:30%">Project</th>
+                        <th style="width:20%">Programme</th>
+                        <th>Comment</th>
+                        <th style="width:80px"></th>
+                    </tr>
+                </thead>
+                <tbody id="cfg-tbody"></tbody>
+            </table>
+        </div>
+
+        <div id="no-projects" class="text-secondary py-3 d-none" style="font-size:14px">
+            No completed projects found for the selected month.
+        </div>
+    </div>
+
+    <!-- Placeholder -->
+    <div id="cfg-placeholder" class="text-center py-5 text-secondary" style="font-size:14px">
+        <i class="bi bi-calendar-check display-5 d-block mb-2 opacity-25"></i>
+        Select a month above to manage comments.
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:2000">
+    <div id="save-toast" class="toast align-items-center text-bg-success border-0" role="alert">
+        <div class="d-flex">
+            <div class="toast-body" id="toast-msg">Comments saved.</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto"
+                    data-bs-dismiss="toast"></button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    const SLUG = '{{ slug }}';
+    let currentMonth = '';
+    let projectsData = [];
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    async function init() {
+        await loadMonths();
+
+        // Pre-select month from URL query param if present
+        const params = new URLSearchParams(window.location.search);
+        const mParam = params.get('month');
+        if (mParam) {
+            const sel = document.getElementById('filter-month');
+            if ([...sel.options].some(o => o.value === mParam)) {
+                sel.value = mParam;
+                currentMonth = mParam;
+                await loadCfgData();
+            }
+        }
+
+        const metaRes = await fetch(`/api/v1/reports/standard/${SLUG}/`);
+        if (metaRes.ok) {
+            const meta = await metaRes.json();
+            document.getElementById('report-link').textContent = meta.name;
+        }
+    }
+
+    async function loadMonths() {
+        const res  = await fetch(`/api/v1/reports/standard/${SLUG}/months/`);
+        if (!res.ok) return;
+        const json = await res.json();
+        const sel  = document.getElementById('filter-month');
+        (json.results || []).forEach(m => {
+            sel.insertAdjacentHTML('beforeend',
+                `<option value="${esc(m.value)}">${esc(m.label)}</option>`);
+        });
+    }
+
+    // ── Load ──────────────────────────────────────────────────────────────────
+    document.getElementById('btn-load').addEventListener('click', async () => {
+        const month = document.getElementById('filter-month').value;
+        if (!month) { alert('Please select a month.'); return; }
+        currentMonth = month;
+        await loadCfgData();
+    });
+
+    async function loadCfgData() {
+        document.getElementById('cfg-placeholder').classList.add('d-none');
+        document.getElementById('cfg-panel').classList.remove('d-none');
+        document.getElementById('tbl-loading').classList.remove('d-none');
+        document.getElementById('cfg-table-wrap').classList.add('d-none');
+
+        try {
+            const res = await fetch(
+                `/api/v1/reports/standard/${SLUG}/configure/?month=${currentMonth}`
+            );
+            if (!res.ok) throw new Error('Failed to load configure data.');
+            const data = await res.json();
+            projectsData = data.projects || [];
+            renderTable();
+        } catch (e) {
+            alert(e.message);
+        } finally {
+            document.getElementById('tbl-loading').classList.add('d-none');
+            document.getElementById('cfg-table-wrap').classList.remove('d-none');
+        }
+    }
+
+    function renderTable() {
+        const tbody    = document.getElementById('cfg-tbody');
+        const noProj   = document.getElementById('no-projects');
+        const tblWrap  = document.getElementById('cfg-table-wrap');
+
+        if (!projectsData.length) {
+            tbody.innerHTML = '';
+            noProj.classList.remove('d-none');
+            tblWrap.classList.add('d-none');
+            return;
+        }
+        noProj.classList.add('d-none');
+        tblWrap.classList.remove('d-none');
+
+        tbody.innerHTML = projectsData.map(p => {
+            const hasComment = p.comment && p.comment.trim();
+            return `
+            <tr data-project-id="${p.project_id}">
+                <td><span class="project-name">${esc(p.project_name)}</span></td>
+                <td class="text-secondary">${esc(p.programme)}</td>
+                <td>
+                    <input type="text"
+                           class="form-control form-control-sm comment-input"
+                           data-project-id="${p.project_id}"
+                           value="${esc(p.comment || '')}"
+                           placeholder="Add comment to flag as Exception…"
+                           autocomplete="off">
+                </td>
+                <td class="text-end">
+                    <button class="btn btn-sm btn-outline-danger btn-clear-comment"
+                            data-project-id="${p.project_id}"
+                            ${!hasComment ? 'disabled' : ''}
+                            title="Clear comment">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
+
+        document.querySelectorAll('.btn-clear-comment').forEach(btn => {
+            btn.addEventListener('click', function () {
+                const pid   = this.dataset.projectId;
+                const input = document.querySelector(`.comment-input[data-project-id="${pid}"]`);
+                input.value = '';
+                this.disabled = true;
+            });
+        });
+
+        document.querySelectorAll('.comment-input').forEach(input => {
+            input.addEventListener('input', function () {
+                const pid   = this.dataset.projectId;
+                const clrBtn = document.querySelector(`.btn-clear-comment[data-project-id="${pid}"]`);
+                if (clrBtn) clrBtn.disabled = !this.value.trim();
+            });
+        });
+    }
+
+    // ── Save ──────────────────────────────────────────────────────────────────
+    document.getElementById('btn-save').addEventListener('click', async () => {
+        const inputs   = document.querySelectorAll('.comment-input');
+        const comments = [];
+        inputs.forEach(inp => {
+            comments.push({
+                project_id: parseInt(inp.dataset.projectId),
+                comment:    inp.value.trim(),
+            });
+        });
+
+        try {
+            const res = await fetch(
+                `/api/v1/reports/standard/${SLUG}/configure/?month=${currentMonth}`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...csrfHeaders() },
+                    body: JSON.stringify({ comments }),
+                }
+            );
+            if (!res.ok) throw new Error('Failed to save comments.');
+            const data = await res.json();
+            projectsData = data.projects || [];
+            renderTable();
+            showToast('Comments saved successfully.', 'success');
+        } catch (e) {
+            showToast(e.message, 'danger');
+        }
+    });
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function csrfHeaders() {
+        const token = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        return { 'X-CSRFToken': token };
+    }
+
+    function showToast(msg, type = 'success') {
+        const el = document.getElementById('save-toast');
+        document.getElementById('toast-msg').textContent = msg;
+        el.className = `toast align-items-center text-bg-${type} border-0`;
+        new bootstrap.Toast(el, { delay: 3500 }).show();
+    }
+
+    function esc(s) {
+        return String(s || '')
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+            .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    init();
+})();
+</script>
+{% endblock %}

@@ -98,3 +98,17 @@ class BulkMappingUpsertSerializer(serializers.Serializer):
         if not value:
             raise serializers.ValidationError("At least one mapping entry is required.")
         return value
+
+
+class KPICommentUpsertSerializer(serializers.Serializer):
+    project_id = serializers.IntegerField()
+    comment    = serializers.CharField(allow_blank=True, default='')
+
+
+class KPIBulkCommentSerializer(serializers.Serializer):
+    comments = KPICommentUpsertSerializer(many=True)
+
+    def validate_comments(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one comment entry is required.")
+        return value

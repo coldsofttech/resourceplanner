@@ -887,6 +887,464 @@ class SprintForecastActualsService:
 
 
 # ---------------------------------------------------------------------------
+# KPI Report — Estimate % Accuracy
+# ---------------------------------------------------------------------------
+
+_MONTH_NAMES = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+# (label, bg_hex, text_hex) — ordered best→worst
+_KPI_BANDS = [
+    ('> 90%',     '#dcfce7', '#15803d'),
+    ('> 80%',     '#ecfccb', '#3f6212'),
+    ('In Range',  '#fef3c7', '#92400e'),
+    ('> 70%',     '#ffedd5', '#9a3412'),
+    ('> 60%',     '#fee2e2', '#991b1b'),
+    ('> 50%',     '#fecaca', '#7f1d1d'),
+    ('< 50%',     '#fca5a5', '#450a0a'),
+    ('Exception', '#ede9fe', '#4c1d95'),
+]
+
+KPI_BAND_BG    = {b[0]: b[1] for b in _KPI_BANDS}
+KPI_BAND_TEXT  = {b[0]: b[2] for b in _KPI_BANDS}
+KPI_BAND_ORDER = [b[0] for b in _KPI_BANDS]
+
+
+def _kpi_accuracy_band(total_cost, estimate_value, estimate_with_contingency, comment):
+    """Return the accuracy band label for a single project row."""
+    total      = float(total_cost or 0)
+    estimate   = float(estimate_value or 0)
+    estimate_wc = float(estimate_with_contingency or 0)
+
+    if comment and comment.strip():
+        return 'Exception'
+
+    if estimate <= 0:
+        return '—'
+
+    # Over estimate but within contingency → "In Range"
+    if total >= estimate and total <= estimate_wc:
+        return 'In Range'
+
+    accuracy = total / estimate * 100
+    if accuracy >= 90:
+        return '> 90%'
+    if accuracy >= 80:
+        return '> 80%'
+    if accuracy >= 70:
+        return '> 70%'
+    if accuracy >= 60:
+        return '> 60%'
+    if accuracy >= 50:
+        return '> 50%'
+    return '< 50%'
+
+
+class KPIReportService:
+
+    SLUG = 'kpi-estimate-accuracy'
+
+    @staticmethod
+    def get_months():
+        """Return distinct year-months where completed projects exist, newest first."""
+        from apps.projects.models import Project
+
+        rows = (
+            Project.objects.filter(
+                status=Project.STATUS_COMPLETED,
+                completed_sprint__isnull=False,
+            )
+            .values('completed_sprint__end_date__year', 'completed_sprint__end_date__month')
+            .distinct()
+        )
+
+        months = sorted(
+            {(r['completed_sprint__end_date__year'], r['completed_sprint__end_date__month'])
+             for r in rows if r['completed_sprint__end_date__year']},
+            reverse=True,
+        )
+
+        return [
+            {
+                'value': f'{y:04d}-{m:02d}',
+                'label': f'{_MONTH_NAMES[m - 1]} {y}',
+            }
+            for y, m in months
+        ]
+
+    @staticmethod
+    def get_data(month_str):
+        """Return full KPI report data for the given month (YYYY-MM)."""
+        from apps.projects.models import Project
+        from apps.projects.utils import get_tshirt_size
+        from apps.sprint_forecast.models import ProjectActuals
+
+        from .models import KPIReportComment
+
+        try:
+            year  = int(month_str[:4])
+            month = int(month_str[5:7])
+        except (ValueError, IndexError, AttributeError):
+            return None
+
+        projects = list(
+            Project.objects.filter(
+                status=Project.STATUS_COMPLETED,
+                completed_sprint__isnull=False,
+                completed_sprint__end_date__year=year,
+                completed_sprint__end_date__month=month,
+            )
+            .select_related('programme', 'assigned_team', 'completed_sprint')
+            .prefetch_related('project_collaborators__team')
+            .order_by('name')
+        )
+
+        project_ids = [p.id for p in projects]
+
+        actuals_map = {
+            a.project_id: a
+            for a in ProjectActuals.objects.filter(project_id__in=project_ids)
+        }
+
+        comment_map = {
+            c.project_id: c.comment
+            for c in KPIReportComment.objects.filter(
+                project_id__in=project_ids, month=month_str
+            )
+        }
+
+        rows = []
+        for project in projects:
+            actuals        = actuals_map.get(project.id)
+            estimate_value = float(actuals.estimate_value) if actuals else 0.0
+            estimate_wc    = float(actuals.estimate_value_with_contingency) if actuals else 0.0
+            total_cost     = float(actuals.total_cost_till_date) if actuals else 0.0
+
+            comment  = comment_map.get(project.id, '')
+            tshirt   = get_tshirt_size(estimate_value) if estimate_value > 0 else '—'
+            band     = _kpi_accuracy_band(total_cost, estimate_value, estimate_wc, comment)
+
+            accuracy_pct = (
+                round(total_cost / estimate_value * 100, 2)
+                if estimate_value > 0 else None
+            )
+
+            collaborators = [pc.team.name for pc in project.project_collaborators.all()]
+
+            rows.append({
+                'project_id':                     project.id,
+                'project':                        project.name,
+                'programme':                      project.programme.name if project.programme else '—',
+                'assigned_team':                  project.assigned_team.name if project.assigned_team else '—',
+                'collaborators':                  collaborators,
+                'collaborators_str':              ', '.join(collaborators),
+                'estimate_value':                 estimate_value,
+                'estimate_value_with_contingency': estimate_wc,
+                'total_cost_till_date':           total_cost,
+                'tshirt_size':                    tshirt,
+                'accuracy_pct':                   accuracy_pct,
+                'accuracy_band':                  band,
+                'comment':                        comment,
+                'band_bg':                        KPI_BAND_BG.get(band, '#f9fafb'),
+                'band_text':                      KPI_BAND_TEXT.get(band, '#6b7280'),
+            })
+
+        def _chart_bands(sizes):
+            counts: dict = {}
+            for r in rows:
+                if r['tshirt_size'] in sizes:
+                    b = r['accuracy_band']
+                    counts[b] = counts.get(b, 0) + 1
+            return counts
+
+        return {
+            'month':       month_str,
+            'month_label': f'{_MONTH_NAMES[month - 1]} {year}',
+            'rows':        rows,
+            'charts': {
+                'xs_s':   _chart_bands({'XS', 'S'}),
+                'm_plus': _chart_bands({'M', 'L', 'XL'}),
+            },
+        }
+
+    @staticmethod
+    def get_configure_data(month_str):
+        """Return projects for the month with their existing comments."""
+        from apps.projects.models import Project
+
+        from .models import KPIReportComment
+
+        try:
+            year  = int(month_str[:4])
+            month = int(month_str[5:7])
+        except (ValueError, IndexError, AttributeError):
+            return None
+
+        projects = list(
+            Project.objects.filter(
+                status=Project.STATUS_COMPLETED,
+                completed_sprint__isnull=False,
+                completed_sprint__end_date__year=year,
+                completed_sprint__end_date__month=month,
+            )
+            .select_related('programme')
+            .order_by('name')
+        )
+
+        project_ids = [p.id for p in projects]
+        comment_map = {
+            c.project_id: c
+            for c in KPIReportComment.objects.filter(
+                project_id__in=project_ids, month=month_str
+            )
+        }
+
+        result = []
+        for p in projects:
+            obj = comment_map.get(p.id)
+            result.append({
+                'project_id':   p.id,
+                'project_name': p.name,
+                'programme':    p.programme.name if p.programme else '—',
+                'comment_id':   obj.id if obj else None,
+                'comment':      obj.comment if obj else '',
+            })
+
+        return {
+            'month':    month_str,
+            'projects': result,
+        }
+
+    @staticmethod
+    def save_comments(month_str, comments, user=None):
+        """Upsert/delete comments for the given month."""
+        from .models import KPIReportComment
+
+        for item in comments:
+            project_id = item['project_id']
+            text = item.get('comment', '').strip()
+            if text:
+                KPIReportComment.objects.update_or_create(
+                    project_id=project_id,
+                    month=month_str,
+                    defaults={'comment': text, 'updated_by': user},
+                )
+            else:
+                KPIReportComment.objects.filter(
+                    project_id=project_id, month=month_str
+                ).delete()
+
+    # ── Exports ───────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def export_csv(data: dict) -> bytes:
+        rows        = data.get('rows', [])
+        month_label = data.get('month_label', '')
+
+        buf = io.StringIO()
+        w   = csv.writer(buf)
+        w.writerow([
+            'Programme', 'Project', 'Assigned Team', 'Collaborators',
+            'Estimate Value (£)', 'Estimate Value With Contingency (£)',
+            'Total Cost Till Date (£)', 'T-Shirt Size',
+            'Estimate % Accuracy', 'Accuracy Band', 'Comment',
+        ])
+        for r in rows:
+            acc = f"{r['accuracy_pct']:.2f}%" if r['accuracy_pct'] is not None else '—'
+            w.writerow([
+                r['programme'], r['project'], r['assigned_team'],
+                r['collaborators_str'],
+                f"{r['estimate_value']:,.2f}",
+                f"{r['estimate_value_with_contingency']:,.2f}",
+                f"{r['total_cost_till_date']:,.2f}",
+                r['tshirt_size'], acc,
+                r['accuracy_band'], r['comment'],
+            ])
+        return buf.getvalue().encode('utf-8-sig')
+
+    @staticmethod
+    def export_xlsx(data: dict) -> bytes:
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+
+        rows        = data.get('rows', [])
+        month_label = data.get('month_label', '')
+
+        BAND_STYLES = {
+            '> 90%':     ('dcfce7', '15803d'),
+            '> 80%':     ('ecfccb', '3f6212'),
+            'In Range':  ('fef3c7', '92400e'),
+            '> 70%':     ('ffedd5', '9a3412'),
+            '> 60%':     ('fee2e2', '991b1b'),
+            '> 50%':     ('fecaca', '7f1d1d'),
+            '< 50%':     ('fca5a5', '450a0a'),
+            'Exception': ('ede9fe', '4c1d95'),
+            '—':         ('f9fafb', '6b7280'),
+        }
+
+        H_FILL = PatternFill('solid', fgColor='1F4E79')
+        CENTER  = Alignment(horizontal='center')
+        GBP_FMT = '£#,##0.00'
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'KPI Estimate Accuracy'
+
+        # Title row
+        ws.merge_cells('A1:K1')
+        title_cell = ws.cell(1, 1, f'KPI Report — Estimate % Accuracy | {month_label}')
+        title_cell.font = Font(bold=True, size=13)
+
+        headers = [
+            'Programme', 'Project', 'Assigned Team', 'Collaborators',
+            'Estimate Value', 'Est. w/Contingency', 'Total Cost Till Date',
+            'T-Shirt', '% Accuracy', 'Accuracy Band', 'Comment',
+        ]
+        for ci, h in enumerate(headers, 1):
+            c = ws.cell(3, ci, h)
+            c.font   = Font(bold=True, color='FFFFFF')
+            c.fill   = H_FILL
+            c.alignment = CENTER
+
+        for ri, r in enumerate(rows, 4):
+            band        = r['accuracy_band']
+            bg, fg      = BAND_STYLES.get(band, BAND_STYLES['—'])
+            band_fill   = PatternFill('solid', fgColor=bg)
+            band_font   = Font(color=fg, bold=True)
+
+            row_vals = [
+                r['programme'], r['project'], r['assigned_team'],
+                r['collaborators_str'],
+                r['estimate_value'],
+                r['estimate_value_with_contingency'],
+                r['total_cost_till_date'],
+                r['tshirt_size'],
+                r['accuracy_pct'],
+                r['accuracy_band'],
+                r['comment'],
+            ]
+            for ci, v in enumerate(row_vals, 1):
+                c = ws.cell(ri, ci, v)
+                if ci in (5, 6, 7):
+                    c.number_format = GBP_FMT
+                    c.alignment = CENTER
+                elif ci == 8:
+                    c.alignment = CENTER
+                elif ci == 9:
+                    if v is not None:
+                        c.number_format = '0.00"%"'
+                    c.alignment = CENTER
+                elif ci == 10:
+                    c.fill      = band_fill
+                    c.font      = band_font
+                    c.alignment = CENTER
+
+        col_widths = [20, 28, 18, 24, 18, 22, 20, 10, 14, 14, 32]
+        for ci, w in enumerate(col_widths, 1):
+            ws.column_dimensions[get_column_letter(ci)].width = w
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf.read()
+
+    @staticmethod
+    def export_pdf(data: dict) -> bytes:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.lib.units import mm
+        from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+        rows        = data.get('rows', [])
+        month_label = data.get('month_label', '')
+
+        def _rl_color(hex_str):
+            h = hex_str.lstrip('#')
+            return colors.Color(
+                int(h[0:2], 16) / 255,
+                int(h[2:4], 16) / 255,
+                int(h[4:6], 16) / 255,
+            )
+
+        BAND_BG_RL = {k: _rl_color(v) for k, v in KPI_BAND_BG.items()}
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buf, pagesize=landscape(A4),
+            leftMargin=12 * mm, rightMargin=12 * mm,
+            topMargin=12 * mm, bottomMargin=12 * mm,
+        )
+
+        styles  = getSampleStyleSheet()
+        story   = []
+
+        story.append(Paragraph('KPI Report — Estimate % Accuracy', styles['Title']))
+        story.append(Paragraph(f'Month: {month_label}', styles['Normal']))
+        story.append(Spacer(1, 4 * mm))
+
+        HDR_BG   = colors.Color(31 / 255, 78 / 255, 121 / 255)
+        HDR_FONT = colors.white
+        ALT_ROW  = colors.Color(0.97, 0.97, 0.97)
+
+        table_data = [[
+            'Programme', 'Project', 'Team', 'Collaborators',
+            'Estimate (£)', 'Est. w/Ctg (£)', 'Total Cost (£)',
+            'T-Shirt', '% Acc.', 'Band', 'Comment',
+        ]]
+
+        band_rows = []
+        for r in rows:
+            acc = f"{r['accuracy_pct']:.1f}%" if r['accuracy_pct'] is not None else '—'
+            table_data.append([
+                r['programme'], r['project'], r['assigned_team'],
+                r['collaborators_str'] or '—',
+                f"£{r['estimate_value']:,.0f}",
+                f"£{r['estimate_value_with_contingency']:,.0f}",
+                f"£{r['total_cost_till_date']:,.0f}",
+                r['tshirt_size'], acc,
+                r['accuracy_band'],
+                r['comment'] or '',
+            ])
+            band_rows.append(r['accuracy_band'])
+
+        col_w = [25*mm, 30*mm, 22*mm, 25*mm, 20*mm, 22*mm, 20*mm, 12*mm, 14*mm, 14*mm, 30*mm]
+
+        tbl = Table(table_data, colWidths=col_w, repeatRows=1)
+
+        cmds = [
+            ('BACKGROUND',   (0, 0), (-1, 0),  HDR_BG),
+            ('TEXTCOLOR',    (0, 0), (-1, 0),  HDR_FONT),
+            ('FONTNAME',     (0, 0), (-1, 0),  'Helvetica-Bold'),
+            ('FONTSIZE',     (0, 0), (-1, -1), 7),
+            ('ALIGN',        (4, 0), (9, -1),  'RIGHT'),
+            ('ALIGN',        (9, 0), (9, -1),  'CENTER'),
+            ('GRID',         (0, 0), (-1, -1), 0.3, colors.lightgrey),
+            ('VALIGN',       (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING',   (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING',(0, 0), (-1, -1), 3),
+        ]
+
+        for i, band in enumerate(band_rows):
+            row_idx = i + 1
+            if i % 2 == 1:
+                cmds.append(('ROWBACKGROUNDS', (0, row_idx), (-1, row_idx), [ALT_ROW]))
+            bg = BAND_BG_RL.get(band)
+            if bg:
+                cmds.append(('BACKGROUND', (9, row_idx), (9, row_idx), bg))
+
+        tbl.setStyle(TableStyle(cmds))
+        story.append(tbl)
+
+        doc.build(story)
+        buf.seek(0)
+        return buf.read()
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 
