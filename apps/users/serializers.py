@@ -164,6 +164,8 @@ class UserCreateSerializer(serializers.Serializer):
             user=user,
             defaults={'must_change_password': True},
         )
+        from .utils import add_to_guest_group
+        add_to_guest_group(user)
         return user
 
 

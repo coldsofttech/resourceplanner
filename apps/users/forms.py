@@ -174,4 +174,6 @@ class AdminUserCreateForm(forms.Form):
         user.save(update_fields=['password'])
         from .models import UserProfile
         UserProfile.objects.get_or_create(user=user, defaults={'must_change_password': True})
+        from .utils import add_to_guest_group
+        add_to_guest_group(user)
         return user

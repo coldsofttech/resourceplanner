@@ -35,6 +35,17 @@ class TeamMemberSerializer(serializers.ModelSerializer):
     last_name = serializers.CharField(max_length=80, required=False, allow_blank=True)
     email_address = serializers.CharField(max_length=254, required=False, allow_blank=True)
 
+    # Write-only fields for creating a brand-new user account alongside the member.
+    new_user_first_name = serializers.CharField(
+        max_length=150, required=False, allow_blank=True, write_only=True, default=''
+    )
+    new_user_last_name = serializers.CharField(
+        max_length=150, required=False, allow_blank=True, write_only=True, default=''
+    )
+    new_user_email = serializers.EmailField(
+        max_length=254, required=False, allow_blank=True, write_only=True, default=''
+    )
+
     class Meta:
         model = TeamMember
         fields = '__all__'
@@ -87,11 +98,39 @@ class TeamMemberSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         user = attrs.get('user')
 
+        # Detect the "create new user inline" path.
+        new_email = (attrs.get('new_user_email') or '').strip().lower()
+        new_first = (attrs.get('new_user_first_name') or '').strip()
+        new_last = (attrs.get('new_user_last_name') or '').strip()
+        is_new_user_path = bool(new_email or new_first or new_last)
+
         if user:
             # Populate stored fields from the linked user account.
             attrs['first_name'] = user.first_name
             attrs['last_name'] = user.last_name
             attrs['email_address'] = user.email
+        elif is_new_user_path:
+            # Create a new user account alongside the member.
+            errors = {}
+            if not new_first:
+                errors['new_user_first_name'] = 'First name is required.'
+            if not new_last:
+                errors['new_user_last_name'] = 'Last name is required.'
+            if not new_email:
+                errors['new_user_email'] = 'Email address is required.'
+            else:
+                if User.objects.filter(email__iexact=new_email).exists():
+                    errors['new_user_email'] = 'A user with this email already exists.'
+                elif TeamMember.objects.filter(email_address__iexact=new_email).exists():
+                    errors['new_user_email'] = 'A team member with this email already exists.'
+            if errors:
+                raise serializers.ValidationError(errors)
+            attrs['new_user_email'] = new_email
+            attrs['new_user_first_name'] = new_first
+            attrs['new_user_last_name'] = new_last
+            attrs['first_name'] = new_first
+            attrs['last_name'] = new_last
+            attrs['email_address'] = new_email
         elif self.instance is None:
             # Create without a user: all three name/email fields are required.
             errors = {}

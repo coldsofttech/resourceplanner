@@ -273,7 +273,7 @@ function onDeleteFromList(id, name) {
 async function initCreateView() {
     setPageTitle('New Team Member');
     document.getElementById('page-title').textContent    = 'New Team Member';
-    document.getElementById('page-subtitle').textContent = 'Create a team member profile linked to an existing user account';
+    document.getElementById('page-subtitle').textContent = 'Link to an existing user account or create a new one';
     document.getElementById('submit-label').textContent  = 'Create member';
     document.getElementById('submit-btn').dataset.originalLabel = 'Create member';
 
@@ -285,6 +285,18 @@ async function initCreateView() {
     await _loadUserSelectOptions();
 
     document.getElementById('id_user').addEventListener('change', _onUserSelectChange);
+
+    // Sync new-user name inputs to main name fields so the display-name hint stays current.
+    document.getElementById('id_new_user_first_name')?.addEventListener('input', () => {
+        if (document.getElementById('id_user').value !== '__new__') return;
+        document.getElementById('id_first_name').value = document.getElementById('id_new_user_first_name').value;
+        document.getElementById('id_first_name').dispatchEvent(new Event('input'));
+    });
+    document.getElementById('id_new_user_last_name')?.addEventListener('input', () => {
+        if (document.getElementById('id_user').value !== '__new__') return;
+        document.getElementById('id_last_name').value = document.getElementById('id_new_user_last_name').value;
+        document.getElementById('id_last_name').dispatchEvent(new Event('input'));
+    });
 }
 
 async function _loadUserSelectOptions() {
@@ -308,10 +320,13 @@ async function _loadUserSelectOptions() {
 }
 
 function _onUserSelectChange() {
-    const select = document.getElementById('id_user');
-    const opt    = select.options[select.selectedIndex];
+    const select         = document.getElementById('id_user');
+    const opt            = select.options[select.selectedIndex];
+    const newUserSection = document.getElementById('new-user-fields-section');
 
     if (!opt || !opt.value) {
+        newUserSection?.classList.add('d-none');
+        _setNameEmailReadonly(true);
         document.getElementById('id_first_name').value    = '';
         document.getElementById('id_last_name').value     = '';
         document.getElementById('id_email_address').value = '';
@@ -321,6 +336,23 @@ function _onUserSelectChange() {
         return;
     }
 
+    if (opt.value === '__new__') {
+        // Show new-user fields; keep main name/email readonly (server populates them on save).
+        newUserSection?.classList.remove('d-none');
+        _setNameEmailReadonly(true);
+        document.getElementById('id_first_name').value    = '';
+        document.getElementById('id_last_name').value     = '';
+        document.getElementById('id_email_address').value = '';
+        select.classList.remove('is-invalid');
+        document.getElementById('user-error').textContent = '';
+        document.getElementById('id_new_user_first_name')?.focus();
+        return;
+    }
+
+    // Existing user selected: hide new-user section and auto-fill from user data.
+    newUserSection?.classList.add('d-none');
+    _setNameEmailReadonly(true);
+
     const firstName = opt.dataset.firstName || '';
     const lastName  = opt.dataset.lastName  || '';
     const email     = opt.dataset.email     || '';
@@ -329,7 +361,6 @@ function _onUserSelectChange() {
     document.getElementById('id_last_name').value     = lastName;
     document.getElementById('id_email_address').value = email;
 
-    // Auto-suggest display name only when field is still blank.
     const displayInput = document.getElementById('id_display_name');
     if (!displayInput.value.trim()) {
         displayInput.value = (lastName && firstName) ? `${lastName}, ${firstName}` : lastName || firstName;
@@ -456,7 +487,8 @@ function _renderSkillsCheckboxes(skills, selectedIds) {
 async function handleCreateEditSubmit(e) {
     e.preventDefault();
     clearErrors(['user', 'first_name', 'last_name', 'email_address', 'role', 'location',
-                 'employment_type', 'start_date', 'end_date', 'default_holidays']);
+                 'employment_type', 'start_date', 'end_date', 'default_holidays',
+                 'new_user_first_name', 'new_user_last_name', 'new_user_email']);
 
     const role      = document.getElementById('id_role').value;
     const location  = document.getElementById('id_location').value;
@@ -471,8 +503,15 @@ async function handleCreateEditSubmit(e) {
     let valid = true;
 
     if (!isEdit) {
-        // Create mode: a user account is required.
-        if (!userId) {
+        if (userId === '__new__') {
+            // Validate the new-user inline fields.
+            const newFirst = document.getElementById('id_new_user_first_name').value.trim();
+            const newLast  = document.getElementById('id_new_user_last_name').value.trim();
+            const newEmail = document.getElementById('id_new_user_email').value.trim();
+            if (!newFirst) { _fieldError('id_new_user_first_name', 'new_user_first_name-error', 'First name is required.'); valid = false; }
+            if (!newLast)  { _fieldError('id_new_user_last_name',  'new_user_last_name-error',  'Last name is required.'); valid = false; }
+            if (!newEmail) { _fieldError('id_new_user_email',      'new_user_email-error',       'Email address is required.'); valid = false; }
+        } else if (!userId) {
             userSelect?.classList.add('is-invalid');
             const errEl = document.getElementById('user-error');
             if (errEl) errEl.textContent = 'Please select a user account.';
@@ -521,8 +560,15 @@ async function handleCreateEditSubmit(e) {
     };
 
     if (!isEdit) {
-        // Create: link to user; server populates name/email from the user account.
-        payload.user = parseInt(userId);
+        if (userId === '__new__') {
+            // Send new-user fields; server creates the User then links it.
+            payload.new_user_first_name = document.getElementById('id_new_user_first_name').value.trim();
+            payload.new_user_last_name  = document.getElementById('id_new_user_last_name').value.trim();
+            payload.new_user_email      = document.getElementById('id_new_user_email').value.trim().toLowerCase();
+        } else {
+            // Link to an existing user account.
+            payload.user = parseInt(userId);
+        }
     } else {
         // Edit: first/last name updates the member (and linked user if present).
         payload.first_name = firstName;
@@ -543,7 +589,8 @@ async function handleCreateEditSubmit(e) {
     } catch (err) {
         if (err?.status === 400) {
             applyErrors(err.data ?? {}, ['user', 'first_name', 'last_name', 'email_address', 'role',
-                                          'location', 'employment_type', 'start_date', 'default_holidays']);
+                                          'location', 'employment_type', 'start_date', 'default_holidays',
+                                          'new_user_first_name', 'new_user_last_name', 'new_user_email']);
             return;
         }
         if (err?.status === 404) {

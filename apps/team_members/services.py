@@ -214,6 +214,33 @@ class TeamMemberService:
         if not isinstance(data, dict):
             raise ValidationError("Invalid: data must be a dictionary.")
 
+        # Handle inline new-user creation: create the User first, then treat as a
+        # normal user-linked member.
+        new_user_email = (data.get('new_user_email') or '').strip().lower()
+        if new_user_email:
+            import secrets as _secrets
+            User = get_user_model()
+            new_first = (data.get('new_user_first_name') or '').strip()
+            new_last = (data.get('new_user_last_name') or '').strip()
+            username = new_user_email[:150]
+            if User.objects.filter(username=username).exists():
+                username = f'{new_user_email[:140]}{_secrets.token_hex(4)}'
+            new_user = User.objects.create_user(
+                username=username,
+                email=new_user_email,
+                first_name=new_first,
+                last_name=new_last,
+            )
+            new_user.set_unusable_password()
+            new_user.save(update_fields=['password'])
+            from apps.users.models import UserProfile
+            UserProfile.objects.get_or_create(
+                user=new_user, defaults={'must_change_password': True}
+            )
+            from apps.users.utils import add_to_guest_group
+            add_to_guest_group(new_user)
+            data = {**dict(data), 'user': new_user}
+
         user = data.get('user')
 
         if user:

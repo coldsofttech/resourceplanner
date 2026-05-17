@@ -27,9 +27,57 @@
                     </label>
                     <select id="id_user" name="user" class="form-select rp-select">
                         <option value="">— Select a user account —</option>
+                        <option value="__new__">— Create new user account —</option>
                     </select>
                     <p class="rp-hint mt-1">Only active users without an existing team member profile are listed.</p>
                     <div class="invalid-feedback" id="user-error"></div>
+                </div>
+
+                <!-- New User Fields (create mode, when "Create new user account" is selected) -->
+                <div id="new-user-fields-section" class="mb-4 d-none">
+                    <div class="p-3 rounded border" style="background: var(--bs-blue-100, #e7f0ff); border-color: var(--bs-primary, #0d6efd) !important;">
+                        <p class="small fw-semibold mb-3" style="color: var(--bs-primary, #0d6efd);">
+                            <i class="bi bi-person-plus me-1"></i>New user account details
+                        </p>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="rp-label" for="id_new_user_first_name">
+                                    First Name <span class="rp-required">*</span>
+                                </label>
+                                <input type="text"
+                                       id="id_new_user_first_name"
+                                       name="new_user_first_name"
+                                       class="form-control rp-input"
+                                       maxlength="150"
+                                       autocomplete="off" />
+                                <div class="invalid-feedback" id="new_user_first_name-error"></div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="rp-label" for="id_new_user_last_name">
+                                    Last Name <span class="rp-required">*</span>
+                                </label>
+                                <input type="text"
+                                       id="id_new_user_last_name"
+                                       name="new_user_last_name"
+                                       class="form-control rp-input"
+                                       maxlength="150"
+                                       autocomplete="off" />
+                                <div class="invalid-feedback" id="new_user_last_name-error"></div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="rp-label" for="id_new_user_email">
+                                Email Address <span class="rp-required">*</span>
+                            </label>
+                            <input type="email"
+                                   id="id_new_user_email"
+                                   name="new_user_email"
+                                   class="form-control rp-input"
+                                   maxlength="254"
+                                   autocomplete="off" />
+                            <div class="invalid-feedback" id="new_user_email-error"></div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Linked User Info (edit mode, when user is linked) -->
@@ -257,7 +305,8 @@
         <div class="rp-card rp-card--muted">
             <h6 class="fw-600 mb-3"><i class="bi bi-info-circle me-2"></i>Tips</h6>
             <ul class="rp-tip-list" id="tips-list">
-                <li>Select a user account to link this team member profile to a login.</li>
+                <li>Select an existing user account to link this profile to a login, or choose <strong>Create new user account</strong> to create one inline.</li>
+                <li>When a new user is created here, they are automatically added to the <strong>Guest</strong> group.</li>
                 <li>Name and email come from the linked user account and stay in sync automatically.</li>
                 <li>Display name is auto-generated as "Last Name, First Name" if left blank.</li>
                 <li>Team assignment can be changed later using the Move Team action.</li>

@@ -284,6 +284,8 @@ def get_or_create_sso_user(
             first_name=fn[:150],
             last_name=ln[:150],
         )
+        from .utils import add_to_guest_group
+        add_to_guest_group(user)
 
     # 4. Attach SSO profile
     UserProfile.objects.get_or_create(
