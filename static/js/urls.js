@@ -919,6 +919,7 @@ export const API_URLS = {
         email_review: { method: 'GET', href: `${API_BASE}recharges/email-review/` },
         trigger_emails: { method: 'POST', href: `${API_BASE}recharges/trigger-emails/` },
         email_status: { method: 'GET', href: `${API_BASE}recharges/email-status/` },
+        resend: { method: 'POST', href: `${API_BASE}recharges/resend/` },
     },
 
     recharge_details: {

@@ -117,7 +117,7 @@ class SprintImportRowSerializer(serializers.ModelSerializer):
 
     def get_effective_label_name(self, obj):
         lbl = obj.effective_label
-        return lbl.label if lbl else (obj.label_override if obj.label_override else obj.label_raw)
+        return lbl.label if lbl else (obj.label_override.label if obj.label_override else obj.label_raw)
 
     def get_effective_mapping_id(self, obj):
         m = obj.effective_mapping

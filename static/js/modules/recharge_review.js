@@ -43,7 +43,20 @@ function _renderAccordion(entries) {
             `<span class="fw-600">${_esc(p.name)}</span><span class="text-secondary small ms-1">(${_esc(p.programme_name)})</span>`
         ).join('<span class="text-secondary mx-1">·</span>');
         const statusBadge = _statusBadge(entry.email_status);
+        const changedBadge = entry.has_changes
+            ? `<span class="email-status-badge email-status-badge--changed"><i class="bi bi-arrow-repeat me-1"></i>Overridden</span>`
+            : '';
         const fmtCost = v => `£${parseFloat(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
+        const wasSent = entry.email_status === 'SENT';
+        const sendBtnCls = (wasSent && entry.has_changes) ? 'btn-warning'
+            : wasSent ? 'btn-outline-secondary'
+            : 'btn-primary';
+        const sendBtnIcon = wasSent ? 'bi-arrow-repeat' : 'bi-send';
+        const sendBtnLabel = wasSent ? 'Resend' : 'Send';
+        const sendBtnTitle = wasSent
+            ? (entry.has_changes ? 'Resend with updated recharge data' : 'Resend this email')
+            : 'Send this email';
 
         return `
         <div class="accordion-item rp-accordion-item mb-2" style="border-radius:8px;overflow:hidden">
@@ -58,18 +71,61 @@ function _renderAccordion(entries) {
                     <div class="d-flex align-items-center gap-3 ms-auto">
                         <span class="text-secondary small font-mono">${parseFloat(entry.total_days).toFixed(2)} days</span>
                         <span class="text-secondary small font-mono">${fmtCost(entry.total_cost)}</span>
+                        ${changedBadge}
                         ${statusBadge}
                     </div>
                 </button>
             </div>
             <div id="entry-body-${idx}" class="accordion-collapse collapse">
                 <div class="accordion-body pt-0">
+                    ${entry.has_changes ? _buildChangesTable(entry) : ''}
                     ${_buildEmailPreview(entry)}
-                    ${entry.email_status ? `<div class="mt-2 text-secondary small">Last triggered: ${_fmtDate(entry.last_sent_at)}</div>` : ''}
+                    <div class="d-flex align-items-center justify-content-between mt-3 flex-wrap gap-2">
+                        ${entry.email_status
+                            ? `<span class="text-secondary small">Last sent: ${_fmtDate(entry.last_sent_at)}</span>`
+                            : '<span></span>'}
+                        <button class="btn btn-sm ${sendBtnCls} send-entry-btn d-flex align-items-center gap-1"
+                            data-entry-key="${_esc(entry.entry_key)}"
+                            data-label="${sendBtnLabel}"
+                            data-icon="${sendBtnIcon}"
+                            title="${sendBtnTitle}">
+                            <i class="bi ${sendBtnIcon} me-1"></i>${sendBtnLabel}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>`;
     }).join('');
+
+    acc.querySelectorAll('.send-entry-btn').forEach(btn =>
+        btn.addEventListener('click', () => _sendEntry(btn))
+    );
+}
+
+function _buildChangesTable(entry) {
+    const fmtCost = v => `£${parseFloat(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+    const rows = entry.changes.map(c => `
+        <tr>
+            <td class="fw-600">${_esc(c.project_name)}</td>
+            <td class="text-end font-mono text-secondary">${parseFloat(c.sent_days).toFixed(2)}</td>
+            <td class="text-end font-mono text-secondary">${fmtCost(c.sent_cost)}</td>
+            <td class="text-end font-mono fw-600">${parseFloat(c.current_days).toFixed(2)}</td>
+            <td class="text-end font-mono fw-600">${fmtCost(c.current_cost)}</td>
+        </tr>`).join('');
+    return `
+    <div class="changes-block mb-3">
+        <div class="changes-block-title"><i class="bi bi-arrow-repeat me-1"></i>Changes since last send</div>
+        <table class="table table-sm rp-table mb-0">
+            <thead><tr>
+                <th>Project</th>
+                <th class="text-end text-secondary" style="font-weight:500">Sent Days</th>
+                <th class="text-end text-secondary" style="font-weight:500">Sent Cost</th>
+                <th class="text-end">Current Days</th>
+                <th class="text-end">Current Cost</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+        </table>
+    </div>`;
 }
 
 function _buildEmailPreview(entry) {
@@ -169,6 +225,38 @@ async function _triggerAll() {
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-gear-fill"></i>Trigger All Emails';
+    }
+}
+
+async function _sendEntry(btn) {
+    const entryKey = btn.dataset.entryKey;
+    const originalLabel = btn.dataset.label || 'Send';
+    const originalIcon = btn.dataset.icon || 'bi-send';
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner-border spinner-border-sm me-1"></div>Sending…';
+
+    try {
+        const result = await fetch(API_URLS.recharges.resend.href, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': _getCsrf() },
+            body: JSON.stringify({ sprint_id: SPRINT_ID, type: RECHARGE_TYPE, entry_key: entryKey }),
+        }).then(r => r.json());
+
+        const resultDiv = document.getElementById('trigger-result');
+        resultDiv.classList.remove('d-none');
+        if (result.status === 'SENT') {
+            resultDiv.innerHTML = `<div class="alert alert-success">Email sent successfully.</div>`;
+            await _loadReview();
+        } else {
+            resultDiv.innerHTML = `<div class="alert alert-danger">Send failed: ${_esc(result.error_message || result.error || 'Unknown error')}</div>`;
+            btn.disabled = false;
+            btn.innerHTML = `<i class="bi ${originalIcon} me-1"></i>${originalLabel}`;
+        }
+    } catch (e) {
+        document.getElementById('trigger-result').classList.remove('d-none');
+        document.getElementById('trigger-result').innerHTML = `<div class="alert alert-danger">Send failed: ${_esc(String(e))}</div>`;
+        btn.disabled = false;
+        btn.innerHTML = `<i class="bi ${originalIcon} me-1"></i>${originalLabel}`;
     }
 }
 

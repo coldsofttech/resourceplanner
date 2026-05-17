@@ -62,12 +62,14 @@
         <button class="nav-link active" id="tab-forecast-btn"
             data-bs-toggle="tab" data-bs-target="#tab-forecast" type="button" role="tab">
             <i class="bi bi-graph-up-arrow me-1"></i>Forecast
+            <span id="forecast-email-badge" class="ms-1 d-none"></span>
         </button>
     </li>
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="tab-actual-btn"
             data-bs-toggle="tab" data-bs-target="#tab-actual" type="button" role="tab">
             <i class="bi bi-bar-chart-line me-1"></i>Actuals
+            <span id="actual-email-badge" class="ms-1 d-none"></span>
         </button>
     </li>
 </ul>
@@ -93,8 +95,8 @@
             <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                 <span id="forecast-count" class="text-secondary small"></span>
                 <a id="forecast-email-btn" href="/recharges/{{ sprint.id }}/forecast/"
-                    class="btn btn-sm btn-warning d-flex align-items-center gap-1">
-                    <i class="bi bi-gear-fill"></i>Trigger Emails
+                    class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
+                    <i class="bi bi-envelope me-1"></i>Email Review
                 </a>
             </div>
             <!-- Recharge table -->
@@ -136,8 +138,8 @@
             <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
                 <span id="actual-count" class="text-secondary small"></span>
                 <a id="actual-email-btn" href="/recharges/{{ sprint.id }}/actuals/"
-                    class="btn btn-sm btn-warning d-flex align-items-center gap-1">
-                    <i class="bi bi-gear-fill"></i>Trigger Emails
+                    class="btn btn-sm btn-outline-primary d-flex align-items-center gap-1">
+                    <i class="bi bi-envelope me-1"></i>Email Review
                 </a>
             </div>
             <!-- Recharge table -->
@@ -233,6 +235,9 @@
     border-radius: 14px; padding: 2px 8px; font-size: 11px;
     color: var(--rp-accent,#6366f1); margin: 1px;
 }
+.rp-tab-badge { font-size: 11px; vertical-align: middle; line-height: 1; }
+.rp-tab-badge--sent { color: #15803d; }
+.rp-tab-badge--error { color: #b91c1c; }
 </style>
 {% endblock %}
 

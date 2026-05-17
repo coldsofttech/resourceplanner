@@ -29,6 +29,7 @@ from .models import (
     SprintImportReviewComplete,
     SprintImportRow,
 )
+from apps.projects.models import ProjectContact
 from .serializers import (
     ImportReviewSerializer,
     ProjectActualsSerializer,
@@ -192,7 +193,9 @@ class BaseSprintImportViewSet(viewsets.ViewSet):
                 user=request.user,
                 import_type=self.import_type,
             )
-            return Response(SprintImportSerializer(fi).data, status=status.HTTP_201_CREATED)
+            data = SprintImportSerializer(fi).data
+            data['detected_headers'] = getattr(fi, '_detected_headers', [])
+            return Response(data, status=status.HTTP_201_CREATED)
         except Exception as e:
             logger.exception('Error importing CSV: %s', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -480,10 +483,22 @@ def _build_recharge_email_entries(sprint_id, recharge_type):
         Recharge.objects
         .filter(sprint_id=sprint_id, type=recharge_type)
         .select_related('sprint', 'sprint__financial_year', 'programme', 'project')
-        .prefetch_related('stories', 'finance_contacts__contact', 'project_contacts__contact')
+        .prefetch_related('stories')
     )
     if not recharges:
         return []
+
+    project_ids = {r.project_id for r in recharges if r.project_id}
+    live_contacts = (
+        ProjectContact.objects
+        .filter(project_id__in=project_ids, is_active=True)
+        .select_related('contact')
+    )
+    contact_emails = {}
+    for pc in live_contacts:
+        contact_emails.setdefault((pc.project_id, pc.role), set())
+        if pc.contact.email:
+            contact_emails[(pc.project_id, pc.role)].add(pc.contact.email)
 
     sprint = recharges[0].sprint
     sprint_name = sprint.sprint_name
@@ -588,12 +603,9 @@ def _build_recharge_email_entries(sprint_id, recharge_type):
         grp = data['group']
         to_emails = set()
         for r in data['recharges']:
-            for c in r.finance_contacts.all():
-                if c.contact.email:
-                    to_emails.add(c.contact.email)
-            for c in r.project_contacts.all():
-                if c.contact.email:
-                    to_emails.add(c.contact.email)
+            if r.project_id:
+                to_emails.update(contact_emails.get((r.project_id, ProjectContact.ROLE_FINANCE), set()))
+                to_emails.update(contact_emails.get((r.project_id, ProjectContact.ROLE_PROJECT), set()))
         projects_data = [_project_data(r) for r in data['recharges']]
         total_days = sum(Decimal(p['total_days']) for p in projects_data)
         total_cost = sum(Decimal(p['total_cost']) for p in projects_data)
@@ -615,12 +627,9 @@ def _build_recharge_email_entries(sprint_id, recharge_type):
 
     for r in ungrouped:
         to_emails = set()
-        for c in r.finance_contacts.all():
-            if c.contact.email:
-                to_emails.add(c.contact.email)
-        for c in r.project_contacts.all():
-            if c.contact.email:
-                to_emails.add(c.contact.email)
+        if r.project_id:
+            to_emails.update(contact_emails.get((r.project_id, ProjectContact.ROLE_FINANCE), set()))
+            to_emails.update(contact_emails.get((r.project_id, ProjectContact.ROLE_PROJECT), set()))
         p_data = _project_data(r)
         le = _latest_email(None, r.project_id)
         entries.append({
@@ -742,12 +751,22 @@ class RechargeViewSet(viewsets.ViewSet):
                 'variance': str((at - ft).quantize(Decimal('0.01'))),
             })
 
+        email_qs = RechargeEmail.objects.filter(sprint_id=sprint_id, type=recharge_type)
+        sent_count = email_qs.filter(status=RECHARGE_EMAIL_STATUS_SENT).count()
+        error_count = email_qs.filter(status=RECHARGE_EMAIL_STATUS_ERROR).count()
+        latest_sent = email_qs.filter(status=RECHARGE_EMAIL_STATUS_SENT).order_by('-sent_at').first()
+
         return Response({
             'exists': exists,
             'total_cost': str(total_cost),
             'total_days': str(total_days),
             'finance_type_breakdown': finance_breakdown,
             'combined': combined,
+            'email_status': {
+                'sent_count': sent_count,
+                'error_count': error_count,
+                'last_sent_at': latest_sent.sent_at.isoformat() if latest_sent and latest_sent.sent_at else None,
+            },
         })
 
     @action(detail=False, methods=['get'], url_path='email-review')
@@ -760,6 +779,42 @@ class RechargeViewSet(viewsets.ViewSet):
             entries = _build_recharge_email_entries(sprint_id, recharge_type)
             for e in entries:
                 e.pop('body_html', None)
+                # Detect changes vs last sent snapshot
+                le_qs = RechargeEmail.objects.filter(sprint_id=sprint_id, type=recharge_type, status=RECHARGE_EMAIL_STATUS_SENT)
+                if e.get('group_id'):
+                    le = le_qs.filter(group_id=e['group_id']).order_by('-triggered_at').first()
+                else:
+                    proj_id = e['projects'][0]['id'] if e.get('projects') else None
+                    le = le_qs.filter(group__isnull=True, project_id=proj_id).order_by('-triggered_at').first()
+                e['has_changes'] = False
+                e['changes'] = []
+                if le and le.sent_data:
+                    sent_map = {p['project_id']: p for p in le.sent_data.get('projects', [])}
+                    changes = []
+                    for p in e.get('projects', []):
+                        pid = p['id']
+                        if pid in sent_map:
+                            sp = sent_map[pid]
+                            if p['total_days'] != sp['total_days'] or p['total_cost'] != sp['total_cost']:
+                                changes.append({
+                                    'project_id': pid,
+                                    'project_name': p['name'],
+                                    'sent_days': sp['total_days'],
+                                    'sent_cost': sp['total_cost'],
+                                    'current_days': p['total_days'],
+                                    'current_cost': p['total_cost'],
+                                })
+                        else:
+                            changes.append({
+                                'project_id': pid,
+                                'project_name': p['name'],
+                                'sent_days': '0',
+                                'sent_cost': '0',
+                                'current_days': p['total_days'],
+                                'current_cost': p['total_cost'],
+                            })
+                    e['has_changes'] = bool(changes)
+                    e['changes'] = changes
             return Response(entries)
         except Exception as exc:
             logger.exception('Error building email review: %s', exc)
@@ -788,6 +843,17 @@ class RechargeViewSet(viewsets.ViewSet):
         from_email = ConfigurationService.get_str('EMAIL_FROM', '') or None
         results = []
         for entry in entries:
+            sent_data = {
+                'projects': [
+                    {
+                        'project_id': p['id'],
+                        'project_name': p['name'],
+                        'total_days': p['total_days'],
+                        'total_cost': p['total_cost'],
+                    }
+                    for p in entry.get('projects', [])
+                ]
+            }
             rec = RechargeEmail.objects.create(
                 sprint_id=sprint_id,
                 type=recharge_type,
@@ -799,6 +865,7 @@ class RechargeViewSet(viewsets.ViewSet):
                 body=entry['body_html'],
                 status=RECHARGE_EMAIL_STATUS_PENDING,
                 triggered_by=request.user,
+                sent_data=sent_data,
             )
             if entry['to_emails']:
                 try:
@@ -827,6 +894,75 @@ class RechargeViewSet(viewsets.ViewSet):
             })
 
         return Response({'results': results, 'count': len(results)})
+
+    @action(detail=False, methods=['post'], url_path='resend')
+    def resend(self, request):
+        from django.core.mail import EmailMessage
+        from django.utils import timezone as tz
+        from apps.configurations.services import ConfigurationService
+
+        sprint_id = request.data.get('sprint_id')
+        recharge_type = request.data.get('type', '').upper()
+        entry_key = request.data.get('entry_key')
+        if not sprint_id or not recharge_type or not entry_key:
+            return Response({'error': 'sprint_id, type and entry_key required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            all_entries = _build_recharge_email_entries(sprint_id, recharge_type)
+        except Exception as exc:
+            logger.exception('Error building email entries for resend: %s', exc)
+            return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        entry = next((e for e in all_entries if e['entry_key'] == entry_key), None)
+        if not entry:
+            return Response({'error': 'Entry not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        from_email = ConfigurationService.get_str('EMAIL_FROM', '') or None
+        sent_data = {
+            'projects': [
+                {
+                    'project_id': p['id'],
+                    'project_name': p['name'],
+                    'total_days': p['total_days'],
+                    'total_cost': p['total_cost'],
+                }
+                for p in entry.get('projects', [])
+            ]
+        }
+        rec = RechargeEmail.objects.create(
+            sprint_id=sprint_id,
+            type=recharge_type,
+            group_id=entry.get('group_id'),
+            project_id=(entry['projects'][0]['id'] if not entry.get('group_id') and entry['projects'] else None),
+            to_emails=entry['to_emails'],
+            cc_emails=entry['cc_emails'],
+            subject=entry['subject'],
+            body=entry['body_html'],
+            status=RECHARGE_EMAIL_STATUS_PENDING,
+            triggered_by=request.user,
+            sent_data=sent_data,
+        )
+        if entry['to_emails']:
+            try:
+                msg = EmailMessage(
+                    subject=entry['subject'],
+                    body=entry['body_html'],
+                    from_email=from_email,
+                    to=entry['to_emails'],
+                    cc=entry['cc_emails'] or [],
+                )
+                msg.content_subtype = 'html'
+                msg.send()
+                rec.status = RECHARGE_EMAIL_STATUS_SENT
+                rec.sent_at = tz.now()
+            except Exception as exc:
+                rec.status = RECHARGE_EMAIL_STATUS_ERROR
+                rec.error_message = str(exc)[:500]
+        else:
+            rec.status = RECHARGE_EMAIL_STATUS_ERROR
+            rec.error_message = 'No recipient email addresses found.'
+        rec.save(update_fields=['status', 'sent_at', 'error_message'])
+        return Response({'entry_key': entry_key, 'status': rec.status, 'error_message': rec.error_message})
 
     @action(detail=False, methods=['get'], url_path='email-status')
     def email_status(self, request):

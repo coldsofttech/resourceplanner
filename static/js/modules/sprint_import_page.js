@@ -222,7 +222,22 @@ async function _uploadCsv(teamId, file) {
             throw err;
         }
         const fi = await res.json();
-        showFlash('CSV imported successfully.', 'success');
+        const headers = fi.detected_headers || [];
+        const KNOWN = ['story_type','issue_type','jira_id','jira','issue_key','key',
+                       'title_description','title','summary','description',
+                       'assignee','assignee_name','efforts_s','efforts_ms','efforts','original_estimate',
+                       'sprint','sprint_name','label','labels','mapping','finance_type'];
+        const norm = h => h.trim().toLowerCase().replace(/[()]/g,'').replace(/[ /]/g,'_').replace(/^_+|_+$/g,'');
+        const unrecognised = headers.filter(h => h && !KNOWN.includes(norm(h)));
+        if (unrecognised.length) {
+            console.warn('CSV import: unrecognised column headers:', unrecognised);
+            showFlash(
+                `CSV imported — some columns were not recognised: ${unrecognised.map(h => `"${h}"`).join(', ')}. Check the import detail for blank fields.`,
+                'warning',
+            );
+        } else {
+            showFlash('CSV imported successfully.', 'success');
+        }
         await _loadPage();
         window.location.href = _detailUrlFn(fi.id);
     } catch (e) {

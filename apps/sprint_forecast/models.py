@@ -749,6 +749,7 @@ class RechargeEmail(models.Model):
         related_name='triggered_recharge_emails',
     )
     triggered_at = models.DateTimeField(auto_now_add=True)
+    sent_data = models.JSONField(default=dict, blank=True)
 
     class Meta:
         ordering = ['-triggered_at']

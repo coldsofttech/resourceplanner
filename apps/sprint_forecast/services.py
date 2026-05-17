@@ -149,23 +149,36 @@ class SprintImportService:
             text = csv_file.read().decode('latin-1')
 
         reader = csv.DictReader(io.StringIO(text))
+        detected_headers = list(reader.fieldnames or [])
         rows = []
         for order, row in enumerate(reader):
-            raw = {k.strip().lower().replace('(', '').replace(')', '').replace(' ', '_').replace('/', '_').strip('_'): (v or '').strip() for k, v in row.items()}
+            raw = {k.strip().lower().replace('(', '').replace(')', '').replace(' ', '_').replace('/', '_').strip('_'): (v or '').strip() for k, v in row.items() if k}
 
-            story_type = raw.get('story_type', '')
-            jira_id = raw.get('jira_id', raw.get('jira', ''))
-            title = raw.get('title_description', raw.get('title', raw.get('description', '')))
-            assignee_raw = raw.get('assignee', '')
+            # Skip blank rows and aggregate/totals rows
+            all_values = [v for v in raw.values() if v]
+            if not all_values:
+                continue
+            mapping_probe = raw.get('mapping', raw.get('finance_type', ''))
+            label_probe = raw.get('label', raw.get('labels', ''))
+            if mapping_probe.upper() in ('TOTAL', 'TOTALS', 'SUBTOTAL', 'GRAND TOTAL') and not label_probe:
+                continue
+
+            story_type = raw.get('story_type', raw.get('issue_type', raw.get('issuetype', raw.get('type', ''))))
+            jira_id = raw.get('jira_id', raw.get('jira', raw.get('issue_key', raw.get('key', ''))))
+            title = raw.get('title_description', raw.get('title', raw.get('summary', raw.get('description', ''))))
+            assignee_raw = raw.get('assignee', raw.get('assignee_name', ''))
             if 'efforts_s' in raw:
                 efforts_str = raw['efforts_s']
+                efforts_scale = 1000
+            elif 'original_estimate' in raw:
+                efforts_str = raw['original_estimate']
                 efforts_scale = 1000
             else:
                 efforts_str = raw.get('efforts_ms', raw.get('efforts', '0'))
                 efforts_scale = 1
-            sprint_name = raw.get('sprint', '')
-            label_raw = raw.get('label', '')
-            mapping_raw = raw.get('mapping', '')
+            sprint_name = raw.get('sprint', raw.get('sprint_name', ''))
+            label_raw = raw.get('label', raw.get('labels', ''))
+            mapping_raw = raw.get('mapping', raw.get('finance_type', ''))
 
             try:
                 efforts_ms = int(float(efforts_str) * efforts_scale) if efforts_str else 0
@@ -193,6 +206,7 @@ class SprintImportService:
             ))
 
         SprintImportRow.objects.bulk_create(rows)
+        sprint_import._detected_headers = detected_headers
         return sprint_import
 
     @staticmethod

@@ -38,6 +38,7 @@ async function _loadTab(type) {
     try {
         const data = await apiFetch(`${API_URLS.recharges.summary(SPRINT_ID, type).href}`);
         _showLoading(prefix, false);
+        _updateEmailBadge(prefix, data.email_status);
         if (!data.exists) {
             document.getElementById(`${prefix}-empty`).classList.remove('d-none');
             return;
@@ -53,6 +54,26 @@ async function _loadTab(type) {
         _showLoading(prefix, false);
         document.getElementById(`${prefix}-empty`).classList.remove('d-none');
     }
+}
+
+function _updateEmailBadge(prefix, emailStatus) {
+    const badge = document.getElementById(`${prefix}-email-badge`);
+    if (!badge || !emailStatus) return;
+    const sent = emailStatus.sent_count || 0;
+    const errors = emailStatus.error_count || 0;
+    if (errors > 0) {
+        badge.className = 'ms-1 rp-tab-badge rp-tab-badge--error';
+        badge.title = `${errors} email(s) failed`;
+        badge.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i>`;
+    } else if (sent > 0) {
+        badge.className = 'ms-1 rp-tab-badge rp-tab-badge--sent';
+        badge.title = `${sent} email(s) sent`;
+        badge.innerHTML = `<i class="bi bi-check-circle-fill"></i>`;
+    } else {
+        badge.className = 'ms-1 d-none';
+        return;
+    }
+    badge.classList.remove('d-none');
 }
 
 async function _loadRechargeTable(prefix, type) {
