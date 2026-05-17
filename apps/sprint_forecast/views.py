@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views.generic import View
 
 from apps.sprints.models import Sprint
-from .models import IMPORT_TYPE_FORECAST, IMPORT_TYPE_ACTUAL, SprintImport
+from .models import IMPORT_TYPE_FORECAST, IMPORT_TYPE_ACTUAL, SprintImport, RECHARGE_TYPE_FORECAST, RECHARGE_TYPE_ACTUAL
 
 
 class SprintForecastPageView(View):
@@ -47,6 +47,30 @@ class RechargesPageView(View):
 
     def get(self, request, *args, **kwargs):
         return render(request, self.template_name)
+
+
+class RechargeSprintPageView(View):
+    template_name = 'sprint_forecast/recharge_sprint.html'
+
+    def get(self, request, sprint_id, *args, **kwargs):
+        sprint = get_object_or_404(Sprint, pk=sprint_id)
+        return render(request, self.template_name, {
+            'sprint': sprint,
+            'recharge_type_forecast': RECHARGE_TYPE_FORECAST,
+            'recharge_type_actual': RECHARGE_TYPE_ACTUAL,
+        })
+
+
+class RechargeEmailReviewPageView(View):
+    template_name = 'sprint_forecast/recharge_review.html'
+
+    def get(self, request, sprint_id, tab_type, *args, **kwargs):
+        sprint = get_object_or_404(Sprint, pk=sprint_id)
+        return render(request, self.template_name, {
+            'sprint': sprint,
+            'recharge_type': tab_type,
+            'type_label': 'Forecast' if tab_type == RECHARGE_TYPE_FORECAST else 'Actuals',
+        })
 
 
 class FinanceTypesPageView(View):

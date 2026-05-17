@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ sprint.sprint_name }} — Recharges{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/recharges/" class="btn btn-ghost-icon" title="Back to Recharges">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span class="rp-code">{{ sprint.sprint_name }}</span>
+                <span class="rp-badge rp-badge--muted">Recharges</span>
+            </h1>
+            <p class="rp-page-subtitle">Sprint recharges — Forecast and Actuals</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Combined summary (shown only when both exist) -->
+<div id="combined-summary" class="d-none mb-4">
+    <div class="row g-3 mb-3" id="combined-cards"></div>
+    <!-- Finance type comparison accordion -->
+    <div class="accordion" id="ft-comparison-accordion">
+        <div class="accordion-item rp-accordion-item">
+            <h2 class="accordion-header">
+                <button class="accordion-button collapsed rp-accordion-btn" type="button"
+                    data-bs-toggle="collapse" data-bs-target="#ft-comparison-body">
+                    <i class="bi bi-table me-2"></i>Finance Type Breakdown
+                </button>
+            </h2>
+            <div id="ft-comparison-body" class="accordion-collapse collapse">
+                <div class="accordion-body p-0">
+                    <div class="rp-table-wrap">
+                        <table class="table rp-table mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Code</th>
+                                    <th>Finance Type</th>
+                                    <th class="text-end">Forecast Cost</th>
+                                    <th class="text-end">Actual Cost</th>
+                                    <th class="text-end">Variance</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ft-comparison-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Tabs -->
+<ul class="nav nav-tabs mb-0" id="recharge-tabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="tab-forecast-btn"
+            data-bs-toggle="tab" data-bs-target="#tab-forecast" type="button" role="tab">
+            <i class="bi bi-graph-up-arrow me-1"></i>Forecast
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="tab-actual-btn"
+            data-bs-toggle="tab" data-bs-target="#tab-actual" type="button" role="tab">
+            <i class="bi bi-bar-chart-line me-1"></i>Actuals
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content rp-card" style="border-top-left-radius:0;border-top-right-radius:0">
+
+    <!-- FORECAST TAB -->
+    <div class="tab-pane fade show active" id="tab-forecast" role="tabpanel">
+        <div id="forecast-loading" class="text-center text-secondary py-5">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading forecast…
+        </div>
+        <div id="forecast-empty" class="d-none text-center py-5">
+            <i class="bi bi-graph-up-arrow text-secondary" style="font-size:3rem;opacity:.3"></i>
+            <h5 class="mt-3 mb-1 text-secondary">No Forecast data</h5>
+            <p class="text-secondary small">Forecast recharges have not been generated for this sprint yet.</p>
+        </div>
+        <div id="forecast-content" class="d-none">
+            <!-- Summary cards -->
+            <div class="row g-3 mb-4" id="forecast-summary-cards"></div>
+            <!-- Finance type cards -->
+            <div class="row g-2 mb-4" id="forecast-ft-cards"></div>
+            <!-- Toolbar -->
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                <span id="forecast-count" class="text-secondary small"></span>
+                <a id="forecast-email-btn" href="/recharges/{{ sprint.id }}/forecast/"
+                    class="btn btn-sm btn-warning d-flex align-items-center gap-1">
+                    <i class="bi bi-gear-fill"></i>Trigger Emails
+                </a>
+            </div>
+            <!-- Recharge table -->
+            <div class="rp-table-wrap">
+                <table class="table rp-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Programme</th>
+                            <th>Project</th>
+                            <th class="text-end">Total Days</th>
+                            <th class="text-end">Total Cost</th>
+                            <th>Finance Contacts</th>
+                            <th>Project Contacts</th>
+                            <th style="width:36px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="forecast-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ACTUALS TAB -->
+    <div class="tab-pane fade" id="tab-actual" role="tabpanel">
+        <div id="actual-loading" class="text-center text-secondary py-5">
+            <div class="spinner-border spinner-border-sm me-2"></div>Loading actuals…
+        </div>
+        <div id="actual-empty" class="d-none text-center py-5">
+            <i class="bi bi-bar-chart-line text-secondary" style="font-size:3rem;opacity:.3"></i>
+            <h5 class="mt-3 mb-1 text-secondary">No Actuals data</h5>
+            <p class="text-secondary small">Actual recharges have not been generated for this sprint yet.</p>
+        </div>
+        <div id="actual-content" class="d-none">
+            <!-- Summary cards -->
+            <div class="row g-3 mb-4" id="actual-summary-cards"></div>
+            <!-- Finance type cards -->
+            <div class="row g-2 mb-4" id="actual-ft-cards"></div>
+            <!-- Toolbar -->
+            <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                <span id="actual-count" class="text-secondary small"></span>
+                <a id="actual-email-btn" href="/recharges/{{ sprint.id }}/actuals/"
+                    class="btn btn-sm btn-warning d-flex align-items-center gap-1">
+                    <i class="bi bi-gear-fill"></i>Trigger Emails
+                </a>
+            </div>
+            <!-- Recharge table -->
+            <div class="rp-table-wrap">
+                <table class="table rp-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Programme</th>
+                            <th>Project</th>
+                            <th class="text-end">Total Days</th>
+                            <th class="text-end">Total Cost</th>
+                            <th>Finance Contacts</th>
+                            <th>Project Contacts</th>
+                            <th style="width:36px"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="actual-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Detail drawer (shared between tabs) -->
+<div id="detail-drawer" class="rp-card mt-3 d-none">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+            <h6 class="rp-card-heading mb-0" id="detail-drawer-title">Detail</h6>
+            <span class="text-secondary small" id="detail-drawer-subtitle"></span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <!-- View pills -->
+            <div class="btn-group btn-group-sm" role="group" id="detail-view-pills">
+                <button type="button" class="btn btn-outline-secondary active" data-view="engineer">By Engineer</button>
+                <button type="button" class="btn btn-outline-secondary" data-view="team">By Team</button>
+                <button type="button" class="btn btn-outline-secondary" data-view="label">By Label</button>
+            </div>
+            <button class="btn btn-ghost-icon btn-sm" id="detail-close-btn" title="Close">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+    </div>
+    <div id="detail-loading" class="text-center text-secondary py-3 d-none">
+        <div class="spinner-border spinner-border-sm me-2"></div>
+    </div>
+    <div class="rp-table-wrap" id="detail-table-wrap">
+        <table class="table rp-table table-sm mb-0">
+            <thead id="detail-thead"></thead>
+            <tbody id="detail-tbody"></tbody>
+        </table>
+    </div>
+    <!-- Stories sub-section -->
+    <div class="mt-3 pt-3 border-top" id="detail-stories-section">
+        <h6 class="rp-card-heading mb-2" style="font-size:12px;text-transform:uppercase;letter-spacing:.05em">Jira Stories</h6>
+        <div class="rp-table-wrap">
+            <table class="table rp-table table-sm mb-0">
+                <thead>
+                    <tr>
+                        <th>Jira ID</th>
+                        <th>Title / Description</th>
+                        <th class="text-end">Days</th>
+                    </tr>
+                </thead>
+                <tbody id="detail-stories-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<style>
+.rp-summary-card {
+    border: 1.5px solid var(--rp-border-color, #e5e7eb);
+    border-radius: 10px;
+    padding: 16px 18px;
+    background: var(--rp-card-bg, #fff);
+}
+.rp-summary-card-label { font-size: 12px; color: var(--rp-text-muted, #6b7280); font-weight: 500; text-transform: uppercase; letter-spacing: .05em; }
+.rp-summary-card-value { font-size: 22px; font-weight: 700; line-height: 1.2; margin-top: 4px; }
+.rp-ft-chip {
+    display: inline-flex; flex-direction: column; align-items: flex-start;
+    border: 1px solid var(--rp-border-color, #e5e7eb);
+    border-radius: 8px; padding: 10px 14px;
+    background: var(--rp-card-bg, #fff); white-space: nowrap;
+}
+.rp-ft-chip-code { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--rp-text-muted); }
+.rp-ft-chip-value { font-size: 15px; font-weight: 700; }
+.expand-btn { background: none; border: none; padding: 2px 4px; cursor: pointer; color: var(--rp-text-muted,#6b7280); }
+.expand-btn:hover { color: var(--rp-accent,#6366f1); }
+.rp-email-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: rgba(99,102,241,.08); border: 1px solid rgba(99,102,241,.2);
+    border-radius: 14px; padding: 2px 8px; font-size: 11px;
+    color: var(--rp-accent,#6366f1); margin: 1px;
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+window.SPRINT_ID = {{ sprint.id }};
+</script>
+<script type="module" src="{% static 'js/modules/recharge_sprint.js' %}"></script>
+{% endblock %}

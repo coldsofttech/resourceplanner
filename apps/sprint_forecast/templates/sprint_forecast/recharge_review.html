@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ sprint.sprint_name }} — {{ type_label }} Email Review{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/recharges/{{ sprint.id }}/"
+            class="btn btn-ghost-icon" title="Back">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                <span class="rp-code">{{ sprint.sprint_name }}</span>
+                <span class="rp-badge {% if recharge_type == 'FORECAST' %}rp-badge--info{% else %}rp-badge--warning{% endif %}">
+                    {{ type_label }}
+                </span>
+                <span class="rp-badge rp-badge--muted">Email Review</span>
+            </h1>
+            <p class="rp-page-subtitle">Review email templates and trigger recharge notifications.</p>
+        </div>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-secondary" id="manage-groups-btn">
+            <i class="bi bi-diagram-3 me-1"></i>Manage Groups
+        </button>
+        <button class="btn btn-sm btn-warning d-flex align-items-center gap-1" id="trigger-all-btn">
+            <i class="bi bi-gear-fill"></i>Trigger All Emails
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Status banner -->
+<div id="status-banner" class="d-none mb-4"></div>
+
+<!-- Loading -->
+<div id="review-loading" class="text-center text-secondary py-5">
+    <div class="spinner-border spinner-border-sm me-2"></div>Loading email review…
+</div>
+
+<!-- Empty -->
+<div id="review-empty" class="d-none rp-card text-center py-5">
+    <i class="bi bi-envelope-slash text-secondary" style="font-size:3rem;opacity:.3"></i>
+    <h5 class="mt-3 mb-1 text-secondary">No recharge data</h5>
+    <p class="text-secondary small">No {{ type_label|lower }} recharges found for this sprint.</p>
+</div>
+
+<!-- Email entries accordion -->
+<div id="review-accordion" class="accordion d-none"></div>
+
+<!-- Trigger result -->
+<div id="trigger-result" class="d-none mt-3"></div>
+
+<!-- Manage Groups Modal -->
+<div class="modal fade" id="manageGroupsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-diagram-3 me-2"></i>Manage Project Groups</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary small mb-3">
+                    Group projects together so that recharge emails are bundled into a single email per group.
+                    Groups are permanent and apply across all sprints.
+                </p>
+                <!-- Add group form -->
+                <div class="rp-card rp-card--muted p-3 mb-3">
+                    <h6 class="fw-600 mb-2 small">New Group</h6>
+                    <div class="d-flex gap-2 align-items-start flex-wrap">
+                        <input type="text" class="form-control form-control-sm" id="new-group-name"
+                            placeholder="Group name…" style="max-width:220px">
+                        <div class="flex-grow-1">
+                            <select class="form-select form-select-sm" id="new-group-projects" multiple
+                                style="height:80px"></select>
+                            <div class="form-text">Hold Ctrl/Cmd to select multiple projects.</div>
+                        </div>
+                        <button class="btn btn-sm btn-primary" id="add-group-btn">
+                            <i class="bi bi-plus-lg me-1"></i>Add
+                        </button>
+                    </div>
+                    <div id="add-group-error" class="text-danger small mt-2 d-none"></div>
+                </div>
+                <!-- Existing groups list -->
+                <div id="groups-loading" class="text-center text-secondary py-3">
+                    <div class="spinner-border spinner-border-sm me-2"></div>
+                </div>
+                <div id="groups-list" class="d-none"></div>
+                <div id="groups-empty" class="text-center text-secondary py-3 d-none small">No groups configured yet.</div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.review-entry-header {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    padding: 12px 16px; width: 100%; background: none; border: none;
+    text-align: left; cursor: pointer;
+}
+.review-entry-header:hover { background: var(--rp-row-hover, rgba(0,0,0,.02)); }
+.review-entry-projects { flex: 1; min-width: 0; }
+.email-status-badge {
+    font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 600;
+    white-space: nowrap;
+}
+.email-status-badge--sent { background: rgba(34,197,94,.12); color: #15803d; }
+.email-status-badge--pending { background: rgba(245,158,11,.12); color: #b45309; }
+.email-status-badge--error { background: rgba(239,68,68,.12); color: #b91c1c; }
+.email-preview-block {
+    background: var(--rp-card-bg-muted, #f9fafb);
+    border: 1px solid var(--rp-border-color, #e5e7eb);
+    border-radius: 8px; padding: 16px; margin-top: 12px; font-size: 13px;
+}
+.email-field-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.email-field-label { font-weight: 600; min-width: 60px; flex-shrink: 0; color: var(--rp-text-muted); }
+.email-body-wrap {
+    margin-top: 12px; border-top: 1px solid var(--rp-border-color,#e5e7eb);
+    padding-top: 12px; max-height: 360px; overflow-y: auto;
+}
+.group-row {
+    display: flex; align-items: flex-start; gap: 10px; padding: 10px 0;
+    border-bottom: 1px solid var(--rp-border-color,#e5e7eb);
+}
+.group-row:last-child { border-bottom: none; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+window.SPRINT_ID = {{ sprint.id }};
+window.RECHARGE_TYPE = "{{ recharge_type }}";
+window.TYPE_LABEL = "{{ type_label }}";
+</script>
+<script type="module" src="{% static 'js/modules/recharge_review.js' %}"></script>
+{% endblock %}

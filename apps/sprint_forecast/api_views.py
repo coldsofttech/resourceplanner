@@ -13,12 +13,17 @@ from .models import (
     IMPORT_TYPE_ACTUAL,
     RECHARGE_TYPE_FORECAST,
     RECHARGE_TYPE_ACTUAL,
+    RECHARGE_EMAIL_STATUS_PENDING,
+    RECHARGE_EMAIL_STATUS_SENT,
+    RECHARGE_EMAIL_STATUS_ERROR,
     ProjectActuals,
     ProjectFinanceType,
     ProjectFinanceTypeMapping,
     ProjectSprintActual,
     Recharge,
     RechargeDetail,
+    RechargeEmail,
+    RechargeProjectGroup,
     SprintConfirmedRow,
     SprintImport,
     SprintImportReviewComplete,
@@ -30,6 +35,8 @@ from .serializers import (
     ProjectFinanceTypeMappingSerializer,
     ProjectFinanceTypeSerializer,
     RechargeDetailSerializer,
+    RechargeEmailSerializer,
+    RechargeProjectGroupSerializer,
     RechargeSerializer,
     SprintConfirmedRowSerializer,
     SprintImportReviewCompleteSerializer,
@@ -456,6 +463,184 @@ class SprintConfirmedRowViewSet(viewsets.ViewSet):
         return Response(SprintConfirmedRowSerializer(qs, many=True).data)
 
 
+import html as _html_module
+
+
+def _esc(s):
+    return _html_module.escape(str(s or ''))
+
+
+def _build_recharge_email_entries(sprint_id, recharge_type):
+    """Build email entry dicts for trigger/review endpoints."""
+    from decimal import Decimal, ROUND_HALF_UP
+    from apps.configurations.services import ConfigurationService
+    from apps.projects.services import ProjectCodeService
+
+    recharges = list(
+        Recharge.objects
+        .filter(sprint_id=sprint_id, type=recharge_type)
+        .select_related('sprint', 'sprint__financial_year', 'programme', 'project')
+        .prefetch_related('stories', 'finance_contacts__contact', 'project_contacts__contact')
+    )
+    if not recharges:
+        return []
+
+    sprint = recharges[0].sprint
+    sprint_name = sprint.sprint_name
+    fy_short = sprint.financial_year.short_fy if hasattr(sprint, 'financial_year') and sprint.financial_year else ''
+    type_label = 'Forecast' if recharge_type == RECHARGE_TYPE_FORECAST else 'Actuals'
+    verb = 'planned' if recharge_type == RECHARGE_TYPE_FORECAST else 'completed'
+    subject = f'Recharge Approval Request — {sprint_name} ({fy_short}) — {type_label}'
+
+    price = Decimal(str(ConfigurationService.get_float('SPRINT_POINT_PRICE', 0.0)))
+
+    all_groups = list(RechargeProjectGroup.objects.prefetch_related('projects').all())
+    project_group_map = {}
+    for grp in all_groups:
+        for proj in grp.projects.all():
+            project_group_map[proj.id] = grp
+
+    grouped = {}
+    ungrouped = []
+    for r in recharges:
+        pid = r.project_id
+        if pid and pid in project_group_map:
+            grp = project_group_map[pid]
+            if grp.id not in grouped:
+                grouped[grp.id] = {'group': grp, 'recharges': []}
+            grouped[grp.id]['recharges'].append(r)
+        else:
+            ungrouped.append(r)
+
+    def _project_data(r):
+        pc = None
+        if r.project_id:
+            try:
+                active = ProjectCodeService.get_active(r.project_id)
+                pc = active.code if active else None
+            except Exception:
+                pass
+        stories = []
+        for s in r.stories.all():
+            cost = (s.total_days * price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            stories.append({
+                'jira_id': s.jira_id,
+                'title': s.title,
+                'total_days': str(s.total_days),
+                'cost': str(cost),
+            })
+        return {
+            'id': r.project_id,
+            'name': r.project.name if r.project else '—',
+            'programme_name': r.programme.name if r.programme else '—',
+            'project_code': pc,
+            'total_days': str(r.total_days),
+            'total_cost': str(r.total_cost),
+            'stories': stories,
+        }
+
+    def _body_html(projects_data):
+        projects_html = ''
+        for p in projects_data:
+            rows = ''.join(
+                f'<tr><td>{_esc(s["jira_id"])}</td><td>{_esc(s["title"])}</td>'
+                f'<td align="right">{s["total_days"]}</td>'
+                f'<td align="right">£{float(s["cost"]):,.2f}</td></tr>'
+                for s in p['stories']
+            )
+            pc = _esc(p['project_code'] or '—')
+            projects_html += (
+                f'<h3 style="margin-top:24px;font-size:16px">{_esc(p["name"])} ({_esc(p["programme_name"])})</h3>'
+                f'<p>Project Code to be charged: <strong>{pc}</strong></p>'
+                f'<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:14px">'
+                f'<thead style="background:#f0f0f0"><tr>'
+                f'<th align="left">Jira ID</th><th align="left">Title / Description</th>'
+                f'<th align="right">Days</th><th align="right">Cost (£)</th>'
+                f'</tr></thead><tbody>{rows}'
+                f'<tr style="font-weight:bold;background:#f9f9f9">'
+                f'<td colspan="2">Total</td>'
+                f'<td align="right">{p["total_days"]}</td>'
+                f'<td align="right">£{float(p["total_cost"]):,.2f}</td>'
+                f'</tr></tbody></table>'
+            )
+        return (
+            f'<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#333;max-width:800px;margin:0 auto;padding:20px">'
+            f'<p>Dear Team,</p>'
+            f'<p>We are writing to request your approval for the {verb} Jira stories for '
+            f'<strong>{_esc(sprint_name)}</strong> ({_esc(fy_short)}).</p>'
+            f'{projects_html}'
+            f'<p style="margin-top:24px">Please review and respond within <strong>48 hours</strong> to confirm your approval.</p>'
+            f'<p>Kind regards,<br>Resource Planning Team</p>'
+            f'</body></html>'
+        )
+
+    def _latest_email(grp_id, proj_id):
+        qs = RechargeEmail.objects.filter(sprint_id=sprint_id, type=recharge_type)
+        if grp_id:
+            qs = qs.filter(group_id=grp_id)
+        else:
+            qs = qs.filter(group__isnull=True, project_id=proj_id)
+        return qs.order_by('-triggered_at').first()
+
+    entries = []
+
+    for gid, data in grouped.items():
+        grp = data['group']
+        to_emails = set()
+        for r in data['recharges']:
+            for c in r.finance_contacts.all():
+                if c.contact.email:
+                    to_emails.add(c.contact.email)
+            for c in r.project_contacts.all():
+                if c.contact.email:
+                    to_emails.add(c.contact.email)
+        projects_data = [_project_data(r) for r in data['recharges']]
+        total_days = sum(Decimal(p['total_days']) for p in projects_data)
+        total_cost = sum(Decimal(p['total_cost']) for p in projects_data)
+        le = _latest_email(gid, None)
+        entries.append({
+            'entry_key': f'group_{gid}',
+            'group_id': gid,
+            'group_name': grp.name,
+            'total_days': str(total_days),
+            'total_cost': str(total_cost),
+            'to_emails': sorted(to_emails),
+            'cc_emails': [],
+            'subject': subject,
+            'projects': projects_data,
+            'body_html': _body_html(projects_data),
+            'email_status': le.status if le else None,
+            'last_sent_at': le.sent_at.isoformat() if le and le.sent_at else None,
+        })
+
+    for r in ungrouped:
+        to_emails = set()
+        for c in r.finance_contacts.all():
+            if c.contact.email:
+                to_emails.add(c.contact.email)
+        for c in r.project_contacts.all():
+            if c.contact.email:
+                to_emails.add(c.contact.email)
+        p_data = _project_data(r)
+        le = _latest_email(None, r.project_id)
+        entries.append({
+            'entry_key': f'project_{r.project_id or r.id}',
+            'group_id': None,
+            'group_name': None,
+            'total_days': str(r.total_days),
+            'total_cost': str(r.total_cost),
+            'to_emails': sorted(to_emails),
+            'cc_emails': [],
+            'subject': subject,
+            'projects': [p_data],
+            'body_html': _body_html([p_data]),
+            'email_status': le.status if le else None,
+            'last_sent_at': le.sent_at.isoformat() if le and le.sent_at else None,
+        })
+
+    return entries
+
+
 class RechargeViewSet(viewsets.ViewSet):
 
     def list(self, request):
@@ -493,6 +678,225 @@ class RechargeViewSet(viewsets.ViewSet):
         from apps.programmes.models import Programme
         qs = Programme.objects.filter(is_active=True).values('id', 'name').order_by('name')
         return Response(list(qs))
+
+    @action(detail=False, methods=['get'], url_path='project-options')
+    def project_options(self, request):
+        from apps.projects.models import Project
+        qs = Project.objects.values('id', 'name').order_by('name')
+        return Response(list(qs))
+
+    @action(detail=False, methods=['get'], url_path='summary')
+    def summary(self, request):
+        from decimal import Decimal, ROUND_HALF_UP
+        from django.db.models import Sum
+        from apps.configurations.services import ConfigurationService
+
+        sprint_id = request.query_params.get('sprint_id')
+        recharge_type = request.query_params.get('type', '').upper()
+        if not sprint_id:
+            return Response({'error': 'sprint_id required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        def _q(rtype):
+            return Recharge.objects.filter(sprint_id=sprint_id, type=rtype)
+
+        recharges = _q(recharge_type)
+        exists = recharges.exists()
+        raw_total = recharges.aggregate(t=Sum('total_cost'))['t'] or Decimal('0')
+        raw_days = recharges.aggregate(t=Sum('total_days'))['t'] or Decimal('0')
+        total_cost = Decimal(str(raw_total)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+        total_days = Decimal(str(raw_days))
+
+        price = Decimal(str(ConfigurationService.get_float('SPRINT_POINT_PRICE', 0.0)))
+        ft_days = {}
+        if exists:
+            ft_rows = (
+                SprintConfirmedRow.objects
+                .filter(sprint_id=sprint_id, import_type=recharge_type, mapping__isnull=False)
+                .values('mapping_id')
+                .annotate(td=Sum('days'))
+            )
+            ft_days = {r['mapping_id']: Decimal(str(r['td'] or 0)) for r in ft_rows}
+
+        all_fts = ProjectFinanceType.objects.filter(is_active=True).order_by('code')
+        finance_breakdown = []
+        for ft in all_fts:
+            days = ft_days.get(ft.id, Decimal('0'))
+            cost = (days * price).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+            finance_breakdown.append({
+                'id': ft.id,
+                'code': ft.code,
+                'name': ft.name,
+                'days': str(days),
+                'cost': str(cost),
+            })
+
+        forecast_exists = _q(RECHARGE_TYPE_FORECAST).exists()
+        actual_exists = _q(RECHARGE_TYPE_ACTUAL).exists()
+        combined = {'has_forecast': forecast_exists, 'has_actual': actual_exists}
+        if forecast_exists and actual_exists:
+            ft = Decimal(str(_q(RECHARGE_TYPE_FORECAST).aggregate(t=Sum('total_cost'))['t'] or 0))
+            at = Decimal(str(_q(RECHARGE_TYPE_ACTUAL).aggregate(t=Sum('total_cost'))['t'] or 0))
+            combined.update({
+                'forecast_total': str(ft.quantize(Decimal('0.01'))),
+                'actual_total': str(at.quantize(Decimal('0.01'))),
+                'variance': str((at - ft).quantize(Decimal('0.01'))),
+            })
+
+        return Response({
+            'exists': exists,
+            'total_cost': str(total_cost),
+            'total_days': str(total_days),
+            'finance_type_breakdown': finance_breakdown,
+            'combined': combined,
+        })
+
+    @action(detail=False, methods=['get'], url_path='email-review')
+    def email_review(self, request):
+        sprint_id = request.query_params.get('sprint_id')
+        recharge_type = request.query_params.get('type', '').upper()
+        if not sprint_id:
+            return Response({'error': 'sprint_id required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            entries = _build_recharge_email_entries(sprint_id, recharge_type)
+            for e in entries:
+                e.pop('body_html', None)
+            return Response(entries)
+        except Exception as exc:
+            logger.exception('Error building email review: %s', exc)
+            return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['post'], url_path='trigger-emails')
+    def trigger_emails(self, request):
+        from django.core.mail import EmailMessage
+        from django.utils import timezone as tz
+        from apps.configurations.services import ConfigurationService
+
+        sprint_id = request.data.get('sprint_id')
+        recharge_type = request.data.get('type', '').upper()
+        if not sprint_id or not recharge_type:
+            return Response({'error': 'sprint_id and type required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            entries = _build_recharge_email_entries(sprint_id, recharge_type)
+        except Exception as exc:
+            logger.exception('Error building email entries: %s', exc)
+            return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        if not entries:
+            return Response({'error': 'No recharges found for this sprint/type.'}, status=status.HTTP_404_NOT_FOUND)
+
+        from_email = ConfigurationService.get_str('EMAIL_FROM', '') or None
+        results = []
+        for entry in entries:
+            rec = RechargeEmail.objects.create(
+                sprint_id=sprint_id,
+                type=recharge_type,
+                group_id=entry.get('group_id'),
+                project_id=(entry['projects'][0]['id'] if not entry.get('group_id') and entry['projects'] else None),
+                to_emails=entry['to_emails'],
+                cc_emails=entry['cc_emails'],
+                subject=entry['subject'],
+                body=entry['body_html'],
+                status=RECHARGE_EMAIL_STATUS_PENDING,
+                triggered_by=request.user,
+            )
+            if entry['to_emails']:
+                try:
+                    msg = EmailMessage(
+                        subject=entry['subject'],
+                        body=entry['body_html'],
+                        from_email=from_email,
+                        to=entry['to_emails'],
+                        cc=entry['cc_emails'] or [],
+                    )
+                    msg.content_subtype = 'html'
+                    msg.send()
+                    rec.status = RECHARGE_EMAIL_STATUS_SENT
+                    rec.sent_at = tz.now()
+                except Exception as exc:
+                    rec.status = RECHARGE_EMAIL_STATUS_ERROR
+                    rec.error_message = str(exc)[:500]
+            else:
+                rec.status = RECHARGE_EMAIL_STATUS_ERROR
+                rec.error_message = 'No recipient email addresses found.'
+            rec.save(update_fields=['status', 'sent_at', 'error_message'])
+            results.append({
+                'entry_key': entry['entry_key'],
+                'status': rec.status,
+                'error_message': rec.error_message,
+            })
+
+        return Response({'results': results, 'count': len(results)})
+
+    @action(detail=False, methods=['get'], url_path='email-status')
+    def email_status(self, request):
+        sprint_id = request.query_params.get('sprint_id')
+        recharge_type = request.query_params.get('type')
+        qs = RechargeEmail.objects.select_related('sprint', 'group', 'project', 'triggered_by')
+        if sprint_id:
+            qs = qs.filter(sprint_id=sprint_id)
+        if recharge_type:
+            qs = qs.filter(type=recharge_type.upper())
+        return Response(RechargeEmailSerializer(qs, many=True).data)
+
+
+class RechargeProjectGroupViewSet(viewsets.ViewSet):
+
+    def list(self, request):
+        qs = RechargeProjectGroup.objects.prefetch_related('projects').all()
+        return Response(RechargeProjectGroupSerializer(qs, many=True).data)
+
+    def create(self, request):
+        name = request.data.get('name', '').strip()
+        project_ids = request.data.get('project_ids', [])
+        if not name:
+            return Response({'error': 'name is required.'}, status=status.HTTP_400_BAD_REQUEST)
+        if RechargeProjectGroup.objects.filter(name=name).exists():
+            return Response({'error': 'A group with this name already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            from apps.projects.models import Project
+            grp = RechargeProjectGroup.objects.create(name=name, created_by=request.user)
+            if project_ids:
+                grp.projects.set(Project.objects.filter(id__in=project_ids))
+            return Response(RechargeProjectGroupSerializer(grp).data, status=status.HTTP_201_CREATED)
+        except Exception as exc:
+            logger.exception('Error creating recharge project group: %s', exc)
+            return Response({'error': str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def retrieve(self, request, pk=None):
+        try:
+            grp = RechargeProjectGroup.objects.prefetch_related('projects').get(pk=pk)
+        except RechargeProjectGroup.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(RechargeProjectGroupSerializer(grp).data)
+
+    def partial_update(self, request, pk=None):
+        try:
+            grp = RechargeProjectGroup.objects.prefetch_related('projects').get(pk=pk)
+        except RechargeProjectGroup.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        name = request.data.get('name')
+        project_ids = request.data.get('project_ids')
+        if name is not None:
+            name = name.strip()
+            if not name:
+                return Response({'error': 'name cannot be blank.'}, status=status.HTTP_400_BAD_REQUEST)
+            if RechargeProjectGroup.objects.filter(name=name).exclude(pk=pk).exists():
+                return Response({'error': 'A group with this name already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+            grp.name = name
+            grp.save(update_fields=['name', 'updated_at'])
+        if project_ids is not None:
+            from apps.projects.models import Project
+            grp.projects.set(Project.objects.filter(id__in=project_ids))
+        return Response(RechargeProjectGroupSerializer(grp).data)
+
+    def destroy(self, request, pk=None):
+        try:
+            grp = RechargeProjectGroup.objects.get(pk=pk)
+        except RechargeProjectGroup.DoesNotExist:
+            return Response({'error': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        grp.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=['get'], url_path='project-options')
     def project_options(self, request):

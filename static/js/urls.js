@@ -915,10 +915,23 @@ export const API_URLS = {
         detail: (id) => ({ method: 'GET', href: `${API_BASE}recharges/${id}/` }),
         programme_options: { method: 'GET', href: `${API_BASE}recharges/programme-options/` },
         project_options: { method: 'GET', href: `${API_BASE}recharges/project-options/` },
+        summary: (sprintId, type) => ({ method: 'GET', href: `${API_BASE}recharges/summary/?sprint_id=${sprintId}&type=${type}` }),
+        email_review: { method: 'GET', href: `${API_BASE}recharges/email-review/` },
+        trigger_emails: { method: 'POST', href: `${API_BASE}recharges/trigger-emails/` },
+        email_status: { method: 'GET', href: `${API_BASE}recharges/email-status/` },
     },
 
     recharge_details: {
         list: { method: 'GET', href: `${API_BASE}recharge-details/` },
+    },
+
+    recharge_project_groups: {
+        list: { method: 'GET', href: `${API_BASE}recharge-project-groups/` },
+        create: { method: 'POST', href: `${API_BASE}recharge-project-groups/` },
+        detail: (id) => ({ method: 'GET', href: `${API_BASE}recharge-project-groups/${id}/` }),
+        update: (id) => ({ method: 'PATCH', href: `${API_BASE}recharge-project-groups/${id}/` }),
+        delete: (id) => ({ method: 'DELETE', href: `${API_BASE}recharge-project-groups/${id}/` }),
+        project_options: { method: 'GET', href: `${API_BASE}recharge-project-groups/project-options/` },
     },
 
     sprint_compare: {
@@ -1033,6 +1046,12 @@ export const URLS = {
     },
     project_actuals: {
         list: '/project-actuals/',
+    },
+    recharges: {
+        list: '/recharges/',
+        sprint: (sprintId) => `/recharges/${sprintId}/`,
+        review_forecast: (sprintId) => `/recharges/${sprintId}/forecast/`,
+        review_actuals: (sprintId) => `/recharges/${sprintId}/actuals/`,
     },
     project_types: {
         list: '/project-types/',

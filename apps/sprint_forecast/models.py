@@ -671,3 +671,87 @@ class RechargeStory(models.Model):
 
     def __str__(self):
         return f'{self.recharge_id} — {self.jira_id or "(no jira)"}'
+
+
+RECHARGE_EMAIL_STATUS_PENDING = 'PENDING'
+RECHARGE_EMAIL_STATUS_SENT = 'SENT'
+RECHARGE_EMAIL_STATUS_ERROR = 'ERROR'
+RECHARGE_EMAIL_STATUS_CHOICES = [
+    (RECHARGE_EMAIL_STATUS_PENDING, 'Pending'),
+    (RECHARGE_EMAIL_STATUS_SENT, 'Sent'),
+    (RECHARGE_EMAIL_STATUS_ERROR, 'Error'),
+]
+
+
+class RechargeProjectGroup(models.Model):
+    """Permanent project grouping for recharge email bundling."""
+    name = models.CharField(max_length=255, unique=True)
+    projects = models.ManyToManyField(
+        'projects.Project',
+        blank=True,
+        related_name='recharge_groups',
+    )
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_recharge_groups',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class RechargeEmail(models.Model):
+    """Tracks each recharge email triggered per sprint / type / group or project."""
+    sprint = models.ForeignKey(
+        'sprints.Sprint',
+        on_delete=models.CASCADE,
+        related_name='recharge_emails',
+    )
+    type = models.CharField(max_length=10, choices=RECHARGE_TYPE_CHOICES)
+    group = models.ForeignKey(
+        RechargeProjectGroup,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='emails',
+    )
+    project = models.ForeignKey(
+        'projects.Project',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='recharge_emails',
+    )
+    to_emails = models.JSONField(default=list)
+    cc_emails = models.JSONField(default=list)
+    subject = models.CharField(max_length=500)
+    body = models.TextField()
+    status = models.CharField(
+        max_length=10,
+        choices=RECHARGE_EMAIL_STATUS_CHOICES,
+        default=RECHARGE_EMAIL_STATUS_PENDING,
+    )
+    sent_at = models.DateTimeField(null=True, blank=True)
+    error_message = models.TextField(blank=True)
+    triggered_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='triggered_recharge_emails',
+    )
+    triggered_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-triggered_at']
+
+    def __str__(self):
+        return f'{self.sprint} / {self.type} — {self.status}'

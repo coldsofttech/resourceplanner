@@ -4,122 +4,87 @@
 {% block title %}Recharges{% endblock %}
 
 {% block page_header %}
-<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+<div class="rp-page-header px-4 pt-4 pb-3">
     <div>
         <h1 class="rp-page-title">Recharges</h1>
-        <p class="rp-page-subtitle">Sprint forecast recharges aggregated by project.</p>
+        <p class="rp-page-subtitle">Select a financial year and sprint to view recharge data.</p>
     </div>
 </div>
 {% endblock %}
 
 {% block content %}
-<!-- Filters -->
-<div class="d-flex gap-2 mb-3 flex-wrap align-items-center">
-    <select id="filter-fy" class="form-select rp-select" style="max-width:160px">
-        <option value="">All FYs</option>
-    </select>
-    <select id="filter-sprint" class="form-select rp-select" style="max-width:220px">
-        <option value="">All Sprints</option>
-    </select>
-    <select id="filter-type" class="form-select rp-select" style="max-width:160px">
-        <option value="">All Types</option>
-        <option value="FORECAST">Forecast</option>
-        <option value="ACTUAL">Actual</option>
-    </select>
-    <select id="filter-programme" class="form-select rp-select" style="max-width:200px">
-        <option value="">All Programmes</option>
-    </select>
-    <select id="filter-project" class="form-select rp-select" style="max-width:220px">
-        <option value="">All Projects</option>
-    </select>
-    <button class="btn btn-sm btn-outline-secondary ms-auto" id="toggle-detail-btn" style="white-space:nowrap">
-        <i class="bi bi-list-ul me-1"></i>Show Engineer Detail
-    </button>
+<!-- Step indicator -->
+<div class="d-flex align-items-center gap-3 mb-4">
+    <div class="d-flex align-items-center gap-2" id="step1-header">
+        <div class="rp-step-dot rp-step-dot--active" id="step1-dot">1</div>
+        <span class="fw-semibold text-body" id="step1-label">Financial Year</span>
+    </div>
+    <i class="bi bi-chevron-right text-secondary"></i>
+    <div class="d-flex align-items-center gap-2" id="step2-header">
+        <div class="rp-step-dot" id="step2-dot">2</div>
+        <span class="text-secondary" id="step2-label">Sprint</span>
+    </div>
 </div>
 
-<!-- Aggregate Recharges -->
-<div class="rp-card mb-4" id="recharges-card">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h6 class="rp-card-heading mb-0">Recharges (Aggregated)</h6>
-        <span id="recharge-count" class="text-secondary small"></span>
+<!-- Step 1: FY Selection -->
+<div id="step1-content">
+    <div id="fy-loading" class="text-center text-secondary py-5">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading financial years…
     </div>
-    <div id="recharges-loading" class="text-center text-secondary py-4">
-        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
-    </div>
-    <div class="rp-table-wrap d-none" id="recharges-table-wrap">
-        <table class="table rp-table mb-0">
-            <thead>
-                <tr>
-                    <th>Sprint</th>
-                    <th>Type</th>
-                    <th>Programme</th>
-                    <th>Project</th>
-                    <th class="text-end">Total Days</th>
-                    <th class="text-end">Total Cost</th>
-                    <th>Finance Contacts</th>
-                    <th>Project Contacts</th>
-                    <th style="width:36px"></th>
-                </tr>
-            </thead>
-            <tbody id="recharges-tbody"></tbody>
-        </table>
-    </div>
-    <div id="recharges-empty" class="text-center text-secondary py-4 d-none">No recharges found.</div>
+    <div id="fy-grid" class="row g-3 d-none"></div>
+    <div id="fy-empty" class="text-center text-secondary py-5 d-none">No financial years found.</div>
 </div>
 
-<!-- Engineer Detail (collapsible) -->
-<div class="rp-card d-none" id="detail-card">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-        <h6 class="rp-card-heading mb-0">Engineer Detail</h6>
-        <span id="detail-count" class="text-secondary small"></span>
+<!-- Step 2: Sprint Selection -->
+<div id="step2-content" class="d-none">
+    <div class="d-flex align-items-center gap-2 mb-4">
+        <button id="back-btn" class="btn btn-ghost-icon btn-sm" title="Back to Financial Years">
+            <i class="bi bi-arrow-left"></i>
+        </button>
+        <span id="selected-fy-label" class="text-secondary small"></span>
     </div>
-    <div id="detail-loading" class="text-center text-secondary py-4">
-        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    <div id="sprint-loading" class="text-center text-secondary py-5">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading sprints…
     </div>
-    <div class="rp-table-wrap d-none" id="detail-table-wrap">
-        <table class="table rp-table mb-0">
-            <thead>
-                <tr>
-                    <th>Sprint</th>
-                    <th>Team</th>
-                    <th>Engineer</th>
-                    <th>Programme</th>
-                    <th>Project</th>
-                    <th>Label</th>
-                    <th>Type</th>
-                    <th class="text-end">Days</th>
-                    <th class="text-end">Cost</th>
-                </tr>
-            </thead>
-            <tbody id="detail-tbody"></tbody>
-        </table>
-    </div>
-    <div id="detail-empty" class="text-center text-secondary py-4 d-none">No detail records found.</div>
+    <div id="sprint-grid" class="row g-3 d-none"></div>
+    <div id="sprint-empty" class="text-center text-secondary py-5 d-none">No sprints found for this financial year.</div>
 </div>
 
-<!-- Stories Modal -->
-<div class="modal fade" id="storiesModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-        <div class="modal-content rp-modal">
-            <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title" id="stories-modal-title">Jira Stories</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <table class="table rp-table table-sm mb-0">
-                    <thead>
-                        <tr>
-                            <th>Jira ID</th>
-                            <th>Title / Description</th>
-                            <th class="text-end">Days</th>
-                        </tr>
-                    </thead>
-                    <tbody id="stories-tbody"></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-</div>
+<style>
+.rp-step-dot {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; font-weight: 600;
+    background: var(--rp-border-color, #e5e7eb);
+    color: var(--rp-text-muted, #6b7280);
+    flex-shrink: 0;
+}
+.rp-step-dot--active {
+    background: var(--rp-accent, #6366f1);
+    color: #fff;
+}
+.rp-wizard-card {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; padding: 20px 12px;
+    border: 1.5px solid var(--rp-border-color, #e5e7eb);
+    border-radius: 10px;
+    background: var(--rp-card-bg, #fff);
+    cursor: pointer; transition: border-color .15s, box-shadow .15s, background .15s;
+    text-align: center;
+}
+.rp-wizard-card:hover {
+    border-color: var(--rp-accent, #6366f1);
+    box-shadow: 0 0 0 3px rgba(99,102,241,.1);
+    background: var(--rp-card-bg-hover, #f8f8ff);
+}
+.rp-wizard-card-icon { font-size: 22px; color: var(--rp-accent, #6366f1); line-height: 1; }
+.rp-wizard-card-label { font-weight: 600; font-size: 14px; }
+.rp-wizard-card-sub { font-size: 11px; color: var(--rp-text-muted, #6b7280); }
+.rp-wizard-card-badge {
+    font-size: 10px; padding: 2px 6px; border-radius: 4px;
+    background: rgba(99,102,241,.12); color: var(--rp-accent, #6366f1); font-weight: 600;
+}
+</style>
 {% endblock %}
 
 {% block extra_js %}

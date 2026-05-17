@@ -5,6 +5,7 @@ from .api_views import (
     ProjectFinanceTypeMappingViewSet,
     ProjectFinanceTypeViewSet,
     RechargeDetailViewSet,
+    RechargeProjectGroupViewSet,
     RechargeViewSet,
     SprintActualsViewSet,
     SprintCompareViewSet,
@@ -20,6 +21,7 @@ router.register(r'sprint-actuals', SprintActualsViewSet, basename='sprint-actual
 router.register(r'sprint-confirmed-rows', SprintConfirmedRowViewSet, basename='sprint-confirmed-row')
 router.register(r'recharges', RechargeViewSet, basename='recharge')
 router.register(r'recharge-details', RechargeDetailViewSet, basename='recharge-detail')
+router.register(r'recharge-project-groups', RechargeProjectGroupViewSet, basename='recharge-project-group')
 router.register(r'sprint-compare', SprintCompareViewSet, basename='sprint-compare')
 router.register(r'project-actuals', ProjectActualsViewSet, basename='project-actuals')
 

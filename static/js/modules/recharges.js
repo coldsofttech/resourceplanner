@@ -1,216 +1,96 @@
 'use strict';
 
-import { API_URLS } from '../urls.js';
+import { API_URLS, URLS } from '../urls.js';
 import { apiFetch } from '../main.js';
 
-let _showDetail = false;
-
 document.addEventListener('DOMContentLoaded', () => {
-    _loadDropdowns();
-    _loadRecharges();
-
-    ['filter-fy', 'filter-sprint', 'filter-type', 'filter-programme', 'filter-project'].forEach(id => {
-        document.getElementById(id).addEventListener('change', () => {
-            _loadRecharges();
-            if (_showDetail) _loadDetails();
-        });
-    });
-
-    document.getElementById('toggle-detail-btn').addEventListener('click', () => {
-        _showDetail = !_showDetail;
-        const btn = document.getElementById('toggle-detail-btn');
-        const card = document.getElementById('detail-card');
-        btn.innerHTML = _showDetail
-            ? '<i class="bi bi-list-ul me-1"></i>Hide Engineer Detail'
-            : '<i class="bi bi-list-ul me-1"></i>Show Engineer Detail';
-        if (_showDetail) {
-            card.classList.remove('d-none');
-            _loadDetails();
-        } else {
-            card.classList.add('d-none');
-        }
-    });
+    _loadFYs();
+    document.getElementById('back-btn').addEventListener('click', _showStep1);
 });
 
-async function _loadDropdowns() {
+async function _loadFYs() {
     try {
-        const [fys, sprints, programmes, projects] = await Promise.all([
-            apiFetch(API_URLS.financial_years.summary.href),
-            apiFetch(API_URLS.sprints.summary.href),
-            apiFetch(API_URLS.recharges.programme_options.href),
-            apiFetch(API_URLS.recharges.project_options.href),
-        ]);
-
-        const fySel = document.getElementById('filter-fy');
-        (fys || []).forEach(fy => {
-            const opt = document.createElement('option');
-            opt.value = fy.id;
-            opt.textContent = fy.long_fy || fy.short_fy || String(fy.id);
-            fySel.appendChild(opt);
-        });
-
-        const sprintSel = document.getElementById('filter-sprint');
-        (sprints || []).forEach(s => {
-            const opt = document.createElement('option');
-            opt.value = s.id;
-            opt.textContent = s.sprint_name;
-            sprintSel.appendChild(opt);
-        });
-
-        const progSel = document.getElementById('filter-programme');
-        (programmes || []).forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = p.id;
-            opt.textContent = p.name;
-            progSel.appendChild(opt);
-        });
-
-        const projSel = document.getElementById('filter-project');
-        (projects || []).forEach(p => {
-            const opt = document.createElement('option');
-            opt.value = p.id;
-            opt.textContent = p.name;
-            projSel.appendChild(opt);
-        });
-    } catch (_) { /* non-critical */ }
-}
-
-async function _loadRecharges() {
-    _showLoading('recharges');
-    try {
-        const params = _buildParams();
-        const url = API_URLS.recharges.list.href + (params ? '?' + params : '');
-        const data = await fetch(url).then(r => r.json());
-        _renderRecharges(data || []);
-    } catch (e) {
-        _showError('recharges');
+        const data = await apiFetch(API_URLS.financial_years.summary.href);
+        _renderFYs(data || []);
+    } catch (_) {
+        document.getElementById('fy-loading').textContent = 'Failed to load financial years.';
     }
 }
 
-async function _loadDetails() {
-    _showLoading('detail');
-    try {
-        const params = _buildParams();
-        const url = API_URLS.recharge_details.list.href + (params ? '?' + params : '');
-        const data = await fetch(url).then(r => r.json());
-        _renderDetails(data || []);
-    } catch (e) {
-        _showError('detail');
-    }
-}
-
-function _buildParams() {
-    const parts = [];
-    const fy = document.getElementById('filter-fy').value;
-    const sprint = document.getElementById('filter-sprint').value;
-    const type = document.getElementById('filter-type').value;
-    const prog = document.getElementById('filter-programme').value;
-    const proj = document.getElementById('filter-project').value;
-    if (fy) parts.push('fy_id=' + fy);
-    if (sprint) parts.push('sprint_id=' + sprint);
-    if (type) parts.push('type=' + type);
-    if (prog) parts.push('programme_id=' + prog);
-    if (proj) parts.push('project_id=' + proj);
-    return parts.join('&');
-}
-
-function _renderRecharges(rows) {
-    const wrap = document.getElementById('recharges-table-wrap');
-    const empty = document.getElementById('recharges-empty');
-    const loading = document.getElementById('recharges-loading');
-    const count = document.getElementById('recharge-count');
+function _renderFYs(fys) {
+    const loading = document.getElementById('fy-loading');
+    const grid = document.getElementById('fy-grid');
+    const empty = document.getElementById('fy-empty');
     loading.classList.add('d-none');
-    count.textContent = `${rows.length} record(s)`;
+    if (!fys.length) { empty.classList.remove('d-none'); return; }
+    grid.innerHTML = fys.map(fy => `
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+            <button class="rp-wizard-card w-100" data-fy-id="${fy.id}"
+                data-fy-label="${_esc(fy.long_fy || fy.short_fy || '')}">
+                <div class="rp-wizard-card-icon"><i class="bi bi-calendar3"></i></div>
+                <div class="rp-wizard-card-label">${_esc(fy.short_fy || fy.long_fy || String(fy.id))}</div>
+                <div class="rp-wizard-card-sub">${_esc(fy.long_fy || '')}</div>
+            </button>
+        </div>
+    `).join('');
+    grid.classList.remove('d-none');
+    grid.querySelectorAll('.rp-wizard-card').forEach(btn =>
+        btn.addEventListener('click', () => _selectFY(btn.dataset.fyId, btn.dataset.fyLabel))
+    );
+}
 
-    if (!rows.length) {
-        wrap.classList.add('d-none');
-        empty.classList.remove('d-none');
-        return;
-    }
+async function _selectFY(fyId, fyLabel) {
+    document.getElementById('step1-content').classList.add('d-none');
+    document.getElementById('step2-content').classList.remove('d-none');
+    document.getElementById('selected-fy-label').textContent = `FY: ${fyLabel}`;
+    _setStepActive(2);
+
+    const loading = document.getElementById('sprint-loading');
+    const grid = document.getElementById('sprint-grid');
+    const empty = document.getElementById('sprint-empty');
+    loading.classList.remove('d-none');
+    grid.classList.add('d-none');
+    grid.innerHTML = '';
     empty.classList.add('d-none');
-    wrap.classList.remove('d-none');
 
-    document.getElementById('recharges-tbody').innerHTML = rows.map(r => {
-        const finContacts = (r.finance_contact_emails || []).join(', ') || '—';
-        const projContacts = (r.project_contact_emails || []).join(', ') || '—';
-        const storyBtn = r.stories && r.stories.length
-            ? `<button class="btn btn-ghost-icon btn-sm view-stories-btn"
-                data-stories='${JSON.stringify(r.stories).replace(/'/g, "&#39;")}'
-                data-project="${_esc(r.project_name || '—')}"
-                title="View stories"><i class="bi bi-list-task"></i></button>`
-            : '';
-        const typeCls = r.type === 'FORECAST' ? 'rp-badge--info' : 'rp-badge--warning';
-        return `<tr>
-            <td>${_esc(r.sprint_name || '—')}</td>
-            <td><span class="rp-badge ${typeCls}">${_esc(r.type)}</span></td>
-            <td>${_esc(r.programme_name || '—')}</td>
-            <td>${_esc(r.project_name || '—')}</td>
-            <td class="text-end font-mono">${parseFloat(r.total_days).toFixed(2)}</td>
-            <td class="text-end font-mono">${parseFloat(r.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-            <td style="font-size:12px">${_esc(finContacts)}</td>
-            <td style="font-size:12px">${_esc(projContacts)}</td>
-            <td>${storyBtn}</td>
-        </tr>`;
-    }).join('');
-
-    document.querySelectorAll('.view-stories-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const stories = JSON.parse(btn.dataset.stories);
-            _openStoriesModal(btn.dataset.project, stories);
-        });
-    });
-}
-
-function _renderDetails(rows) {
-    const wrap = document.getElementById('detail-table-wrap');
-    const empty = document.getElementById('detail-empty');
-    const loading = document.getElementById('detail-loading');
-    const count = document.getElementById('detail-count');
-    loading.classList.add('d-none');
-    count.textContent = `${rows.length} record(s)`;
-
-    if (!rows.length) {
-        wrap.classList.add('d-none');
-        empty.classList.remove('d-none');
-        return;
+    try {
+        const sprints = await apiFetch(API_URLS.project_actuals.fy_sprints(fyId).href);
+        loading.classList.add('d-none');
+        _renderSprints(sprints || []);
+    } catch (_) {
+        loading.textContent = 'Failed to load sprints.';
     }
-    empty.classList.add('d-none');
-    wrap.classList.remove('d-none');
-
-    const typeCls = t => t === 'FORECAST' ? 'rp-badge--info' : 'rp-badge--warning';
-    document.getElementById('detail-tbody').innerHTML = rows.map(r => `<tr>
-        <td>${_esc(r.sprint_name || '—')}</td>
-        <td>${_esc(r.team_name || '—')}</td>
-        <td>${_esc(r.assignee_name || '—')}</td>
-        <td>${_esc(r.programme_name || '—')}</td>
-        <td>${_esc(r.project_name || '—')}</td>
-        <td>${_esc(r.label_name || '—')}</td>
-        <td><span class="rp-badge ${typeCls(r.type)}">${_esc(r.type)}</span></td>
-        <td class="text-end font-mono">${parseFloat(r.total_days).toFixed(2)}</td>
-        <td class="text-end font-mono">${parseFloat(r.total_cost).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-    </tr>`).join('');
 }
 
-function _openStoriesModal(projectName, stories) {
-    document.getElementById('stories-modal-title').textContent = `Stories — ${projectName}`;
-    document.getElementById('stories-tbody').innerHTML = stories.map(s => `<tr>
-        <td><code>${_esc(s.jira_id || '—')}</code></td>
-        <td>${_esc(s.title || '—')}</td>
-        <td class="text-end font-mono">${parseFloat(s.total_days).toFixed(2)}</td>
-    </tr>`).join('');
-    new bootstrap.Modal(document.getElementById('storiesModal')).show();
+function _renderSprints(sprints) {
+    const grid = document.getElementById('sprint-grid');
+    const empty = document.getElementById('sprint-empty');
+    if (!sprints.length) { empty.classList.remove('d-none'); return; }
+    grid.innerHTML = sprints.map(s => `
+        <div class="col-6 col-sm-4 col-md-3 col-lg-2">
+            <a class="rp-wizard-card w-100 text-decoration-none" href="/recharges/${s.id}/">
+                <div class="rp-wizard-card-icon"><i class="bi bi-lightning-charge"></i></div>
+                <div class="rp-wizard-card-label">${_esc(s.sprint_name)}</div>
+                <div class="rp-wizard-card-sub">Sprint ${s.sprint_number}</div>
+            </a>
+        </div>
+    `).join('');
+    grid.classList.remove('d-none');
 }
 
-function _showLoading(prefix) {
-    document.getElementById(`${prefix}-loading`).classList.remove('d-none');
-    document.getElementById(`${prefix}-table-wrap`).classList.add('d-none');
-    document.getElementById(`${prefix}-empty`).classList.add('d-none');
+function _showStep1() {
+    document.getElementById('step2-content').classList.add('d-none');
+    document.getElementById('step1-content').classList.remove('d-none');
+    _setStepActive(1);
 }
 
-function _showError(prefix) {
-    document.getElementById(`${prefix}-loading`).classList.add('d-none');
-    document.getElementById(`${prefix}-empty`).innerHTML = 'Failed to load data.';
-    document.getElementById(`${prefix}-empty`).classList.remove('d-none');
+function _setStepActive(step) {
+    document.getElementById('step1-dot').classList.toggle('rp-step-dot--active', step >= 1);
+    document.getElementById('step2-dot').classList.toggle('rp-step-dot--active', step >= 2);
+    document.getElementById('step1-label').classList.toggle('text-secondary', step < 1);
+    document.getElementById('step2-label').classList.toggle('text-secondary', step < 2);
+    document.getElementById('step1-label').classList.toggle('fw-semibold', step >= 1);
+    document.getElementById('step2-label').classList.toggle('fw-semibold', step >= 2);
 }
 
 function _esc(str) {

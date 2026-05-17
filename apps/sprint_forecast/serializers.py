@@ -9,6 +9,8 @@ from .models import (
     ProjectSprintActual,
     Recharge,
     RechargeDetail,
+    RechargeEmail,
+    RechargeProjectGroup,
     RechargeStory,
     RISK_NEUTRAL,
     RISK_WARNING,
@@ -237,6 +239,53 @@ class RechargeSerializer(serializers.ModelSerializer):
 
     def get_project_contact_emails(self, obj):
         return list(obj.project_contacts.select_related('contact').values_list('contact__email', flat=True))
+
+
+class RechargeProjectGroupSerializer(serializers.ModelSerializer):
+    project_ids = serializers.SerializerMethodField()
+    project_names = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RechargeProjectGroup
+        fields = [
+            'id', 'name', 'project_ids', 'project_names',
+            'created_by', 'created_by_name', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
+
+    def get_project_ids(self, obj):
+        return list(obj.projects.values_list('id', flat=True))
+
+    def get_project_names(self, obj):
+        return list(obj.projects.values_list('name', flat=True))
+
+    def get_created_by_name(self, obj):
+        if obj.created_by:
+            return obj.created_by.get_full_name() or obj.created_by.username
+        return None
+
+
+class RechargeEmailSerializer(serializers.ModelSerializer):
+    sprint_name = serializers.CharField(source='sprint.sprint_name', read_only=True)
+    group_name = serializers.CharField(source='group.name', read_only=True)
+    project_name = serializers.CharField(source='project.name', read_only=True)
+    triggered_by_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RechargeEmail
+        fields = [
+            'id', 'sprint', 'sprint_name', 'type',
+            'group', 'group_name', 'project', 'project_name',
+            'to_emails', 'cc_emails', 'subject', 'body',
+            'status', 'sent_at', 'error_message',
+            'triggered_by', 'triggered_by_name', 'triggered_at',
+        ]
+
+    def get_triggered_by_name(self, obj):
+        if obj.triggered_by:
+            return obj.triggered_by.get_full_name() or obj.triggered_by.username
+        return None
 
 
 class SprintImportReviewCompleteSerializer(serializers.ModelSerializer):
