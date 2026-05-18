@@ -24,25 +24,38 @@ DoubleStrikeBlot.tagName  = 'span';
 DoubleStrikeBlot.className = 'ql-double-strike';
 Quill.register(DoubleStrikeBlot);
 
-// Bootstrap Icon blot — preserves <i class="bi bi-*"> as an inline embed so Quill
-// never strips or converts it to italic during Delta normalization.
+// Bootstrap Icon blot — uses a <span class="ql-bi-embed"> wrapper so Quill never
+// confuses it with the italic format (which also matches <i> tags). The actual
+// Bootstrap Icon <i> is nested inside and rendered via CSS font glyphs.
 const Embed = Quill.import('blots/embed');
 class BootstrapIconBlot extends Embed {
     static create(name) {
         const node = super.create();
-        node.className = `bi bi-${name}`;
+        node.setAttribute('data-bi', name);
         node.setAttribute('contenteditable', 'false');
+        node.innerHTML = `<i class="bi bi-${name}" aria-hidden="true"></i>`;
         return node;
     }
     static value(node) {
-        const biCls = [...node.classList].find(c => c.startsWith('bi-'));
-        return biCls ? biCls.slice(3) : '';
+        return node.getAttribute('data-bi') || '';
     }
 }
 BootstrapIconBlot.blotName  = 'bootstrap-icon';
-BootstrapIconBlot.tagName   = 'i';
-BootstrapIconBlot.className = 'bi';
+BootstrapIconBlot.tagName   = 'span';
+BootstrapIconBlot.className = 'ql-bi-embed';
 Quill.register(BootstrapIconBlot);
+
+// Inject CSS for the BootstrapIconBlot span wrapper once per page load.
+(function _injectBiEmbedCss() {
+    const id = 'ql-bi-embed-style';
+    if (document.getElementById(id)) return;
+    const s = document.createElement('style');
+    s.id = id;
+    s.textContent =
+        '.ql-editor .ql-bi-embed{display:inline-block;line-height:1;vertical-align:middle;}' +
+        '.ql-editor .ql-bi-embed i.bi{font-style:normal;pointer-events:none;}';
+    document.head.appendChild(s);
+}());
 
 // Table blot — Quill 1.x has no table Delta support and strips <table> on normalisation.
 // Wrap tables in <div class="ql-table-wrap"> so Quill treats the whole block as an opaque
@@ -419,19 +432,40 @@ function _insertTable(quill, rows, cols, savedSel) {
     for (let r = 0; r < rows; r++) {
         tableHtml += '<tr>';
         for (let c = 0; c < cols; c++) {
-            tableHtml += '<td contenteditable="true" style="border:1px solid #dee2e6;padding:6px 10px;min-width:60px">&nbsp;</td>';
+            tableHtml += '<td style="border:1px solid #dee2e6;padding:6px 10px;min-width:60px">&nbsp;</td>';
         }
         tableHtml += '</tr>';
     }
     tableHtml += '</tbody></table>';
 
     quill.focus();
-    if (savedSel) quill.setSelection(savedSel.index, savedSel.length, 'silent');
+    if (savedSel) quill.setSelection(savedSel.index, 0, 'silent');
     const sel = quill.getSelection(true);
     const idx = sel ? sel.index : quill.getLength() - 1;
-    quill.insertEmbed(idx, 'table-block', tableHtml, 'user');
-    quill.insertText(idx + 1, '\n', 'user');
-    quill.setSelection(idx + 2, 0, 'user');
+    // Use dangerouslyPasteHTML so the clipboard matcher converts the wrapped table
+    // to a table-block embed Delta — more reliable than insertEmbed for BlockEmbeds.
+    quill.clipboard.dangerouslyPasteHTML(idx, `<div class="ql-table-wrap">${tableHtml}</div><p><br></p>`, 'user');
+    // Move cursor past the inserted block
+    setTimeout(() => quill.setSelection(idx + 2, 0, 'silent'), 0);
+}
+
+// Register clipboard matchers so dangerouslyPasteHTML correctly round-trips our
+// custom blots. Must be called once per Quill instance after construction.
+export function setupClipboardMatchers(quill) {
+    const Delta = Quill.import('delta');
+    // div.ql-table-wrap  →  table-block embed
+    quill.clipboard.addMatcher('div.ql-table-wrap', (node) => {
+        return new Delta().insert({ 'table-block': node.innerHTML });
+    });
+    // Bare <table> pasted from outside  →  table-block embed
+    quill.clipboard.addMatcher('table', (node) => {
+        return new Delta().insert({ 'table-block': node.outerHTML });
+    });
+    // span.ql-bi-embed  →  bootstrap-icon embed
+    quill.clipboard.addMatcher('span.ql-bi-embed', (node) => {
+        const name = node.getAttribute('data-bi') || '';
+        return new Delta().insert({ 'bootstrap-icon': name });
+    });
 }
 
 export function setupTablePicker(quill) {

@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from .models import (
     Project,
+    ProjectAttachment,
     ProjectBudget,
     ProjectBudgetHistory,
     ProjectCode,
@@ -581,3 +582,29 @@ class ProjectViewSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class ProjectAttachmentSerializer(serializers.ModelSerializer):
+    file_size_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProjectAttachment
+        fields = [
+            "id",
+            "project",
+            "file_name",
+            "content_type",
+            "file_size",
+            "file_size_display",
+            "uploaded_by",
+            "created_at",
+        ]
+        read_only_fields = ["id", "project", "file_size", "file_name", "content_type", "uploaded_by", "created_at"]
+
+    def get_file_size_display(self, obj):
+        size = obj.file_size
+        for unit in ("B", "KB", "MB", "GB"):
+            if size < 1024:
+                return f"{size:.0f} {unit}"
+            size /= 1024
+        return f"{size:.1f} TB"

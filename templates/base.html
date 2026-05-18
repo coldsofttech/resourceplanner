@@ -484,6 +484,18 @@
                             <i class="bi bi-currency-pound"></i>
                             <span class="rp-sidebar-link-label">Finance Types</span>
                         </a>
+                        <!-- Business Units -->
+                        {% if user.is_staff or perms.business_units %}
+                        <a
+                            href="/business-units/"
+                            class="rp-sidebar-link"
+                            data-nav-match="/business-units/"
+                            data-rp-tooltip="Business Units"
+                        >
+                            <i class="bi bi-building"></i>
+                            <span class="rp-sidebar-link-label">Business Units</span>
+                        </a>
+                        {% endif %}
                     </div>
 
                     <!-- Users (admin only) -->

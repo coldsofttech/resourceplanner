@@ -581,6 +581,24 @@ export const API_URLS = {
                 href: `${API_BASE}projects/${projectId}/links/${linkId}/`,
             }),
         },
+        attachments: {
+            list: (projectId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/attachments/`,
+            }),
+            upload: (projectId) => ({
+                method: 'POST',
+                href: `${API_BASE}projects/${projectId}/attachments/`,
+            }),
+            download: (projectId, attId) => ({
+                method: 'GET',
+                href: `${API_BASE}projects/${projectId}/attachments/${attId}/`,
+            }),
+            delete: (projectId, attId) => ({
+                method: 'DELETE',
+                href: `${API_BASE}projects/${projectId}/attachments/${attId}/`,
+            }),
+        },
         views: {
             list: {
                 method: 'GET',
@@ -961,6 +979,16 @@ export const API_URLS = {
         update:  (id) => ({ method: 'PATCH',  href: `${API_BASE}email-template-footers/${id}/` }),
         delete:  (id) => ({ method: 'DELETE', href: `${API_BASE}email-template-footers/${id}/` }),
     },
+    business_units: {
+        list:    { method: 'GET',    href: `${API_BASE}business-units/` },
+        stats:   { method: 'GET',    href: `${API_BASE}business-units/stats/` },
+        options: { method: 'GET',    href: `${API_BASE}business-units/options/` },
+        create:  { method: 'POST',   href: `${API_BASE}business-units/` },
+        detail:  (pk) => ({ method: 'GET',    href: `${API_BASE}business-units/${pk}/` }),
+        update:  (pk) => ({ method: 'PATCH',  href: `${API_BASE}business-units/${pk}/` }),
+        delete:  (pk) => ({ method: 'DELETE', href: `${API_BASE}business-units/${pk}/` }),
+    },
+
     project_actuals: {
         list: { method: 'GET', href: `${API_BASE}project-actuals/` },
         detail: (id) => ({ method: 'GET', href: `${API_BASE}project-actuals/${id}/` }),

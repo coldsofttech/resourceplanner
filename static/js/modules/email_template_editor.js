@@ -4,7 +4,7 @@ import { apiFetch, showFlash } from '../main.js';
 import { API_URLS } from '../urls.js';
 import {
     TOOLBAR_CONTAINER, initToolbarTooltips, injectCustomButtonIcons,
-    addCustomHandlers, setupTablePicker, setupIconPicker, setupContextMenu, SourceModeManager,
+    addCustomHandlers, setupClipboardMatchers, setupTablePicker, setupIconPicker, setupContextMenu, SourceModeManager,
 } from './quill_editor_utils.js';
 
 // ── Sample data for client-side preview ───────────────────────────────────────
@@ -55,6 +55,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     initToolbarTooltips(quill);
     injectCustomButtonIcons(quill);
     addCustomHandlers(quill);
+    setupClipboardMatchers(quill);
     setupTablePicker(quill);
     setupIconPicker(quill);
     setupContextMenu(quill);

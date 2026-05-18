@@ -1,0 +1,260 @@
+{% extends base_template %}
+{% load static %}
+
+{% block title %}Submit Project Demand{% endblock %}
+
+{% block extra_css %}
+<style>
+    .ob-section { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--rp-text-muted, #6b7280); margin-bottom: .75rem; margin-top: 1.5rem; border-bottom: 1px solid var(--rp-border, #e5e7eb); padding-bottom: .35rem; }
+    .poc-row { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; }
+    .poc-row input { flex: 1; }
+    .link-row { display: flex; gap: .5rem; align-items: center; margin-bottom: .5rem; flex-wrap: wrap; }
+    .link-row input:first-child { flex: 1.5; min-width: 180px; }
+    .link-row input:last-of-type { flex: 1; min-width: 120px; }
+    .drop-zone { border: 2px dashed var(--rp-border, #d1d5db); border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: border-color .2s; color: var(--rp-text-muted, #6b7280); }
+    .drop-zone.drag-over { border-color: var(--rp-primary, #4f46e5); background: #f0f4ff; }
+    .att-list { margin-top: .75rem; }
+    .att-item { display: flex; align-items: center; gap: .5rem; font-size: .875rem; padding: .25rem 0; }
+    .att-item .att-name { flex: 1; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3">
+    <div>
+        <h1 class="rp-page-title">Submit a Project Demand</h1>
+        <p class="rp-page-subtitle">Fill in the details below and our team will review your request.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div {% if user.is_authenticated %}style="max-width:760px"{% endif %}>
+
+    {% if errors.non_field_errors %}
+    <div class="alert alert-danger">{{ errors.non_field_errors }}</div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" id="ob-form" novalidate>
+        {% csrf_token %}
+
+        <!-- Project Details -->
+        <div class="ob-section">Project Details</div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Project Name <span class="text-danger">*</span></label>
+            <input type="text" name="project_name" class="form-control {% if errors.project_name %}is-invalid{% endif %}"
+                   value="{{ data.project_name|default:'' }}" placeholder="e.g. Customer Portal Redesign" maxlength="200" />
+            {% if errors.project_name %}<div class="invalid-feedback">{{ errors.project_name }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Business Unit</label>
+            <select name="business_unit_id" class="form-select">
+                <option value="">— Select business unit —</option>
+                {% for bu in business_units %}
+                <option value="{{ bu.id }}" {% if data.business_unit_id == bu.id|stringformat:"s" %}selected{% endif %}>
+                    {{ bu.short_name }} — {{ bu.full_name }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Tentative Start Date</label>
+                <input type="date" name="tentative_start_date" class="form-control"
+                       value="{{ data.tentative_start_date|default:'' }}" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label fw-semibold">Tentative End Date</label>
+                <input type="date" name="tentative_end_date" class="form-control"
+                       value="{{ data.tentative_end_date|default:'' }}" />
+            </div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Project Code</label>
+            <input type="text" name="project_code" class="form-control"
+                   value="{{ data.project_code|default:'' }}" placeholder="e.g. PROJ-001" maxlength="100" />
+        </div>
+
+        <!-- Contacts -->
+        <div class="ob-section">Contacts</div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Requester Email <span class="text-danger">*</span></label>
+            <input type="email" name="requester_email"
+                   class="form-control {% if errors.requester_email %}is-invalid{% endif %} {% if user.is_authenticated %}bg-body-secondary{% endif %}"
+                   value="{{ data.requester_email|default:'' }}"
+                   placeholder="your@email.com"
+                   {% if user.is_authenticated %}readonly{% endif %} />
+            {% if errors.requester_email %}<div class="invalid-feedback">{{ errors.requester_email }}</div>{% endif %}
+            {% if user.is_authenticated %}<div class="form-text">Auto-filled from your account.</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Point of Contact (Email)</label>
+            <div id="poc-container">
+                <div class="poc-row">
+                    <input type="email" name="poc_emails" class="form-control form-control-sm" placeholder="poc@email.com"
+                           value="{{ data.poc_emails|default:'' }}" />
+                    <button type="button" class="btn btn-ghost-icon text-secondary" onclick="removePoc(this)" title="Remove">
+                        <i class="bi bi-x-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-1" onclick="addPoc()">
+                <i class="bi bi-plus me-1"></i>Add another
+            </button>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Accountable Executive Email</label>
+            <input type="email" name="accountable_executive_email" class="form-control"
+                   value="{{ data.accountable_executive_email|default:'' }}" placeholder="executive@email.com" />
+        </div>
+
+        <!-- Requirements -->
+        <div class="ob-section">Requirements</div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Requirements <span class="text-danger">*</span></label>
+            <textarea name="requirements" rows="5" class="form-control {% if errors.requirements %}is-invalid{% endif %}"
+                      placeholder="Describe what you need this project to deliver…">{{ data.requirements|default:'' }}</textarea>
+            {% if errors.requirements %}<div class="invalid-feedback">{{ errors.requirements }}</div>{% endif %}
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label fw-semibold">Risk if Not Delivered on Time</label>
+            <textarea name="risk" rows="3" class="form-control"
+                      placeholder="Describe the impact or risk if this is delayed…">{{ data.risk|default:'' }}</textarea>
+        </div>
+
+        <!-- Links -->
+        <div class="ob-section">Links</div>
+        <div id="links-container">
+            <div class="link-row">
+                <input type="url" name="link_url" class="form-control form-control-sm" placeholder="https://example.com/doc" />
+                <input type="text" name="link_title" class="form-control form-control-sm" placeholder="Title (optional)" />
+                <button type="button" class="btn btn-ghost-icon text-secondary flex-shrink-0" onclick="removeLink(this)" title="Remove">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary mt-1 mb-3" onclick="addLink()">
+            <i class="bi bi-plus me-1"></i>Add link
+        </button>
+
+        <!-- Attachments -->
+        <div class="ob-section">Attachments</div>
+
+        <div class="drop-zone" id="drop-zone" onclick="document.getElementById('att-input').click()">
+            <i class="bi bi-cloud-upload fs-4 me-2"></i>
+            <span>Drag &amp; drop files here, or <strong>click to browse</strong></span>
+        </div>
+        <input type="file" id="att-input" name="attachments" multiple class="d-none" onchange="handleFiles(this.files)" />
+        <div class="att-list" id="att-list"></div>
+
+        <!-- Submit -->
+        <hr class="my-4" />
+        <div class="d-flex justify-content-between align-items-center">
+            {% if not user.is_authenticated %}
+            <a href="/login/" class="btn btn-link text-secondary text-decoration-none">
+                <i class="bi bi-arrow-left me-1"></i>Back to login
+            </a>
+            {% else %}
+            <span></span>
+            {% endif %}
+            <button type="submit" class="btn btn-primary px-4" id="ob-submit-btn">
+                <i class="bi bi-send me-1"></i>Submit Demand
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function addPoc() {
+    const row = document.createElement('div');
+    row.className = 'poc-row';
+    row.innerHTML = `<input type="email" name="poc_emails" class="form-control form-control-sm" placeholder="poc@email.com" />
+        <button type="button" class="btn btn-ghost-icon text-secondary" onclick="removePoc(this)" title="Remove"><i class="bi bi-x-lg"></i></button>`;
+    document.getElementById('poc-container').appendChild(row);
+}
+function removePoc(btn) {
+    const rows = document.querySelectorAll('.poc-row');
+    if (rows.length > 1) btn.closest('.poc-row').remove();
+    else btn.closest('.poc-row').querySelector('input').value = '';
+}
+
+function addLink() {
+    const row = document.createElement('div');
+    row.className = 'link-row';
+    row.innerHTML = `<input type="url" name="link_url" class="form-control form-control-sm" placeholder="https://example.com/doc" />
+        <input type="text" name="link_title" class="form-control form-control-sm" placeholder="Title (optional)" />
+        <button type="button" class="btn btn-ghost-icon text-secondary flex-shrink-0" onclick="removeLink(this)" title="Remove"><i class="bi bi-x-lg"></i></button>`;
+    document.getElementById('links-container').appendChild(row);
+}
+function removeLink(btn) {
+    const rows = document.querySelectorAll('.link-row');
+    if (rows.length > 1) btn.closest('.link-row').remove();
+    else { btn.closest('.link-row').querySelectorAll('input').forEach(i => i.value = ''); }
+}
+
+const dropZone = document.getElementById('drop-zone');
+const attList  = document.getElementById('att-list');
+let selectedFiles = [];
+
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('drag-over');
+    handleFiles(e.dataTransfer.files);
+});
+
+function handleFiles(files) {
+    const input = document.getElementById('att-input');
+    const dt = new DataTransfer();
+    selectedFiles.forEach(f => dt.items.add(f));
+    Array.from(files).forEach(f => { selectedFiles.push(f); dt.items.add(f); });
+    input.files = dt.files;
+    renderAttList();
+}
+
+function renderAttList() {
+    attList.innerHTML = selectedFiles.map((f, i) => `
+        <div class="att-item">
+            <i class="bi bi-file-earmark text-secondary"></i>
+            <span class="att-name">${esc(f.name)}</span>
+            <small class="text-secondary">${fmtSize(f.size)}</small>
+            <button type="button" class="btn btn-ghost-icon btn-sm" onclick="removeFile(${i})" title="Remove"><i class="bi bi-x text-danger"></i></button>
+        </div>`).join('');
+}
+
+function removeFile(i) {
+    selectedFiles.splice(i, 1);
+    const dt = new DataTransfer();
+    selectedFiles.forEach(f => dt.items.add(f));
+    document.getElementById('att-input').files = dt.files;
+    renderAttList();
+}
+
+function esc(str) {
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function fmtSize(n) {
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n/1024).toFixed(1) + ' KB';
+    return (n/1048576).toFixed(1) + ' MB';
+}
+
+document.getElementById('ob-form').addEventListener('submit', function() {
+    const btn = document.getElementById('ob-submit-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Submitting…';
+});
+</script>
+{% endblock %}

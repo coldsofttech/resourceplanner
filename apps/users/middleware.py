@@ -19,6 +19,7 @@ _EXEMPT = (
     '/media/',
     '/admin/',
     '/api/v1/',   # API auth handled separately via DRF SessionAuthentication
+    '/onboarding/',
 )
 
 # Additional exemptions for the force-change-password flow so the user

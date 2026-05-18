@@ -581,6 +581,29 @@ class ProjectLink(models.Model):
         return f"{self.title} ({self.project})"
 
 
+class ProjectAttachment(models.Model):
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="attachments",
+    )
+    file_name = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=100, blank=True, default="")
+    file_size = models.PositiveBigIntegerField(default=0)
+    # Populated based on PROJECT_ATTACHMENT_STORAGE setting
+    file_data = models.BinaryField(blank=True, null=True)   # database backend
+    file_path = models.CharField(max_length=1000, blank=True, default="")  # local backend
+    s3_key = models.CharField(max_length=1000, blank=True, default="")     # s3 backend
+    uploaded_by = models.CharField(max_length=200, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.file_name} ({self.project})"
+
+
 class ProjectView(models.Model):
     name = models.CharField(max_length=100, unique=True)
     filters = models.JSONField(default=dict, blank=True)

@@ -14,6 +14,7 @@ from apps.tags.services import TagService
 from .engines import ProjectLabelEngineService
 from .models import (
     Project,
+    ProjectAttachment,
     ProjectBudget,
     ProjectBudgetHistory,
     ProjectCode,
@@ -2254,3 +2255,114 @@ class ProjectViewService:
     @staticmethod
     def get_default():
         return ProjectView.objects.filter(is_default=True).first()
+
+
+class ProjectAttachmentService:
+    MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+
+    @staticmethod
+    def _get_storage_backend():
+        try:
+            from apps.configurations.services import ConfigurationService
+            return ConfigurationService.get_value("PROJECT_ATTACHMENT_STORAGE") or "database"
+        except Exception:
+            return "database"
+
+    @staticmethod
+    def list_attachments(project_id: int):
+        return list(
+            ProjectAttachment.objects.filter(project_id=project_id)
+            .defer("file_data")
+            .order_by("-created_at")
+        )
+
+    @staticmethod
+    def get_attachment(project_id: int, attachment_id: int):
+        return ProjectAttachment.objects.get(pk=attachment_id, project_id=project_id)
+
+    @staticmethod
+    @transaction.atomic
+    def save_attachment(project_id: int, file_obj, uploaded_by: str = ""):
+        from apps.configurations.services import ConfigurationService
+
+        if file_obj.size > ProjectAttachmentService.MAX_FILE_SIZE:
+            raise ValidationError("File exceeds the 50 MB size limit.")
+
+        backend = ProjectAttachmentService._get_storage_backend()
+        att = ProjectAttachment(
+            project_id=project_id,
+            file_name=file_obj.name,
+            content_type=getattr(file_obj, "content_type", "") or "",
+            file_size=file_obj.size,
+            uploaded_by=uploaded_by,
+        )
+
+        if backend == "local":
+            import os
+            local_path = ConfigurationService.get_value("PROJECT_ATTACHMENT_LOCAL_PATH") or ""
+            if not local_path:
+                raise ValidationError("PROJECT_ATTACHMENT_LOCAL_PATH is not configured.")
+            os.makedirs(local_path, exist_ok=True)
+            dest = os.path.join(local_path, f"{project_id}_{file_obj.name}")
+            with open(dest, "wb") as fh:
+                for chunk in file_obj.chunks():
+                    fh.write(chunk)
+            att.file_path = dest
+        elif backend == "s3":
+            try:
+                import boto3
+                bucket_arn = ConfigurationService.get_value("PROJECT_ATTACHMENT_S3_BUCKET_ARN") or ""
+                bucket_name = bucket_arn.split(":::")[-1] if ":::" in bucket_arn else bucket_arn
+                s3_key = f"project-attachments/{project_id}/{file_obj.name}"
+                s3 = boto3.client("s3")
+                s3.upload_fileobj(file_obj, bucket_name, s3_key)
+                att.s3_key = s3_key
+            except ImportError:
+                raise ValidationError("boto3 is required for S3 storage.")
+        else:
+            att.file_data = file_obj.read()
+
+        att.save()
+        return att
+
+    @staticmethod
+    def get_file_bytes(attachment: ProjectAttachment) -> tuple[bytes, str]:
+        backend = ProjectAttachmentService._get_storage_backend()
+        if backend == "local":
+            with open(attachment.file_path, "rb") as fh:
+                return fh.read(), attachment.content_type
+        elif backend == "s3":
+            try:
+                import boto3
+                from apps.configurations.services import ConfigurationService
+                bucket_arn = ConfigurationService.get_value("PROJECT_ATTACHMENT_S3_BUCKET_ARN") or ""
+                bucket_name = bucket_arn.split(":::")[-1] if ":::" in bucket_arn else bucket_arn
+                s3 = boto3.client("s3")
+                resp = s3.get_object(Bucket=bucket_name, Key=attachment.s3_key)
+                return resp["Body"].read(), attachment.content_type
+            except ImportError:
+                raise RuntimeError("boto3 is required for S3 storage.")
+        else:
+            data = attachment.file_data
+            return bytes(data) if data else b"", attachment.content_type
+
+    @staticmethod
+    @transaction.atomic
+    def delete_attachment(attachment: ProjectAttachment):
+        backend = ProjectAttachmentService._get_storage_backend()
+        if backend == "local" and attachment.file_path:
+            import os
+            try:
+                os.remove(attachment.file_path)
+            except OSError:
+                pass
+        elif backend == "s3" and attachment.s3_key:
+            try:
+                import boto3
+                from apps.configurations.services import ConfigurationService
+                bucket_arn = ConfigurationService.get_value("PROJECT_ATTACHMENT_S3_BUCKET_ARN") or ""
+                bucket_name = bucket_arn.split(":::")[-1] if ":::" in bucket_arn else bucket_arn
+                boto3.client("s3").delete_object(Bucket=bucket_name, Key=attachment.s3_key)
+            except ImportError:
+                pass
+        attachment.delete()

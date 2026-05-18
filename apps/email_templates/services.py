@@ -126,6 +126,50 @@ SCENARIO_VARIABLES = {
             'type': 'table',
         },
     ],
+    'onboarding_submitted': [
+        {
+            'key': '{{ project_name }}',
+            'label': 'Project Name',
+            'description': 'Name of the submitted project demand',
+            'group': 'Project',
+        },
+        {
+            'key': '{{ requester_email }}',
+            'label': 'Requester Email',
+            'description': "Submitter's email address",
+            'group': 'Requester',
+        },
+        {
+            'key': '{{ business_unit }}',
+            'label': 'Business Unit',
+            'description': 'Selected business unit (short name)',
+            'group': 'Project',
+        },
+        {
+            'key': '{{ tentative_start_date }}',
+            'label': 'Tentative Start Date',
+            'description': 'Tentative start date entered on the form',
+            'group': 'Project',
+        },
+        {
+            'key': '{{ tentative_end_date }}',
+            'label': 'Tentative End Date',
+            'description': 'Tentative end date entered on the form',
+            'group': 'Project',
+        },
+        {
+            'key': '{{ project_url }}',
+            'label': 'Project URL',
+            'description': 'Direct link to the created project in the system',
+            'group': 'System',
+        },
+        {
+            'key': '{{ app_name }}',
+            'label': 'Application Name',
+            'description': 'Configured application name',
+            'group': 'System',
+        },
+    ],
     'recharge_actuals': [
         {
             'key': '{{ sprint_name }}',
@@ -209,6 +253,12 @@ SCENARIO_META = {
         'icon': 'bi-receipt-cutoff',
         'color': 'success',
     },
+    'onboarding_submitted': {
+        'label': 'Onboarding Submitted',
+        'description': 'Sent to the requester when a new project demand is submitted via the onboarding form.',
+        'icon': 'bi-send-fill',
+        'color': 'primary',
+    },
 }
 
 SAMPLE_VARIABLE_DATA = {
@@ -237,6 +287,15 @@ SAMPLE_VARIABLE_DATA = {
         '{{ total_days }}': '14.50',
         '{{ total_cost }}': '£10,875.00',
         '{{ recharge_table }}': '<table class="table table-sm table-bordered"><thead><tr><th>Jira ID</th><th>Title</th><th>Assignee</th><th>Days</th><th>Cost (£)</th></tr></thead><tbody><tr><td>DATA-101</td><td>Setup pipeline</td><td>Alex T.</td><td>5.00</td><td>3,750.00</td></tr><tr><td>DATA-102</td><td>ETL jobs</td><td>Sam K.</td><td>9.50</td><td>7,125.00</td></tr></tbody><tfoot><tr><th colspan="3">Total</th><th>14.50</th><th>10,875.00</th></tr></tfoot></table>',
+    },
+    'onboarding_submitted': {
+        '{{ project_name }}': 'Digital Transformation Initiative',
+        '{{ requester_email }}': 'jane.smith@example.com',
+        '{{ business_unit }}': 'DTG',
+        '{{ tentative_start_date }}': '01 Jul 2026',
+        '{{ tentative_end_date }}': '31 Dec 2026',
+        '{{ project_url }}': 'https://app.example.com/projects/42/',
+        '{{ app_name }}': 'ResourcePlanner',
     },
     'recharge_actuals': {
         '{{ sprint_name }}': 'Sprint 12',

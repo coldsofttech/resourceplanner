@@ -131,6 +131,18 @@
         <li class="nav-item" role="presentation">
             <button
                 class="nav-link"
+                id="tab-attachments"
+                data-bs-toggle="tab"
+                data-bs-target="#pane-attachments"
+                type="button"
+                role="tab"
+            >
+                <i class="bi bi-paperclip"></i>Attachments
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link"
                 id="tab-history"
                 data-bs-toggle="tab"
                 data-bs-target="#pane-history"
@@ -1044,6 +1056,51 @@
 
             <div class="rp-card rp-edit-card d-none" id="links-edit-mode"></div>
         </div>
+
+        <!-- ── Attachments tab ─────────────────────────────────────────────── -->
+        <div class="tab-pane fade" id="pane-attachments" role="tabpanel">
+            <div class="row g-4 rp-view-layout">
+                <div class="col-lg-8 rp-view-main">
+                    <div class="rp-view-section">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h6 class="rp-view-section-title">Attachments</h6>
+                            <label class="btn btn-primary btn-sm mb-0" id="btn-upload-attachment" style="cursor:pointer">
+                                <i class="bi bi-upload me-1"></i>Upload
+                                <input type="file" id="attachment-file-input" class="d-none" multiple />
+                            </label>
+                        </div>
+                        <div id="attachment-drop-zone"
+                             class="border border-2 border-dashed rounded p-4 text-center text-secondary mb-3"
+                             style="border-style:dashed!important;min-height:80px;cursor:pointer">
+                            <i class="bi bi-cloud-upload fs-4 me-2"></i>
+                            Drag &amp; drop files here, or click <strong>Upload</strong>
+                        </div>
+                        <div id="attachment-upload-progress" class="d-none mb-2">
+                            <div class="progress" style="height:4px">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated w-100"></div>
+                            </div>
+                            <small class="text-secondary" id="attachment-upload-label">Uploading…</small>
+                        </div>
+                        <div class="rp-table-wrap">
+                            <table class="table rp-table" id="attachments-table">
+                                <thead>
+                                    <tr>
+                                        <th>File name</th>
+                                        <th>Size</th>
+                                        <th>Uploaded by</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="attachments-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- ── /Attachments tab ────────────────────────────────────────────── -->
+
     </div>
 </div>
 

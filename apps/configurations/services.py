@@ -61,6 +61,56 @@ CONFIGURATION_DEFAULTS = {
         "is_secret": False,
         "module": "general",
     },
+    # Onboarding
+    "ONBOARDING_DEFAULT_PROJECT_TYPE_ID": {
+        "label": "Default Project Type for Onboarding Submissions",
+        "value": "",
+        "description": (
+            "ID of the ProjectType to assign when a project is auto-created from an onboarding form submission. "
+            "Leave blank to use the first active project type (alphabetical order)."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
+    # Project Attachments
+    "PROJECT_ATTACHMENT_STORAGE": {
+        "label": "Project Attachment Storage Backend",
+        "value": "database",
+        "description": (
+            "Where project attachments are stored. "
+            "'database' — stored as binary data in the database (no filesystem dependency). "
+            "'local' — saved to the server filesystem at the path in PROJECT_ATTACHMENT_LOCAL_PATH. "
+            "'s3' — uploaded to an S3-compatible bucket; configure the bucket in PROJECT_ATTACHMENT_S3_BUCKET_ARN."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
+    "PROJECT_ATTACHMENT_LOCAL_PATH": {
+        "label": "Project Attachment Local Storage Path",
+        "value": "",
+        "description": (
+            "Absolute filesystem path where project attachments are saved when PROJECT_ATTACHMENT_STORAGE=local. "
+            "The web server process must have read and write access to this directory. "
+            "Example: /var/resourceplanner/attachments."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
+    "PROJECT_ATTACHMENT_S3_BUCKET_ARN": {
+        "label": "Project Attachment S3 Bucket ARN",
+        "value": "",
+        "description": (
+            "ARN of the S3 bucket used to store project attachments when PROJECT_ATTACHMENT_STORAGE=s3. "
+            "Example: arn:aws:s3:::my-resourceplanner-attachments. "
+            "The application IAM role must have s3:PutObject, s3:GetObject, and s3:DeleteObject on this bucket."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
     # Holidays
     "DEFAULT_HOLIDAYS": {
         "label": "Default holidays per financial year.",

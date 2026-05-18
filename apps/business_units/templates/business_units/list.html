@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Business Units{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Business Units</h1>
+        <p class="rp-page-subtitle">Configure business units used in project demand onboarding</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        {% if user.is_staff %}
+        <button class="btn btn-primary btn-sm" id="new-bu-btn">
+            <i class="bi bi-plus-lg me-1"></i>New Business Unit
+        </button>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Statistics -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-4">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Total</span>
+            <span class="rp-stat-value" id="stat-total">0</span>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Active</span>
+            <span class="rp-stat-value" id="stat-active">0</span>
+        </div>
+    </div>
+    <div class="col-6 col-md-4">
+        <div class="rp-stat-card">
+            <span class="rp-stat-label">Inactive</span>
+            <span class="rp-stat-value" id="stat-inactive">0</span>
+        </div>
+    </div>
+</div>
+
+<!-- Search & Filters -->
+<div class="rp-toolbar d-flex gap-3 mb-3 flex-wrap">
+    <div class="rp-search flex-grow-1">
+        <i class="bi bi-search rp-search-icon"></i>
+        <input type="text" id="bu-search" class="form-control rp-search-input"
+               placeholder="Search by name or short code…" />
+    </div>
+    <select id="bu-status-filter" class="form-select form-select-sm" style="width:140px">
+        <option value="">All statuses</option>
+        <option value="true">Active</option>
+        <option value="false">Inactive</option>
+    </select>
+</div>
+
+<!-- Table -->
+<div class="rp-card overflow-hidden">
+    <table class="table rp-table mb-0">
+        <thead>
+            <tr>
+                <th>Full Name</th>
+                <th>Short Name</th>
+                <th class="text-center">Status</th>
+                <th class="text-center">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="bu-tbody">
+            <tr id="bu-loading">
+                <td colspan="4" class="text-center text-secondary py-4">
+                    <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+                </td>
+            </tr>
+        </tbody>
+    </table>
+    <!-- Pagination -->
+    <div class="rp-table-footer d-flex align-items-center justify-content-between px-3 py-2" id="bu-pagination" style="display:none!important"></div>
+</div>
+
+<!-- Create / Edit Modal -->
+<div class="modal fade" id="buModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="bu-modal-title">New Business Unit</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Full Name <span class="text-danger">*</span></label>
+                    <input type="text" id="bu-full-name" class="form-control"
+                           placeholder="e.g. Digital Transformation Group" maxlength="200" />
+                    <div id="bu-full-name-error" class="text-danger small mt-1 d-none"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label fw-semibold">Short Name <span class="text-danger">*</span></label>
+                    <input type="text" id="bu-short-name" class="form-control"
+                           placeholder="e.g. DTG" maxlength="20" />
+                    <div id="bu-short-name-error" class="text-danger small mt-1 d-none"></div>
+                </div>
+                <div class="mb-1">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="bu-is-active" checked />
+                        <label class="form-check-label" for="bu-is-active">Active</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0 d-flex justify-content-between">
+                <button class="btn btn-sm btn-outline-danger d-none" id="bu-delete-btn">
+                    <i class="bi bi-trash3 me-1"></i>Delete
+                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-sm btn-primary" id="bu-save-btn">
+                        <i class="bi bi-check-lg me-1"></i>Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal fade" id="buDeleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger"><i class="bi bi-exclamation-triangle me-2"></i>Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-0">Delete <strong id="bu-delete-name"></strong>? This cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-sm btn-danger" id="bu-confirm-delete-btn">
+                    <i class="bi bi-trash3 me-1"></i>Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/business_units.js' %}"></script>
+{% endblock %}

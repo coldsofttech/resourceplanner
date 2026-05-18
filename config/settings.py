@@ -80,6 +80,8 @@ INSTALLED_APPS = [
     "apps.reporting",
     "apps.sprint_forecast",
     "apps.email_templates",
+    "apps.business_units",
+    "apps.onboarding",
 ]
 
 MIDDLEWARE = [

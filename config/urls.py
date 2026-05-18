@@ -38,6 +38,7 @@ from apps.sprint_capacity.api_views import SprintCapacityViewSet
 from apps.sprints.api_views import SprintViewSet
 from apps.tags.api_views import TagViewSet
 from apps.team_members.api_views import TeamMemberViewSet
+from apps.business_units.api_views import BusinessUnitViewSet
 from apps.team_roles.api_views import TeamRoleViewSet
 
 router = DefaultRouter()
@@ -62,6 +63,7 @@ router.register(r"contacts", ContactViewSet, basename="contact")
 router.register(r"projects", ProjectViewSet, basename="project")
 router.register(r"project-views", ProjectViewViewSet, basename="project-view")
 router.register(r"tags", TagViewSet, basename="tag")
+router.register(r"business-units", BusinessUnitViewSet, basename="business-unit")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -112,4 +114,8 @@ urlpatterns = [
     # Email Templates
     path("api/v1/", include("apps.email_templates.api_urls")),
     path("email-templates/", include("apps.email_templates.urls")),
+    # Business Units
+    path("business-units/", include("apps.business_units.urls")),
+    # Onboarding (public — no auth required)
+    path("onboarding/", include("apps.onboarding.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

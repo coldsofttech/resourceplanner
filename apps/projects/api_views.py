@@ -2,15 +2,18 @@ import logging
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import DatabaseError
+from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError as DRFValidationError
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 
 from apps.core.utils import view_set_validation_details
 
 from .models import (
     Project,
+    ProjectAttachment,
     ProjectBudget,
     ProjectContact,
     ProjectEstimate,
@@ -19,6 +22,7 @@ from .models import (
     ProjectView,
 )
 from .serializers import (
+    ProjectAttachmentSerializer,
     ProjectBudgetHistorySerializer,
     ProjectBudgetLifetimeSerializer,
     ProjectBudgetSerializer,
@@ -42,6 +46,7 @@ from .serializers import (
     ProjectViewSerializer,
 )
 from .services import (
+    ProjectAttachmentService,
     ProjectBudgetService,
     ProjectCodeService,
     ProjectCommentService,
@@ -1659,6 +1664,81 @@ class ProjectViewSet(viewsets.ViewSet):
                 {"error": "An unexpected error occurred."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+    # GET /projects/<id>/attachments/
+    # POST /projects/<id>/attachments/
+    @action(
+        detail=True,
+        methods=["get", "post"],
+        url_path="attachments",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def attachments_list_or_create(self, request, pk=None):
+        try:
+            try:
+                ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                return Response({"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            if request.method == "GET":
+                attachments = ProjectAttachmentService.list_attachments(pk)
+                return Response(ProjectAttachmentSerializer(attachments, many=True).data)
+
+            file_obj = request.FILES.get("file")
+            if not file_obj:
+                return Response({"error": "No file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+            uploaded_by = request.user.get_full_name() or request.user.email if request.user.is_authenticated else ""
+            att = ProjectAttachmentService.save_attachment(pk, file_obj, uploaded_by=uploaded_by)
+            return Response(ProjectAttachmentSerializer(att).data, status=status.HTTP_201_CREATED)
+
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except DatabaseError as e:
+            logger.exception("DatabaseError in attachments_list_or_create: %s", e)
+            return Response({"error": "A database error occurred."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception as e:
+            logger.exception("Unexpected error in attachments_list_or_create: %s", e)
+            return Response({"error": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # DELETE /projects/<id>/attachments/<att_id>/
+    # GET    /projects/<id>/attachments/<att_id>/download/
+    @action(
+        detail=True,
+        methods=["delete", "get"],
+        url_path="attachments/(?P<att_pk>[^/.]+)",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def attachments_delete_or_download(self, request, pk=None, att_pk=None):
+        try:
+            try:
+                ProjectService.get_project(pk)
+            except Project.DoesNotExist:
+                return Response({"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            try:
+                att = ProjectAttachmentService.get_attachment(pk, att_pk)
+            except ProjectAttachment.DoesNotExist:
+                return Response({"error": "Attachment not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            if request.method == "DELETE":
+                ProjectAttachmentService.delete_attachment(att)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+
+            # GET — download
+            file_bytes, content_type = ProjectAttachmentService.get_file_bytes(att)
+            resp = HttpResponse(file_bytes, content_type=content_type or "application/octet-stream")
+            resp["Content-Disposition"] = f'attachment; filename="{att.file_name}"'
+            return resp
+
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        except DatabaseError as e:
+            logger.exception("DatabaseError in attachments_delete_or_download: %s", e)
+            return Response({"error": "A database error occurred."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception as e:
+            logger.exception("Unexpected error in attachments_delete_or_download: %s", e)
+            return Response({"error": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class ProjectViewViewSet(viewsets.ViewSet):

@@ -82,6 +82,9 @@ function bindTabEvents() {
     document.getElementById('tab-links').addEventListener('shown.bs.tab', function () {
         renderLinks();
     });
+    document.getElementById('tab-attachments')?.addEventListener('shown.bs.tab', function () {
+        _loadAttachments();
+    });
     document.getElementById('tab-actuals')?.addEventListener('shown.bs.tab', function () {
         renderActualsTab();
     });
@@ -1807,6 +1810,9 @@ function bindEditButtons() {
     document.getElementById('link-delete-btn')?.addEventListener('click', deleteLink);
 
     _bindLinkTableActions();
+
+    // Attachments tab
+    _initAttachmentsTab();
 }
 
 function _showModal(id) {
@@ -3293,3 +3299,113 @@ function _actualsTabFmt(val) {
     if (isNaN(n)) return '—';
     return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'GBP', minimumFractionDigits: 2 }).format(n);
 }
+
+// ── Attachments Tab ───────────────────────────────────────────────────────────
+
+function _initAttachmentsTab() {
+    const fileInput = document.getElementById('attachment-file-input');
+    const dropZone  = document.getElementById('attachment-drop-zone');
+    if (!fileInput || !dropZone) return;
+
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length) _uploadFiles(fileInput.files);
+    });
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-primary'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-primary'));
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-primary');
+        if (e.dataTransfer.files.length) _uploadFiles(e.dataTransfer.files);
+    });
+}
+
+async function _loadAttachments() {
+    const tbody = document.getElementById('attachments-tbody');
+    if (!tbody) return;
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center text-secondary py-3">
+        <span class="spinner-border spinner-border-sm me-2"></span>Loading…</td></tr>`;
+    try {
+        const url = API_URLS.projects.attachments.list(projectPk).href;
+        const items = await apiFetch(url);
+        _renderAttachments(items);
+    } catch (_) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-danger py-3">
+            Failed to load attachments. Please try again.</td></tr>`;
+    }
+}
+
+function _renderAttachments(items) {
+    const tbody = document.getElementById('attachments-tbody');
+    if (!tbody) return;
+    if (!items || !items.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="text-center text-secondary py-3">No attachments yet.</td></tr>`;
+        return;
+    }
+    tbody.innerHTML = items.map(a => `
+        <tr data-att-id="${a.id}">
+            <td><i class="bi bi-file-earmark me-2 text-secondary"></i>${escHtml(a.file_name)}</td>
+            <td>${escHtml(a.file_size_display)}</td>
+            <td>${escHtml(a.uploaded_by || '—')}</td>
+            <td>${a.created_at ? new Date(a.created_at).toLocaleDateString() : '—'}</td>
+            <td>
+                <a href="${API_URLS.projects.attachments.download(projectPk, a.id).href}"
+                   class="btn btn-ghost-icon" title="Download" download="${escAttr(a.file_name)}">
+                    <i class="bi bi-download"></i>
+                </a>
+                <button class="btn btn-ghost-icon btn-ghost-icon--danger" title="Delete"
+                        onclick="_deleteAttachment(${a.id})">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>`).join('');
+}
+
+async function _uploadFiles(files) {
+    const progress = document.getElementById('attachment-upload-progress');
+    const label    = document.getElementById('attachment-upload-label');
+    if (progress) progress.classList.remove('d-none');
+
+    const url = API_URLS.projects.attachments.upload(projectPk).href;
+    let uploaded = 0;
+
+    for (const file of files) {
+        if (label) label.textContent = `Uploading ${file.name}…`;
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+            await fetch(url, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': _getCsrf() },
+                body: formData,
+            });
+            uploaded++;
+        } catch (_) {
+            showFlash(`Failed to upload ${file.name}.`, 'danger');
+        }
+    }
+
+    if (progress) progress.classList.add('d-none');
+    if (uploaded) showFlash(`${uploaded} file(s) uploaded.`, 'success');
+    _loadAttachments();
+}
+
+async function _deleteAttachment(attId) {
+    const { method, href } = API_URLS.projects.attachments.delete(projectPk, attId);
+    try {
+        await apiFetch(href, { method });
+        document.querySelector(`tr[data-att-id="${attId}"]`)?.remove();
+        showFlash('Attachment deleted.', 'success');
+    } catch (_) {
+        showFlash('Failed to delete attachment.', 'danger');
+    }
+}
+
+function _getCsrf() {
+    return document.cookie.split('; ')
+        .find(r => r.startsWith('csrftoken='))
+        ?.split('=')[1] || '';
+}
+
+window._deleteAttachment = _deleteAttachment;
