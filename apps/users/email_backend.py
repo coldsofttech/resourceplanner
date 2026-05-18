@@ -9,30 +9,65 @@ logger = logging.getLogger(__name__)
 
 
 def _html_to_text(html):
-    """Strip HTML tags and produce readable plain text for console output."""
+    """Convert HTML email to readable plain text for console output."""
+    # Remove non-content blocks entirely
     html = re.sub(r'<head[^>]*>.*?</head>', '', html, flags=re.DOTALL | re.IGNORECASE)
     html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
     html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
-    html = re.sub(r'<(h[1-6]|p|div|tr|li)[^>]*>', '\n', html, flags=re.IGNORECASE)
-    html = re.sub(r'</(h[1-6]|p|div)>', '\n', html, flags=re.IGNORECASE)
+
+    # Headings get a blank line before and a newline after
+    html = re.sub(r'<h[1-6][^>]*>', '\n\n', html, flags=re.IGNORECASE)
+    html = re.sub(r'</h[1-6]>', '\n', html, flags=re.IGNORECASE)
+
+    # Paragraphs and divs: only the OPENING tag inserts a newline;
+    # the closing tag is left for the generic stripper (avoids double-spacing).
+    html = re.sub(r'<(?:p|div)[^>]*>', '\n', html, flags=re.IGNORECASE)
     html = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
-    html = re.sub(r'<t[dh][^>]*>', ' | ', html, flags=re.IGNORECASE)
+
+    # Table rows → newline; cells → pipe separator
+    html = re.sub(r'<tr[^>]*>', '\n', html, flags=re.IGNORECASE)
+    html = re.sub(r'<t[dh][^>]*>', ' │ ', html, flags=re.IGNORECASE)
+
+    # Bold/strong → uppercase (inline, no extra newlines).
+    # Use \b after tag name so <b> matches but <body>/<blockquote> do not.
     html = re.sub(
-        r'<(strong|b)[^>]*>(.*?)</(strong|b)>',
-        lambda m: m.group(2).upper(),
+        r'<(?:strong|b)\b[^>]*>(.*?)</(?:strong|b)>',
+        lambda m: m.group(1).upper(),
         html,
         flags=re.IGNORECASE | re.DOTALL,
     )
+
+    # Strip every remaining tag (closing divs/tds/tables/spans/etc.)
     html = re.sub(r'<[^>]+>', '', html)
+
+    # Decode HTML entities
     html = (html
             .replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
             .replace('&nbsp;', ' ').replace('&quot;', '"').replace('&#x27;', "'")
             .replace('&#163;', '£').replace('&#183;', '·'))
     html = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), html)
     html = re.sub(r'&#x([0-9a-fA-F]+);', lambda m: chr(int(m.group(1), 16)), html)
+
+    # Collapse horizontal whitespace
     html = re.sub(r'[ \t]+', ' ', html)
-    html = re.sub(r'\n{3,}', '\n\n', html)
-    return '\n'.join(line.strip() for line in html.splitlines()).strip()
+
+    # Line-by-line cleanup:
+    #  • Strip leading/trailing │ and spaces from each line (layout cell noise)
+    #  • Drop lines whose entire content is │ and whitespace (empty layout rows)
+    #  • Collapse runs of consecutive blank lines to a single blank
+    cleaned: list[str] = []
+    prev_blank = False
+    for raw in html.splitlines():
+        ln = re.sub(r'^[ │\t]+|[ │\t]+$', '', raw)
+        if not ln:
+            if not prev_blank:
+                cleaned.append('')
+            prev_blank = True
+        else:
+            cleaned.append(ln)
+            prev_blank = False
+
+    return '\n'.join(cleaned).strip()
 
 
 class PrettyConsoleBackend(BaseEmailBackend):
