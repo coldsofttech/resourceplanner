@@ -109,4 +109,7 @@ urlpatterns = [
     # Sprint Forecast
     path("api/v1/", include("apps.sprint_forecast.api_urls")),
     path("", include("apps.sprint_forecast.urls")),
+    # Email Templates
+    path("api/v1/", include("apps.email_templates.api_urls")),
+    path("email-templates/", include("apps.email_templates.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

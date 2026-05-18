@@ -939,6 +939,28 @@ export const API_URLS = {
         data: (sprintId) => ({ method: 'GET', href: `${API_BASE}sprint-compare/?sprint_id=${sprintId}` }),
     },
 
+    email_templates: {
+        scenarios: { method: 'GET', href: `${API_BASE}email-templates/` },
+        detail: (scenario) => ({ method: 'GET', href: `${API_BASE}email-templates/${scenario}/` }),
+        save:   (scenario) => ({ method: 'PUT', href: `${API_BASE}email-templates/${scenario}/` }),
+        variables: (scenario) => ({ method: 'GET', href: `${API_BASE}email-templates/${scenario}/variables/` }),
+    },
+    email_template_headers: {
+        list:    { method: 'GET',    href: `${API_BASE}email-template-headers/` },
+        options: { method: 'GET',    href: `${API_BASE}email-template-headers/options/` },
+        create:  { method: 'POST',   href: `${API_BASE}email-template-headers/` },
+        detail:  (id) => ({ method: 'GET',    href: `${API_BASE}email-template-headers/${id}/` }),
+        update:  (id) => ({ method: 'PATCH',  href: `${API_BASE}email-template-headers/${id}/` }),
+        delete:  (id) => ({ method: 'DELETE', href: `${API_BASE}email-template-headers/${id}/` }),
+    },
+    email_template_footers: {
+        list:    { method: 'GET',    href: `${API_BASE}email-template-footers/` },
+        options: { method: 'GET',    href: `${API_BASE}email-template-footers/options/` },
+        create:  { method: 'POST',   href: `${API_BASE}email-template-footers/` },
+        detail:  (id) => ({ method: 'GET',    href: `${API_BASE}email-template-footers/${id}/` }),
+        update:  (id) => ({ method: 'PATCH',  href: `${API_BASE}email-template-footers/${id}/` }),
+        delete:  (id) => ({ method: 'DELETE', href: `${API_BASE}email-template-footers/${id}/` }),
+    },
     project_actuals: {
         list: { method: 'GET', href: `${API_BASE}project-actuals/` },
         detail: (id) => ({ method: 'GET', href: `${API_BASE}project-actuals/${id}/` }),
@@ -1099,6 +1121,12 @@ export const URLS = {
     security: {
         list:             '/security/',
         password_policy:  '/security/password-policy/',
+    },
+    email_templates: {
+        list:    '/email-templates/',
+        editor:  (scenario) => `/email-templates/${scenario}/editor/`,
+        headers: '/email-templates/headers/',
+        footers: '/email-templates/footers/',
     },
     resource_plans: {
         detail: (planId) => `/resource-plans/${planId}`,

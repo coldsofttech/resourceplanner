@@ -1,0 +1,314 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ scenario_label }} — Email Template{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" />
+<style>
+/* ── Layout ─────────────────────────────────────────────── */
+.et-editor-wrap    { display: flex; gap: 24px; align-items: flex-start; }
+.et-editor-main    { flex: 1 1 0; min-width: 0; }
+.et-vars-panel     { width: 280px; flex-shrink: 0; position: sticky; top: 80px; }
+
+/* ── Quill editor ───────────────────────────────────────── */
+#quill-editor       { height: 380px; font-size: 14px; }
+.et-source-toggle   { font-size: 12px; cursor: pointer; color: var(--rp-text-muted); }
+.et-source-toggle:hover { text-decoration: underline; }
+#html-source        { font-family: var(--bs-font-monospace, monospace); font-size: 12px;
+                       height: 380px; resize: vertical; }
+
+/* ── Variable panel ─────────────────────────────────────── */
+.et-vars-section    { margin-bottom: 16px; }
+.et-vars-group      { font-size: 10px; font-weight: 700; text-transform: uppercase;
+                       letter-spacing: .06em; color: var(--rp-text-muted); margin: 10px 0 6px; }
+.et-var-chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 6px; margin: 2px 2px;
+    font-size: 12px; font-family: var(--bs-font-monospace, monospace);
+    background: var(--rp-card-bg-muted, #f9fafb);
+    border: 1px solid var(--rp-border-color, #e5e7eb);
+    cursor: pointer; user-select: none;
+    transition: background .12s, border-color .12s;
+}
+.et-var-chip:hover  { background: var(--rp-row-hover, #f0f4ff); border-color: #a5b4fc; }
+.et-var-chip--table { border-color: #a5b4fc; background: rgba(99,102,241,.06); }
+.et-var-chip .et-var-icon { color: var(--rp-text-muted); font-size: 10px; }
+
+/* ── Table config ───────────────────────────────────────── */
+.et-table-section   { border: 1px solid var(--rp-border-color, #e5e7eb); border-radius: 10px;
+                       padding: 16px; background: var(--rp-card-bg-muted, #f9fafb); margin-top: 16px; }
+.et-table-col-grid  { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-top: 6px; }
+
+/* ── Subject field ──────────────────────────────────────── */
+.et-subject-wrap    { position: relative; }
+.et-subject-mono    { font-family: var(--bs-font-monospace, monospace); font-size: 13px; }
+
+/* ── Preview modal ──────────────────────────────────────── */
+.et-preview-body    { max-height: 70vh; overflow-y: auto; }
+.et-preview-subject { font-weight: 600; font-size: .9rem; margin-bottom: 12px;
+                       padding-bottom: 10px; border-bottom: 1px solid var(--rp-border-color,#e5e7eb); }
+.et-preview-header-footer { background: var(--rp-card-bg-muted,#f9fafb);
+                              padding: 10px 14px; border-radius: 6px; margin-bottom: 10px;
+                              font-size: 12px; color: var(--rp-text-muted); }
+.et-preview-content { padding: 4px 0; }
+
+@media (max-width: 991.98px) {
+    .et-editor-wrap  { flex-direction: column; }
+    .et-vars-panel   { width: 100%; position: static; }
+}
+
+/* ── Quill toolbar enhancements ────────────────────────────── */
+.ql-toolbar .ql-font  { width: 130px; }
+.ql-toolbar .ql-size  { width: 80px; }
+
+.ql-font .ql-picker-label::before,
+.ql-font .ql-picker-item::before { content: 'Default'; }
+.ql-font .ql-picker-label[data-value="Arial"]::before,
+.ql-font .ql-picker-item[data-value="Arial"]::before { content: 'Arial'; font-family: Arial; }
+.ql-font .ql-picker-label[data-value="Courier New"]::before,
+.ql-font .ql-picker-item[data-value="Courier New"]::before { content: 'Courier New'; font-family: 'Courier New'; }
+.ql-font .ql-picker-label[data-value="Georgia"]::before,
+.ql-font .ql-picker-item[data-value="Georgia"]::before { content: 'Georgia'; font-family: Georgia; }
+.ql-font .ql-picker-label[data-value="Times New Roman"]::before,
+.ql-font .ql-picker-item[data-value="Times New Roman"]::before { content: 'Times New Roman'; font-family: 'Times New Roman'; }
+.ql-font .ql-picker-label[data-value="Trebuchet MS"]::before,
+.ql-font .ql-picker-item[data-value="Trebuchet MS"]::before { content: 'Trebuchet MS'; font-family: 'Trebuchet MS'; }
+.ql-font .ql-picker-label[data-value="Verdana"]::before,
+.ql-font .ql-picker-item[data-value="Verdana"]::before { content: 'Verdana'; font-family: Verdana; }
+
+.ql-size .ql-picker-label::before,
+.ql-size .ql-picker-item::before { content: attr(data-value) !important; }
+.ql-size .ql-picker-label[data-value=""]::before,
+.ql-size .ql-picker-item[data-value=""]::before { content: 'Normal' !important; }
+
+/* Double-strike rendered in editor */
+.ql-editor .ql-double-strike { text-decoration: line-through; text-decoration-style: double; }
+
+/* Taller editor */
+#quill-editor { height: 420px; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/email-templates/" class="btn btn-ghost-icon" title="Back to templates">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title d-flex align-items-center gap-2">
+                {{ scenario_label }}
+                <span class="rp-badge rp-badge--muted">Email Template</span>
+            </h1>
+            <p class="rp-page-subtitle">Design the HTML email body and configure dynamic variables.</p>
+        </div>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" id="is-active-toggle" checked>
+            <label class="form-check-label small" for="is-active-toggle">Active</label>
+        </div>
+        <button class="btn btn-sm btn-outline-secondary" id="preview-btn">
+            <i class="bi bi-eye me-1"></i>Preview
+        </button>
+        <button class="btn btn-sm btn-primary" id="save-btn">
+            <i class="bi bi-check-lg me-1"></i>Save Template
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Loading overlay -->
+<div id="editor-loading" class="text-center text-secondary py-5">
+    <div class="spinner-border spinner-border-sm me-2"></div>Loading template…
+</div>
+
+<!-- Editor -->
+<div id="editor-wrap" class="et-editor-wrap d-none">
+
+    <!-- ── Left: editor panel ─────────────────────────────────── -->
+    <div class="et-editor-main">
+
+        <!-- Subject -->
+        <div class="rp-card mb-3 p-3">
+            <label class="wizard-field-label mb-1">Subject</label>
+            <p class="wizard-field-desc mb-2" style="font-size:12px">Supports <code>&#123;&#123; variable &#125;&#125;</code> placeholders. Recipients see this as the email subject line.</p>
+            <input type="text" id="subject-input" class="form-control et-subject-mono"
+                   placeholder="e.g. Welcome to &#123;&#123; app_name &#125;&#125; — your account is ready" />
+        </div>
+
+        <!-- Header / Footer selection -->
+        <div class="rp-card mb-3 p-3">
+            <div class="row g-3">
+                <div class="col-sm-6">
+                    <label class="wizard-field-label mb-1">Header Block</label>
+                    <select id="header-select" class="form-select form-select-sm">
+                        <option value="">— None —</option>
+                    </select>
+                </div>
+                <div class="col-sm-6">
+                    <label class="wizard-field-label mb-1">Footer Block</label>
+                    <select id="footer-select" class="form-select form-select-sm">
+                        <option value="">— None —</option>
+                    </select>
+                </div>
+            </div>
+            <p class="wizard-field-desc mt-2 mb-0" style="font-size:11px">
+                Manage reusable header and footer blocks at
+                <a href="/email-templates/headers/" target="_blank">Headers</a> /
+                <a href="/email-templates/footers/" target="_blank">Footers</a>.
+            </p>
+        </div>
+
+        <!-- Body editor -->
+        <div class="rp-card mb-0 p-3">
+            <div class="d-flex align-items-center justify-content-between mb-2">
+                <label class="wizard-field-label mb-0">Email Body</label>
+                <div class="btn-group btn-group-sm" id="editor-mode-tabs" role="group">
+                    <button type="button" class="btn btn-secondary" data-mode="rich" title="Rich text editor">
+                        <i class="bi bi-pencil me-1"></i>Rich
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-mode="html" title="Raw HTML source">
+                        <i class="bi bi-code-slash me-1"></i>HTML
+                    </button>
+                    <button type="button" class="btn btn-outline-secondary" data-mode="markdown" title="Markdown (converted to HTML on save)">
+                        <i class="bi bi-markdown me-1"></i>Markdown
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quill rich-text editor -->
+            <div id="quill-editor" class="d-block"></div>
+
+            <!-- Raw HTML textarea (hidden by default) -->
+            <textarea id="html-source" class="form-control d-none" spellcheck="false"
+                      style="font-family:var(--bs-font-monospace,monospace);font-size:12px;height:420px;resize:vertical"
+                      placeholder="Paste HTML here…"></textarea>
+
+            <!-- Markdown textarea (hidden by default) -->
+            <textarea id="markdown-source" class="form-control d-none" spellcheck="false"
+                      style="font-family:var(--bs-font-monospace,monospace);font-size:13px;height:420px;resize:vertical"
+                      placeholder="Write Markdown here — converted to HTML when switching back to Rich or saving…"></textarea>
+        </div>
+
+        {% if is_table_scenario %}
+        <!-- Table Block Configuration -->
+        <div class="et-table-section mt-4" id="table-config-section">
+            <h6 class="mb-1 d-flex align-items-center gap-2">
+                <i class="bi bi-table text-secondary"></i>
+                Table Block Configuration
+                <span class="rp-badge rp-badge--muted" style="font-size:10px">&#123;&#123; recharge_table &#125;&#125;</span>
+            </h6>
+            <p class="wizard-field-desc mb-3" style="font-size:12px">
+                Configure how the recharge table is rendered when
+                <code>&#123;&#123; recharge_table &#125;&#125;</code> is substituted in the body.
+            </p>
+
+            <!-- Display mode -->
+            <div class="mb-3">
+                <label class="wizard-field-label mb-1">Display Mode</label>
+                <div class="d-flex gap-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="table-view" id="view-table" value="table" checked>
+                        <label class="form-check-label small" for="view-table">
+                            <i class="bi bi-table me-1"></i>Table
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="table-view" id="view-list" value="list">
+                        <label class="form-check-label small" for="view-list">
+                            <i class="bi bi-list-ul me-1"></i>List
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Columns -->
+            <div class="mb-3">
+                <label class="wizard-field-label mb-1">Columns to Include</label>
+                <div class="et-table-col-grid" id="table-columns-grid">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+
+            <!-- Totals -->
+            <div class="mb-2">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="show-total" checked>
+                    <label class="form-check-label small" for="show-total">Show totals row</label>
+                </div>
+                <div id="totals-for-wrap" class="mt-2 ms-4">
+                    <label class="wizard-field-label mb-1" style="font-size:11px">Totals for columns</label>
+                    <div id="totals-for-grid" class="d-flex flex-wrap gap-2">
+                        <!-- Populated by JS: only numeric columns -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+    </div><!-- /et-editor-main -->
+
+    <!-- ── Right: variables panel ─────────────────────────────── -->
+    <div class="et-vars-panel" id="vars-panel">
+        <div class="rp-card p-3">
+            <h6 class="mb-1 d-flex align-items-center gap-2">
+                <i class="bi bi-braces text-secondary" style="font-size:14px"></i>
+                Available Variables
+            </h6>
+            <p class="wizard-field-desc mb-3" style="font-size:11px">
+                Click a variable to insert it at the cursor. Drag to drop it anywhere in the body.
+            </p>
+            <div id="vars-loading" class="text-center text-secondary py-3 small">
+                <div class="spinner-border spinner-border-sm"></div>
+            </div>
+            <div id="vars-list" class="d-none"></div>
+        </div>
+    </div>
+
+</div><!-- /et-editor-wrap -->
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-eye me-2"></i>Email Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body et-preview-body">
+                <div class="alert rp-info-banner d-flex gap-2 mb-3" style="font-size:12px">
+                    <i class="bi bi-info-circle-fill mt-1" style="flex-shrink:0"></i>
+                    <span>Preview uses <strong>sample data</strong>. Variable values shown are illustrative.</span>
+                </div>
+                <div id="preview-subject" class="et-preview-subject"></div>
+                <div id="preview-header-block" class="et-preview-header-footer d-none">
+                    <span class="fw-600">Header:</span> <span id="preview-header-name"></span>
+                </div>
+                <div id="preview-content" class="et-preview-content"></div>
+                <div id="preview-footer-block" class="et-preview-header-footer d-none mt-2">
+                    <span class="fw-600">Footer:</span> <span id="preview-footer-name"></span>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/turndown/dist/turndown.js"></script>
+<script>
+window.SCENARIO          = "{{ scenario }}";
+window.IS_TABLE_SCENARIO = {% if is_table_scenario %}true{% else %}false{% endif %};
+</script>
+<script type="module" src="{% static 'js/modules/email_template_editor.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Email Headers{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" />
+<style>
+.et-block-card { border: 1px solid var(--rp-border-color,#e5e7eb); border-radius:10px;
+                  background:var(--rp-card-bg,#fff); overflow:hidden; }
+.et-block-card-header { padding:14px 16px; display:flex; align-items:flex-start;
+                          gap:10px; border-bottom:1px solid var(--rp-border-color,#f3f4f6); }
+.et-block-name  { font-weight:600; font-size:.9rem; }
+.et-block-preview { padding:12px 16px; font-size:12px; color:var(--rp-text-muted);
+                     max-height:80px; overflow:hidden; position:relative; }
+.et-block-preview::after { content:''; position:absolute; bottom:0; left:0; right:0;
+                             height:24px; background:linear-gradient(transparent,var(--rp-card-bg,#fff)); }
+.et-block-actions { padding:10px 16px; border-top:1px solid var(--rp-border-color,#f3f4f6);
+                     display:flex; gap:8px; justify-content:flex-end; }
+#modal-editor { height:300px; }
+
+/* ── Quill toolbar enhancements ──────────────────────────── */
+.ql-toolbar .ql-font  { width: 130px; }
+.ql-toolbar .ql-size  { width: 80px; }
+.ql-font .ql-picker-label::before,
+.ql-font .ql-picker-item::before { content: 'Default'; }
+.ql-font .ql-picker-label[data-value="Arial"]::before,
+.ql-font .ql-picker-item[data-value="Arial"]::before { content: 'Arial'; font-family: Arial; }
+.ql-font .ql-picker-label[data-value="Courier New"]::before,
+.ql-font .ql-picker-item[data-value="Courier New"]::before { content: 'Courier New'; font-family: 'Courier New'; }
+.ql-font .ql-picker-label[data-value="Georgia"]::before,
+.ql-font .ql-picker-item[data-value="Georgia"]::before { content: 'Georgia'; font-family: Georgia; }
+.ql-font .ql-picker-label[data-value="Times New Roman"]::before,
+.ql-font .ql-picker-item[data-value="Times New Roman"]::before { content: 'Times New Roman'; font-family: 'Times New Roman'; }
+.ql-font .ql-picker-label[data-value="Trebuchet MS"]::before,
+.ql-font .ql-picker-item[data-value="Trebuchet MS"]::before { content: 'Trebuchet MS'; font-family: 'Trebuchet MS'; }
+.ql-font .ql-picker-label[data-value="Verdana"]::before,
+.ql-font .ql-picker-item[data-value="Verdana"]::before { content: 'Verdana'; font-family: Verdana; }
+.ql-size .ql-picker-label::before,
+.ql-size .ql-picker-item::before { content: attr(data-value) !important; }
+.ql-size .ql-picker-label[data-value=""]::before,
+.ql-size .ql-picker-item[data-value=""]::before { content: 'Normal' !important; }
+.ql-editor .ql-double-strike { text-decoration: line-through; text-decoration-style: double; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/email-templates/" class="btn btn-ghost-icon" title="Back">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title">Email Headers</h1>
+            <p class="rp-page-subtitle">Reusable HTML header blocks that can be prepended to any email template.</p>
+        </div>
+    </div>
+    <button class="btn btn-sm btn-primary" id="new-header-btn">
+        <i class="bi bi-plus-lg me-1"></i>New Header
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div id="headers-loading" class="text-center text-secondary py-5">
+    <div class="spinner-border spinner-border-sm me-2"></div>Loading headers…
+</div>
+
+<div id="headers-empty" class="d-none rp-card text-center py-5">
+    <i class="bi bi-layout-text-window text-secondary" style="font-size:3rem;opacity:.3"></i>
+    <h5 class="mt-3 text-secondary">No headers yet</h5>
+    <p class="text-secondary small">Create a reusable header block to attach to email templates.</p>
+    <button class="btn btn-sm btn-primary mt-1" id="new-header-btn-empty">
+        <i class="bi bi-plus-lg me-1"></i>New Header
+    </button>
+</div>
+
+<div id="headers-grid" class="d-none row g-3"></div>
+
+<!-- Create / Edit Modal -->
+<div class="modal fade" id="headerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="modal-title"><i class="bi bi-layout-text-window me-2"></i>New Header</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="wizard-field-label mb-1">Name <span class="text-danger">*</span></label>
+                    <input type="text" id="modal-name" class="form-control form-control-sm"
+                           placeholder="e.g. Corporate Brand Header" />
+                    <div id="modal-name-error" class="text-danger small mt-1 d-none"></div>
+                </div>
+                <div>
+                    <div class="d-flex align-items-center justify-content-between mb-1">
+                        <label class="wizard-field-label mb-0">Content <span class="text-danger">*</span></label>
+                        <div class="btn-group btn-group-sm" id="modal-mode-tabs" role="group">
+                            <button type="button" class="btn btn-secondary" data-mode="rich" title="Rich text editor"><i class="bi bi-pencil me-1"></i>Rich</button>
+                            <button type="button" class="btn btn-outline-secondary" data-mode="html" title="Raw HTML"><i class="bi bi-code-slash me-1"></i>HTML</button>
+                            <button type="button" class="btn btn-outline-secondary" data-mode="markdown" title="Markdown"><i class="bi bi-markdown me-1"></i>MD</button>
+                        </div>
+                    </div>
+                    <div id="modal-editor"></div>
+                    <textarea id="modal-html-source" class="form-control d-none" style="font-family:monospace;font-size:12px;height:300px;" spellcheck="false"></textarea>
+                    <textarea id="modal-markdown-source" class="form-control d-none" style="font-family:monospace;font-size:13px;height:300px;" spellcheck="false" placeholder="Write Markdown here…"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0 d-flex justify-content-between">
+                <button class="btn btn-sm btn-outline-danger d-none" id="modal-delete-btn">
+                    <i class="bi bi-trash3 me-1"></i>Delete
+                </button>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-sm btn-primary" id="modal-save-btn">
+                        <i class="bi bi-check-lg me-1"></i>Save
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/turndown/dist/turndown.js"></script>
+<script type="module" src="{% static 'js/modules/email_template_headers.js' %}"></script>
+{% endblock %}

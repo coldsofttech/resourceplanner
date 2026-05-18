@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Email Templates{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Email Templates</h1>
+        <p class="rp-page-subtitle">Configure HTML templates for each email scenario sent by the system.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="/email-templates/headers/" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-layout-text-window me-1"></i>Manage Headers
+        </a>
+        <a href="/email-templates/footers/" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-layout-text-window-reverse me-1"></i>Manage Footers
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Loading -->
+<div id="scenarios-loading" class="text-center text-secondary py-5">
+    <div class="spinner-border spinner-border-sm me-2"></div>Loading templates…
+</div>
+
+<!-- Scenario cards -->
+<div id="scenarios-grid" class="d-none">
+    <div class="row g-4" id="scenario-cards"></div>
+</div>
+
+<!-- Empty -->
+<div id="scenarios-error" class="d-none rp-card text-center py-5">
+    <i class="bi bi-exclamation-circle text-danger" style="font-size:2.5rem;opacity:.4"></i>
+    <h5 class="mt-3 text-secondary">Could not load scenarios</h5>
+    <p class="text-secondary small" id="scenarios-error-msg"></p>
+</div>
+
+<style>
+.et-scenario-card {
+    border: 1px solid var(--rp-border-color, #e5e7eb);
+    border-radius: 12px;
+    background: var(--rp-card-bg, #fff);
+    transition: box-shadow .15s;
+    overflow: hidden;
+}
+.et-scenario-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,.08); }
+.et-scenario-card-header {
+    padding: 20px 20px 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+.et-scenario-icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.25rem; flex-shrink: 0;
+}
+.et-scenario-icon--info    { background: rgba(14,165,233,.12); color: #0284c7; }
+.et-scenario-icon--warning { background: rgba(245,158,11,.12); color: #b45309; }
+.et-scenario-icon--primary { background: rgba(99,102,241,.10); color: #4338ca; }
+.et-scenario-icon--success { background: rgba(34,197,94,.10);  color: #15803d; }
+.et-scenario-title   { font-size: .95rem; font-weight: 600; margin-bottom: 2px; }
+.et-scenario-desc    { font-size: .8rem; color: var(--rp-text-muted); line-height: 1.4; }
+.et-scenario-footer  { padding: 12px 20px; border-top: 1px solid var(--rp-border-color, #f3f4f6);
+                        display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.et-scenario-meta    { font-size: .75rem; color: var(--rp-text-muted); }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/email_templates.js' %}"></script>
+{% endblock %}

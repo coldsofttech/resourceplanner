@@ -1,0 +1,250 @@
+SCENARIO_VARIABLES = {
+    'user_created': [
+        {
+            'key': '{{ first_name }}',
+            'label': 'First Name',
+            'description': "Recipient's first name",
+            'group': 'User',
+        },
+        {
+            'key': '{{ last_name }}',
+            'label': 'Last Name',
+            'description': "Recipient's last name",
+            'group': 'User',
+        },
+        {
+            'key': '{{ email }}',
+            'label': 'Email Address',
+            'description': "Recipient's email address",
+            'group': 'User',
+        },
+        {
+            'key': '{{ created_at }}',
+            'label': 'Created At',
+            'description': 'Account creation date and time',
+            'group': 'User',
+        },
+        {
+            'key': '{{ temp_password }}',
+            'label': 'Temporary Password',
+            'description': 'Auto-generated temporary password',
+            'group': 'User',
+        },
+        {
+            'key': '{{ login_url }}',
+            'label': 'Login URL',
+            'description': 'Direct link to the login page',
+            'group': 'System',
+        },
+        {
+            'key': '{{ app_name }}',
+            'label': 'Application Name',
+            'description': 'Configured application name',
+            'group': 'System',
+        },
+    ],
+    'password_reset': [
+        {
+            'key': '{{ first_name }}',
+            'label': 'First Name',
+            'description': "Recipient's first name",
+            'group': 'User',
+        },
+        {
+            'key': '{{ last_name }}',
+            'label': 'Last Name',
+            'description': "Recipient's last name",
+            'group': 'User',
+        },
+        {
+            'key': '{{ email }}',
+            'label': 'Email Address',
+            'description': "Recipient's email address",
+            'group': 'User',
+        },
+        {
+            'key': '{{ reset_link }}',
+            'label': 'Reset Link',
+            'description': 'Password reset URL (full clickable link)',
+            'group': 'Action',
+        },
+        {
+            'key': '{{ expires_at }}',
+            'label': 'Link Expiry',
+            'description': 'Date/time when the reset link expires',
+            'group': 'Action',
+        },
+        {
+            'key': '{{ app_name }}',
+            'label': 'Application Name',
+            'description': 'Configured application name',
+            'group': 'System',
+        },
+    ],
+    'recharge_forecast': [
+        {
+            'key': '{{ sprint_name }}',
+            'label': 'Sprint Name',
+            'description': 'Name of the sprint (e.g. Sprint 12)',
+            'group': 'Sprint',
+        },
+        {
+            'key': '{{ fy }}',
+            'label': 'Financial Year',
+            'description': 'Financial year code (e.g. FY25/26)',
+            'group': 'Sprint',
+        },
+        {
+            'key': '{{ project_name }}',
+            'label': 'Project Name',
+            'description': 'Name of the recharged project',
+            'group': 'Project',
+        },
+        {
+            'key': '{{ project_code }}',
+            'label': 'Project Code',
+            'description': 'Unique project code',
+            'group': 'Project',
+        },
+        {
+            'key': '{{ total_days }}',
+            'label': 'Total Days',
+            'description': 'Total recharged days for this project',
+            'group': 'Totals',
+        },
+        {
+            'key': '{{ total_cost }}',
+            'label': 'Total Cost (£)',
+            'description': 'Total recharged cost in £',
+            'group': 'Totals',
+        },
+        {
+            'key': '{{ recharge_table }}',
+            'label': 'Recharge Table',
+            'description': 'Full recharge breakdown table (configured in Table Block section below)',
+            'group': 'Table',
+            'type': 'table',
+        },
+    ],
+    'recharge_actuals': [
+        {
+            'key': '{{ sprint_name }}',
+            'label': 'Sprint Name',
+            'description': 'Name of the sprint',
+            'group': 'Sprint',
+        },
+        {
+            'key': '{{ fy }}',
+            'label': 'Financial Year',
+            'description': 'Financial year code (e.g. FY25/26)',
+            'group': 'Sprint',
+        },
+        {
+            'key': '{{ project_name }}',
+            'label': 'Project Name',
+            'description': 'Name of the recharged project',
+            'group': 'Project',
+        },
+        {
+            'key': '{{ project_code }}',
+            'label': 'Project Code',
+            'description': 'Unique project code',
+            'group': 'Project',
+        },
+        {
+            'key': '{{ total_days }}',
+            'label': 'Total Days',
+            'description': 'Total actual recharged days',
+            'group': 'Totals',
+        },
+        {
+            'key': '{{ total_cost }}',
+            'label': 'Total Cost (£)',
+            'description': 'Total actual recharged cost in £',
+            'group': 'Totals',
+        },
+        {
+            'key': '{{ recharge_table }}',
+            'label': 'Recharge Table',
+            'description': 'Full recharge actuals breakdown table (configured in Table Block section below)',
+            'group': 'Table',
+            'type': 'table',
+        },
+    ],
+}
+
+RECHARGE_TABLE_COLUMNS = [
+    {'key': 'jira_id',       'label': 'Jira ID',       'default': True},
+    {'key': 'title',         'label': 'Title / Story',  'default': True},
+    {'key': 'assignee',      'label': 'Assignee',       'default': True},
+    {'key': 'team',          'label': 'Team',           'default': False},
+    {'key': 'label',         'label': 'Label',          'default': True},
+    {'key': 'finance_type',  'label': 'Finance Type',   'default': False},
+    {'key': 'days',          'label': 'Days',           'default': True},
+    {'key': 'cost',          'label': 'Cost (£)',        'default': True},
+]
+
+SCENARIO_META = {
+    'user_created': {
+        'label': 'New User Created',
+        'description': 'Triggered when a new user account is created in the system.',
+        'icon': 'bi-person-plus-fill',
+        'color': 'info',
+    },
+    'password_reset': {
+        'label': 'Password Reset',
+        'description': 'Triggered when a user requests a password reset link.',
+        'icon': 'bi-key-fill',
+        'color': 'warning',
+    },
+    'recharge_forecast': {
+        'label': 'Recharge Forecast',
+        'description': 'Used when sending recharge forecast approval emails to finance contacts.',
+        'icon': 'bi-receipt',
+        'color': 'primary',
+    },
+    'recharge_actuals': {
+        'label': 'Recharge Actuals',
+        'description': 'Used when sending recharge actuals approval emails to finance contacts.',
+        'icon': 'bi-receipt-cutoff',
+        'color': 'success',
+    },
+}
+
+SAMPLE_VARIABLE_DATA = {
+    'user_created': {
+        '{{ first_name }}': 'Jane',
+        '{{ last_name }}': 'Smith',
+        '{{ email }}': 'jane.smith@example.com',
+        '{{ created_at }}': '18 May 2026 09:30',
+        '{{ temp_password }}': 'Temp@1234',
+        '{{ login_url }}': 'https://app.example.com/login/',
+        '{{ app_name }}': 'ResourcePlanner',
+    },
+    'password_reset': {
+        '{{ first_name }}': 'Jane',
+        '{{ last_name }}': 'Smith',
+        '{{ email }}': 'jane.smith@example.com',
+        '{{ reset_link }}': 'https://app.example.com/reset/?token=abc123',
+        '{{ expires_at }}': '18 May 2026 11:30',
+        '{{ app_name }}': 'ResourcePlanner',
+    },
+    'recharge_forecast': {
+        '{{ sprint_name }}': 'Sprint 12',
+        '{{ fy }}': 'FY25/26',
+        '{{ project_name }}': 'Data Platform Rebuild',
+        '{{ project_code }}': 'DPR-001',
+        '{{ total_days }}': '14.50',
+        '{{ total_cost }}': '£10,875.00',
+        '{{ recharge_table }}': '<table class="table table-sm table-bordered"><thead><tr><th>Jira ID</th><th>Title</th><th>Assignee</th><th>Days</th><th>Cost (£)</th></tr></thead><tbody><tr><td>DATA-101</td><td>Setup pipeline</td><td>Alex T.</td><td>5.00</td><td>3,750.00</td></tr><tr><td>DATA-102</td><td>ETL jobs</td><td>Sam K.</td><td>9.50</td><td>7,125.00</td></tr></tbody><tfoot><tr><th colspan="3">Total</th><th>14.50</th><th>10,875.00</th></tr></tfoot></table>',
+    },
+    'recharge_actuals': {
+        '{{ sprint_name }}': 'Sprint 12',
+        '{{ fy }}': 'FY25/26',
+        '{{ project_name }}': 'Data Platform Rebuild',
+        '{{ project_code }}': 'DPR-001',
+        '{{ total_days }}': '13.00',
+        '{{ total_cost }}': '£9,750.00',
+        '{{ recharge_table }}': '<table class="table table-sm table-bordered"><thead><tr><th>Jira ID</th><th>Title</th><th>Assignee</th><th>Days</th><th>Cost (£)</th></tr></thead><tbody><tr><td>DATA-101</td><td>Setup pipeline</td><td>Alex T.</td><td>4.00</td><td>3,000.00</td></tr><tr><td>DATA-102</td><td>ETL jobs</td><td>Sam K.</td><td>9.00</td><td>6,750.00</td></tr></tbody><tfoot><tr><th colspan="3">Total</th><th>13.00</th><th>9,750.00</th></tr></tfoot></table>',
+    },
+}

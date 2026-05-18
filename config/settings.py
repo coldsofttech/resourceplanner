@@ -79,6 +79,7 @@ INSTALLED_APPS = [
     "apps.permissions",
     "apps.reporting",
     "apps.sprint_forecast",
+    "apps.email_templates",
 ]
 
 MIDDLEWARE = [
