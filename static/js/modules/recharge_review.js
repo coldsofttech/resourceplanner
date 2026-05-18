@@ -79,7 +79,7 @@ function _renderAccordion(entries) {
             <div id="entry-body-${idx}" class="accordion-collapse collapse">
                 <div class="accordion-body pt-0">
                     ${entry.has_changes ? _buildChangesTable(entry) : ''}
-                    ${_buildEmailPreview(entry)}
+                    ${_buildEmailPreview(entry, idx)}
                     <div class="d-flex align-items-center justify-content-between mt-3 flex-wrap gap-2">
                         ${entry.email_status
                             ? `<span class="text-secondary small">Last sent: ${_fmtDate(entry.last_sent_at)}</span>`
@@ -96,6 +96,8 @@ function _renderAccordion(entries) {
             </div>
         </div>`;
     }).join('');
+
+    _injectEmailIframes(entries);
 
     acc.querySelectorAll('.send-entry-btn').forEach(btn =>
         btn.addEventListener('click', () => _sendEntry(btn))
@@ -128,64 +130,62 @@ function _buildChangesTable(entry) {
     </div>`;
 }
 
-function _buildEmailPreview(entry) {
+function _buildEmailPreview(entry, idx) {
     const toList = (entry.to_emails || []).join(', ') || '—';
     const ccList = (entry.cc_emails || []).join(', ') || '—';
-
-    // Build HTML body preview (text snippet from first project's stories)
-    let bodyPreview = `<p>Dear Team,</p>`;
-    const verb = RECHARGE_TYPE === 'FORECAST' ? 'planned' : 'completed';
-    bodyPreview += `<p>We are writing to request your approval for the ${verb} Jira stories for this sprint.</p>`;
-
-    entry.projects.forEach(p => {
-        bodyPreview += `<h4 style="font-size:14px;margin-top:16px;margin-bottom:6px">${_esc(p.name)} (${_esc(p.programme_name)})</h4>`;
-        bodyPreview += `<p style="margin:0 0 8px"><strong>Project Code:</strong> ${_esc(p.project_code || '—')}</p>`;
-        if (p.stories && p.stories.length) {
-            bodyPreview += `<table style="width:100%;border-collapse:collapse;font-size:13px">
-                <thead><tr style="background:#f0f0f0">
-                    <th style="padding:4px 8px;border:1px solid #ddd;text-align:left">Jira ID</th>
-                    <th style="padding:4px 8px;border:1px solid #ddd;text-align:left">Title</th>
-                    <th style="padding:4px 8px;border:1px solid #ddd;text-align:right">Days</th>
-                    <th style="padding:4px 8px;border:1px solid #ddd;text-align:right">Cost (£)</th>
-                </tr></thead><tbody>`;
-            p.stories.forEach(s => {
-                bodyPreview += `<tr>
-                    <td style="padding:4px 8px;border:1px solid #ddd">${_esc(s.jira_id)}</td>
-                    <td style="padding:4px 8px;border:1px solid #ddd">${_esc(s.title)}</td>
-                    <td style="padding:4px 8px;border:1px solid #ddd;text-align:right">${s.total_days}</td>
-                    <td style="padding:4px 8px;border:1px solid #ddd;text-align:right">£${parseFloat(s.cost).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-                </tr>`;
-            });
-            bodyPreview += `<tr style="font-weight:bold;background:#f9f9f9">
-                <td colspan="2" style="padding:4px 8px;border:1px solid #ddd">Total</td>
-                <td style="padding:4px 8px;border:1px solid #ddd;text-align:right">${p.total_days}</td>
-                <td style="padding:4px 8px;border:1px solid #ddd;text-align:right">£${parseFloat(p.total_cost).toLocaleString(undefined,{minimumFractionDigits:2})}</td>
-            </tr>`;
-            bodyPreview += `</tbody></table>`;
-        } else {
-            bodyPreview += `<p class="text-secondary small">No stories linked.</p>`;
-        }
-    });
-    bodyPreview += `<p style="margin-top:16px">Please review and respond within <strong>48 hours</strong> to confirm your approval.</p>`;
-
     return `
     <div class="email-preview-block">
-        <div class="email-field-row">
-            <span class="email-field-label">To:</span>
-            <span>${_esc(toList)}</span>
+        <div class="email-client-header">
+            <div class="email-field-row">
+                <span class="email-field-label"><i class="bi bi-person-fill me-1"></i>To</span>
+                <span>${_esc(toList)}</span>
+            </div>
+            <div class="email-field-row">
+                <span class="email-field-label"><i class="bi bi-people me-1"></i>Cc</span>
+                <span class="text-secondary">${_esc(ccList)}</span>
+            </div>
+            <div class="email-field-row" style="border-bottom:none;margin-bottom:0;padding-bottom:0">
+                <span class="email-field-label"><i class="bi bi-tag me-1"></i>Subject</span>
+                <span class="fw-600">${_esc(entry.subject)}</span>
+            </div>
         </div>
-        <div class="email-field-row">
-            <span class="email-field-label">Cc:</span>
-            <span class="text-secondary">${_esc(ccList)}</span>
-        </div>
-        <div class="email-field-row">
-            <span class="email-field-label">Subject:</span>
-            <span>${_esc(entry.subject)}</span>
-        </div>
-        <div class="email-body-wrap">
-            <div style="font-size:13px">${bodyPreview}</div>
+        <div class="email-body-wrap" id="email-preview-${idx}">
+            <div class="text-secondary small text-center py-3">
+                <span class="spinner-border spinner-border-sm me-1"></span>Loading preview…
+            </div>
         </div>
     </div>`;
+}
+
+function _injectEmailIframes(entries) {
+    entries.forEach((entry, idx) => {
+        const container = document.getElementById(`email-preview-${idx}`);
+        if (!container) return;
+        if (!entry.body_html) {
+            container.innerHTML = '<p class="text-secondary small px-3 py-2 mb-0">No preview available.</p>';
+            return;
+        }
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'width:100%;min-height:420px;border:none;display:block';
+        iframe.setAttribute('sandbox', 'allow-same-origin');
+        iframe.title = 'Email Preview';
+        container.innerHTML = '';
+        container.appendChild(iframe);
+        const doc = iframe.contentDocument || iframe.contentWindow.document;
+        doc.open();
+        doc.write(entry.body_html);
+        doc.close();
+        // Resize to content when the accordion panel is revealed
+        const collapseEl = document.getElementById(`entry-body-${idx}`);
+        const _resize = () => {
+            try {
+                const h = doc.documentElement.scrollHeight || doc.body?.scrollHeight || 420;
+                if (h > 50) iframe.style.height = (h + 16) + 'px';
+            } catch (_) {}
+        };
+        if (collapseEl) collapseEl.addEventListener('shown.bs.collapse', _resize);
+        setTimeout(_resize, 250);
+    });
 }
 
 async function _triggerAll() {

@@ -555,37 +555,155 @@ def _build_recharge_email_entries(sprint_id, recharge_type):
         }
 
     def _body_html(projects_data):
-        projects_html = ''
+        grand_days = sum(Decimal(p['total_days']) for p in projects_data)
+        grand_cost = sum(Decimal(p['total_cost']) for p in projects_data)
+        is_forecast = (recharge_type == RECHARGE_TYPE_FORECAST)
+        badge_bg = '#f59e0b' if is_forecast else '#10b981'
+        badge_fg = '#78350f' if is_forecast else '#065f46'
+
+        sections = ''
         for p in projects_data:
-            rows = ''.join(
-                f'<tr><td>{_esc(s["jira_id"])}</td><td>{_esc(s["title"])}</td>'
-                f'<td align="right">{s["total_days"]}</td>'
-                f'<td align="right">£{float(s["cost"]):,.2f}</td></tr>'
-                for s in p['stories']
-            )
             pc = _esc(p['project_code'] or '—')
-            projects_html += (
-                f'<h3 style="margin-top:24px;font-size:16px">{_esc(p["name"])} ({_esc(p["programme_name"])})</h3>'
-                f'<p>Project Code to be charged: <strong>{pc}</strong></p>'
-                f'<table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse;width:100%;font-size:14px">'
-                f'<thead style="background:#f0f0f0"><tr>'
-                f'<th align="left">Jira ID</th><th align="left">Title / Description</th>'
-                f'<th align="right">Days</th><th align="right">Cost (£)</th>'
-                f'</tr></thead><tbody>{rows}'
-                f'<tr style="font-weight:bold;background:#f9f9f9">'
-                f'<td colspan="2">Total</td>'
-                f'<td align="right">{p["total_days"]}</td>'
-                f'<td align="right">£{float(p["total_cost"]):,.2f}</td>'
-                f'</tr></tbody></table>'
+            story_rows = ''
+            for i, s in enumerate(p['stories']):
+                bg = '#f8fafc' if i % 2 == 0 else '#ffffff'
+                story_rows += (
+                    f'<tr style="background:{bg}">'
+                    f'<td style="padding:9px 12px;border-bottom:1px solid #e2e8f0;white-space:nowrap">'
+                    f'<span style="background:#dbeafe;color:#1d4ed8;padding:2px 7px;border-radius:4px;'
+                    f'font-size:11px;font-weight:700;font-family:Courier New,monospace">{_esc(s["jira_id"])}</span>'
+                    f'</td>'
+                    f'<td style="padding:9px 12px;border-bottom:1px solid #e2e8f0;font-size:13px;color:#334155">'
+                    f'{_esc(s["title"])}</td>'
+                    f'<td style="padding:9px 12px;border-bottom:1px solid #e2e8f0;text-align:right;'
+                    f'font-family:Courier New,monospace;font-size:13px;color:#475569;white-space:nowrap">'
+                    f'{s["total_days"]}</td>'
+                    f'<td style="padding:9px 12px;border-bottom:1px solid #e2e8f0;text-align:right;'
+                    f'font-family:Courier New,monospace;font-size:13px;color:#475569;white-space:nowrap">'
+                    f'&#163;{float(s["cost"]):,.2f}</td>'
+                    f'</tr>'
+                )
+            story_rows += (
+                f'<tr style="background:#f0fdf4">'
+                f'<td colspan="2" style="padding:9px 12px;font-size:13px;font-weight:700;color:#15803d">'
+                f'&#10003; Subtotal</td>'
+                f'<td style="padding:9px 12px;text-align:right;font-family:Courier New,monospace;'
+                f'font-size:13px;font-weight:700;color:#15803d;white-space:nowrap">{p["total_days"]}</td>'
+                f'<td style="padding:9px 12px;text-align:right;font-family:Courier New,monospace;'
+                f'font-size:13px;font-weight:700;color:#15803d;white-space:nowrap">'
+                f'&#163;{float(p["total_cost"]):,.2f}</td>'
+                f'</tr>'
             )
+            sections += (
+                f'<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:20px">'
+                f'<tr><td style="background:#f8fafc;border-left:3px solid #3b82f6;'
+                f'padding:10px 14px;border-radius:0 6px 6px 0">'
+                f'<span style="font-size:15px;font-weight:700;color:#1e293b">&#128193; {_esc(p["name"])}</span>'
+                f'<span style="font-size:12px;color:#64748b;margin-left:8px">({_esc(p["programme_name"])})</span><br>'
+                f'<span style="font-size:12px;color:#64748b;display:inline-block;margin-top:3px">'
+                f'&#128273; Project Code:&nbsp;'
+                f'<strong style="font-family:Courier New,monospace;color:#1e293b">{pc}</strong>'
+                f'</span></td></tr>'
+                f'<tr><td>'
+                f'<table width="100%" cellpadding="0" cellspacing="0" '
+                f'style="border-collapse:collapse;border:1px solid #e2e8f0">'
+                f'<thead><tr style="background:#1e3a5f">'
+                f'<th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:700;'
+                f'color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;white-space:nowrap">Jira ID</th>'
+                f'<th style="padding:9px 12px;text-align:left;font-size:10px;font-weight:700;'
+                f'color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px">Title / Description</th>'
+                f'<th style="padding:9px 12px;text-align:right;font-size:10px;font-weight:700;'
+                f'color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;white-space:nowrap">Days</th>'
+                f'<th style="padding:9px 12px;text-align:right;font-size:10px;font-weight:700;'
+                f'color:#94a3b8;text-transform:uppercase;letter-spacing:0.6px;white-space:nowrap">'
+                f'Cost (&#163;)</th>'
+                f'</tr></thead>'
+                f'<tbody>{story_rows}</tbody>'
+                f'</table>'
+                f'</td></tr>'
+                f'</table>'
+            )
+
         return (
-            f'<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;color:#333;max-width:800px;margin:0 auto;padding:20px">'
-            f'<p>Dear Team,</p>'
-            f'<p>We are writing to request your approval for the {verb} Jira stories for '
-            f'<strong>{_esc(sprint_name)}</strong> ({_esc(fy_short)}).</p>'
-            f'{projects_html}'
-            f'<p style="margin-top:24px">Please review and respond within <strong>48 hours</strong> to confirm your approval.</p>'
-            f'<p>Kind regards,<br>Resource Planning Team</p>'
+            f'<!DOCTYPE html><html>'
+            f'<head><meta charset="UTF-8">'
+            f'<meta name="viewport" content="width=device-width,initial-scale=1.0"></head>'
+            f'<body style="margin:0;padding:0;background:#f1f5f9;'
+            f'font-family:Segoe UI,Arial,Helvetica,sans-serif;color:#1e293b">'
+
+            # outer wrapper
+            f'<table width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:28px 16px">'
+            f'<tr><td align="center">'
+            f'<table width="640" cellpadding="0" cellspacing="0" style="max-width:640px;width:100%">'
+
+            # header
+            f'<tr><td style="background:#1e3a5f;border-radius:10px 10px 0 0;padding:0">'
+            f'<table width="100%" cellpadding="0" cellspacing="0">'
+            f'<tr><td style="padding:24px 32px 0">'
+            f'<table cellpadding="0" cellspacing="0"><tr>'
+            f'<td style="background:rgba(255,255,255,0.12);border-radius:5px;padding:5px 11px">'
+            f'<span style="color:#cbd5e1;font-size:11px;font-weight:700;letter-spacing:0.8px;'
+            f'text-transform:uppercase">&#128203; Resource Planning</span>'
+            f'</td></tr></table>'
+            f'<h1 style="margin:12px 0 4px;color:#f8fafc;font-size:21px;font-weight:700;line-height:1.3">'
+            f'Recharge Approval Request</h1>'
+            f'<p style="margin:0 0 20px;font-size:14px;color:#94a3b8">'
+            f'<span style="color:#93c5fd">{_esc(sprint_name)}</span>'
+            f'&nbsp;&#183;&nbsp;'
+            f'<span style="color:#94a3b8">{_esc(fy_short)}</span>'
+            f'&nbsp;&#183;&nbsp;'
+            f'<span style="background:{badge_bg};color:{badge_fg};padding:2px 9px;border-radius:4px;'
+            f'font-size:11px;font-weight:700">{_esc(type_label.upper())}</span>'
+            f'</p></td></tr>'
+
+            # summary strip
+            f'<tr><td style="background:#172a45;padding:14px 32px">'
+            f'<table width="100%" cellpadding="0" cellspacing="0"><tr>'
+            f'<td style="text-align:center;padding-right:16px;'
+            f'border-right:1px solid rgba(255,255,255,0.1)">'
+            f'<div style="font-size:10px;color:#64748b;font-weight:700;'
+            f'text-transform:uppercase;letter-spacing:0.8px">Total Days</div>'
+            f'<div style="font-size:24px;font-weight:700;color:#60a5fa;margin-top:2px">'
+            f'{float(grand_days):.2f}</div>'
+            f'</td>'
+            f'<td style="text-align:center;padding-left:16px">'
+            f'<div style="font-size:10px;color:#64748b;font-weight:700;'
+            f'text-transform:uppercase;letter-spacing:0.8px">Total Cost</div>'
+            f'<div style="font-size:24px;font-weight:700;color:#34d399;margin-top:2px">'
+            f'&#163;{float(grand_cost):,.2f}</div>'
+            f'</td></tr></table>'
+            f'</td></tr>'
+            f'</table></td></tr>'
+
+            # body
+            f'<tr><td style="background:#ffffff;padding:32px 32px 24px">'
+            f'<p style="margin:0 0 12px;font-size:15px;color:#1e293b">Dear Team,</p>'
+            f'<p style="margin:0 0 24px;font-size:14px;color:#475569;line-height:1.7">'
+            f'We are writing to request your approval for the '
+            f'<strong style="color:#1e293b">{verb}</strong> Jira stories for '
+            f'<strong style="color:#1e293b">{_esc(sprint_name)}</strong> ({_esc(fy_short)}). '
+            f'Please review the details below and confirm your approval.</p>'
+            f'{sections}'
+
+            # 48-hour notice
+            f'<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px">'
+            f'<tr><td style="background:#fffbeb;border-left:4px solid #f59e0b;padding:13px 17px">'
+            f'<span style="font-size:14px;color:#92400e">&#9201; Please review and respond within '
+            f'<strong>48 hours</strong> to confirm your approval.</span>'
+            f'</td></tr></table>'
+
+            f'<p style="margin:0;font-size:14px;color:#475569">Kind regards,<br>'
+            f'<strong style="color:#1e293b">Resource Planning Team</strong></p>'
+            f'</td></tr>'
+
+            # footer
+            f'<tr><td style="background:#0f1f35;border-radius:0 0 10px 10px;'
+            f'padding:16px 32px;text-align:center">'
+            f'<p style="margin:0;color:#475569;font-size:12px">This is an automated message '
+            f'from the Resource Planning system. Please do not reply directly.</p>'
+            f'</td></tr>'
+
+            f'</table></td></tr></table>'
             f'</body></html>'
         )
 
@@ -778,7 +896,6 @@ class RechargeViewSet(viewsets.ViewSet):
         try:
             entries = _build_recharge_email_entries(sprint_id, recharge_type)
             for e in entries:
-                e.pop('body_html', None)
                 # Detect changes vs last sent snapshot
                 le_qs = RechargeEmail.objects.filter(sprint_id=sprint_id, type=recharge_type, status=RECHARGE_EMAIL_STATUS_SENT)
                 if e.get('group_id'):

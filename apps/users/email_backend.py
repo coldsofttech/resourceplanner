@@ -1,9 +1,78 @@
 import logging
+import re
+import sys
 
+from django.core.mail.backends.base import BaseEmailBackend
 from django.core.mail.backends.smtp import EmailBackend as SMTPBackend
-from django.core.mail.backends.console import EmailBackend as ConsoleBackend
 
 logger = logging.getLogger(__name__)
+
+
+def _html_to_text(html):
+    """Strip HTML tags and produce readable plain text for console output."""
+    html = re.sub(r'<head[^>]*>.*?</head>', '', html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r'<script[^>]*>.*?</script>', '', html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r'<(h[1-6]|p|div|tr|li)[^>]*>', '\n', html, flags=re.IGNORECASE)
+    html = re.sub(r'</(h[1-6]|p|div)>', '\n', html, flags=re.IGNORECASE)
+    html = re.sub(r'<br\s*/?>', '\n', html, flags=re.IGNORECASE)
+    html = re.sub(r'<t[dh][^>]*>', ' | ', html, flags=re.IGNORECASE)
+    html = re.sub(
+        r'<(strong|b)[^>]*>(.*?)</(strong|b)>',
+        lambda m: m.group(2).upper(),
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    html = re.sub(r'<[^>]+>', '', html)
+    html = (html
+            .replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+            .replace('&nbsp;', ' ').replace('&quot;', '"').replace('&#x27;', "'")
+            .replace('&#163;', '£').replace('&#183;', '·'))
+    html = re.sub(r'&#(\d+);', lambda m: chr(int(m.group(1))), html)
+    html = re.sub(r'&#x([0-9a-fA-F]+);', lambda m: chr(int(m.group(1), 16)), html)
+    html = re.sub(r'[ \t]+', ' ', html)
+    html = re.sub(r'\n{3,}', '\n\n', html)
+    return '\n'.join(line.strip() for line in html.splitlines()).strip()
+
+
+class PrettyConsoleBackend(BaseEmailBackend):
+    """Console email backend — prints messages in a readable, formatted style."""
+
+    def send_messages(self, email_messages):
+        msgs = list(email_messages)
+        for msg in msgs:
+            self._print_message(msg)
+        return len(msgs)
+
+    def _print_message(self, msg):
+        RESET  = '\033[0m'
+        BOLD   = '\033[1m'
+        DIM    = '\033[2m'
+        BLUE   = '\033[94m'
+        CYAN   = '\033[96m'
+        YELLOW = '\033[93m'
+        BG_BLU = '\033[44m'
+        WHITE  = '\033[97m'
+        SEP    = '─' * 72
+        THICK  = '═' * 72
+
+        out = sys.stderr
+        out.write(f'\n{BOLD}{BLUE}{THICK}{RESET}\n')
+        out.write(f'{BOLD}{BG_BLU}{WHITE}  ✉  OUTGOING EMAIL  (console mode — not actually sent)  {RESET}\n')
+        out.write(f'{BOLD}{BLUE}{THICK}{RESET}\n')
+        out.write(f'  {BOLD}To     :{RESET} {CYAN}{", ".join(msg.to) or "(none)"}{RESET}\n')
+        if getattr(msg, 'cc', None):
+            out.write(f'  {BOLD}Cc     :{RESET} {", ".join(msg.cc)}\n')
+        out.write(f'  {BOLD}From   :{RESET} {msg.from_email or "(default)"}\n')
+        out.write(f'  {BOLD}Subject:{RESET} {YELLOW}{msg.subject}{RESET}\n')
+        out.write(f'{DIM}{SEP}{RESET}\n')
+        body = msg.body or ''
+        if getattr(msg, 'content_subtype', None) == 'html' or '<html' in body[:400].lower():
+            body = _html_to_text(body)
+        for line in body.splitlines():
+            out.write(f'  {line}\n')
+        out.write(f'{BOLD}{BLUE}{THICK}{RESET}\n\n')
+        out.flush()
 
 
 class ConfigurationEmailBackend:
@@ -29,7 +98,7 @@ class ConfigurationEmailBackend:
             host, port, user, password = 'localhost', 25, '', ''
 
         if protocol == 'console':
-            return ConsoleBackend(**kwargs)
+            return PrettyConsoleBackend(**kwargs)
 
         use_tls = protocol == 'smtp_tls'
         use_ssl = protocol == 'smtp_ssl'
