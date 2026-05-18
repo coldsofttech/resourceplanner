@@ -24,6 +24,43 @@ DoubleStrikeBlot.tagName  = 'span';
 DoubleStrikeBlot.className = 'ql-double-strike';
 Quill.register(DoubleStrikeBlot);
 
+// Bootstrap Icon blot — preserves <i class="bi bi-*"> as an inline embed so Quill
+// never strips or converts it to italic during Delta normalization.
+const Embed = Quill.import('blots/embed');
+class BootstrapIconBlot extends Embed {
+    static create(name) {
+        const node = super.create();
+        node.className = `bi bi-${name}`;
+        node.setAttribute('contenteditable', 'false');
+        return node;
+    }
+    static value(node) {
+        const biCls = [...node.classList].find(c => c.startsWith('bi-'));
+        return biCls ? biCls.slice(3) : '';
+    }
+}
+BootstrapIconBlot.blotName  = 'bootstrap-icon';
+BootstrapIconBlot.tagName   = 'i';
+BootstrapIconBlot.className = 'bi';
+Quill.register(BootstrapIconBlot);
+
+// Table blot — Quill 1.x has no table Delta support and strips <table> on normalisation.
+// Wrap tables in <div class="ql-table-wrap"> so Quill treats the whole block as an opaque
+// BlockEmbed and leaves the inner markup untouched.
+const BlockEmbed = Quill.import('blots/block/embed');
+class TableBlot extends BlockEmbed {
+    static create(value) {
+        const node = super.create();
+        node.innerHTML = typeof value === 'string' ? value : '';
+        return node;
+    }
+    static value(node) { return node.innerHTML; }
+}
+TableBlot.blotName  = 'table-block';
+TableBlot.tagName   = 'div';
+TableBlot.className = 'ql-table-wrap';
+Quill.register(TableBlot);
+
 // ── Toolbar container ─────────────────────────────────────────────────────────
 export const TOOLBAR_CONTAINER = [
     [{ font: FONTS }, { size: SIZES }],
@@ -268,82 +305,133 @@ export function injectCustomButtonIcons(quill) {
 }
 
 // ── Add custom format handlers after Quill creation ───────────────────────────
+// Use direct button listeners — more reliable than addHandler for custom formats.
 export function addCustomHandlers(quill) {
-    quill.getModule('toolbar').addHandler('double-strike', () => {
-        const fmt = quill.getFormat();
-        quill.format('double-strike', !fmt['double-strike'], 'user');
+    const tb  = quill.container.previousElementSibling;
+    const dsBtn = tb?.querySelector('.ql-double-strike');
+    if (dsBtn) {
+        dsBtn.addEventListener('click', e => {
+            e.preventDefault();
+            const fmt = quill.getFormat();
+            quill.format('double-strike', !fmt['double-strike'], 'user');
+        });
+    }
+}
+
+// ── Quill HTML round-trip helpers ─────────────────────────────────────────────
+// Wrap bare <table> elements in the ql-table-wrap div that TableBlot recognises.
+// Call before setting quill.root.innerHTML so Quill normalises them as opaque blocks.
+function _quillWrap(html) {
+    if (!html) return html;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    tmp.querySelectorAll('table').forEach(tbl => {
+        if (tbl.closest('.ql-table-wrap')) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'ql-table-wrap';
+        tbl.parentNode.insertBefore(wrap, tbl);
+        wrap.appendChild(tbl);
     });
+    return tmp.innerHTML;
+}
+
+// Reverse _quillWrap and strip Quill-injected contenteditable attributes before saving.
+function _quillUnwrap(html) {
+    if (!html) return html;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    tmp.querySelectorAll('.ql-table-wrap').forEach(wrap => {
+        while (wrap.firstChild) wrap.parentNode.insertBefore(wrap.firstChild, wrap);
+        wrap.remove();
+    });
+    tmp.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+    return tmp.innerHTML;
 }
 
 // ── Table picker ──────────────────────────────────────────────────────────────
-const TP_ROWS = 8, TP_COLS = 8;
+const TP_ROWS = 10, TP_COLS = 10;
 let _tablePicker = null;
 
 function _ensureTablePicker() {
     if (_tablePicker) return _tablePicker;
 
     _tablePicker = document.createElement('div');
-    _tablePicker.className = 'ql-table-picker';
     _tablePicker.style.cssText =
         'position:fixed;z-index:9999;background:#fff;border:1px solid var(--rp-border-color,#e5e7eb);' +
-        'border-radius:8px;padding:10px;box-shadow:0 4px 16px rgba(0,0,0,.12);display:none;';
+        'border-radius:8px;padding:10px;box-shadow:0 4px 16px rgba(0,0,0,.14);display:none;';
+    _tablePicker._triggerBtn = null;
+
+    const header = document.createElement('div');
+    header.style.cssText = 'font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--rp-text-muted);margin-bottom:6px;';
+    header.textContent = 'Insert Table';
 
     const grid  = document.createElement('div');
     grid.id     = 'ql-tp-grid';
-    grid.style.cssText = `display:grid;grid-template-columns:repeat(${TP_COLS},22px);gap:2px;`;
+    grid.style.cssText = `display:grid;grid-template-columns:repeat(${TP_COLS},20px);gap:2px;`;
 
     const label = document.createElement('div');
     label.id    = 'ql-tp-label';
-    label.style.cssText = 'text-align:center;font-size:11px;color:var(--rp-text-muted);margin-top:6px;';
-    label.textContent = 'Hover to select';
+    label.style.cssText = 'text-align:center;font-size:11px;color:var(--rp-text-muted);margin-top:7px;height:14px;';
+    label.textContent = '';
 
     for (let r = 1; r <= TP_ROWS; r++) {
         for (let c = 1; c <= TP_COLS; c++) {
             const cell = document.createElement('div');
             cell.dataset.r = r; cell.dataset.c = c;
-            cell.style.cssText = 'width:20px;height:20px;border:1px solid #dee2e6;border-radius:2px;cursor:pointer;';
+            cell.style.cssText = 'width:18px;height:18px;border:1px solid #dee2e6;border-radius:2px;cursor:pointer;box-sizing:border-box;';
             cell.addEventListener('mouseenter', () => {
                 const nr = +cell.dataset.r, nc = +cell.dataset.c;
                 grid.querySelectorAll('[data-r]').forEach(cl => {
                     const ir = +cl.dataset.r, ic = +cl.dataset.c;
-                    cl.style.background = ir <= nr && ic <= nc ? 'rgba(99,102,241,.25)' : '';
-                    cl.style.borderColor = ir <= nr && ic <= nc ? '#818cf8' : '#dee2e6';
+                    const sel = ir <= nr && ic <= nc;
+                    cl.style.background   = sel ? 'rgba(99,102,241,.2)' : '';
+                    cl.style.borderColor  = sel ? '#818cf8' : '#dee2e6';
                 });
-                label.textContent = `${nr} × ${nc} table`;
+                label.textContent = `${nr} × ${nc}`;
             });
             cell.addEventListener('click', () => {
-                _insertTable(_tablePicker._quill, +cell.dataset.r, +cell.dataset.c);
+                _insertTable(_tablePicker._quill, +cell.dataset.r, +cell.dataset.c, _tablePicker._savedSel);
                 _tablePicker.style.display = 'none';
             });
             grid.appendChild(cell);
         }
     }
 
+    _tablePicker.appendChild(header);
     _tablePicker.appendChild(grid);
     _tablePicker.appendChild(label);
     document.body.appendChild(_tablePicker);
 
-    document.addEventListener('click', e => {
-        if (_tablePicker.style.display !== 'none' && !_tablePicker.contains(e.target)) {
-            _tablePicker.style.display = 'none';
-        }
-    }, true);
+    // Close on click outside — but NOT when clicking the trigger button
+    // (the toolbar handler toggles it; capture listener must not interfere)
+    document.addEventListener('mousedown', e => {
+        if (_tablePicker.style.display === 'none') return;
+        if (_tablePicker.contains(e.target)) return;
+        if (_tablePicker._triggerBtn?.contains(e.target)) return;
+        _tablePicker.style.display = 'none';
+    });
 
     return _tablePicker;
 }
 
-function _insertTable(quill, rows, cols) {
-    let html = '<table style="border-collapse:collapse;width:100%;margin:8px 0"><tbody>';
+function _insertTable(quill, rows, cols, savedSel) {
+    let tableHtml = '<table style="border-collapse:collapse;width:100%;margin:8px 0"><tbody>';
     for (let r = 0; r < rows; r++) {
-        html += '<tr>';
+        tableHtml += '<tr>';
         for (let c = 0; c < cols; c++) {
-            html += '<td style="border:1px solid #dee2e6;padding:6px 10px;min-width:60px">&nbsp;</td>';
+            tableHtml += '<td contenteditable="true" style="border:1px solid #dee2e6;padding:6px 10px;min-width:60px">&nbsp;</td>';
         }
-        html += '</tr>';
+        tableHtml += '</tr>';
     }
-    html += '</tbody></table><p><br></p>';
-    const idx = (quill.getSelection(true) || { index: quill.getLength() }).index;
-    quill.clipboard.dangerouslyPasteHTML(idx, html);
+    tableHtml += '</tbody></table>';
+
+    quill.focus();
+    if (savedSel) quill.setSelection(savedSel.index, savedSel.length, 'silent');
+    const sel = quill.getSelection(true);
+    const idx = sel ? sel.index : quill.getLength() - 1;
+    quill.insertEmbed(idx, 'table-block', tableHtml, 'user');
+    quill.insertText(idx + 1, '\n', 'user');
+    quill.setSelection(idx + 2, 0, 'user');
 }
 
 export function setupTablePicker(quill) {
@@ -352,17 +440,22 @@ export function setupTablePicker(quill) {
     const btn    = tb?.querySelector('.ql-table');
     if (!btn) return;
 
-    quill.getModule('toolbar').addHandler('table', () => {
-        picker._quill = quill;
+    btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const isOpen = picker.style.display !== 'none';
+        if (isOpen) { picker.style.display = 'none'; return; }
+        picker._quill      = quill;
+        picker._triggerBtn = btn;
+        picker._savedSel   = quill.getSelection();
         const rect = btn.getBoundingClientRect();
         picker.style.left = `${rect.left}px`;
-        picker.style.top  = `${rect.bottom + 4}px`;
-        // reset highlight
+        picker.style.top  = `${rect.bottom + 6}px`;
         picker.querySelectorAll('[data-r]').forEach(cl => {
             cl.style.background = ''; cl.style.borderColor = '#dee2e6';
         });
-        picker.querySelector('#ql-tp-label').textContent = 'Hover to select';
-        picker.style.display = picker.style.display === 'none' ? 'block' : 'none';
+        picker.querySelector('#ql-tp-label').textContent = '';
+        picker.style.display = 'block';
     });
 }
 
@@ -373,10 +466,11 @@ function _ensureIconPicker() {
     if (_iconPicker) return _iconPicker;
 
     _iconPicker = document.createElement('div');
+    _iconPicker._triggerBtn = null;
     _iconPicker.style.cssText =
         'position:fixed;z-index:9999;background:#fff;border:1px solid var(--rp-border-color,#e5e7eb);' +
-        'border-radius:10px;padding:12px;box-shadow:0 4px 20px rgba(0,0,0,.14);display:none;' +
-        'width:320px;max-height:360px;display:none;flex-direction:column;gap:8px;';
+        'border-radius:10px;padding:12px;box-shadow:0 4px 20px rgba(0,0,0,.14);' +
+        'width:340px;max-height:380px;display:none;flex-direction:column;gap:8px;';
 
     const searchWrap = document.createElement('div');
     searchWrap.style.cssText = 'position:relative;';
@@ -411,8 +505,13 @@ function _ensureIconPicker() {
             btn.addEventListener('click', () => {
                 const q = _iconPicker._quill;
                 if (!q) return;
-                const idx = (q.getSelection(true) || { index: q.getLength() }).index;
-                q.clipboard.dangerouslyPasteHTML(idx, `<i class="bi bi-${name}"></i>`);
+                q.focus();
+                const saved = _iconPicker._savedSel;
+                if (saved) q.setSelection(saved.index, saved.length, 'silent');
+                const sel = q.getSelection(true);
+                const idx = sel ? sel.index : q.getLength() - 1;
+                q.insertEmbed(idx, 'bootstrap-icon', name, 'user');
+                q.setSelection(idx + 1, 0, 'user');
                 _iconPicker.style.display = 'none';
             });
             grid.appendChild(btn);
@@ -429,11 +528,12 @@ function _ensureIconPicker() {
     _iconPicker.appendChild(grid);
     document.body.appendChild(_iconPicker);
 
-    document.addEventListener('click', e => {
-        if (_iconPicker.style.display !== 'none' && !_iconPicker.contains(e.target)) {
-            _iconPicker.style.display = 'none';
-        }
-    }, true);
+    document.addEventListener('mousedown', e => {
+        if (_iconPicker.style.display === 'none') return;
+        if (_iconPicker.contains(e.target)) return;
+        if (_iconPicker._triggerBtn?.contains(e.target)) return;
+        _iconPicker.style.display = 'none';
+    });
 
     return _iconPicker;
 }
@@ -444,26 +544,30 @@ export function setupIconPicker(quill) {
     const btn    = tb?.querySelector('.ql-bi-icon');
     if (!btn) return;
 
-    quill.getModule('toolbar').addHandler('bi-icon', () => {
-        picker._quill = quill;
+    btn.addEventListener('click', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const isOpen = picker.style.display !== 'none';
+        if (isOpen) { picker.style.display = 'none'; return; }
+        picker._quill      = quill;
+        picker._triggerBtn = btn;
+        picker._savedSel   = quill.getSelection();
         const rect = btn.getBoundingClientRect();
-        const isHidden = picker.style.display === 'none' || picker.style.display === '';
-        picker.style.display = isHidden ? 'flex' : 'none';
-        if (isHidden) {
-            picker.style.left = `${Math.max(4, rect.right - 320)}px`;
-            picker.style.top  = `${rect.bottom + 4}px`;
-        }
+        picker.style.left = `${Math.max(4, rect.right - 340)}px`;
+        picker.style.top  = `${rect.bottom + 6}px`;
+        picker.style.display = 'flex';
     });
 }
 
 // ── Source mode manager (Rich | HTML | Markdown) ──────────────────────────────
 export class SourceModeManager {
     constructor({ quill, richEl, htmlEl, mdEl, tabsEl }) {
-        this.quill  = quill;
-        this.richEl = richEl;
-        this.htmlEl = htmlEl;
-        this.mdEl   = mdEl;
-        this.mode   = 'rich';
+        this.quill   = quill;
+        this.richEl  = richEl;
+        this.htmlEl  = htmlEl;
+        this.mdEl    = mdEl;
+        this._tabsEl = tabsEl;
+        this.mode    = 'rich';
 
         if (tabsEl) {
             tabsEl.querySelectorAll('[data-mode]').forEach(btn => {
@@ -472,19 +576,25 @@ export class SourceModeManager {
         }
     }
 
+    _toolbar() {
+        return this.quill.container.previousElementSibling;
+    }
+
     switchTo(newMode) {
         if (newMode === this.mode) return;
 
         // Capture current HTML before switching away
         const html = this.getContent();
 
-        // Hide all panels
+        // Hide all panels + toolbar
+        this._toolbar()?.classList.add('d-none');
         this.richEl.classList.add('d-none');
         this.htmlEl.classList.add('d-none');
         this.mdEl?.classList.add('d-none');
 
         if (newMode === 'rich') {
-            this.quill.root.innerHTML = html;
+            this.quill.root.innerHTML = _quillWrap(html);
+            this._toolbar()?.classList.remove('d-none');
             this.richEl.classList.remove('d-none');
 
         } else if (newMode === 'html') {
@@ -494,7 +604,6 @@ export class SourceModeManager {
 
         } else if (newMode === 'markdown') {
             if (this.mdEl) {
-                // HTML → Markdown via TurndownService (CDN) if available
                 if (window.TurndownService) {
                     const td = new TurndownService({
                         headingStyle: 'atx',
@@ -515,10 +624,10 @@ export class SourceModeManager {
     }
 
     _syncTabs() {
-        document.querySelectorAll('[data-mode]').forEach(btn => {
+        const root = this._tabsEl || document;
+        root.querySelectorAll('[data-mode]').forEach(btn => {
             const isActive = btn.dataset.mode === this.mode;
             btn.classList.toggle('active', isActive);
-            // Bootstrap btn-outline: swap active state
             if (isActive) {
                 btn.classList.remove('btn-outline-secondary');
                 btn.classList.add('btn-secondary');
@@ -529,8 +638,12 @@ export class SourceModeManager {
         });
     }
 
+    setContent(html) {
+        this.quill.root.innerHTML = _quillWrap(html || '');
+    }
+
     getContent() {
-        if (this.mode === 'rich') return this.quill.root.innerHTML;
+        if (this.mode === 'rich') return _quillUnwrap(this.quill.root.innerHTML);
         if (this.mode === 'html') return this.htmlEl.value;
         if (this.mode === 'markdown') {
             if (this.mdEl && window.marked) {
@@ -540,4 +653,288 @@ export class SourceModeManager {
         }
         return '';
     }
+}
+
+// ── Right-click context menu (Rich mode only) ─────────────────────────────────
+let _contextMenu = null;
+let _cmCtx = { table: null, cell: null, quill: null, borderColor: '#dee2e6' };
+
+function _ensureContextMenu() {
+    if (_contextMenu) return _contextMenu;
+
+    _contextMenu = document.createElement('div');
+    _contextMenu.style.cssText =
+        'position:fixed;z-index:10000;background:#fff;border:1px solid var(--rp-border-color,#e5e7eb);' +
+        'border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,.16);min-width:200px;padding:4px 0;display:none;';
+
+    document.body.appendChild(_contextMenu);
+
+    document.addEventListener('mousedown', e => {
+        if (_contextMenu.style.display !== 'none' && !_contextMenu.contains(e.target)) {
+            _contextMenu.style.display = 'none';
+        }
+    });
+
+    return _contextMenu;
+}
+
+function _cmItem(icon, label, danger, onClick) {
+    const el = document.createElement('div');
+    el.style.cssText =
+        `display:flex;align-items:center;gap:8px;padding:7px 14px;font-size:13px;cursor:pointer;` +
+        `color:${danger ? '#dc3545' : 'inherit'};user-select:none;`;
+    el.innerHTML = `<i class="bi ${icon}" style="font-size:13px;width:14px;flex-shrink:0"></i><span>${label}</span>`;
+    el.addEventListener('mouseenter', () => el.style.background = 'var(--rp-row-hover,#f0f4ff)');
+    el.addEventListener('mouseleave', () => el.style.background = '');
+    el.addEventListener('mousedown', e => { e.preventDefault(); e.stopPropagation(); });
+    el.addEventListener('click', e => {
+        e.stopPropagation();
+        onClick();
+        _contextMenu.style.display = 'none';
+    });
+    return el;
+}
+
+function _cmSep() {
+    const el = document.createElement('div');
+    el.style.cssText = 'height:1px;background:var(--rp-border-color,#f0f0f0);margin:3px 0;';
+    return el;
+}
+
+function _cmLabel(text) {
+    const el = document.createElement('div');
+    el.style.cssText = 'padding:4px 14px 2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--rp-text-muted);';
+    el.textContent = text;
+    return el;
+}
+
+function _cmColorRow(label, initialColor, onChange) {
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:5px 14px;font-size:12px;';
+
+    const txt = document.createElement('span');
+    txt.textContent = label;
+
+    // Preset palette
+    const presets = ['#ffffff','#f8f9fa','#e9ecef','#fff3cd','#d1ecf1','#d4edda','#f8d7da','#cce5ff'];
+    const palette = document.createElement('div');
+    palette.style.cssText = 'display:flex;gap:3px;align-items:center;';
+
+    presets.forEach(color => {
+        const swatch = document.createElement('div');
+        swatch.title = color;
+        swatch.style.cssText = `width:14px;height:14px;border-radius:2px;border:1px solid #dee2e6;background:${color};cursor:pointer;flex-shrink:0;`;
+        swatch.addEventListener('mousedown', e => e.preventDefault());
+        swatch.addEventListener('click', e => { e.stopPropagation(); onChange(color); });
+        palette.appendChild(swatch);
+    });
+
+    const custom = document.createElement('input');
+    custom.type = 'color';
+    custom.value = initialColor;
+    custom.title = 'Custom color';
+    custom.style.cssText = 'width:20px;height:20px;border:1px solid #dee2e6;border-radius:2px;padding:1px;cursor:pointer;';
+    custom.addEventListener('mousedown', e => e.stopPropagation());
+    custom.addEventListener('input', () => onChange(custom.value));
+    palette.appendChild(custom);
+
+    el.appendChild(txt);
+    el.appendChild(palette);
+    return el;
+}
+
+function _cmBorderStyleRow() {
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;justify-content:space-between;padding:5px 14px;font-size:12px;';
+    const txt = document.createElement('span');
+    txt.textContent = 'Border style';
+
+    const btns = document.createElement('div');
+    btns.style.cssText = 'display:flex;gap:3px;';
+
+    const styles = [
+        { label: '—', title: 'Solid', val: 'solid' },
+        { label: '- -', title: 'Dashed', val: 'dashed' },
+        { label: '···', title: 'Dotted', val: 'dotted' },
+        { label: '═', title: 'Double', val: 'double' },
+        { label: '✕', title: 'None', val: 'none' },
+    ];
+    styles.forEach(({ label, title, val }) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.title = title; b.textContent = label;
+        b.style.cssText = 'padding:1px 6px;font-size:11px;border:1px solid #dee2e6;border-radius:3px;cursor:pointer;background:#fff;';
+        b.addEventListener('mousedown', e => e.preventDefault());
+        b.addEventListener('click', e => {
+            e.stopPropagation();
+            const { table } = _cmCtx;
+            if (!table) return;
+            table.querySelectorAll('td,th').forEach(cell => {
+                if (val === 'none') { cell.style.border = 'none'; }
+                else { cell.style.border = `1px ${val} ${_cmCtx.borderColor}`; }
+            });
+        });
+        btns.appendChild(b);
+    });
+
+    el.appendChild(txt);
+    el.appendChild(btns);
+    return el;
+}
+
+function _buildTableMenu() {
+    const { table, cell } = _cmCtx;
+    const m = _contextMenu;
+    m.innerHTML = '';
+
+    m.appendChild(_cmLabel('Table'));
+
+    // Row operations
+    m.appendChild(_cmItem('bi-arrow-up', 'Insert row above', false, () => {
+        if (!cell) return;
+        const row = cell.closest('tr');
+        row.parentNode.insertBefore(_newRow(row.cells.length), row);
+    }));
+    m.appendChild(_cmItem('bi-arrow-down', 'Insert row below', false, () => {
+        if (!cell) return;
+        const row = cell.closest('tr');
+        row.parentNode.insertBefore(_newRow(row.cells.length), row.nextSibling);
+    }));
+
+    m.appendChild(_cmSep());
+
+    // Column operations
+    m.appendChild(_cmItem('bi-arrow-left', 'Insert column left', false, () => {
+        if (!cell) return;
+        const idx = cell.cellIndex;
+        Array.from(table.rows).forEach(r => r.insertBefore(_newCell(), r.cells[idx]));
+    }));
+    m.appendChild(_cmItem('bi-arrow-right', 'Insert column right', false, () => {
+        if (!cell) return;
+        const idx = cell.cellIndex;
+        Array.from(table.rows).forEach(r => {
+            const ref = r.cells[idx + 1] || null;
+            r.insertBefore(_newCell(), ref);
+        });
+    }));
+
+    m.appendChild(_cmSep());
+
+    // Delete operations
+    m.appendChild(_cmItem('bi-dash-square', 'Delete row', true, () => {
+        cell?.closest('tr').remove();
+    }));
+    m.appendChild(_cmItem('bi-dash-square', 'Delete column', true, () => {
+        if (!cell) return;
+        const idx = cell.cellIndex;
+        Array.from(table.rows).forEach(r => { if (r.cells[idx]) r.cells[idx].remove(); });
+    }));
+    m.appendChild(_cmItem('bi-trash3', 'Delete table', true, () => {
+        table.remove();
+    }));
+
+    m.appendChild(_cmSep());
+    m.appendChild(_cmLabel('Formatting'));
+
+    // Cell background
+    m.appendChild(_cmColorRow('Cell background', '#ffffff', color => {
+        if (cell) cell.style.background = color;
+    }));
+
+    // Border color
+    m.appendChild(_cmColorRow('Border color', _cmCtx.borderColor, color => {
+        _cmCtx.borderColor = color;
+        table.querySelectorAll('td,th').forEach(c => {
+            if (c.style.border && c.style.border !== 'none') {
+                c.style.borderColor = color;
+            }
+        });
+    }));
+
+    // Border style
+    m.appendChild(_cmBorderStyleRow());
+}
+
+function _newRow(cols) {
+    const tr = document.createElement('tr');
+    for (let i = 0; i < cols; i++) tr.appendChild(_newCell());
+    return tr;
+}
+function _newCell() {
+    const td = document.createElement('td');
+    td.style.cssText = 'border:1px solid #dee2e6;padding:6px 10px;min-width:60px;';
+    td.innerHTML = '&nbsp;';
+    return td;
+}
+
+function _buildEditorMenu(quill) {
+    const m = _contextMenu;
+    m.innerHTML = '';
+
+    m.appendChild(_cmLabel('Insert'));
+    m.appendChild(_cmItem('bi-table', 'Insert Table…', false, () => {
+        if (_tablePicker) {
+            _tablePicker._quill = quill;
+            const rect = quill.root.getBoundingClientRect();
+            _tablePicker.style.left = `${rect.left + 8}px`;
+            _tablePicker.style.top  = `${rect.top + 8}px`;
+            _tablePicker.querySelectorAll('[data-r]').forEach(cl => {
+                cl.style.background = ''; cl.style.borderColor = '#dee2e6';
+            });
+            _tablePicker.querySelector('#ql-tp-label').textContent = '';
+            _tablePicker.style.display = 'block';
+        }
+    }));
+    m.appendChild(_cmItem('bi-bootstrap', 'Insert Bootstrap Icon…', false, () => {
+        if (_iconPicker) {
+            _iconPicker._quill = quill;
+            const rect = quill.root.getBoundingClientRect();
+            _iconPicker.style.left = `${rect.left + 8}px`;
+            _iconPicker.style.top  = `${rect.top + 8}px`;
+            _iconPicker.style.display = 'flex';
+        }
+    }));
+
+    m.appendChild(_cmSep());
+    m.appendChild(_cmLabel('Format'));
+    m.appendChild(_cmItem('bi-type-bold',      'Bold',            false, () => quill.format('bold',      !quill.getFormat().bold)));
+    m.appendChild(_cmItem('bi-type-italic',    'Italic',          false, () => quill.format('italic',    !quill.getFormat().italic)));
+    m.appendChild(_cmItem('bi-type-underline', 'Underline',       false, () => quill.format('underline', !quill.getFormat().underline)));
+    m.appendChild(_cmItem('bi-type-strikethrough', 'Strikethrough', false, () => quill.format('strike',  !quill.getFormat().strike)));
+    m.appendChild(_cmItem('bi-eraser',         'Clear Formatting', false, () => {
+        const sel = quill.getSelection();
+        if (sel) quill.removeFormat(sel.index, sel.length);
+    }));
+}
+
+export function setupContextMenu(quill) {
+    const menu = _ensureContextMenu();
+    const editorEl = quill.root;
+
+    editorEl.addEventListener('contextmenu', e => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const cell  = e.target.closest('td, th');
+        const table = e.target.closest('table');
+
+        _cmCtx.table  = table;
+        _cmCtx.cell   = cell;
+        _cmCtx.quill  = quill;
+
+        if (table) {
+            _buildTableMenu();
+        } else {
+            _buildEditorMenu(quill);
+        }
+
+        // Position, keeping inside viewport
+        const vw = window.innerWidth, vh = window.innerHeight;
+        let x = e.clientX, y = e.clientY;
+        menu.style.display = 'block';
+        const mw = menu.offsetWidth, mh = menu.offsetHeight;
+        if (x + mw > vw - 8) x = vw - mw - 8;
+        if (y + mh > vh - 8) y = vh - mh - 8;
+        menu.style.left = `${x}px`;
+        menu.style.top  = `${y}px`;
+    });
 }

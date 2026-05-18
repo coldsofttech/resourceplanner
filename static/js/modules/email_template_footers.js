@@ -4,7 +4,7 @@ import { apiFetch, showFlash } from '../main.js';
 import { API_URLS } from '../urls.js';
 import {
     TOOLBAR_CONTAINER, initToolbarTooltips, injectCustomButtonIcons,
-    addCustomHandlers, setupTablePicker, setupIconPicker, SourceModeManager,
+    addCustomHandlers, setupTablePicker, setupIconPicker, setupContextMenu, SourceModeManager,
 } from './quill_editor_utils.js';
 
 let modalQuill  = null;
@@ -26,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     addCustomHandlers(modalQuill);
     setupTablePicker(modalQuill);
     setupIconPicker(modalQuill);
+    setupContextMenu(modalQuill);
 
     sourceMgr = new SourceModeManager({
         quill:  modalQuill,
@@ -106,7 +107,7 @@ function openModal(id) {
         if (!item) return;
         titleEl.innerHTML = '<i class="bi bi-layout-text-window-reverse me-2"></i>Edit Footer';
         document.getElementById('modal-name').value = item.name;
-        modalQuill.root.innerHTML = item.content || '';
+        sourceMgr.setContent(item.content || '');
         deleteBtn.classList.remove('d-none');
     } else {
         titleEl.innerHTML = '<i class="bi bi-layout-text-window-reverse me-2"></i>New Footer';

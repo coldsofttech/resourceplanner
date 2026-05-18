@@ -85,6 +85,11 @@
 /* Double-strike rendered in editor */
 .ql-editor .ql-double-strike { text-decoration: line-through; text-decoration-style: double; }
 
+/* Table block wrapper — overflow for wide tables, click-into cells */
+.ql-editor .ql-table-wrap { overflow-x: auto; margin: 8px 0; }
+.ql-editor .ql-table-wrap table { border-collapse: collapse; width: 100%; }
+.ql-editor .ql-table-wrap td, .ql-editor .ql-table-wrap th { min-width: 60px; }
+
 /* Taller editor */
 #quill-editor { height: 420px; }
 </style>

@@ -4,7 +4,7 @@ import { apiFetch, showFlash } from '../main.js';
 import { API_URLS } from '../urls.js';
 import {
     TOOLBAR_CONTAINER, initToolbarTooltips, injectCustomButtonIcons,
-    addCustomHandlers, setupTablePicker, setupIconPicker, SourceModeManager,
+    addCustomHandlers, setupTablePicker, setupIconPicker, setupContextMenu, SourceModeManager,
 } from './quill_editor_utils.js';
 
 // ── Sample data for client-side preview ───────────────────────────────────────
@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     addCustomHandlers(quill);
     setupTablePicker(quill);
     setupIconPicker(quill);
+    setupContextMenu(quill);
 
     sourceMgr = new SourceModeManager({
         quill,
@@ -131,7 +132,7 @@ function _populateSelect(id, items) {
 function _applyTemplate(tmpl) {
     document.getElementById('subject-input').value = tmpl.subject || '';
     document.getElementById('is-active-toggle').checked = !!tmpl.is_active;
-    if (tmpl.body) quill.root.innerHTML = tmpl.body;
+    if (tmpl.body) sourceMgr.setContent(tmpl.body);
 }
 
 // ── Variables panel ───────────────────────────────────────────────────────────
