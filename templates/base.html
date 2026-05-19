@@ -366,6 +366,17 @@
                             <i class="bi bi-table"></i>
                             <span class="rp-sidebar-link-label">Project Actuals</span>
                         </a>
+                        <!-- Onboarding -->
+                        <a href="/onboarding/" class="rp-sidebar-link" data-nav-match="/onboarding/" data-nav-exact="true" data-rp-tooltip="Submit Demand">
+                            <i class="bi bi-send"></i>
+                            <span class="rp-sidebar-link-label">Submit Demand</span>
+                        </a>
+                        {% if user.is_staff %}
+                        <a href="/onboarding/submissions/" class="rp-sidebar-link" data-nav-match="/onboarding/submissions/" data-rp-tooltip="Onboarding Submissions">
+                            <i class="bi bi-inbox-fill"></i>
+                            <span class="rp-sidebar-link-label">Onboarding Submissions</span>
+                        </a>
+                        {% endif %}
                     </div>
                 </aside>
 

@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Onboarding Submissions{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Onboarding Submissions</h1>
+        <p class="rp-page-subtitle">Project demands submitted via the public onboarding form</p>
+    </div>
+    <div>
+        <a href="/onboarding/" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>New Submission
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Search -->
+<form method="get" class="mb-4 d-flex gap-2" style="max-width:420px">
+    <input type="text" name="search" value="{{ search }}" class="form-control form-control-sm"
+           placeholder="Search by project name or requester email…" />
+    <button type="submit" class="btn btn-sm btn-outline-secondary flex-shrink-0">
+        <i class="bi bi-search"></i>
+    </button>
+    {% if search %}
+    <a href="?" class="btn btn-sm btn-outline-secondary flex-shrink-0" title="Clear search">
+        <i class="bi bi-x-lg"></i>
+    </a>
+    {% endif %}
+</form>
+
+<!-- Table -->
+<div class="table-responsive">
+    <table class="rp-table table table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Project Name</th>
+                <th>Requester</th>
+                <th>Business Unit</th>
+                <th>Start Date</th>
+                <th>End Date</th>
+                <th>Submitted</th>
+                <th>Project</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for req in page_obj %}
+            <tr>
+                <td class="fw-500">{{ req.project_name }}</td>
+                <td class="text-secondary">{{ req.requester_email }}</td>
+                <td>
+                    {% if req.business_unit %}
+                        <span class="rp-badge rp-badge--muted">{{ req.business_unit.short_name }}</span>
+                    {% else %}
+                        <span class="text-secondary">—</span>
+                    {% endif %}
+                </td>
+                <td class="text-secondary">
+                    {{ req.tentative_start_date|date:"d M Y"|default:"—" }}
+                </td>
+                <td class="text-secondary">
+                    {{ req.tentative_end_date|date:"d M Y"|default:"—" }}
+                </td>
+                <td class="text-secondary" style="white-space:nowrap">
+                    {{ req.submitted_at|date:"d M Y H:i" }}
+                </td>
+                <td>
+                    {% if req.project %}
+                        <a href="/projects/{{ req.project_id }}/" class="rp-link">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>View Project
+                        </a>
+                    {% else %}
+                        <span class="text-secondary">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7" class="text-center text-secondary py-5">
+                    {% if search %}
+                        No submissions match <strong>{{ search }}</strong>.
+                    {% else %}
+                        No onboarding submissions yet.
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Pagination -->
+{% if page_obj.paginator.num_pages > 1 %}
+<nav class="d-flex align-items-center justify-content-between mt-3 flex-wrap gap-2">
+    <span class="text-secondary small">
+        Showing {{ page_obj.start_index }}–{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
+    </span>
+    <ul class="pagination pagination-sm mb-0">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}">
+                <i class="bi bi-chevron-left"></i>
+            </a>
+        </li>
+        {% endif %}
+        {% for num in page_obj.paginator.page_range %}
+            {% if num == page_obj.number %}
+            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+            {% elif num >= page_obj.number|add:"-3" and num <= page_obj.number|add:"3" %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ num }}{% if search %}&search={{ search }}{% endif %}">{{ num }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}">
+                <i class="bi bi-chevron-right"></i>
+            </a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}

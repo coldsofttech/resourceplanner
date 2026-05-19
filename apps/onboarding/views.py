@@ -1,10 +1,12 @@
 import logging
 
-from django.shortcuts import render
+from django.core.paginator import Paginator
+from django.shortcuts import redirect, render
 from django.views.generic import View
 
 from apps.business_units.models import BusinessUnit
 
+from .models import OnboardingRequest
 from .services import process_onboarding_submission, send_onboarding_confirmation_email
 
 logger = logging.getLogger(__name__)
@@ -138,3 +140,32 @@ class OnboardingFormView(View):
             logger.exception("Error processing onboarding submission: %s", exc)
             errors['non_field_errors'] = 'An unexpected error occurred. Please try again or contact support.'
             return render(request, self.template_name, self._context(request, errors=errors, data=data))
+
+
+class OnboardingSubmissionsView(View):
+    template_name = 'onboarding/submissions.html'
+
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return redirect(f'/login/?next={request.get_full_path()}')
+
+        qs = (
+            OnboardingRequest.objects
+            .select_related('business_unit', 'project')
+            .order_by('-submitted_at')
+        )
+
+        search = request.GET.get('search', '').strip()
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(project_name__icontains=search) | Q(requester_email__icontains=search)
+            )
+
+        paginator = Paginator(qs, 25)
+        page_obj = paginator.get_page(request.GET.get('page', 1))
+
+        return render(request, self.template_name, {
+            'page_obj': page_obj,
+            'search': search,
+        })

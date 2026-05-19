@@ -40,6 +40,9 @@ class ProjectService:
     def list_projects(filters=None, page=1, page_size=20):
         VALID_ORDER_FIELDS = {"name", "status", "priority"}
 
+        from django.db.models import Exists, OuterRef
+        from apps.onboarding.models import OnboardingRequest as _OnboardingRequest
+
         qs = (
             Project.objects.select_related(
                 "project_type",
@@ -55,7 +58,11 @@ class ProjectService:
                     to_attr="_prefetched_codes",
                 ),
             )
-            .all()
+            .annotate(
+                via_onboarding=Exists(
+                    _OnboardingRequest.objects.filter(project_id=OuterRef('pk'))
+                )
+            )
         )
 
         if filters:

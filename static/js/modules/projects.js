@@ -911,7 +911,7 @@ function renderProjectRow(proj) {
 
     return `
         <tr data-project-id="${proj.id}">
-            ${_td('name', `<a href="${detailUrl}" class="rp-link fw-500">${escHtml(proj.name)}</a>`)}
+            ${_td('name', `<a href="${detailUrl}" class="rp-link fw-500">${escHtml(proj.name)}</a>${proj.via_onboarding ? ' <span class="rp-badge rp-badge--info ms-1" title="Created via Onboarding Form">Onboarding</span>' : ''}`)}
             ${_td('project_type', escHtml(proj.project_type_name ?? '-'))}
             ${_td('programme', escHtml(proj.programme_name ?? '-'))}
             ${_td('code', `<span class="rp-code">${escHtml(proj.code || '-')}</span>`)}

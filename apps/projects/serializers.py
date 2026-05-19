@@ -31,6 +31,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     tags = serializers.SerializerMethodField()
     code = serializers.SerializerMethodField()
     completed_sprint_name = serializers.SerializerMethodField()
+    via_onboarding = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
@@ -59,6 +60,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "completed_sprint_name",
             "is_active",
             "tags",
+            "via_onboarding",
             "created_at",
             "updated_at",
         ]
@@ -115,6 +117,9 @@ class ProjectSerializer(serializers.ModelSerializer):
             return prefetched[0].code if prefetched else None
         entry = obj.codes.order_by("-created_at").first()
         return entry.code if entry else None
+
+    def get_via_onboarding(self, obj):
+        return bool(getattr(obj, 'via_onboarding', False))
 
 
 class ProjectOperationalSerializer(ProjectSerializer):
