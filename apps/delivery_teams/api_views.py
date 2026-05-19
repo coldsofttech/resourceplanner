@@ -477,6 +477,84 @@ class DeliveryTeamViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    # POST /delivery-teams/<id>/assign-member/
+    @action(detail=True, methods=["post"], url_path="assign-member")
+    def assign_member(self, request, pk=None):
+        """
+        Assign a member to this team.
+        - Assignable roles: replaces existing assignment and records history.
+        - Shareable roles: adds to existing assignments.
+        """
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        from apps.team_members.services import TeamMemberService
+
+        member_id = request.data.get('member_id')
+        if not member_id:
+            return Response({"error": "member_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            DeliveryTeam.objects.get(pk=pk)
+        except DeliveryTeam.DoesNotExist:
+            return Response({"error": "Team not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            member = TeamMemberService.assign_team(int(member_id), int(pk))
+            from apps.team_members.serializers import TeamMemberSerializer
+            return Response(TeamMemberSerializer(member).data, status=status.HTTP_200_OK)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {"error": "Invalid parameters/values.", "details": _validation_details(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logging.exception("Database error in assign_member: %s", e)
+            return Response(
+                {"error": "A database error occurred. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in assign_member: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # DELETE /delivery-teams/<id>/unassign-member/<member_id>/
+    @action(detail=True, methods=["delete"], url_path=r"unassign-member/(?P<member_id>[0-9]+)")
+    def unassign_member(self, request, pk=None, member_id=None):
+        """Remove a member's assignment from this team."""
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from rest_framework.exceptions import ValidationError as DRFValidationError
+        from apps.team_members.services import TeamMemberService
+
+        try:
+            DeliveryTeam.objects.get(pk=pk)
+        except DeliveryTeam.DoesNotExist:
+            return Response({"error": "Team not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            member = TeamMemberService.unassign_team(int(member_id), int(pk))
+            from apps.team_members.serializers import TeamMemberSerializer
+            return Response(TeamMemberSerializer(member).data, status=status.HTTP_200_OK)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            return Response(
+                {"error": "Invalid parameters/values.", "details": _validation_details(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logging.exception("Database error in unassign_member: %s", e)
+            return Response(
+                {"error": "A database error occurred. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in unassign_member: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
     # GET /delivery-teams/import/specifications/
     @action(detail=False, methods=["get"], url_path="import/specifications")
     def import_specifications(self, request):

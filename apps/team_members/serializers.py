@@ -25,11 +25,21 @@ class TeamMemberSerializer(serializers.ModelSerializer):
         many=True,
         required=False,
     )
+    # team: single team PK for create/update (assignable roles). Null to unassign.
     team = serializers.PrimaryKeyRelatedField(
         queryset=DeliveryTeam.objects.all(),
         allow_null=True,
         required=False,
+        write_only=True,
     )
+    # teams: list of team PKs for create/update (shareable roles).
+    teams = serializers.PrimaryKeyRelatedField(
+        queryset=DeliveryTeam.objects.all(),
+        many=True,
+        required=False,
+        write_only=True,
+    )
+
     # name/email are optional at field level — required logic lives in validate()
     first_name = serializers.CharField(max_length=80, required=False, allow_blank=True)
     last_name = serializers.CharField(max_length=80, required=False, allow_blank=True)
@@ -48,7 +58,14 @@ class TeamMemberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TeamMember
-        fields = '__all__'
+        fields = [
+            'id', 'first_name', 'last_name', 'display_name', 'email_address',
+            'skills', 'location', 'employment_type', 'role',
+            'team', 'teams',
+            'start_date', 'end_date', 'default_holidays',
+            'user', 'is_active', 'created_at', 'updated_at', 'full_name',
+            'new_user_first_name', 'new_user_last_name', 'new_user_email',
+        ]
         read_only_fields = ['display_name', 'full_name', 'created_at', 'updated_at']
 
     def to_representation(self, instance):
@@ -58,7 +75,12 @@ class TeamMemberSerializer(serializers.ModelSerializer):
         rep['employment_type'] = EmploymentTypeSerializer(instance.employment_type).data
         rep['role'] = TeamRoleSerializer(instance.role).data
         rep['skills'] = SkillSerializer(instance.skills.all(), many=True).data
-        rep['team'] = DeliveryTeamSerializer(instance.team).data if instance.team else None
+
+        # Build team data from assignments (uses prefetch cache when available).
+        assignments = list(instance.team_assignments.all())
+        assignment_teams = [a.team for a in assignments]
+        rep['team'] = DeliveryTeamSerializer(assignment_teams[0]).data if assignment_teams else None
+        rep['teams'] = DeliveryTeamSerializer(assignment_teams, many=True).data
 
         if instance.user_id:
             user = instance.user
@@ -98,19 +120,16 @@ class TeamMemberSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         user = attrs.get('user')
 
-        # Detect the "create new user inline" path.
         new_email = (attrs.get('new_user_email') or '').strip().lower()
         new_first = (attrs.get('new_user_first_name') or '').strip()
         new_last = (attrs.get('new_user_last_name') or '').strip()
         is_new_user_path = bool(new_email or new_first or new_last)
 
         if user:
-            # Populate stored fields from the linked user account.
             attrs['first_name'] = user.first_name
             attrs['last_name'] = user.last_name
             attrs['email_address'] = user.email
         elif is_new_user_path:
-            # Create a new user account alongside the member.
             errors = {}
             if not new_first:
                 errors['new_user_first_name'] = 'First name is required.'
@@ -132,7 +151,6 @@ class TeamMemberSerializer(serializers.ModelSerializer):
             attrs['last_name'] = new_last
             attrs['email_address'] = new_email
         elif self.instance is None:
-            # Create without a user: all three name/email fields are required.
             errors = {}
             fn = (attrs.get('first_name') or '').strip()
             ln = (attrs.get('last_name') or '').strip()
@@ -149,7 +167,6 @@ class TeamMemberSerializer(serializers.ModelSerializer):
             attrs['last_name'] = ln
             attrs['email_address'] = em.lower()
         else:
-            # Partial update: clean whatever was submitted.
             if 'first_name' in attrs:
                 fn = attrs['first_name'].strip()
                 if not fn:
@@ -210,17 +227,12 @@ class TeamMemberExportSerializer(serializers.ModelSerializer):
         many=True,
         required=False,
     )
-    team = serializers.PrimaryKeyRelatedField(
-        queryset=DeliveryTeam.objects.all(),
-        allow_null=True,
-        required=False,
-    )
 
     class Meta:
         model = TeamMember
         fields = [
             'id', 'first_name', 'last_name', 'display_name', 'email_address', 'skills',
-            'location', 'employment_type', 'role', 'team', 'start_date', 'end_date',
+            'location', 'employment_type', 'role', 'start_date', 'end_date',
             'default_holidays', 'is_active',
         ]
 
@@ -239,7 +251,10 @@ class TeamMemberExportSerializer(serializers.ModelSerializer):
         rep['role'] = TeamRoleSerializer(instance.role).data.get('role')
         skills = SkillSerializer(instance.skills.all(), many=True).data
         rep['skills'] = ', '.join(s['skill'] for s in skills) if skills else ''
-        team = DeliveryTeamSerializer(instance.team).data if instance.team else None
-        rep['team'] = team.get('name') if team else None
+
+        # Export all assigned teams as comma-separated names.
+        assignments = list(instance.team_assignments.all())
+        team_names = ', '.join(a.team.name for a in assignments if a.team) if assignments else ''
+        rep['teams'] = team_names
 
         return rep

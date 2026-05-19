@@ -308,12 +308,12 @@ class DemandCapacityService:
             version=version, sprint_id__in=sprint_ids
         )
         if team_id:
-            cap_qs = cap_qs.filter(team_member__team_id=team_id)
+            cap_qs = cap_qs.filter(team_member__team_assignments__team_id=team_id)
         if employee_type_id:
             cap_qs = cap_qs.filter(team_member__employment_type_id=employee_type_id)
 
         cap_rows = list(
-            cap_qs.values("sprint_id", "team_member__team_id").annotate(
+            cap_qs.values("sprint_id", "team_member__team_assignments__team_id").annotate(
                 working=Sum("working_days"),
                 leaves=Sum(F("leave_days") + F("holiday_days") + F("placeholder_days")),
             )
@@ -373,7 +373,7 @@ class DemandCapacityService:
 
         for r in cap_rows:
             sid = r["sprint_id"]
-            tid = r["team_member__team_id"]
+            tid = r["team_member__team_assignments__team_id"]
             w = float(r["working"] or 0)
             lv = float(r["leaves"] or 0)
             cap_by_sprint[sid] = cap_by_sprint.get(sid, 0.0) + w

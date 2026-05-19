@@ -24,13 +24,13 @@ class TeamMember(models.Model):
     * location: FK OfficeLocation NOT NULL
     * employment_type: FK OfficeEmploymentType NOT NULL
     * role: FK TeamRole NOT NULL
-    * team: FK DeliveryTeam
     * start_date: DATETIME NOT NULL
     * end_date: DATETIME
     * default_holidays: INT NOT NULL
     * is_active: BOOLEAN DEFAULT (TRUE)
     * created_at: DATETIME
     * updated_at: DATETIME
+    Team assignments are managed via TeamMemberAssignment.
     """
     first_name = models.CharField(
         max_length=80,
@@ -65,13 +65,6 @@ class TeamMember(models.Model):
         'team_roles.TeamRole',
         on_delete=models.PROTECT,
         related_name='member_role',
-    )
-    team = models.ForeignKey(
-        'delivery_teams.DeliveryTeam',
-        on_delete=models.PROTECT,
-        blank=True,
-        null=True,
-        related_name='member_team',
     )
     start_date = models.DateField(
         help_text='Date the member joined / became available for planning.'
@@ -127,6 +120,51 @@ class TeamMember(models.Model):
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
 
+    @property
+    def team(self):
+        """
+        Returns the first assigned team.
+        For is_assignable roles this is always the single team (or None).
+        For is_shareable roles this returns one of potentially many teams.
+        Uses the prefetch cache when team_assignments is prefetched.
+        """
+        assignments = list(self.team_assignments.all())
+        return assignments[0].team if assignments else None
+
+    @property
+    def team_id(self):
+        """
+        Returns the team_id of the first assigned team, or None.
+        Uses the prefetch cache when team_assignments is prefetched.
+        """
+        assignments = list(self.team_assignments.all())
+        return assignments[0].team_id if assignments else None
+
+
+class TeamMemberAssignment(models.Model):
+    """
+    Maps a TeamMember to one or more DeliveryTeams.
+    - Members with is_assignable roles have exactly 0 or 1 assignment.
+    - Members with is_shareable roles may have many assignments.
+    """
+    member = models.ForeignKey(
+        TeamMember,
+        on_delete=models.CASCADE,
+        related_name='team_assignments',
+    )
+    team = models.ForeignKey(
+        'delivery_teams.DeliveryTeam',
+        on_delete=models.PROTECT,
+        related_name='member_assignments',
+    )
+
+    class Meta:
+        unique_together = [('member', 'team')]
+        ordering = ['team__name']
+
+    def __str__(self):
+        return f"{self.member} → {self.team}"
+
 
 class TeamMemberHistory(models.Model):
     """
@@ -137,6 +175,7 @@ class TeamMemberHistory(models.Model):
     * moved_on: DATETIME
     * note: TEXT
     * created_at: DATETIME
+    Recorded only for is_assignable role members (move-team action).
     """
     member = models.ForeignKey(
         TeamMember,

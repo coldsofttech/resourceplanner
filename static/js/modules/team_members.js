@@ -14,6 +14,7 @@ import { initLeavesPanel } from './../leave_panel.js';
 
 let fetcher        = null;
 let _teamOptions   = [];
+let _roleOptions   = [];
 let _currentMember = null;
 
 const memberPk = getPkFromUrl('team-members');
@@ -199,9 +200,14 @@ function renderMemberRow(member) {
     const locDisplay  = member.location
         ? escHtml(`${member.location.city}, ${member.location.country}`)
         : '—';
-    const teamDisplay = member.team
-        ? escHtml(member.team.name)
-        : '<span class="text-secondary">—</span>';
+    let teamDisplay;
+    if (member.role?.is_shareable && (member.teams ?? []).length) {
+        teamDisplay = member.teams.map(t => `<span class="rp-badge rp-badge--info me-1">${escHtml(t.name)}</span>`).join('');
+    } else if (member.team) {
+        teamDisplay = escHtml(member.team.name);
+    } else {
+        teamDisplay = '<span class="text-secondary">—</span>';
+    }
     const skillBadges = (member.skills || []).length
         ? member.skills.map(s =>
               `<span class="rp-badge rp-badge--info me-1">${escHtml(s.skill)}</span>`
@@ -214,6 +220,8 @@ function renderMemberRow(member) {
     const currentTeamId   = member.team ? member.team.id   : null;
     const currentTeamName = member.team ? member.team.name : '';
     const hasUser         = !!member.user;
+    const isShareable     = member.role?.is_shareable ?? false;
+    const isAssignable    = member.role?.is_assignable ?? false;
 
     return `
         <tr data-member-id="${member.id}">
@@ -239,10 +247,11 @@ function renderMemberRow(member) {
                        class="btn btn-ghost-icon" title="Edit member">
                         <i class="bi bi-pencil"></i>
                     </a>
+                    ${!isShareable ? `
                     <button class="btn btn-ghost-icon" title="Move team"
                             onclick="confirmMoveTeam(${member.id}, '${escAttr(member.display_name)}', ${JSON.stringify(currentTeamId)}, '${escAttr(currentTeamName)}', onMoveFromList)">
                         <i class="bi bi-arrow-left-right"></i>
-                    </button>` : ''}
+                    </button>` : ''}` : ''}
                     ${hasPerm('team_members.delete_teammember') ? `
                     <button class="btn btn-ghost-icon btn-ghost-icon--danger" title="Delete member"
                             onclick="confirmDelete(${member.id}, '${escAttr(member.display_name)}', onDeleteFromList, ${hasUser})">
@@ -285,6 +294,7 @@ async function initCreateView() {
     await _loadUserSelectOptions();
 
     document.getElementById('id_user').addEventListener('change', _onUserSelectChange);
+    document.getElementById('id_role').addEventListener('change', _onRoleChange);
 
     // Sync new-user name inputs to main name fields so the display-name hint stays current.
     document.getElementById('id_new_user_first_name')?.addEventListener('input', () => {
@@ -397,6 +407,7 @@ async function initEditView() {
     submitBtn.disabled = true;
 
     await loadFormOptions(null);
+    document.getElementById('id_role').addEventListener('change', _onRoleChange);
 
     try {
         const { method, href } = API_URLS.team_members.get(memberPk);
@@ -434,17 +445,69 @@ async function loadFormOptions(currentSkillIds) {
         const options = await apiFetch(href, { method });
         const default_holidays = await getDefaultHolidays();
 
-        _populateSelect('id_role',            options.roles ?? [],            'is_default');
+        _roleOptions = options.roles ?? [];
+        _populateSelect('id_role',            _roleOptions,                   'is_default');
         _populateSelect('id_employment_type', options.employment_types ?? [], 'is_default');
         _populateSelect('id_location',        options.locations ?? [],        'is_default');
         _populateSelect('id_team',            options.teams ?? [],            null);
         _renderSkillsCheckboxes(options.skills ?? [], currentSkillIds);
+        _renderTeamCheckboxes(options.teams ?? [], []);
         _teamOptions = options.teams ?? [];
         document.getElementById('id_default_holidays').value = default_holidays;
+
+        // Set initial visibility based on pre-selected role (edit mode).
+        const selectedRoleId = parseInt(document.getElementById('id_role')?.value);
+        if (selectedRoleId) {
+            _updateTeamFieldVisibility(_roleOptions.find(r => r.value === selectedRoleId));
+        }
     } catch (err) {
         console.error('[loadFormOptions]', err);
         showFlash('Could not load form options. Please refresh.', 'danger');
     }
+}
+
+function _onRoleChange() {
+    const roleId = parseInt(document.getElementById('id_role')?.value);
+    const role = _roleOptions.find(r => r.value === roleId);
+    _updateTeamFieldVisibility(role);
+}
+
+function _updateTeamFieldVisibility(role) {
+    const single = document.getElementById('team-single-section');
+    const multi  = document.getElementById('team-multi-section');
+    if (!single || !multi) return;
+    if (!role || (!role.is_assignable && !role.is_shareable)) {
+        single.classList.add('d-none');
+        multi.classList.add('d-none');
+    } else if (role.is_shareable) {
+        single.classList.add('d-none');
+        multi.classList.remove('d-none');
+    } else {
+        single.classList.remove('d-none');
+        multi.classList.add('d-none');
+    }
+}
+
+function _renderTeamCheckboxes(teams, selectedIds) {
+    const container = document.getElementById('teams-checkbox-container');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!teams.length) {
+        container.innerHTML = '<p class="text-secondary small mb-0">No active teams available.</p>';
+        return;
+    }
+    const selected = new Set((selectedIds ?? []).map(id => parseInt(id)));
+    teams.forEach(({ value, label }) => {
+        const div = document.createElement('div');
+        div.className = 'form-check';
+        div.innerHTML = `
+            <input class="form-check-input team-checkbox" type="checkbox"
+                   id="team_cb_${value}" value="${value}"
+                   ${selected.has(parseInt(value)) ? 'checked' : ''} />
+            <label class="form-check-label small" for="team_cb_${value}">${escHtml(label)}</label>
+        `;
+        container.appendChild(div);
+    });
 }
 
 function _populateSelect(selectId, items, defaultKey) {
@@ -546,11 +609,14 @@ async function handleCreateEditSubmit(e) {
     const skillIds    = Array.from(document.querySelectorAll('.skill-checkbox:checked'))
                             .map(cb => parseInt(cb.value));
 
+    const selectedRole   = _roleOptions.find(r => r.value === parseInt(role));
+    const isShareable    = selectedRole?.is_shareable ?? false;
+    const isAssignable   = selectedRole?.is_assignable ?? false;
+
     const payload = {
         role:             parseInt(role),
         location:         parseInt(location),
         employment_type:  parseInt(empType),
-        team:             teamVal ? parseInt(teamVal) : null,
         start_date:       startDate,
         end_date:         endDate,
         default_holidays: defHolidays,
@@ -558,6 +624,13 @@ async function handleCreateEditSubmit(e) {
         is_active:        isActive,
         display_name:     displayName,
     };
+
+    if (isShareable) {
+        payload.teams = Array.from(document.querySelectorAll('.team-checkbox:checked'))
+                            .map(cb => parseInt(cb.value));
+    } else if (isAssignable) {
+        payload.team = teamVal ? parseInt(teamVal) : null;
+    }
 
     if (!isEdit) {
         if (userId === '__new__') {
@@ -623,7 +696,17 @@ function populateForm(member) {
     if (member.role)            document.getElementById('id_role').value            = member.role.id;
     if (member.location)        document.getElementById('id_location').value        = member.location.id;
     if (member.employment_type) document.getElementById('id_employment_type').value = member.employment_type.id;
-    if (member.team)            document.getElementById('id_team').value            = member.team.id;
+
+    if (member.role?.is_shareable) {
+        const selectedTeamIds = (member.teams ?? []).map(t => t.id);
+        _renderTeamCheckboxes(_teamOptions, selectedTeamIds);
+        _updateTeamFieldVisibility(member.role);
+    } else if (member.role?.is_assignable) {
+        if (member.team) document.getElementById('id_team').value = member.team.id;
+        _updateTeamFieldVisibility(member.role);
+    } else {
+        _updateTeamFieldVisibility(member.role);
+    }
 
     const selectedIds = new Set((member.skills || []).map(s => s.id));
     document.querySelectorAll('.skill-checkbox').forEach(cb => {
@@ -713,8 +796,16 @@ function renderMemberDetails(member) {
         member.location ? `${member.location.city}, ${member.location.country}` : '—';
     document.getElementById('member-employment-type').textContent =
         member.employment_type ? member.employment_type.name : '—';
-    document.getElementById('member-team').textContent =
-        member.team ? member.team.name : '—';
+
+    const teamCell = document.getElementById('member-team');
+    if (member.role?.is_shareable && (member.teams ?? []).length) {
+        teamCell.innerHTML = member.teams
+            .map(t => `<span class="rp-badge rp-badge--info me-1">${escHtml(t.name)}</span>`)
+            .join('');
+    } else {
+        teamCell.textContent = member.team ? member.team.name : '—';
+    }
+
     document.getElementById('member-start-date').textContent = member.start_date ?? '—';
     document.getElementById('member-end-date').textContent   = member.end_date   ?? '—';
     document.getElementById('member-holidays').textContent   =
@@ -734,15 +825,127 @@ function renderMemberDetails(member) {
 }
 
 function _setupDetailMoveBtn(member) {
-    document.getElementById('move-team-btn')?.addEventListener('click', () => {
-        confirmMoveTeam(
-            member.id,
-            member.display_name,
-            member.team ? member.team.id   : null,
-            member.team ? member.team.name : '',
-            onMoveFromDetail,
-        );
+    const moveBtn     = document.getElementById('move-team-btn');
+    const historyPanel = document.getElementById('history-panel');
+    const assignPanel = document.getElementById('team-assignments-panel');
+
+    if (member.role?.is_shareable) {
+        // Shareable: hide move-team + history, show team assignments panel.
+        if (moveBtn)      moveBtn.classList.add('d-none');
+        if (historyPanel) historyPanel.classList.add('d-none');
+        _renderTeamAssignmentsPanel(member);
+    } else {
+        // Non-shareable (assignable or neither): show move-team + history.
+        if (assignPanel) assignPanel.classList.add('d-none');
+        moveBtn?.addEventListener('click', () => {
+            confirmMoveTeam(
+                member.id,
+                member.display_name,
+                member.team ? member.team.id   : null,
+                member.team ? member.team.name : '',
+                onMoveFromDetail,
+            );
+        });
+    }
+}
+
+function _renderTeamAssignmentsPanel(member) {
+    const panel = document.getElementById('team-assignments-panel');
+    const list  = document.getElementById('team-assignments-list');
+    if (!panel || !list) return;
+
+    panel.classList.remove('d-none');
+
+    function _refresh(updatedMember) {
+        const teams = updatedMember?.teams ?? [];
+        if (!teams.length) {
+            list.innerHTML = '<p class="text-secondary small">No teams assigned.</p>';
+        } else {
+            list.innerHTML = teams.map(t => `
+                <div class="d-flex align-items-center justify-content-between py-2 border-bottom">
+                    <div>
+                        <span class="fw-500">${escHtml(t.name)}</span>
+                    </div>
+                    <button class="btn btn-ghost-icon btn-ghost-icon--danger btn-sm" title="Remove from team"
+                            data-team-id="${t.id}" data-team-name="${escAttr(t.name)}">
+                        <i class="bi bi-x-circle"></i>
+                    </button>
+                </div>
+            `).join('');
+            list.querySelectorAll('button[data-team-id]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const teamId   = parseInt(btn.dataset.teamId);
+                    const teamName = btn.dataset.teamName;
+                    if (!confirm(`Remove ${escHtml(member.display_name)} from ${teamName}?`)) return;
+                    btn.disabled = true;
+                    try {
+                        const { method, href } = API_URLS.team_members.unassign_team(member.id, teamId);
+                        const updated = await apiFetch(href, { method });
+                        _currentMember = updated;
+                        _refresh(updated);
+                        renderMemberDetails(updated);
+                        showFlash(`Removed from ${teamName}.`, 'success');
+                    } catch (err) {
+                        showFlash(err?.data?.error || 'Failed to remove team assignment.', 'danger');
+                        btn.disabled = false;
+                    }
+                });
+            });
+        }
+    }
+
+    _refresh(member);
+
+    // "Assign to Team" button
+    const assignBtn = document.getElementById('assign-team-btn');
+    if (assignBtn) {
+        assignBtn.addEventListener('click', () => _openAssignTeamModal(member, _refresh));
+    }
+}
+
+async function _openAssignTeamModal(member, onSuccess) {
+    await _loadTeamOptions();
+    const modal  = document.getElementById('assignTeamModal');
+    const select = document.getElementById('assign-to-team-select');
+    const btn    = document.getElementById('confirm-assign-team-btn');
+    if (!modal || !select || !btn) return;
+
+    const currentTeamIds = new Set((member.teams ?? []).map(t => t.id));
+    select.innerHTML = '<option value="">— Select a team —</option>';
+    _teamOptions
+        .filter(t => !currentTeamIds.has(t.value))
+        .forEach(({ value, label }) => {
+            const opt = document.createElement('option');
+            opt.value       = value;
+            opt.textContent = label;
+            select.appendChild(opt);
+        });
+
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    newBtn.addEventListener('click', async () => {
+        const teamId = parseInt(select.value);
+        if (!teamId) return;
+        newBtn.disabled  = true;
+        newBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Assigning…';
+        try {
+            const { method, href } = API_URLS.team_members.assign_team(member.id);
+            const updated = await apiFetch(href, { method, body: JSON.stringify({ team_id: teamId }) });
+            _currentMember = updated;
+            bootstrap.Modal.getInstance(modal)?.hide();
+            onSuccess(updated);
+            renderMemberDetails(updated);
+            const teamName = _teamOptions.find(t => t.value === teamId)?.label ?? '';
+            showFlash(`Assigned to ${teamName}.`, 'success');
+        } catch (err) {
+            showFlash(err?.data?.error || 'Failed to assign team.', 'danger');
+        } finally {
+            newBtn.disabled  = false;
+            newBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Assign';
+        }
     });
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
 }
 
 function onDeleteFromDetail() {

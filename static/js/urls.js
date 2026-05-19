@@ -32,6 +32,14 @@ export const API_URLS = {
             method: 'GET',
             href: `${API_BASE}delivery-teams/${teamId}/members/`,
         }),
+        assign_member: (teamId) => ({
+            method: 'POST',
+            href: `${API_BASE}delivery-teams/${teamId}/assign-member/`,
+        }),
+        unassign_member: (teamId, memberId) => ({
+            method: 'DELETE',
+            href: `${API_BASE}delivery-teams/${teamId}/unassign-member/${memberId}/`,
+        }),
         leaves: (teamId) => ({
             method: 'GET',
             href: `${API_BASE}delivery-teams/${teamId}/leaves/`,
@@ -132,6 +140,8 @@ export const API_URLS = {
         delete: (pk) => ({ method: 'DELETE', href: `${API_BASE}team-members/${pk}/` }),
         options: { method: 'GET', href: `${API_BASE}team-members/options/` },
         move_team: (pk) => ({ method: 'POST', href: `${API_BASE}team-members/${pk}/move-team/` }),
+        assign_team: (pk) => ({ method: 'POST', href: `${API_BASE}team-members/${pk}/assign-team/` }),
+        unassign_team: (pk, teamId) => ({ method: 'DELETE', href: `${API_BASE}team-members/${pk}/unassign-team/${teamId}/` }),
         history: (pk) => ({ method: 'GET', href: `${API_BASE}team-members/${pk}/history/` }),
         leaves: (pk) => ({ method: 'GET', href: `${API_BASE}team-members/${pk}/leaves/` }),
         import_spec: { method: 'GET', href: `${API_BASE}team-members/import/specifications/` },

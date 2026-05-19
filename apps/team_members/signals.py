@@ -4,51 +4,36 @@ from django.contrib.auth import get_user_model
 from django.db.models.signals import post_delete, post_save, pre_save
 from django.dispatch import receiver
 
-from .models import TeamMember
+from .models import TeamMember, TeamMemberAssignment
 
 logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
 
-@receiver(pre_save, sender=TeamMember)
-def on_member_pre_save(sender, instance, **kwargs):
-    """
-    Snapshot the current DB state (team + is_active) onto the instance before
-    Django writes the new values.  post_save can then compare old vs new to
-    decide which teams need their counts refreshed.
-
-    For brand-new instances (no pk yet) there is nothing in the DB to fetch,
-    so we skip the query and leave the attributes absent — post_save treats
-    missing attributes as "no prior state known" and falls back safely.
-    """
-    if instance.pk is None:
-        return  # new record — nothing to snapshot
-
-    try:
-        prior = TeamMember.objects.only('team', 'is_active').get(pk=instance.pk)
-        instance._original_team = prior.team
-        instance._original_is_active = prior.is_active
-    except TeamMember.DoesNotExist:
-        pass  # row was deleted between pre_save and now — nothing to snapshot
-
+# ---------------------------------------------------------------------------
+# member_count sync — driven by TeamMemberAssignment changes
+# ---------------------------------------------------------------------------
 
 def _sync_team_count(team) -> None:
     """
-    Recount active members for *team* and persist only the member_count column.
+    Recount active, assignable-role members for *team* and persist only the
+    member_count column.
 
     Uses update_fields so that:
-    - The team's updated_at (auto_now) is NOT touched — this is a housekeeping
-      write, not a user-initiated change.
+    - The team's updated_at (auto_now) is NOT touched.
     - No other signals are triggered on DeliveryTeam.
     - The write is a single UPDATE … SET member_count = N WHERE id = X.
     """
     if team is None:
         return
 
-    count = TeamMember.objects.filter(team=team, is_active=True).count()
+    count = TeamMemberAssignment.objects.filter(
+        team=team,
+        member__is_active=True,
+        member__role__is_assignable=True,
+    ).count()
 
-    # Import here to avoid circular imports at module load time.
     from apps.delivery_teams.models import DeliveryTeam
     try:
         DeliveryTeam.objects.filter(pk=team.pk).update(member_count=count)
@@ -58,49 +43,65 @@ def _sync_team_count(team) -> None:
         )
 
 
+@receiver(post_save, sender=TeamMemberAssignment)
+def on_assignment_save(sender, instance, created, **kwargs):
+    """Fires after a team assignment is created. Sync the affected team's count."""
+    if created:
+        _sync_team_count(instance.team)
+
+
+@receiver(post_delete, sender=TeamMemberAssignment)
+def on_assignment_delete(sender, instance, **kwargs):
+    """
+    Fires after a team assignment is removed (including cascades from member delete).
+    Sync the affected team's count.
+    """
+    _sync_team_count(instance.team)
+
+
+@receiver(pre_save, sender=TeamMember)
+def on_member_pre_save(sender, instance, **kwargs):
+    """
+    Snapshot is_active and role_id before save so post_save can detect changes.
+    """
+    if instance.pk is None:
+        return
+    try:
+        prior = TeamMember.objects.only('is_active', 'role_id').get(pk=instance.pk)
+        instance._original_is_active = prior.is_active
+        instance._original_role_id = prior.role_id
+    except TeamMember.DoesNotExist:
+        pass
+
+
 @receiver(post_save, sender=TeamMember)
 def on_member_save(sender, instance, **kwargs):
     """
-    Fires after a TeamMember is created or updated.
-
-    We must handle two cases:
-    1. The member's team changed (reassignment). Both the old team and the new
-       team need their counts updated.
-    2. The member's is_active flag changed. Only the current team is affected.
-
-    Django doesn't give us the pre-save state in post_save, so we compare
-    against the value stored in instance.__original_team and
-    instance.__original_is_active, which are injected by the pre_save signal
-    below. If those attributes are absent (e.g. during fixtures/tests) we fall
-    back to syncing only the current team.
+    Fires after a TeamMember is saved.
+    When is_active or role changes, re-sync counts for all teams this member
+    is assigned to (only assignable-role members affect member_count).
     """
-    current_team = instance.team
+    update_fields = kwargs.get('update_fields')
 
-    original_team = getattr(instance, '_original_team', current_team)
+    # Skip if this save only touched user/email fields (internal link sync).
+    relevant_fields = {'is_active', 'role', 'role_id'}
+    if update_fields is not None and not relevant_fields.intersection(update_fields):
+        return
+
     original_is_active = getattr(instance, '_original_is_active', instance.is_active)
+    original_role_id = getattr(instance, '_original_role_id', instance.role_id)
 
-    teams_to_sync = set()
+    is_active_changed = original_is_active != instance.is_active
+    role_changed = original_role_id != instance.role_id
 
-    # Team changed — old team loses a member, new team gains one.
-    if original_team != current_team:
-        teams_to_sync.add(original_team)
-        teams_to_sync.add(current_team)
-    else:
-        # is_active toggled, or any other field changed — refresh current team.
-        if original_is_active != instance.is_active or current_team is not None:
-            teams_to_sync.add(current_team)
+    if not is_active_changed and not role_changed:
+        return
 
-    for team in teams_to_sync:
-        _sync_team_count(team)
-
-
-@receiver(post_delete, sender=TeamMember)
-def on_member_delete(sender, instance, **kwargs):
-    """
-    Fires after a TeamMember row is hard-deleted.
-    Sync whichever team the member belonged to.
-    """
-    _sync_team_count(instance.team)
+    # Sync all teams where this member has assignments that could affect counts.
+    for assignment in TeamMemberAssignment.objects.filter(
+        member=instance
+    ).select_related('team'):
+        _sync_team_count(assignment.team)
 
 
 # ---------------------------------------------------------------------------
@@ -110,8 +111,7 @@ def on_member_delete(sender, instance, **kwargs):
 def _sync_member_user_link(member):
     """
     Look up a User whose email matches the member's email_address (case-insensitive)
-    and store the FK on the member row.  Uses queryset.update() so no further
-    signals are fired and no other fields are touched.
+    and store the FK on the member row.
     """
     try:
         matched_user = User.objects.get(email__iexact=member.email_address)
@@ -128,7 +128,6 @@ def _sync_member_user_link(member):
 
     if matched_user is not None:
         if current_user_id != matched_user.pk:
-            # Before claiming, make sure no other member already holds this user.
             conflict = (
                 TeamMember.objects
                 .filter(user=matched_user)
@@ -155,12 +154,8 @@ def on_member_save_link_user(sender, instance, **kwargs):
     Only runs when email_address was created or changed.
     """
     update_fields = kwargs.get('update_fields')
-
-    # Skip if update_fields is set and 'email_address' is not among them
-    # (e.g. the team-count sync writes only 'user', so we must also skip that).
     if update_fields is not None and 'email_address' not in update_fields:
         return
-
     _sync_member_user_link(instance)
 
 
@@ -171,8 +166,6 @@ def on_user_save_link_member(sender, instance, **kwargs):
     email_address matches and update the FK so the link stays consistent.
     """
     update_fields = kwargs.get('update_fields')
-
-    # Only care about changes that touch the email.
     if update_fields is not None and 'email' not in update_fields:
         return
 
@@ -202,7 +195,7 @@ def on_user_save_link_member(sender, instance, **kwargs):
 def on_user_save_sync_member_name(sender, instance, **kwargs):
     """
     When a User's first_name or last_name is updated, keep the linked TeamMember's
-    stored name fields and display_name in sync so ORM searches and exports stay accurate.
+    stored name fields and display_name in sync.
     """
     update_fields = kwargs.get('update_fields')
     if update_fields is not None:

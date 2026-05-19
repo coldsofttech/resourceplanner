@@ -86,8 +86,21 @@
     </div>
 
     <div class="col-lg-8">
-        <!-- Right Panel - Team History Timeline -->
-        <div class="rp-card mb-3">
+        <!-- Team Assignments Panel (shareable roles only) -->
+        <div class="rp-card mb-3 d-none" id="team-assignments-panel">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+                <h6 class="rp-card-heading mb-0">Team Assignments</h6>
+                <button type="button" class="btn btn-sm btn-outline-primary" id="assign-team-btn">
+                    <i class="bi bi-plus me-1"></i>Assign to Team
+                </button>
+            </div>
+            <div id="team-assignments-list">
+                <p class="text-secondary small">No teams assigned.</p>
+            </div>
+        </div>
+
+        <!-- Right Panel - Team History Timeline (assignable roles only) -->
+        <div class="rp-card mb-3" id="history-panel">
             <div class="d-flex align-items-center justify-content-between mb-3">
                 <h6 class="rp-card-heading mb-0">Team History</h6>
                 <button type="button"
@@ -160,6 +173,32 @@
                 <div id="history-modal-body">
                     <p class="text-secondary small">Loading…</p>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Team Modal (shareable roles) -->
+<div class="modal fade" id="assignTeamModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Assign to Team</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="rp-label" for="assign-to-team-select">Team</label>
+                    <select id="assign-to-team-select" class="form-select rp-select">
+                        <option value="">— Select a team —</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="confirm-assign-team-btn">
+                    <i class="bi bi-check-lg me-1"></i>Assign
+                </button>
             </div>
         </div>
     </div>

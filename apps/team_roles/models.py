@@ -25,6 +25,10 @@ class TeamRole(models.Model):
         default=False,
         help_text='Marks this role as eligible for automatic work assignment in the resource planning engine.',
     )
+    is_shareable = models.BooleanField(
+        default=False,
+        help_text='Marks this role as shareable across multiple teams simultaneously (e.g. Scrum Master, Product Owner).',
+    )
     created_at = models.DateTimeField(
         auto_now_add=True
     )

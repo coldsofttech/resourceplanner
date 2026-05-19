@@ -182,6 +182,7 @@ class TeamRoleService:
                 is_active=data.get('is_active', True),
                 is_default=data.get('is_default', False),
                 is_assignable=data.get('is_assignable', False),
+                is_shareable=data.get('is_shareable', False),
             )
             role.full_clean()
             role.save()
@@ -226,6 +227,8 @@ class TeamRoleService:
             role.is_default = data['is_default']
         if 'is_assignable' in data:
             role.is_assignable = data['is_assignable']
+        if 'is_shareable' in data:
+            role.is_shareable = data['is_shareable']
 
         try:
             role.full_clean()

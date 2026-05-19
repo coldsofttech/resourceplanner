@@ -45,4 +45,4 @@ class TeamRoleExportSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TeamRole
-        fields = ['id', 'role', 'is_active', 'is_assignable', 'is_default']
+        fields = ['id', 'role', 'is_active', 'is_assignable', 'is_shareable', 'is_default']

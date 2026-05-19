@@ -440,6 +440,8 @@ async function initDetailView() {
         showFlash(err?.data?.error || 'Could not load team details. Please refresh.', 'danger');
     }
 
+    initLeadershipPanel(teamPk);
+
     initMembersPanel({
         containerSelector: '#members-panel',
         tbodyId: 'members-tbody',
@@ -451,6 +453,7 @@ async function initDetailView() {
         filterValue: teamPk,
         columns: 'delivery_teams',
         newMemberHref: URLS.team_members.new,
+        extraParams: { exclude_shareable: 'true' },
     });
 
     initTeamProjectsPanel({
@@ -487,6 +490,144 @@ function renderTeamDetails(team) {
     document.getElementById('team-description').textContent = team.description ?? '-';
     document.getElementById('meta-created').textContent = formatDateTime(team.created_at);
     document.getElementById('meta-updated').textContent = formatDateTime(team.updated_at);
+}
+
+/*
+ * Leadership Panel
+ */
+async function initLeadershipPanel(teamId) {
+    const list = document.getElementById('leadership-list');
+    if (!list) return;
+
+    let _sharableMembers = [];
+
+    async function loadLeadership() {
+        try {
+            const { method, href } = API_URLS.delivery_teams.members(teamId);
+            const data = await apiFetch(`${href}?page_size=100`, { method });
+            const all = data.results ?? [];
+            _sharableMembers = all.filter(m => m.role?.is_shareable);
+            renderLeadershipList(_sharableMembers);
+        } catch (err) {
+            list.innerHTML = '<p class="text-secondary small">Could not load leadership members.</p>';
+        }
+    }
+
+    function renderLeadershipList(members) {
+        if (!members.length) {
+            list.innerHTML = '<p class="text-secondary small mb-0">No leadership members assigned to this team.</p>';
+            return;
+        }
+        list.innerHTML = `
+            <div class="rp-table-wrap">
+                <table class="table rp-table mb-0">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Role</th>
+                            <th>Location</th>
+                            <th class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>${members.map(m => `
+                        <tr>
+                            <td>
+                                <a href="${URLS.team_members.detail(m.id)}" class="rp-link">
+                                    ${escHtml(m.display_name)}
+                                </a>
+                            </td>
+                            <td>${m.role ? escHtml(m.role.role) : '—'}</td>
+                            <td>${m.location ? escHtml(`${m.location.city}, ${m.location.country}`) : '—'}</td>
+                            <td class="text-center">
+                                ${hasPerm('team_members.change_teammember') ? `
+                                <button class="btn btn-ghost-icon btn-ghost-icon--danger btn-sm"
+                                        title="Remove from this team"
+                                        data-member-id="${m.id}"
+                                        data-member-name="${escAttr(m.display_name)}">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>` : ''}
+                            </td>
+                        </tr>
+                    `).join('')}</tbody>
+                </table>
+            </div>
+        `;
+        list.querySelectorAll('button[data-member-id]').forEach(btn => {
+            btn.addEventListener('click', async () => {
+                const memberId   = parseInt(btn.dataset.memberId);
+                const memberName = btn.dataset.memberName;
+                if (!confirm(`Remove ${memberName} from this team?`)) return;
+                btn.disabled = true;
+                try {
+                    const { method, href } = API_URLS.delivery_teams.unassign_member(teamId, memberId);
+                    await apiFetch(href, { method });
+                    showFlash(`${memberName} removed from this team.`, 'success');
+                    await loadLeadership();
+                } catch (err) {
+                    showFlash(err?.data?.error || 'Failed to remove member.', 'danger');
+                    btn.disabled = false;
+                }
+            });
+        });
+    }
+
+    // "Add" button
+    document.getElementById('add-leadership-btn')?.addEventListener('click', async () => {
+        await _openAddLeadershipModal(teamId, _sharableMembers, loadLeadership);
+    });
+
+    await loadLeadership();
+}
+
+async function _openAddLeadershipModal(teamId, currentMembers, onSuccess) {
+    const modal  = document.getElementById('addLeadershipModal');
+    const select = document.getElementById('leadership-member-select');
+    const btn    = document.getElementById('confirm-add-leadership-btn');
+    if (!modal || !select || !btn) return;
+
+    // Load all active shareable-role members to populate the dropdown.
+    try {
+        const { method, href } = API_URLS.team_members.list;
+        const data = await apiFetch(`${href}?is_active=true&page_size=200`, { method });
+        const all  = (data.results ?? []).filter(m => m.role?.is_shareable);
+        const currentIds = new Set(currentMembers.map(m => m.id));
+
+        select.innerHTML = '<option value="">— Select a member —</option>';
+        all
+            .filter(m => !currentIds.has(m.id))
+            .forEach(m => {
+                const opt = document.createElement('option');
+                opt.value       = m.id;
+                opt.textContent = `${escHtml(m.display_name)} (${escHtml(m.role?.role ?? '')})`;
+                select.appendChild(opt);
+            });
+    } catch (err) {
+        showFlash('Could not load members. Please try again.', 'danger');
+        return;
+    }
+
+    const newBtn = btn.cloneNode(true);
+    btn.parentNode.replaceChild(newBtn, btn);
+    newBtn.addEventListener('click', async () => {
+        const memberId = parseInt(select.value);
+        if (!memberId) return;
+        newBtn.disabled  = true;
+        newBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Adding…';
+        try {
+            const { method, href } = API_URLS.delivery_teams.assign_member(teamId);
+            await apiFetch(href, { method, body: JSON.stringify({ member_id: memberId }) });
+            bootstrap.Modal.getInstance(modal)?.hide();
+            showFlash('Leadership member added.', 'success');
+            await onSuccess();
+        } catch (err) {
+            showFlash(err?.data?.error || 'Failed to add member.', 'danger');
+        } finally {
+            newBtn.disabled  = false;
+            newBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Add';
+        }
+    });
+
+    bootstrap.Modal.getOrCreateInstance(modal).show();
 }
 
 /*

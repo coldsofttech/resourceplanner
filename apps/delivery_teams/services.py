@@ -99,9 +99,11 @@ class DeliveryTeamService:
         if wants("total_members"):
             result["total_members"] = TeamMember.objects.filter(is_active=True).count()
         if wants("unassigned_members"):
-            result["unassigned_members"] = TeamMember.objects.filter(
-                is_active=True, team__isnull=True
-            ).count()
+            result["unassigned_members"] = (
+                TeamMember.objects.filter(is_active=True)
+                .exclude(team_assignments__isnull=False)
+                .count()
+            )
 
         return result
 
@@ -275,13 +277,13 @@ class DeliveryTeamService:
         from apps.team_members.models import TeamMember
 
         if include_inactive:
-            qs = TeamMember.objects.filter(team=team).order_by(
-                "last_name", "first_name"
-            )
+            qs = TeamMember.objects.filter(
+                team_assignments__team=team
+            ).prefetch_related('team_assignments__team').order_by("last_name", "first_name").distinct()
         else:
-            qs = TeamMember.objects.filter(is_active=True, team=team).order_by(
-                "last_name", "first_name"
-            )
+            qs = TeamMember.objects.filter(
+                is_active=True, team_assignments__team=team
+            ).prefetch_related('team_assignments__team').order_by("last_name", "first_name").distinct()
 
         paginator = Paginator(qs, page_size)
 
@@ -318,9 +320,12 @@ class DeliveryTeamService:
         from apps.member_leaves.models import MemberLeave
 
         qs = (
-            MemberLeave.objects.filter(member__team=team, member__is_active=True)
+            MemberLeave.objects.filter(
+                member__team_assignments__team=team, member__is_active=True
+            )
             .select_related("member", "member__location")
             .order_by("start_date", "member__last_name", "member__first_name")
+            .distinct()
         )
 
         if not include_past:

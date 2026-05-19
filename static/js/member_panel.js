@@ -34,6 +34,7 @@ export function initMembersPanel({
     filterValue,
     columns,         // 'delivery_teams' | 'other'
     newMemberHref,
+    extraParams = {},
 }) {
     let currentPage     = 1;
     let currentSort     = 'display_name';
@@ -95,6 +96,9 @@ export function initMembersPanel({
         try {
             let url = `${API_URLS.team_members.list.href}?${filterParam}=${filterValue}&page=${currentPage}&page_size=${PAGE_SIZE}&order_by=${currentSort}&order_dir=${currentDir}`;
             if (!includeInactive) url += '&is_active=true';
+            for (const [k, v] of Object.entries(extraParams)) {
+                url += `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`;
+            }
 
             const data = await apiFetch(url, { method: 'GET' });
             const results    = data.results    ?? [];

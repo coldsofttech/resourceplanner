@@ -10,7 +10,7 @@ class SprintCapacitySerializer(serializers.ModelSerializer):
     sprint_end = serializers.DateField(source='sprint.end_date', read_only=True)
     fy_label = serializers.CharField(source='sprint.financial_year.long_fy', read_only=True)
     member_name = serializers.SerializerMethodField()
-    team_name = serializers.CharField(source='team_member.team.name', read_only=True)
+    team_name = serializers.SerializerMethodField()
     location_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -37,6 +37,10 @@ class SprintCapacitySerializer(serializers.ModelSerializer):
     def get_member_name(self, obj) -> str:
         m = obj.team_member
         return f"{m.first_name} {m.last_name}".strip()
+
+    def get_team_name(self, obj) -> str:
+        team = obj.team_member.team  # uses prefetch cache when available
+        return team.name if team else ''
 
     def get_location_name(self, obj) -> str:
         loc = getattr(obj.team_member, 'location', None)

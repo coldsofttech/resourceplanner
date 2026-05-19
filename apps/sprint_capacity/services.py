@@ -206,9 +206,8 @@ class SprintCapacityService:
             'sprint',
             'sprint__financial_year',
             'team_member',
-            'team_member__team',
             'team_member__location',
-        )
+        ).prefetch_related('team_member__team_assignments__team')
 
         if filters:
             if filters.get('sprint_id'):
@@ -216,7 +215,7 @@ class SprintCapacityService:
             if filters.get('fy_id'):
                 qs = qs.filter(sprint__financial_year_id=filters['fy_id'])
             if filters.get('team_id'):
-                qs = qs.filter(team_member__team_id=filters['team_id'])
+                qs = qs.filter(team_member__team_assignments__team_id=filters['team_id']).distinct()
             if filters.get('member_id'):
                 qs = qs.filter(team_member_id=filters['member_id'])
 

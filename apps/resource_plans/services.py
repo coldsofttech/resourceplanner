@@ -1777,7 +1777,11 @@ class PlanAssignmentService:
             team_member__isnull=True
         ).values_list("team_member_id", flat=True)
         if team:
-            team_members = TeamMember.objects.filter(team=team, is_active=True).order_by("last_name", "first_name")
+            team_members = (
+                TeamMember.objects.filter(team_assignments__team=team, is_active=True)
+                .distinct()
+                .order_by("last_name", "first_name")
+            )
         else:
             team_members = TeamMember.objects.none()
         available = team_members.exclude(id__in=assigned_ids)
@@ -2122,7 +2126,11 @@ class PlaceholderLeaveService:
             .values_list('team_id', flat=True).distinct()
         )
         from apps.team_members.models import TeamMember
-        members = list(TeamMember.objects.filter(team_id__in=dt_ids, is_active=True).select_related('location'))
+        members = list(
+            TeamMember.objects.filter(
+                team_assignments__team_id__in=dt_ids, is_active=True
+            ).select_related('location').distinct()
+        )
         if not members:
             return
         member_ids = [m.id for m in members]
@@ -2197,11 +2205,13 @@ class PlaceholderLeaveService:
 
     @staticmethod
     def list_for_version(version, team_member_id=None, team_id=None):
-        qs = PlaceholderLeave.objects.filter(version=version).select_related('team_member', 'sprint')
+        qs = PlaceholderLeave.objects.filter(version=version).select_related(
+            'team_member', 'sprint'
+        ).prefetch_related('team_member__team_assignments')
         if team_member_id:
             qs = qs.filter(team_member_id=team_member_id)
         if team_id:
-            qs = qs.filter(team_member__team_id=team_id)
+            qs = qs.filter(team_member__team_assignments__team_id=team_id).distinct()
         return qs.order_by('sprint__sprint_number', 'team_member__last_name', 'team_member__first_name')
 
     @staticmethod
@@ -2245,9 +2255,10 @@ class CapacityService:
         dt_ids = list(team_qs.values_list('team_id', flat=True).distinct())
 
         members = list(
-            TeamMember.objects.filter(team_id__in=dt_ids, is_active=True)
-            .select_related('team')
+            TeamMember.objects.filter(team_assignments__team_id__in=dt_ids, is_active=True)
+            .prefetch_related('team_assignments__team')
             .order_by('last_name', 'first_name')
+            .distinct()
         )
         return {
             m.id: {
@@ -3528,7 +3539,9 @@ class AllocationEngineService:
 
                 if asgn.auto_assign:
                     from apps.team_members.models import TeamMember
-                    team_members = list(TeamMember.objects.filter(team=te.team, is_active=True))
+                    team_members = list(
+                        TeamMember.objects.filter(team_assignments__team=te.team, is_active=True).distinct()
+                    )
                     _asgn_fk = asgn if asgn.pk else None
                     if team_members:
                         member = AutoAssignService.select_member(team_members, alloc_nums, member_alloc)
@@ -4892,8 +4905,8 @@ def run_snapshot(snapshot_id):
 
         cap_rows = []
         for cap in ResourcePlanMemberCapacity.objects.filter(version=version).select_related(
-            'sprint', 'team_member', 'team_member__team',
-        ):
+            'sprint', 'team_member',
+        ).prefetch_related('team_member__team_assignments__team'):
             team_name = cap.team_member.team.name if cap.team_member.team_id else '—'
             cap_rows.append(ResourcePlanSnapshotCapacity(
                 snapshot=snap,

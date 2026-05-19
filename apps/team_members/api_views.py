@@ -386,7 +386,8 @@ class TeamMemberViewSet(viewsets.ViewSet):
     @action(detail=True, methods=['post'], url_path='move-team')
     def move_team(self, request, pk=None):
         """
-        Move member from one to team to another.
+        Move an assignable-role member from one team to another (records history).
+        Returns 400 for shareable-role members — use assign-team / unassign-team instead.
         """
         try:
             try:
@@ -394,9 +395,7 @@ class TeamMemberViewSet(viewsets.ViewSet):
             except TeamMember.DoesNotExist:
                 logging.warning("Team member %s does not exist", pk)
                 return Response(
-                    {
-                        "error": "Member not found."
-                    },
+                    {"error": "Member not found."},
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
@@ -419,17 +418,83 @@ class TeamMemberViewSet(viewsets.ViewSet):
         except DatabaseError as e:
             logging.exception("Database error in move_team: %s", e)
             return Response(
-                {
-                    "error": "A database error occurred. Please try again later.",
-                },
+                {"error": "A database error occurred. Please try again later."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         except Exception as e:
             logger.exception("Unexpected error in move_team: %s", e)
             return Response(
-                {
-                    "error": "An unexpected error occurred. Please try again later.",
-                },
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # POST /team-members/<id>/assign-team/
+    @action(detail=True, methods=['post'], url_path='assign-team')
+    def assign_team(self, request, pk=None):
+        """
+        Add a team assignment to the member.
+        - Assignable roles: replaces existing assignment and records history.
+        - Shareable roles: adds to existing assignments.
+        """
+        try:
+            try:
+                TeamMember.objects.get(pk=pk)
+            except TeamMember.DoesNotExist:
+                return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            team_id = request.data.get('team_id')
+            if not team_id:
+                return Response({"error": "team_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+            member = TeamMemberService.assign_team(pk, int(team_id))
+            return Response(TeamMemberSerializer(member).data, status=status.HTTP_200_OK)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            logging.warning("Validation error in assign_team: %s", e)
+            return Response(
+                {"error": "Invalid parameters/values.", "details": _validation_details(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logging.exception("Database error in assign_team: %s", e)
+            return Response(
+                {"error": "A database error occurred. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in assign_team: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+    # DELETE /team-members/<id>/unassign-team/<team_id>/
+    @action(detail=True, methods=['delete'], url_path=r'unassign-team/(?P<team_id>[0-9]+)')
+    def unassign_team(self, request, pk=None, team_id=None):
+        """Remove a specific team assignment from the member."""
+        try:
+            try:
+                TeamMember.objects.get(pk=pk)
+            except TeamMember.DoesNotExist:
+                return Response({"error": "Member not found."}, status=status.HTTP_404_NOT_FOUND)
+
+            member = TeamMemberService.unassign_team(pk, int(team_id))
+            return Response(TeamMemberSerializer(member).data, status=status.HTTP_200_OK)
+        except (DjangoValidationError, DRFValidationError, ValueError) as e:
+            logging.warning("Validation error in unassign_team: %s", e)
+            return Response(
+                {"error": "Invalid parameters/values.", "details": _validation_details(e)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        except DatabaseError as e:
+            logging.exception("Database error in unassign_team: %s", e)
+            return Response(
+                {"error": "A database error occurred. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        except Exception as e:
+            logger.exception("Unexpected error in unassign_team: %s", e)
+            return Response(
+                {"error": "An unexpected error occurred. Please try again later."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
