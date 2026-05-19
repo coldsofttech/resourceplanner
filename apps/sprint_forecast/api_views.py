@@ -492,7 +492,16 @@ def _build_recharge_email_entries(sprint_id, recharge_type):
     """Build email entry dicts for trigger/review endpoints."""
     from decimal import Decimal, ROUND_HALF_UP
     from apps.configurations.services import ConfigurationService
+    from apps.contacts.models import Contact
     from apps.projects.services import ProjectCodeService
+
+    _cc_raw = ConfigurationService.get_str('RECHARGE_CC_CONTACTS', '')
+    _cc_ids = [int(x) for x in _cc_raw.split(',') if x.strip().isdigit()]
+    _cc_emails_global = list(
+        Contact.objects.filter(pk__in=_cc_ids, email__isnull=False)
+        .exclude(email='')
+        .values_list('email', flat=True)
+    ) if _cc_ids else []
 
     recharges = list(
         Recharge.objects
@@ -750,7 +759,7 @@ def _build_recharge_email_entries(sprint_id, recharge_type):
             'total_days': str(total_days),
             'total_cost': str(total_cost),
             'to_emails': sorted(to_emails),
-            'cc_emails': [],
+            'cc_emails': sorted(_cc_emails_global),
             'subject': subject,
             'projects': projects_data,
             'body_html': _body_html(projects_data),
@@ -772,7 +781,7 @@ def _build_recharge_email_entries(sprint_id, recharge_type):
             'total_days': str(r.total_days),
             'total_cost': str(r.total_cost),
             'to_emails': sorted(to_emails),
-            'cc_emails': [],
+            'cc_emails': sorted(_cc_emails_global),
             'subject': subject,
             'projects': [p_data],
             'body_html': _body_html([p_data]),
@@ -1012,6 +1021,18 @@ class RechargeViewSet(viewsets.ViewSet):
                     msg.send()
                     rec.status = RECHARGE_EMAIL_STATUS_SENT
                     rec.sent_at = tz.now()
+                    try:
+                        from apps.notifications.services import NotificationService
+                        all_emails = list(set((entry['to_emails'] or []) + (entry['cc_emails'] or [])))
+                        notif_type = 'recharge_forecast' if recharge_type == 'FORECAST' else 'recharge_actuals'
+                        NotificationService.create_for_emails(
+                            emails=all_emails,
+                            title=f"Recharge {recharge_type.title()} email sent",
+                            notification_type=notif_type,
+                            body=entry.get('subject', ''),
+                        )
+                    except Exception:
+                        pass
                 except Exception as exc:
                     rec.status = RECHARGE_EMAIL_STATUS_ERROR
                     rec.error_message = str(exc)[:500]
@@ -1087,6 +1108,18 @@ class RechargeViewSet(viewsets.ViewSet):
                 msg.send()
                 rec.status = RECHARGE_EMAIL_STATUS_SENT
                 rec.sent_at = tz.now()
+                try:
+                    from apps.notifications.services import NotificationService
+                    all_emails = list(set((entry['to_emails'] or []) + (entry['cc_emails'] or [])))
+                    notif_type = 'recharge_forecast' if recharge_type == 'FORECAST' else 'recharge_actuals'
+                    NotificationService.create_for_emails(
+                        emails=all_emails,
+                        title=f"Recharge {recharge_type.title()} email sent",
+                        notification_type=notif_type,
+                        body=entry.get('subject', ''),
+                    )
+                except Exception:
+                    pass
             except Exception as exc:
                 rec.status = RECHARGE_EMAIL_STATUS_ERROR
                 rec.error_message = str(exc)[:500]

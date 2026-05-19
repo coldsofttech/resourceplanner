@@ -25,6 +25,7 @@ MODULE_CHOICES = [
     ('security', 'Security'),
     ('security_password', 'Password Policy'),
     ('project_approval', 'Project Approval'),
+    ('recharge_contacts', 'Recharge Contacts'),
 ]
 
 

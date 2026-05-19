@@ -140,3 +140,9 @@ class SecurityPasswordPolicyAPIView(_ModuleAPIView):
 
 class ProjectApprovalAPIView(_ModuleAPIView):
     module = 'project_approval'
+
+
+# ── Recharge Contacts endpoints ────────────────────────────────────────────────
+
+class RechargeContactsAPIView(_ModuleAPIView):
+    module = 'recharge_contacts'

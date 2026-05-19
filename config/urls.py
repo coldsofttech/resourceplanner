@@ -104,6 +104,7 @@ urlpatterns = [
     path("integrations/", include("apps.configurations.integration_urls")),
     path("security/", include("apps.configurations.security_urls")),
     path("project-approval/", include("apps.configurations.project_approval_urls")),
+    path("recharge-contacts/", include("apps.configurations.recharge_contacts_urls")),
     # Generic Modules
     path("import/", include("apps.import.urls")),
     # Reporting
@@ -119,4 +120,6 @@ urlpatterns = [
     path("business-units/", include("apps.business_units.urls")),
     # Onboarding (public — no auth required)
     path("onboarding/", include("apps.onboarding.urls")),
+    # Notifications
+    path("api/v1/", include("apps.notifications.api_urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

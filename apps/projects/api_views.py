@@ -15,8 +15,11 @@ from .models import (
     Project,
     ProjectAttachment,
     ProjectBudget,
+    ProjectComment,
+    ProjectCommentAttachment,
     ProjectContact,
     ProjectEstimate,
+    ProjectFollower,
     ProjectLabel,
     ProjectLink,
     ProjectView,
@@ -1194,6 +1197,54 @@ class ProjectViewSet(viewsets.ViewSet):
         except Exception as e:
             logger.exception("Error sending approval email for project %s estimate %s: %s", pk, estimate_pk, e)
             return Response({"error": "Failed to send approval email."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    # POST /projects/<id>/toggle-follow/
+    @action(detail=True, methods=["post"], url_path="toggle-follow")
+    def toggle_follow(self, request, pk=None):
+        try:
+            project = ProjectService.get_project(pk)
+        except Project.DoesNotExist:
+            return Response({"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND)
+        follower, created = ProjectFollower.objects.get_or_create(
+            project=project, user=request.user
+        )
+        if not created:
+            follower.delete()
+            return Response({"is_following": False})
+        return Response({"is_following": True})
+
+    # GET /projects/<id>/follow-status/
+    @action(detail=True, methods=["get"], url_path="follow-status")
+    def follow_status(self, request, pk=None):
+        is_following = ProjectFollower.objects.filter(
+            project_id=pk, user=request.user
+        ).exists()
+        return Response({"is_following": is_following})
+
+    # POST /projects/<id>/comments/upload-image/
+    @action(
+        detail=True, methods=["post"],
+        url_path="comments/upload-image",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def comments_upload_image(self, request, pk=None):
+        try:
+            project = ProjectService.get_project(pk)
+        except Project.DoesNotExist:
+            return Response({"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        file_obj = request.FILES.get('image')
+        if not file_obj:
+            return Response({"error": "No image uploaded."}, status=status.HTTP_400_BAD_REQUEST)
+
+        import base64
+        content_type = getattr(file_obj, "content_type", "image/png") or "image/png"
+        if file_obj.size > 10 * 1024 * 1024:
+            return Response({"error": "Image exceeds 10 MB limit."}, status=status.HTTP_400_BAD_REQUEST)
+        raw = file_obj.read()
+        b64 = base64.b64encode(raw).decode("ascii")
+        data_uri = f"data:{content_type};base64,{b64}"
+        return Response({"url": data_uri}, status=status.HTTP_201_CREATED)
 
     # GET /projects/<id>/budgets/
     # POST /projects/<id>/budgets/

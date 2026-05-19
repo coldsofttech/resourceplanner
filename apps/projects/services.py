@@ -1097,11 +1097,61 @@ class ProjectCommentService:
             posted_by = user.get_full_name() or user.email or 'Anonymous'
 
         try:
-            return ProjectComment.objects.create(
+            comment = ProjectComment.objects.create(
                 project=project,
-                comment=comment_text.strip(),
+                comment=comment_text,
                 posted_by=posted_by,
+                posted_by_user=user if (user and user.is_authenticated) else None,
             )
+            # Extract & persist @mentions, then send in-app notifications
+            mentioned_ids = ProjectCommentService._extract_mention_ids(comment_text)
+            if mentioned_ids:
+                comment.mentioned_users.set(mentioned_ids)
+                try:
+                    from django.contrib.auth import get_user_model
+                    from apps.notifications.services import NotificationService
+                    from apps.notifications.models import Notification
+                    User = get_user_model()
+                    mentioned_users = User.objects.filter(pk__in=mentioned_ids, is_active=True)
+                    project_link = f'/projects/{project.pk}/'
+                    for mu in mentioned_users:
+                        if user and mu.pk == user.pk:
+                            continue
+                        NotificationService.create(
+                            mu,
+                            title=f'{posted_by} mentioned you in a comment on {project.name}',
+                            notification_type=Notification.TYPE_COMMENT_MENTION,
+                            link=project_link,
+                        )
+                except Exception:
+                    logger.exception("Failed to create mention notifications for comment %s", comment.pk)
+            # Notify project followers (excluding the commenter)
+            try:
+                from apps.notifications.services import NotificationService
+                from apps.notifications.models import Notification
+                from .models import ProjectFollower
+                follower_ids = list(
+                    ProjectFollower.objects.filter(project=project)
+                    .exclude(user=user)
+                    .values_list('user_id', flat=True)
+                ) if user and user.is_authenticated else list(
+                    ProjectFollower.objects.filter(project=project)
+                    .values_list('user_id', flat=True)
+                )
+                if follower_ids:
+                    from django.contrib.auth import get_user_model
+                    User = get_user_model()
+                    for fu in User.objects.filter(pk__in=follower_ids, is_active=True):
+                        NotificationService.create(
+                            fu,
+                            title=f'New comment on {project.name}',
+                            notification_type=Notification.TYPE_PROJECT_FOLLOW,
+                            body=f'by {posted_by}',
+                            link=f'/projects/{project.pk}/',
+                        )
+            except Exception:
+                logger.exception("Failed to create follow notifications for comment %s", comment.pk)
+            return comment
         except IntegrityError as e:
             logger.error("IntegrityError creating comment '%s': %s", project_id, e)
             raise ValidationError(
@@ -1117,6 +1167,12 @@ class ProjectCommentService:
                 "Unexpected error when creating comment '%s': %s", project_id, e
             )
             raise
+
+    @staticmethod
+    def _extract_mention_ids(html: str) -> list[int]:
+        """Parse data-user-id attributes from @mention spans in HTML comment bodies."""
+        import re
+        return [int(m) for m in re.findall(r'data-user-id=["\'](\d+)["\']', html)]
 
     @staticmethod
     @transaction.atomic

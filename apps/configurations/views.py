@@ -77,3 +77,10 @@ class SecurityPasswordPolicyListView(View):
 class ProjectApprovalListView(View):
     def get(self, request, *args, **kwargs):
         return render(request, 'configurations/project_approval.html')
+
+
+# ── Recharge Contacts view ────────────────────────────────────────────────────
+
+class RechargeContactsListView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'configurations/recharge_contacts.html')

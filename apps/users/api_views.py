@@ -508,6 +508,23 @@ class UserViewSet(ViewSet):
         return Response(UserSerializer(user, context={'request': request}).data)
 
     # ── /ping ────────────────────────────────────────────────────────────────
+    @action(detail=False, methods=['get'], url_path='mention-search')
+    def mention_search(self, request):
+        """Lightweight search returning id + display_name for @mention autocomplete."""
+        q = request.query_params.get('q', '').strip()
+        if not q or len(q) < 1:
+            return Response([])
+        from django.db.models import Q
+        qs = User.objects.filter(is_active=True).filter(
+            Q(first_name__icontains=q) |
+            Q(last_name__icontains=q) |
+            Q(email__icontains=q)
+        ).order_by('first_name', 'last_name')[:15]
+        return Response([
+            {'id': u.pk, 'display_name': u.get_full_name() or u.email, 'email': u.email}
+            for u in qs
+        ])
+
     @action(detail=False, methods=['post'], url_path='ping')
     def ping(self, request):
         """Refresh _rp_last_activity so the session timeout resets."""

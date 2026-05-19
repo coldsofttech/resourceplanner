@@ -533,6 +533,9 @@ export const API_URLS = {
                 href: `${API_BASE}projects/${projectId}/estimates/${estimateId}/send-approval-email/`,
             }),
         },
+        toggleFollow: (projectId) => ({ method: 'POST', href: `${API_BASE}projects/${projectId}/toggle-follow/` }),
+        followStatus: (projectId) => ({ method: 'GET',  href: `${API_BASE}projects/${projectId}/follow-status/` }),
+        commentUploadImage: (projectId) => ({ method: 'POST', href: `${API_BASE}projects/${projectId}/comments/upload-image/` }),
         budgets: {
             list: (projectId) => ({
                 method: 'GET',
@@ -633,7 +636,14 @@ export const API_URLS = {
         },
     },
     users: {
-        ping: { method: 'POST', href: `${API_BASE}users/ping/` },
+        ping:          { method: 'POST', href: `${API_BASE}users/ping/` },
+        mentionSearch: (q) => ({ method: 'GET', href: `${API_BASE}users/mention-search/?q=${encodeURIComponent(q)}` }),
+    },
+    notifications: {
+        list:        { method: 'GET',  href: `${API_BASE}notifications/` },
+        unreadCount: { method: 'GET',  href: `${API_BASE}notifications/unread-count/` },
+        markAllRead: { method: 'POST', href: `${API_BASE}notifications/mark-all-read/` },
+        detail: (id) => ({ method: 'PATCH', href: `${API_BASE}notifications/${id}/` }),
     },
     integrations: {
         ai:    { get: { method: 'GET', href: `${API_BASE}integrations/ai/` }, patch: { method: 'PATCH', href: `${API_BASE}integrations/ai/` } },
@@ -652,6 +662,10 @@ export const API_URLS = {
     project_approval: {
         get:   { method: 'GET',   href: `${API_BASE}project-approval/` },
         patch: { method: 'PATCH', href: `${API_BASE}project-approval/` },
+    },
+    recharge_contacts: {
+        get:   { method: 'GET',   href: `${API_BASE}recharge-contacts/` },
+        patch: { method: 'PATCH', href: `${API_BASE}recharge-contacts/` },
     },
     configurations: {
         list: { method: 'GET', href: `${API_BASE}configurations/` },
@@ -751,6 +765,10 @@ export const API_URLS = {
             create: (planId) => ({
                 method: 'POST',
                 href: `${API_BASE}resource-plans/${planId}/comments/`,
+            }),
+            uploadImage: (planId) => ({
+                method: 'POST',
+                href: `${API_BASE}resource-plans/${planId}/comments/upload-image/`,
             }),
         },
         engine: {
@@ -1170,6 +1188,9 @@ export const URLS = {
     },
     project_approval: {
         list: '/project-approval/',
+    },
+    recharge_contacts: {
+        list: '/recharge-contacts/',
     },
     email_templates: {
         list:    '/email-templates/',

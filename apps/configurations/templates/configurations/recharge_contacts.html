@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Recharge Email Contacts</h1>
+        <p class="rp-page-subtitle">Choose which contacts are CC'd on every Sprint Forecast and Sprint Actuals recharge email.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="wizard-panel" id="step-1">
+    <h6 class="wizard-section-title">CC Contacts</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">CC Contacts</div>
+        <div class="wizard-field-desc">
+            These contacts will be copied (<strong>CC</strong>) on all recharge approval emails
+            sent for Sprint Forecast and Sprint Actuals, regardless of the project or group.
+        </div>
+        <div id="ctrl-RECHARGE_CC_CONTACTS" class="pa-checklist mt-2">
+            <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading contacts…</div>
+        </div>
+    </div>
+</div>
+
+<div class="wizard-nav d-flex gap-2 justify-content-end mt-3">
+    <button id="rc-save" class="btn btn-primary">
+        <i class="bi bi-check-lg me-1"></i>Save changes
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/recharge_contacts.js' %}"></script>
+{% endblock %}

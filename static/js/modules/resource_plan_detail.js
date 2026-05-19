@@ -22,6 +22,14 @@ const _versionDataCache = new Map(); // versionId (string) → version object
 // Comments state
 let _commentsPage = 1;
 let _commentsInitialized = false;
+let _commentQuill = null;
+let _commentAttachFiles = [];
+
+// Mention state
+let _mentionQuery = '';
+let _mentionRange = null;
+let _mentionResults = [];
+let _mentionActiveIdx = 0;
 
 // Engine state
 let _enginePollTimer = null;
@@ -257,15 +265,180 @@ async function saveGeneral() {
 
 // ─── Comments ────────────────────────────────────────────────────────────────
 
+function _csrfToken() {
+    return document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] ?? '';
+}
+
 function initComments() {
     if (!_commentsInitialized) {
+        _initCommentEditor();
         document.getElementById('btn-post-comment')?.addEventListener('click', postComment);
-        document.getElementById('new-comment-input')?.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') postComment();
-        });
         _commentsInitialized = true;
     }
     loadComments(1);
+}
+
+function _initCommentEditor() {
+    const editorEl = document.getElementById('new-comment-editor');
+    if (!editorEl || typeof Quill === 'undefined') return;
+
+    _commentQuill = new Quill('#new-comment-editor', {
+        theme: 'snow',
+        modules: {
+            toolbar: '#comment-editor-toolbar',
+        },
+        placeholder: 'Add a comment…',
+    });
+
+    // Override image handler to upload to server
+    _commentQuill.getModule('toolbar').addHandler('image', () => {
+        const input = document.createElement('input');
+        input.setAttribute('type', 'file');
+        input.setAttribute('accept', 'image/*');
+        input.click();
+        input.onchange = () => {
+            const file = input.files[0];
+            if (file) _uploadAndInsertImage(file);
+        };
+    });
+
+    // Paste image handler
+    _commentQuill.root.addEventListener('paste', (e) => {
+        const items = e.clipboardData?.items ?? [];
+        for (const item of items) {
+            if (item.type.startsWith('image/')) {
+                e.preventDefault();
+                const file = item.getAsFile();
+                if (file) _uploadAndInsertImage(file);
+                return;
+            }
+        }
+    });
+
+    // @ mention on text-change
+    _commentQuill.on('text-change', () => _handleMentionInput());
+
+    // Keyboard nav for mention dropdown
+    _commentQuill.root.addEventListener('keydown', (e) => {
+        const dd = document.getElementById('rp-mention-dropdown');
+        if (!dd || dd.style.display === 'none') return;
+        if (e.key === 'ArrowDown') { e.preventDefault(); _mentionActiveIdx = Math.min(_mentionActiveIdx + 1, _mentionResults.length - 1); _renderMentionDropdown(); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); _mentionActiveIdx = Math.max(_mentionActiveIdx - 1, 0); _renderMentionDropdown(); }
+        else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); if (_mentionResults[_mentionActiveIdx]) _insertMention(_mentionActiveIdx); }
+        else if (e.key === 'Escape') { _closeMentionDropdown(); }
+    });
+
+    // File attachment
+    document.getElementById('rp-comment-attach-input')?.addEventListener('change', (e) => {
+        for (const f of e.target.files) _addAttachFile(f);
+        e.target.value = '';
+    });
+}
+
+async function _uploadAndInsertImage(file) {
+    try {
+        const { method, href } = API_URLS.resource_plans.comments.uploadImage(planPk);
+        const fd = new FormData();
+        fd.append('image', file);
+        const res = await fetch(href, {
+            method,
+            headers: { 'X-CSRFToken': _csrfToken() },
+            body: fd,
+        });
+        const data = await res.json();
+        if (data.url) {
+            const range = _commentQuill.getSelection(true);
+            _commentQuill.insertEmbed(range.index, 'image', data.url, 'user');
+            _commentQuill.setSelection(range.index + 1, 0, 'user');
+        }
+    } catch {
+        showFlash('Failed to upload image.', 'danger');
+    }
+}
+
+function _addAttachFile(file) {
+    _commentAttachFiles.push(file);
+    _renderAttachChips();
+}
+
+function _renderAttachChips() {
+    const preview = document.getElementById('rp-comment-attachments-preview');
+    if (!preview) return;
+    preview.innerHTML = _commentAttachFiles.map((f, i) => `
+        <span class="rp-attach-chip">
+            <i class="bi bi-paperclip"></i>${escHtml(f.name)}
+            <button type="button" data-idx="${i}" title="Remove"><i class="bi bi-x"></i></button>
+        </span>`).join('');
+    preview.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            _commentAttachFiles.splice(parseInt(btn.dataset.idx, 10), 1);
+            _renderAttachChips();
+        });
+    });
+}
+
+function _handleMentionInput() {
+    const sel = _commentQuill.getSelection();
+    if (!sel) return;
+    const text = _commentQuill.getText(0, sel.index);
+    const atPos = text.lastIndexOf('@');
+    if (atPos === -1) { _closeMentionDropdown(); return; }
+    const query = text.slice(atPos + 1);
+    if (/\s/.test(query) || query.length > 30) { _closeMentionDropdown(); return; }
+    _mentionQuery = query;
+    _mentionRange = { index: atPos, length: query.length + 1 };
+    _fetchMentions(query);
+}
+
+async function _fetchMentions(q) {
+    if (!q && q !== '') return;
+    try {
+        const { method, href } = API_URLS.users.mentionSearch(q);
+        const results = await apiFetch(href, { method });
+        _mentionResults = results;
+        _mentionActiveIdx = 0;
+        _renderMentionDropdown();
+    } catch { _closeMentionDropdown(); }
+}
+
+function _renderMentionDropdown() {
+    const dd = document.getElementById('rp-mention-dropdown');
+    if (!dd) return;
+    if (!_mentionResults.length) { _closeMentionDropdown(); return; }
+    dd.innerHTML = _mentionResults.map((u, i) => `
+        <div class="rp-mention-item${i === _mentionActiveIdx ? ' active' : ''}" data-idx="${i}">
+            <strong>${escHtml(u.display_name)}</strong>
+            <span class="text-secondary ms-1" style="font-size:.78rem">${escHtml(u.email)}</span>
+        </div>`).join('');
+    dd.querySelectorAll('.rp-mention-item').forEach(el => {
+        el.addEventListener('mousedown', (e) => { e.preventDefault(); _insertMention(parseInt(el.dataset.idx, 10)); });
+    });
+
+    // Position near cursor
+    const bounds = _commentQuill.getBounds(_mentionRange?.index ?? 0);
+    const editorRect = _commentQuill.root.getBoundingClientRect();
+    const wrapRect = dd.parentElement.getBoundingClientRect();
+    dd.style.left = `${editorRect.left - wrapRect.left + bounds.left}px`;
+    dd.style.top = `${editorRect.top - wrapRect.top + bounds.bottom + 4}px`;
+    dd.style.display = 'block';
+}
+
+function _insertMention(idx) {
+    const user = _mentionResults[idx];
+    if (!user || !_mentionRange) return;
+    _commentQuill.deleteText(_mentionRange.index, _mentionRange.length, 'user');
+    const mentionHtml = `<span class="mention" data-user-id="${user.id}" contenteditable="false">@${escHtml(user.display_name)}</span>`;
+    _commentQuill.clipboard.dangerouslyPasteHTML(_mentionRange.index, mentionHtml + '&nbsp;', 'user');
+    _commentQuill.setSelection(_mentionRange.index + user.display_name.length + 2, 0, 'user');
+    _closeMentionDropdown();
+}
+
+function _closeMentionDropdown() {
+    _mentionResults = [];
+    _mentionQuery = '';
+    _mentionRange = null;
+    const dd = document.getElementById('rp-mention-dropdown');
+    if (dd) dd.style.display = 'none';
 }
 
 async function loadComments(page = 1) {
@@ -297,7 +470,7 @@ function renderCommentList(results, pagination) {
 function _commentCardHtml(c) {
     return `
     <div class="rp-comment-card" data-comment-id="${c.id}">
-        <p class="rp-comment-body">${escHtml(c.comment)}</p>
+        <div class="rp-comment-body ql-editor" style="padding:0;border:none">${c.comment}</div>
         <div class="rp-comment-meta">
             <span>${escHtml(c.posted_by)}</span>
             <span>·</span>
@@ -329,13 +502,22 @@ function renderCommentsPagination(pagination) {
 }
 
 async function postComment() {
-    const input = document.getElementById('new-comment-input');
-    const text = input.value.trim();
-    if (!text) {
-        input.classList.add('is-invalid');
-        return;
+    let commentHtml = '';
+    if (_commentQuill) {
+        commentHtml = _commentQuill.root.innerHTML.trim();
+        if (commentHtml === '<p><br></p>' || !commentHtml) {
+            showFlash('Comment cannot be empty.', 'warning');
+            return;
+        }
+    } else {
+        const input = document.getElementById('new-comment-input');
+        commentHtml = (input?.value ?? '').trim();
+        if (!commentHtml) {
+            input?.classList.add('is-invalid');
+            return;
+        }
+        input?.classList.remove('is-invalid');
     }
-    input.classList.remove('is-invalid');
 
     const btn = document.getElementById('btn-post-comment');
     const prevHtml = btn.innerHTML;
@@ -344,8 +526,13 @@ async function postComment() {
 
     try {
         const { method, href } = API_URLS.resource_plans.comments.create(planPk);
-        await apiFetch(href, { method, body: JSON.stringify({ comment: text }) });
-        input.value = '';
+        await apiFetch(href, { method, body: JSON.stringify({ comment: commentHtml }) });
+
+        if (_commentQuill) {
+            _commentQuill.setContents([]);
+        }
+        _commentAttachFiles = [];
+        _renderAttachChips();
         showFlash('Comment posted.', 'success');
         loadComments(1);
     } catch (err) {

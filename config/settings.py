@@ -82,6 +82,7 @@ INSTALLED_APPS = [
     "apps.email_templates",
     "apps.business_units",
     "apps.onboarding",
+    "apps.notifications",
 ]
 
 MIDDLEWARE = [

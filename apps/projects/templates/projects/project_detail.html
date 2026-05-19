@@ -14,6 +14,12 @@
             </h1>
         </div>
     </div>
+    <div class="d-flex gap-2 align-items-center">
+        <button id="btn-follow-project" class="btn btn-outline-secondary btn-sm" title="Follow this project">
+            <i class="bi bi-bookmark" id="follow-icon"></i>
+            <span id="follow-label" class="ms-1">Follow</span>
+        </button>
+    </div>
 </div>
 {% endblock %} {% block content %}
 <div class="row g-4">
@@ -229,18 +235,26 @@
                         <h6 class="rp-view-section-title">
                             <i class="bi bi-chat-left-text me-2"></i>Comments
                         </h6>
-                        <div class="mb-3">
-                            <textarea
-                                id="new-comment-input"
-                                class="form-control rp-input rp-comment-textarea"
-                                placeholder="Add a comment..."
-                                rows="3"
-                            ></textarea>
-                            <div class="d-flex justify-content-end mt-2">
+                        <div class="mb-3 position-relative">
+                            <div id="comment-editor-toolbar" class="ql-toolbar-comment"></div>
+                            <div id="new-comment-editor"
+                                 style="min-height:80px;border:1px solid var(--rp-border-color,#dee2e6);border-radius:6px;font-size:14px"></div>
+                            <!-- @ mention dropdown -->
+                            <div id="mention-dropdown"
+                                 style="display:none;position:absolute;z-index:1000;background:#fff;
+                                        border:1px solid var(--rp-border-color,#dee2e6);border-radius:6px;
+                                        box-shadow:0 4px 16px rgba(0,0,0,.12);min-width:220px;max-height:200px;overflow-y:auto">
+                            </div>
+                            <div class="d-flex justify-content-end mt-2 gap-2">
+                                <label class="btn btn-ghost-icon btn-sm" title="Attach file" for="comment-attach-input">
+                                    <i class="bi bi-paperclip"></i>
+                                    <input type="file" id="comment-attach-input" multiple class="d-none">
+                                </label>
                                 <button class="btn btn-primary btn-sm" id="btn-post-comment">
                                     <i class="bi bi-send me-1"></i>Post
                                 </button>
                             </div>
+                            <div id="comment-attachments-preview" class="d-flex flex-wrap gap-2 mt-1"></div>
                         </div>
                         <div id="comments-pinned-container"></div>
                         <div id="comments-container">
@@ -2077,6 +2091,23 @@
         </div>
     </div>
 </div>
-{% endblock %} {% block extra_js %}
+{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet" />
+<style>
+#new-comment-editor .ql-editor { min-height: 70px; font-size: 14px; }
+#new-comment-editor .ql-editor.ql-blank::before { font-style: normal; color: var(--rp-text-muted, #6c757d); }
+.mention { background: #dbeafe; color: #1d4ed8; border-radius: 3px; padding: 1px 4px; cursor: default; }
+#mention-dropdown .mention-item { padding: 7px 12px; cursor: pointer; font-size: 13px; display: flex; gap: 8px; align-items: center; }
+#mention-dropdown .mention-item:hover, #mention-dropdown .mention-item.active { background: var(--rp-row-hover, #f0f4ff); }
+#mention-dropdown .mention-item small { color: var(--rp-text-muted, #6c757d); }
+.comment-attach-chip { display:inline-flex;align-items:center;gap:4px;background:var(--rp-badge-bg,#f1f5f9);border-radius:4px;padding:2px 8px;font-size:12px; }
+.comment-attach-chip .rm-attach { cursor:pointer;color:var(--rp-text-muted);margin-left:2px; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.quilljs.com/1.3.7/quill.min.js"></script>
 <script type="module" src="{% static 'js/modules/project_detail.js' %}"></script>
 {% endblock %}

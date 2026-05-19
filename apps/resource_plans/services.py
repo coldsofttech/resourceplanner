@@ -663,14 +663,54 @@ class ResourcePlanCommentService:
         }
 
     @staticmethod
-    def add_comment(plan, comment_text, posted_by="Anonymous"):
-        if not comment_text or not comment_text.strip():
+    def add_comment(plan, comment_text, posted_by="Anonymous", user=None):
+        import re
+        from html.parser import HTMLParser
+
+        class _TextExtractor(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.text = []
+
+            def handle_data(self, data):
+                self.text.append(data)
+
+        if not comment_text:
             raise ValidationError({"comment": "Comment text is required."})
-        return ResourcePlanComment.objects.create(
+        extractor = _TextExtractor()
+        extractor.feed(comment_text)
+        if not "".join(extractor.text).strip():
+            raise ValidationError({"comment": "Comment text is required."})
+
+        comment = ResourcePlanComment.objects.create(
             plan=plan,
-            comment=comment_text.strip(),
+            comment=comment_text,
             posted_by=(posted_by or "Anonymous").strip() or "Anonymous",
+            posted_by_user=user,
         )
+
+        mention_ids = [int(uid) for uid in re.findall(r'data-user-id="(\d+)"', comment_text)]
+        if mention_ids:
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            mentioned = list(User.objects.filter(id__in=mention_ids, is_active=True))
+            comment.mentioned_users.set(mentioned)
+            try:
+                from apps.notifications.services import NotificationService
+                for mu in mentioned:
+                    if user and mu.pk == user.pk:
+                        continue
+                    NotificationService.create(
+                        user=mu,
+                        title=f"{posted_by} mentioned you in a resource plan comment",
+                        notification_type="comment_mention",
+                        body=plan.name,
+                        link=f"/resource-plans/{plan.pk}/",
+                    )
+            except Exception:
+                pass
+
+        return comment
 
 
 def _get_sprint_point_price():

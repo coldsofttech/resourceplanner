@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import models
 from django.core.exceptions import ValidationError
 
@@ -228,6 +229,17 @@ class ProjectComment(models.Model):
     )
     comment = models.TextField()
     posted_by = models.CharField(max_length=200, default="Anonymous")
+    posted_by_user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='project_comments',
+    )
+    mentioned_users = models.ManyToManyField(
+        settings.AUTH_USER_MODEL,
+        blank=True,
+        related_name='project_comment_mentions',
+    )
     is_edited = models.BooleanField(default=False)
     is_pinned = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -238,6 +250,46 @@ class ProjectComment(models.Model):
 
     def __str__(self):
         return f"Comment {self.pk} on project {self.project_id}"
+
+
+class ProjectCommentAttachment(models.Model):
+    """File attachments on project comments (images or documents)."""
+    comment = models.ForeignKey(
+        ProjectComment, on_delete=models.CASCADE, related_name='attachments'
+    )
+    file_name    = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=100, blank=True, default='')
+    file_size    = models.PositiveBigIntegerField(default=0)
+    file_data    = models.BinaryField(blank=True, null=True)
+    file_path    = models.CharField(max_length=1000, blank=True, default='')
+    s3_key       = models.CharField(max_length=1000, blank=True, default='')
+    uploaded_by  = models.CharField(max_length=200, default='')
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f'{self.file_name} (comment {self.comment_id})'
+
+
+class ProjectFollower(models.Model):
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name='followers'
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='followed_projects',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('project', 'user')]
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.user_id} follows {self.project_id}'
 
 
 class ProjectCode(models.Model):

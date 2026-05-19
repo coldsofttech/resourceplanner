@@ -95,6 +95,19 @@ class ProjectApprovalEmailService:
                 "Project approval email sent for project %s to %d recipients",
                 project.pk, len(all_emails)
             )
+            try:
+                from apps.notifications.services import NotificationService
+                from apps.notifications.models import Notification
+                project_link = f'/projects/{project.pk}/'
+                NotificationService.create_for_emails(
+                    all_emails,
+                    title=f'Project Approved: {project.name}',
+                    notification_type=Notification.TYPE_PROJECT_APPROVED,
+                    body=f'{project.name} is now In Progress.',
+                    link=project_link,
+                )
+            except Exception:
+                logger.exception("Failed to create project approval notifications for project %s", project.pk)
         except Exception as exc:
             logger.exception(
                 "Failed to send project approval email for project %s: %s", project.pk, exc

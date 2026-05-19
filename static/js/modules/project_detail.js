@@ -37,6 +37,9 @@ let _budgetEstimateOptions = [];
 let _suggestTimeout = null;
 let _selectedContactId = null;
 
+let _commentQuill = null;
+let _commentAttachFiles = [];
+
 async function initDetailView() {
     try {
         const project = await fetchProject();
@@ -47,9 +50,238 @@ async function initDetailView() {
         renderGeneral();
         populateEditDropdowns(options);
         bindEditButtons();
+        _initCommentEditor();
+        _initFollowButton();
     } catch (err) {
         console.error('[initDetailView] Failed to load project.', err);
         _showBanner('Failed to load project data. Please refresh the page.', 'danger');
+    }
+}
+
+function _initCommentEditor() {
+    if (!document.getElementById('new-comment-editor') || !window.Quill) return;
+
+    const COMMENT_TOOLBAR = [
+        ['bold', 'italic', 'underline'],
+        ['link', 'image', 'bi-icon'],
+        [{ list: 'bullet' }],
+        ['clean'],
+    ];
+
+    _commentQuill = new Quill('#new-comment-editor', {
+        theme: 'snow',
+        placeholder: 'Add a comment… use @ to mention someone',
+        modules: {
+            toolbar: { container: COMMENT_TOOLBAR },
+        },
+    });
+
+    // Override image handler — upload to server, insert URL
+    _commentQuill.getModule('toolbar').addHandler('image', () => {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*';
+        input.onchange = async () => {
+            const file = input.files[0];
+            if (!file) return;
+            const fd = new FormData();
+            fd.append('image', file);
+            try {
+                const { href } = API_URLS.projects.commentUploadImage(projectPk);
+                const resp = await fetch(href, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'X-CSRFToken': _csrfToken() },
+                    body: fd,
+                });
+                const data = await resp.json();
+                const range = _commentQuill.getSelection(true);
+                _commentQuill.insertEmbed(range.index, 'image', data.url, 'user');
+            } catch { showFlash('Image upload failed.', 'danger'); }
+        };
+        input.click();
+    });
+
+    // Paste images → upload
+    _commentQuill.root.addEventListener('paste', async (e) => {
+        const items = Array.from(e.clipboardData?.items ?? []);
+        const imageItem = items.find(i => i.type.startsWith('image/'));
+        if (!imageItem) return;
+        e.preventDefault();
+        const file = imageItem.getAsFile();
+        if (!file) return;
+        const fd = new FormData();
+        fd.append('image', file);
+        try {
+            const { href } = API_URLS.projects.commentUploadImage(projectPk);
+            const resp = await fetch(href, {
+                method: 'POST', credentials: 'same-origin',
+                headers: { 'X-CSRFToken': _csrfToken() },
+                body: fd,
+            });
+            const data = await resp.json();
+            const range = _commentQuill.getSelection(true);
+            _commentQuill.insertEmbed(range.index, 'image', data.url, 'user');
+        } catch { showFlash('Image paste upload failed.', 'danger'); }
+    });
+
+    // @ mention autocomplete
+    _commentQuill.on('text-change', () => _handleMentionInput());
+
+    // File attachment input
+    const attachInput = document.getElementById('comment-attach-input');
+    if (attachInput) {
+        attachInput.addEventListener('change', () => {
+            Array.from(attachInput.files).forEach(f => {
+                _commentAttachFiles.push(f);
+                _renderAttachChip(f);
+            });
+            attachInput.value = '';
+        });
+    }
+
+    // Post button uses Quill content
+    document.getElementById('btn-post-comment')?.addEventListener('click', handlePostComment);
+}
+
+function _csrfToken() {
+    return document.cookie.split(';').map(c => c.trim())
+        .find(c => c.startsWith('csrftoken='))?.split('=')[1] ?? '';
+}
+
+function _renderAttachChip(file) {
+    const preview = document.getElementById('comment-attachments-preview');
+    if (!preview) return;
+    const chip = document.createElement('span');
+    chip.className = 'comment-attach-chip';
+    chip.dataset.name = file.name;
+    chip.innerHTML = `<i class="bi bi-paperclip"></i>${escHtml(file.name)}<span class="rm-attach" title="Remove">×</span>`;
+    chip.querySelector('.rm-attach').addEventListener('click', () => {
+        _commentAttachFiles = _commentAttachFiles.filter(f => f !== file);
+        chip.remove();
+    });
+    preview.appendChild(chip);
+}
+
+// ── @ mention autocomplete ────────────────────────────────────────────────────
+
+let _mentionQuery = null;
+let _mentionRange  = null;
+let _mentionActive = -1;
+let _mentionResults = [];
+
+async function _handleMentionInput() {
+    const dropdown = document.getElementById('mention-dropdown');
+    if (!dropdown) return;
+
+    const sel = _commentQuill.getSelection();
+    if (!sel) { dropdown.style.display = 'none'; return; }
+
+    const text = _commentQuill.getText(0, sel.index);
+    const atIdx = text.lastIndexOf('@');
+    if (atIdx < 0) { dropdown.style.display = 'none'; _mentionQuery = null; return; }
+
+    const query = text.slice(atIdx + 1);
+    if (query.includes(' ') || query.length > 30) { dropdown.style.display = 'none'; _mentionQuery = null; return; }
+
+    if (query === _mentionQuery) return;
+    _mentionQuery = query;
+    _mentionRange = { index: atIdx, length: sel.index - atIdx };
+
+    try {
+        const { href } = API_URLS.users.mentionSearch(query);
+        const results = await apiFetch(href, { method: 'GET' });
+        _mentionResults = Array.isArray(results) ? results : (results.results ?? []);
+        if (!_mentionResults.length) { dropdown.style.display = 'none'; return; }
+
+        _mentionActive = 0;
+        dropdown.innerHTML = _mentionResults.map((u, i) => `
+            <div class="mention-item${i === 0 ? ' active' : ''}" data-idx="${i}" data-id="${u.id}" data-name="${escAttr(u.display_name)}">
+                <i class="bi bi-person-circle"></i>
+                <span>${escHtml(u.display_name)}</span>
+                <small>${escHtml(u.email)}</small>
+            </div>
+        `).join('');
+        dropdown.querySelectorAll('.mention-item').forEach(el => {
+            el.addEventListener('mousedown', e => { e.preventDefault(); _insertMention(parseInt(el.dataset.idx)); });
+        });
+
+        // Position below cursor
+        const bounds = _commentQuill.getBounds(sel.index);
+        const editorRect = document.getElementById('new-comment-editor').getBoundingClientRect();
+        dropdown.style.top = `${bounds.bottom + 4}px`;
+        dropdown.style.left = `${bounds.left}px`;
+        dropdown.style.display = 'block';
+    } catch { dropdown.style.display = 'none'; }
+}
+
+function _insertMention(idx) {
+    const user = _mentionResults[idx];
+    if (!user || !_mentionRange) return;
+    const dropdown = document.getElementById('mention-dropdown');
+    dropdown.style.display = 'none';
+    _commentQuill.deleteText(_mentionRange.index, _mentionRange.length, 'user');
+    const mentionHtml = `<span class="mention" data-user-id="${user.id}" contenteditable="false">@${escHtml(user.display_name)}</span>&nbsp;`;
+    _commentQuill.clipboard.dangerouslyPasteHTML(_mentionRange.index, mentionHtml, 'user');
+    _commentQuill.setSelection(_mentionRange.index + user.display_name.length + 2, 0, 'user');
+    _mentionQuery = null;
+    _mentionRange = null;
+}
+
+// keyboard nav for mention dropdown
+document.addEventListener('keydown', (e) => {
+    const dd = document.getElementById('mention-dropdown');
+    if (!dd || dd.style.display === 'none') return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); _setActive((_mentionActive + 1) % _mentionResults.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); _setActive((_mentionActive - 1 + _mentionResults.length) % _mentionResults.length); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); _insertMention(_mentionActive); }
+    else if (e.key === 'Escape') { dd.style.display = 'none'; _mentionQuery = null; }
+});
+
+function _setActive(idx) {
+    _mentionActive = idx;
+    document.querySelectorAll('#mention-dropdown .mention-item').forEach((el, i) => {
+        el.classList.toggle('active', i === idx);
+    });
+}
+
+// ── Follow button ─────────────────────────────────────────────────────────────
+
+async function _initFollowButton() {
+    const btn = document.getElementById('btn-follow-project');
+    if (!btn) return;
+
+    try {
+        const { method, href } = API_URLS.projects.followStatus(projectPk);
+        const data = await apiFetch(href, { method });
+        _updateFollowBtn(data.is_following);
+    } catch { /* silent */ }
+
+    btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+            const { method, href } = API_URLS.projects.toggleFollow(projectPk);
+            const data = await apiFetch(href, { method });
+            _updateFollowBtn(data.is_following);
+            showFlash(data.is_following ? 'You are now following this project.' : 'Unfollowed.', 'success');
+        } catch { showFlash('Could not update follow status.', 'danger'); }
+        finally { btn.disabled = false; }
+    });
+}
+
+function _updateFollowBtn(isFollowing) {
+    const icon  = document.getElementById('follow-icon');
+    const label = document.getElementById('follow-label');
+    const btn   = document.getElementById('btn-follow-project');
+    if (!btn) return;
+    if (isFollowing) {
+        icon?.setAttribute('class', 'bi bi-bookmark-fill');
+        if (label) label.textContent = 'Following';
+        btn.classList.remove('btn-outline-secondary');
+        btn.classList.add('btn-secondary');
+    } else {
+        icon?.setAttribute('class', 'bi bi-bookmark');
+        if (label) label.textContent = 'Follow';
+        btn.classList.remove('btn-secondary');
+        btn.classList.add('btn-outline-secondary');
     }
 }
 
@@ -255,7 +487,7 @@ function _commentCardHtml(c, showPin) {
 
     return `
     <div class="rp-comment-card ${pinnedCls}" data-comment-id="${c.id}">
-        <p class="rp-comment-body">${escHtml(c.comment)}</p>
+        <div class="rp-comment-body ql-editor" style="padding:0;border:none">${c.comment}</div>
         <div class="rp-comment-meta">
             ${pinnedBadge}
             <span>${escHtml(c.posted_by)}</span>
@@ -266,7 +498,7 @@ function _commentCardHtml(c, showPin) {
                 <button class="btn btn-ghost-icon btn-sm js-pin-comment" data-id="${c.id}" data-pinned="${c.is_pinned}" title="${pinActionLabel}">
                     <i class="bi bi-pin${c.is_pinned ? '-angle-fill' : ''}"></i>
                 </button>
-                <button class="btn btn-ghost-icon btn-sm js-edit-comment" data-id="${c.id}" data-comment="${escHtml(c.comment)}" title="Edit">
+                <button class="btn btn-ghost-icon btn-sm js-edit-comment" data-id="${c.id}" data-comment="${escAttr(c.comment)}" title="Edit">
                     <i class="bi bi-pencil"></i>
                 </button>
                 <button class="btn btn-ghost-icon btn-ghost-icon--danger btn-sm js-delete-comment" data-id="${c.id}" title="Delete">
@@ -318,13 +550,21 @@ function renderCommentPagination(data, el, loadFn) {
 
 async function handlePostComment() {
     const btn = document.getElementById('btn-post-comment');
-    const input = document.getElementById('new-comment-input');
-    const text = input.value.trim();
-    if (!text) {
-        input.classList.add('is-invalid');
-        return;
+
+    // Get content from Quill or fallback textarea
+    let commentHtml = '';
+    if (_commentQuill) {
+        commentHtml = _commentQuill.root.innerHTML.trim();
+        if (commentHtml === '<p><br></p>' || !commentHtml) {
+            showFlash('Comment cannot be blank.', 'danger');
+            return;
+        }
+    } else {
+        const input = document.getElementById('new-comment-input');
+        commentHtml = (input?.value ?? '').trim();
+        if (!commentHtml) { input?.classList.add('is-invalid'); return; }
+        input?.classList.remove('is-invalid');
     }
-    input.classList.remove('is-invalid');
 
     const prevHtml = btn.innerHTML;
     btn.disabled = true;
@@ -332,8 +572,25 @@ async function handlePostComment() {
 
     try {
         const { method, href } = API_URLS.projects.comments.create(projectPk);
-        await apiFetch(href, { method, body: JSON.stringify({ comment: text }) });
-        input.value = '';
+        await apiFetch(href, { method, body: JSON.stringify({ comment: commentHtml }) });
+
+        // Upload pending attachments (fire-and-forget best-effort)
+        for (const file of _commentAttachFiles) {
+            try {
+                const fd = new FormData();
+                fd.append('file', file);
+                const { href: aHref } = API_URLS.projects.attachments.upload(projectPk);
+                await fetch(aHref, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'X-CSRFToken': _csrfToken() },
+                    body: fd,
+                });
+            } catch { /* silent */ }
+        }
+
+        if (_commentQuill) { _commentQuill.setContents([]); }
+        _commentAttachFiles = [];
+        document.getElementById('comment-attachments-preview').innerHTML = '';
         showFlash('Comment posted.', 'success');
         renderComments(1);
     } catch (err) {

@@ -1,8 +1,10 @@
+import base64
 import logging
 
 from django.db import DatabaseError
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework.exceptions import ValidationError as DRFValidationError
@@ -456,10 +458,12 @@ class ResourcePlanViewSet(viewsets.ViewSet):
             )
 
         if request.method == "POST":
-            comment_text = request.data.get("comment", "").strip()
+            comment_text = request.data.get("comment", "")
             posted_by = request.user.get_full_name() or request.user.email
             try:
-                comment = ResourcePlanCommentService.add_comment(plan, comment_text, posted_by)
+                comment = ResourcePlanCommentService.add_comment(
+                    plan, comment_text, posted_by, user=request.user
+                )
                 return Response(
                     ResourcePlanCommentSerializer(comment).data,
                     status=status.HTTP_201_CREATED,
@@ -473,6 +477,31 @@ class ResourcePlanViewSet(viewsets.ViewSet):
                     ),
                     status=status.HTTP_400_BAD_REQUEST,
                 )
+
+    # POST /resource-plans/<id>/comments/upload-image/
+    @action(
+        detail=True, methods=["post"],
+        url_path="comments/upload-image",
+        parser_classes=[MultiPartParser, FormParser],
+    )
+    def comments_upload_image(self, request, pk=None):
+        try:
+            ResourcePlanService.get_plan(pk)
+        except ResourcePlan.DoesNotExist:
+            return Response({"error": "Plan not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        file_obj = request.FILES.get("image")
+        if not file_obj:
+            return Response({"error": "No image uploaded."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if file_obj.size > 10 * 1024 * 1024:
+            return Response({"error": "Image exceeds 10 MB limit."}, status=status.HTTP_400_BAD_REQUEST)
+
+        content_type = getattr(file_obj, "content_type", "image/png") or "image/png"
+        raw = file_obj.read()
+        b64 = base64.b64encode(raw).decode("ascii")
+        data_uri = f"data:{content_type};base64,{b64}"
+        return Response({"url": data_uri}, status=status.HTTP_201_CREATED)
 
     # GET /resource-plans/check-name/
     @action(detail=False, methods=["get"], url_path="check-name")

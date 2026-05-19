@@ -8,6 +8,7 @@ from .module_api_views import (
     SecurityAPIView,
     SecurityPasswordPolicyAPIView,
     ProjectApprovalAPIView,
+    RechargeContactsAPIView,
 )
 
 urlpatterns = [
@@ -18,4 +19,5 @@ urlpatterns = [
     path('security/', SecurityAPIView.as_view(), name='api-security'),
     path('security/password-policy/', SecurityPasswordPolicyAPIView.as_view(), name='api-security-password-policy'),
     path('project-approval/', ProjectApprovalAPIView.as_view(), name='api-project-approval'),
+    path('recharge-contacts/', RechargeContactsAPIView.as_view(), name='api-recharge-contacts'),
 ]

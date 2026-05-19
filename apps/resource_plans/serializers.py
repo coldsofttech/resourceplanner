@@ -254,10 +254,12 @@ class ResourcePlanCreateSerializer(serializers.Serializer):
 
 
 class ResourcePlanCommentSerializer(serializers.ModelSerializer):
+    posted_by_user_id = serializers.IntegerField(source="posted_by_user.id", read_only=True, default=None)
+
     class Meta:
         model = ResourcePlanComment
-        fields = ["id", "comment", "posted_by", "created_at"]
-        read_only_fields = ["id", "created_at"]
+        fields = ["id", "comment", "posted_by", "posted_by_user_id", "created_at"]
+        read_only_fields = ["id", "posted_by", "posted_by_user_id", "created_at"]
 
 
 class ResourcePlanVersionProjectSerializer(serializers.ModelSerializer):
