@@ -289,6 +289,7 @@ class ProjectEstimate(models.Model):
         max_digits=5, decimal_places=2, default=Decimal("0.00")
     )
     day_rate = models.DecimalField(max_digits=10, decimal_places=2)
+    approval_email_sent = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

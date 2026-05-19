@@ -746,6 +746,14 @@ function renderEstimateRow(estimate) {
                     </button>`
                             : ''
                     }
+                    ${
+                        isApproved
+                            ? `
+                    <button class="btn btn-ghost-icon js-send-approval-email" data-id="${estimate.id}" title="${estimate.approval_email_sent ? 'Resend Approval Email' : 'Send Approval Email'}">
+                        <i class="bi bi-envelope${estimate.approval_email_sent ? '-check' : ''}"></i>
+                    </button>`
+                            : ''
+                    }
                 </div>
             </td>
         </tr>
@@ -771,11 +779,32 @@ function _bindEstimateTableActions() {
         const viewBtn = e.target.closest('.js-view-estimate');
         const editBtn = e.target.closest('.js-edit-estimate');
         const deleteBtn = e.target.closest('.js-delete-estimate');
+        const sendEmailBtn = e.target.closest('.js-send-approval-email');
 
         if (viewBtn) openViewEstimateModal(viewBtn.dataset.id);
         if (editBtn) openEditEstimateModal(editBtn.dataset.id);
         if (deleteBtn) openDeleteEstimateModal(deleteBtn.dataset.id, deleteBtn.dataset.label);
+        if (sendEmailBtn) sendApprovalEmail(sendEmailBtn);
     });
+}
+
+async function sendApprovalEmail(btn) {
+    const estimateId = btn.dataset.id;
+    const icon = btn.querySelector('i');
+    btn.disabled = true;
+    if (icon) { icon.className = 'bi bi-hourglass-split'; }
+
+    try {
+        const { method, href } = API_URLS.projects.estimates.sendApprovalEmail(projectPk, estimateId);
+        await apiFetch(href, { method });
+        showFlash('Approval email sent successfully.', 'success');
+        estimatesTableFetcher?.refresh();
+    } catch (err) {
+        const msg = _extractError(err, 'Failed to send approval email.');
+        showFlash(msg, 'danger');
+        btn.disabled = false;
+        if (icon) { icon.className = 'bi bi-envelope'; }
+    }
 }
 
 async function openAddEstimateModal() {

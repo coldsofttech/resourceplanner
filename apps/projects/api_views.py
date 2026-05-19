@@ -1156,6 +1156,45 @@ class ProjectViewSet(viewsets.ViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
+    # POST /projects/<id>/estimates/<id>/send-approval-email/
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="estimates/(?P<estimate_pk>[^/.]+)/send-approval-email",
+    )
+    def estimates_send_approval_email(self, request, pk=None, estimate_pk=None):
+        try:
+            project = ProjectService.get_project(pk)
+        except Project.DoesNotExist:
+            return Response({"error": "Project not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            estimate = ProjectEstimateService.get_estimate(pk, estimate_pk)
+        except ProjectEstimate.DoesNotExist:
+            return Response({"error": "Estimate not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if estimate.status != ProjectEstimate.STATUS_APPROVED:
+            return Response(
+                {"error": "Only approved estimates can trigger an approval email."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if project.status != Project.STATUS_IN_PROGRESS:
+            return Response(
+                {"error": "The project must be In Progress to send an approval email."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            from .email_service import ProjectApprovalEmailService
+            ProjectEstimate.objects.filter(pk=estimate.pk).update(approval_email_sent=False)
+            ProjectApprovalEmailService.send(project, estimate)
+            ProjectEstimate.objects.filter(pk=estimate.pk).update(approval_email_sent=True)
+            return Response({"detail": "Approval email sent successfully."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            logger.exception("Error sending approval email for project %s estimate %s: %s", pk, estimate_pk, e)
+            return Response({"error": "Failed to send approval email."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
     # GET /projects/<id>/budgets/
     # POST /projects/<id>/budgets/
     @action(detail=True, methods=["get", "post"], url_path="budgets")

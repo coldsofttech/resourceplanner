@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Project Approval Notifications</h1>
+        <p class="rp-page-subtitle">Configure who receives the project-approved email and how run cost is handled.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="wizard-progress" class="wizard-progress px-1"></div>
+
+<!-- Step 1: Recipient Roles -->
+<div id="step-1" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Recipient Roles</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Notify Roles</div>
+        <div class="wizard-field-desc">
+            Select the team roles whose members should receive the project-approved email.
+            Applies to both the <strong>Assigned Team</strong> and all <strong>Collaborator</strong> teams.
+        </div>
+        <div id="ctrl-PROJECT_APPROVAL_NOTIFY_ROLES" class="pa-checklist mt-2">
+            <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading roles…</div>
+        </div>
+    </div>
+
+    <div class="wizard-field-group mt-4">
+        <div class="wizard-field-label">Recharge Contact Roles</div>
+        <div class="wizard-field-desc">
+            Select the roles whose members are listed as contacts in the email body when run cost applies and the project is to be recharged.
+            Only members from the <strong>Assigned Team</strong> are listed (not Collaborators).
+        </div>
+        <div id="ctrl-PROJECT_APPROVAL_RECHARGE_CONTACT_ROLES" class="pa-checklist mt-2">
+            <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading roles…</div>
+        </div>
+    </div>
+</div>
+
+<!-- Step 2: Contacts -->
+<div id="step-2" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Contacts</h6>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Informational Contacts</div>
+        <div class="wizard-field-desc">
+            Contacts who receive the email purely for information (FYI). Tagged as
+            <code>{{ info_contact_mentions }}</code> in the email body.
+        </div>
+        <div id="ctrl-PROJECT_APPROVAL_INFO_CONTACTS" class="pa-checklist mt-2">
+            <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading contacts…</div>
+        </div>
+    </div>
+
+    <div class="wizard-field-group mt-4">
+        <div class="wizard-field-label">FinOps Contacts</div>
+        <div class="wizard-field-desc">
+            Contacts who receive the email with run cost information. Tagged as
+            <code>{{ finops_contact_mentions }}</code> in the email body.
+        </div>
+        <div id="ctrl-PROJECT_APPROVAL_FINOPS_CONTACTS" class="pa-checklist mt-2">
+            <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading contacts…</div>
+        </div>
+    </div>
+</div>
+
+<!-- Step 3: Run Cost Settings -->
+<div id="step-3" class="wizard-panel d-none">
+    <h6 class="wizard-section-title">Run Cost Settings</h6>
+
+    <p class="text-muted small mb-3">
+        When <strong>run cost applies</strong> for a project, the email message depends on the project type.
+        Projects whose type is not listed in either group will default to <em>run cost applies but do not charge it</em>.
+    </p>
+
+    <div class="wizard-field-group">
+        <div class="wizard-field-label">Project Types — Charge It</div>
+        <div class="wizard-field-desc">
+            When a project's type matches one of these, the email states:
+            <em>run cost applies and charge it</em> — and the recharge contacts list is included.
+        </div>
+        <div id="ctrl-PROJECT_APPROVAL_CHARGE_TYPES" class="pa-checklist mt-2">
+            <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading project types…</div>
+        </div>
+    </div>
+
+    <div class="wizard-field-group mt-4">
+        <div class="wizard-field-label">Project Types — Do Not Charge</div>
+        <div class="wizard-field-desc">
+            When a project's type matches one of these, the email states:
+            <em>run cost applies but do not charge it</em>.
+        </div>
+        <div id="ctrl-PROJECT_APPROVAL_NO_CHARGE_TYPES" class="pa-checklist mt-2">
+            <div class="text-muted small"><span class="spinner-border spinner-border-sm me-1"></span>Loading project types…</div>
+        </div>
+    </div>
+</div>
+
+<!-- Navigation -->
+<div class="wizard-nav d-flex gap-2 justify-content-end">
+    <button id="wizard-back" class="btn btn-outline-secondary d-none">
+        <i class="bi bi-arrow-left me-1"></i>Back
+    </button>
+    <button id="wizard-next" class="btn btn-primary d-none">
+        Next<i class="bi bi-arrow-right ms-1"></i>
+    </button>
+    <button id="wizard-save" class="btn btn-primary d-none">
+        <i class="bi bi-check-lg me-1"></i>Save changes
+    </button>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/project_approval.js' %}"></script>
+{% endblock %}

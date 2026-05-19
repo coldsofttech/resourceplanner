@@ -134,3 +134,9 @@ class SecurityAPIView(_ModuleAPIView):
 
 class SecurityPasswordPolicyAPIView(_ModuleAPIView):
     module = 'security_password'
+
+
+# ── Project Approval endpoints ─────────────────────────────────────────────────
+
+class ProjectApprovalAPIView(_ModuleAPIView):
+    module = 'project_approval'

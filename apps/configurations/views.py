@@ -70,3 +70,10 @@ class SecurityListView(View):
 class SecurityPasswordPolicyListView(View):
     def get(self, request, *args, **kwargs):
         return render(request, 'configurations/security_password.html')
+
+
+# ── Project Approval view ─────────────────────────────────────────────────────
+
+class ProjectApprovalListView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'configurations/project_approval.html')

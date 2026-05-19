@@ -263,6 +263,7 @@ class ProjectEstimateSerializer(serializers.ModelSerializer):
             "day_rate",
             "total_cost",
             "tshirt_size",
+            "approval_email_sent",
             "is_active",
             "created_at",
             "updated_at",
@@ -274,6 +275,7 @@ class ProjectEstimateSerializer(serializers.ModelSerializer):
             "day_rate",
             "total_cost",
             "tshirt_size",
+            "approval_email_sent",
             "created_at",
             "updated_at",
         ]

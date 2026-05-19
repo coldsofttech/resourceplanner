@@ -215,6 +215,21 @@ SCENARIO_VARIABLES = {
             'type': 'table',
         },
     ],
+    'project_approved': [
+        {'key': '{{ project_name }}',            'label': 'Project Name',              'description': 'Name of the approved project',                                                                                        'group': 'Project'},
+        {'key': '{{ programme_name }}',          'label': 'Programme Name',            'description': 'Programme the project belongs to (empty if none)',                                                                    'group': 'Project'},
+        {'key': '{{ project_code }}',            'label': 'Project Code',              'description': 'Most recent active project code',                                                                                     'group': 'Project'},
+        {'key': '{{ project_label }}',           'label': 'Project Label',             'description': 'Primary label assigned to the project',                                                                              'group': 'Project'},
+        {'key': '{{ estimate_link }}',           'label': 'Estimate Link',             'description': 'URL link to the approved project estimate',                                                                          'group': 'Project'},
+        {'key': '{{ run_cost_applies }}',        'label': 'Run Cost Applies',          'description': '"Yes" or "No"',                                                                                                      'group': 'Run Cost'},
+        {'key': '{{ run_cost_message }}',        'label': 'Run Cost Message',          'description': 'Dynamic: "no run cost applies" / "run cost applies but do not charge it" / "run cost applies and charge it"',       'group': 'Run Cost'},
+        {'key': '{{ recharge_contacts }}',       'label': 'Recharge Contacts',         'description': 'HTML list of assigned team contacts (configured roles). Empty unless charge-it scenario.',                          'group': 'Run Cost'},
+        {'key': '{{ assigned_team_mentions }}',  'label': 'Assigned Team Mentions',    'description': 'Space-separated @Name tags for assigned team members matching configured notify roles',                             'group': 'Recipients'},
+        {'key': '{{ collaborator_mentions }}',   'label': 'Collaborator Mentions',     'description': 'Space-separated @Name tags for collaborator team members matching configured notify roles',                         'group': 'Recipients'},
+        {'key': '{{ info_contact_mentions }}',   'label': 'Info Contact Mentions',     'description': 'Space-separated @Name tags for configured informational contacts',                                                  'group': 'Recipients'},
+        {'key': '{{ finops_contact_mentions }}', 'label': 'FinOps Contact Mentions',   'description': 'Space-separated @Name tags for configured FinOps contacts',                                                        'group': 'Recipients'},
+        {'key': '{{ app_name }}',                'label': 'Application Name',          'description': 'Configured application name',                                                                                       'group': 'System'},
+    ],
 }
 
 RECHARGE_TABLE_COLUMNS = [
@@ -258,6 +273,12 @@ SCENARIO_META = {
         'description': 'Sent to the requester when a new project demand is submitted via the onboarding form.',
         'icon': 'bi-send-fill',
         'color': 'primary',
+    },
+    'project_approved': {
+        'label': 'Project Approved',
+        'description': 'Sent when a project estimate is approved and the project is In Progress. Notifies assigned team, collaborators, informational contacts, and FinOps contacts.',
+        'icon': 'bi-check-circle-fill',
+        'color': 'success',
     },
 }
 
@@ -305,5 +326,20 @@ SAMPLE_VARIABLE_DATA = {
         '{{ total_days }}': '13.00',
         '{{ total_cost }}': '£9,750.00',
         '{{ recharge_table }}': '<table class="table table-sm table-bordered"><thead><tr><th>Jira ID</th><th>Title</th><th>Assignee</th><th>Days</th><th>Cost (£)</th></tr></thead><tbody><tr><td>DATA-101</td><td>Setup pipeline</td><td>Alex T.</td><td>4.00</td><td>3,000.00</td></tr><tr><td>DATA-102</td><td>ETL jobs</td><td>Sam K.</td><td>9.00</td><td>6,750.00</td></tr></tbody><tfoot><tr><th colspan="3">Total</th><th>13.00</th><th>9,750.00</th></tr></tfoot></table>',
+    },
+    'project_approved': {
+        '{{ project_name }}':            'Digital Transformation Initiative',
+        '{{ programme_name }}':          'Enterprise Modernisation',
+        '{{ project_code }}':            'DTI-2026-001',
+        '{{ project_label }}':           'COST-DTI',
+        '{{ estimate_link }}':           'https://docs.example.com/estimates/dti-v2',
+        '{{ run_cost_applies }}':        'Yes',
+        '{{ run_cost_message }}':        'run cost applies and charge it',
+        '{{ recharge_contacts }}':       '<ul><li><strong>Lead:</strong> Jane Smith (jane.smith@example.com)</li><li><strong>Scrum Master:</strong> Alex Brown (alex.brown@example.com)</li></ul>',
+        '{{ assigned_team_mentions }}':  '@Jane Smith @Alex Brown',
+        '{{ collaborator_mentions }}':   '@Chris Lee',
+        '{{ info_contact_mentions }}':   '@InfoRec One @InfoRec Two',
+        '{{ finops_contact_mentions }}': '@FinOps Contact',
+        '{{ app_name }}':                'ResourcePlanner',
     },
 }

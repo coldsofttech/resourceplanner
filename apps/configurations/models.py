@@ -24,6 +24,7 @@ MODULE_CHOICES = [
     ('integration_jira', 'Jira Integration'),
     ('security', 'Security'),
     ('security_password', 'Password Policy'),
+    ('project_approval', 'Project Approval'),
 ]
 
 

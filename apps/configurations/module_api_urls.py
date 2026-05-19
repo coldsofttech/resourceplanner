@@ -7,6 +7,7 @@ from .module_api_views import (
     IntegrationJiraAPIView,
     SecurityAPIView,
     SecurityPasswordPolicyAPIView,
+    ProjectApprovalAPIView,
 )
 
 urlpatterns = [
@@ -16,4 +17,5 @@ urlpatterns = [
     path('integrations/jira/', IntegrationJiraAPIView.as_view(), name='api-integration-jira'),
     path('security/', SecurityAPIView.as_view(), name='api-security'),
     path('security/password-policy/', SecurityPasswordPolicyAPIView.as_view(), name='api-security-password-policy'),
+    path('project-approval/', ProjectApprovalAPIView.as_view(), name='api-project-approval'),
 ]

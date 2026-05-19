@@ -103,6 +103,7 @@ urlpatterns = [
     path("configurations/", include("apps.configurations.urls")),
     path("integrations/", include("apps.configurations.integration_urls")),
     path("security/", include("apps.configurations.security_urls")),
+    path("project-approval/", include("apps.configurations.project_approval_urls")),
     # Generic Modules
     path("import/", include("apps.import.urls")),
     # Reporting

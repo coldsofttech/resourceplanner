@@ -528,6 +528,10 @@ export const API_URLS = {
                 method: 'GET',
                 href: `${API_BASE}projects/${projectId}/estimates/${estimateId}/history/`,
             }),
+            sendApprovalEmail: (projectId, estimateId) => ({
+                method: 'POST',
+                href: `${API_BASE}projects/${projectId}/estimates/${estimateId}/send-approval-email/`,
+            }),
         },
         budgets: {
             list: (projectId) => ({
@@ -644,6 +648,10 @@ export const API_URLS = {
             get:   { method: 'GET',   href: `${API_BASE}security/password-policy/` },
             patch: { method: 'PATCH', href: `${API_BASE}security/password-policy/` },
         },
+    },
+    project_approval: {
+        get:   { method: 'GET',   href: `${API_BASE}project-approval/` },
+        patch: { method: 'PATCH', href: `${API_BASE}project-approval/` },
     },
     configurations: {
         list: { method: 'GET', href: `${API_BASE}configurations/` },
@@ -1159,6 +1167,9 @@ export const URLS = {
     security: {
         list:             '/security/',
         password_policy:  '/security/password-policy/',
+    },
+    project_approval: {
+        list: '/project-approval/',
     },
     email_templates: {
         list:    '/email-templates/',
