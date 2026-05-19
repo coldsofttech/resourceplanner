@@ -316,8 +316,9 @@ class MonthlyWinService:
         mw.status = MonthlyWin.STATUS_PHASE1_OPEN
         mw.save(update_fields=['status'])
 
-        # Send emails
+        # Send emails + in-app notifications
         MonthlyWinService._send_phase1_emails(mw)
+        MonthlyWinService._notify_phase1_pos(mw)
 
         return mw
 
@@ -346,6 +347,40 @@ class MonthlyWinService:
             labels[entry.id] = f'Week {entry.win.week_number}: {suffix}{entry.title}'.strip()
 
         return labels, list(entries)
+
+    @staticmethod
+    def _notify_phase1_pos(mw: MonthlyWin):
+        from apps.notifications.models import Notification
+        from apps.notifications.services import NotificationService
+        from apps.configurations.services import ConfigurationService
+        site_url = ConfigurationService.get_str('SITE_URL', '').rstrip('/')
+        for survey in mw.surveys.filter(phase=MonthlyWinSurvey.PHASE_1, status=MonthlyWinSurvey.STATUS_PENDING).select_related('recipient'):
+            link = f'{site_url}/wins/survey/{survey.token}/'
+            deadline_str = f' Deadline: {mw.phase1_deadline.strftime("%d %b %Y %H:%M")}.' if mw.phase1_deadline else ''
+            NotificationService.create(
+                user=survey.recipient,
+                title=f'Monthly Wins — {mw.name}: Phase 1 Voting Open',
+                body=f'You have been invited to vote for Monthly Wins.{deadline_str}',
+                link=link,
+                notification_type=Notification.TYPE_MONTHLY_WINS_PHASE1,
+            )
+
+    @staticmethod
+    def _notify_phase2_pos(mw: MonthlyWin):
+        from apps.notifications.models import Notification
+        from apps.notifications.services import NotificationService
+        from apps.configurations.services import ConfigurationService
+        site_url = ConfigurationService.get_str('SITE_URL', '').rstrip('/')
+        for survey in mw.surveys.filter(phase=MonthlyWinSurvey.PHASE_2, status=MonthlyWinSurvey.STATUS_PENDING).select_related('recipient'):
+            link = f'{site_url}/wins/survey/{survey.token}/'
+            deadline_str = f' Deadline: {mw.phase2_deadline.strftime("%d %b %Y %H:%M")}.' if mw.phase2_deadline else ''
+            NotificationService.create(
+                user=survey.recipient,
+                title=f'Monthly Wins — {mw.name}: Phase 2 Final Voting Open',
+                body=f'Phase 2 voting is now open. Please cast your final votes.{deadline_str}',
+                link=link,
+                notification_type=Notification.TYPE_MONTHLY_WINS_PHASE2,
+            )
 
     @staticmethod
     def _send_phase1_emails(mw: MonthlyWin):
@@ -475,6 +510,7 @@ class MonthlyWinService:
         mw.save(update_fields=['status'])
 
         MonthlyWinService._send_phase2_emails(mw)
+        MonthlyWinService._notify_phase2_pos(mw)
 
         return mw
 
@@ -592,6 +628,14 @@ class MonthlyWinService:
                 if cat_counts[nom['category']] > 2:
                     raise ValidationError(f'You may select at most 2 {nom["category"]} wins.')
 
+        # Cross-category validation: same entry cannot appear in both categories
+        entry_categories = defaultdict(set)
+        for nom in nominations_data:
+            entry_categories[nom['entry_id']].add(nom['category'])
+        for entry_id, cats in entry_categories.items():
+            if len(cats) > 1:
+                raise ValidationError('A win cannot be selected for both Delivery and Operational Excellence.')
+
         # Clear existing nominations and save new ones
         survey.nominations.all().delete()
         for nom in nominations_data:
@@ -643,6 +687,198 @@ class MonthlyWinService:
         mw.status = MonthlyWin.STATUS_DECLARED
         mw.save(update_fields=['status'])
         return mw
+
+    @staticmethod
+    def get_teams_for_preview(mw_pk):
+        """Return teams that have entries in the selected weeks (for Phase 1 preview dropdown)."""
+        mw = MonthlyWin.objects.prefetch_related('wins').get(pk=mw_pk)
+        from apps.delivery_teams.models import DeliveryTeam
+        team_ids = (
+            WinEntry.objects
+            .filter(win__in=mw.wins.all())
+            .values_list('team_id', flat=True)
+            .distinct()
+        )
+        return list(DeliveryTeam.objects.filter(pk__in=team_ids).order_by('name').values('id', 'name'))
+
+    @staticmethod
+    def get_preview_survey_data(mw_pk, phase, team_id=None):
+        """
+        Simulate survey data for admin preview (no real survey object needed).
+        Phase 1: shows entries for the specified team from selected weeks.
+        Phase 2: shows Phase 1 nominated (non-dismissed) entries.
+        """
+        mw = MonthlyWin.objects.prefetch_related('wins').get(pk=mw_pk)
+
+        if phase == MonthlyWinSurvey.PHASE_1:
+            if not team_id:
+                raise ValidationError('team_id is required for Phase 1 preview.')
+            entries = (
+                WinEntry.objects
+                .filter(win__in=mw.wins.all(), team_id=team_id)
+                .select_related('win', 'team')
+                .order_by('win__week_number', 'created_at')
+            )
+        else:
+            nominated_entry_ids = (
+                MonthlyWinSurveyNomination.objects
+                .filter(survey__monthly_win=mw, survey__phase=MonthlyWinSurvey.PHASE_1, is_dismissed=False)
+                .values_list('entry_id', flat=True)
+                .distinct()
+            )
+            entries = (
+                WinEntry.objects
+                .filter(pk__in=nominated_entry_ids)
+                .select_related('win', 'team')
+                .order_by('team__name', 'win__week_number', 'created_at')
+            )
+
+        entries_list = list(entries)
+        key_totals = defaultdict(int)
+        for entry in entries_list:
+            key_totals[(entry.team_id, entry.win_id)] += 1
+
+        counters = defaultdict(int)
+        entry_data = []
+        for entry in entries_list:
+            key = (entry.team_id, entry.win_id)
+            counters[key] += 1
+            idx = counters[key]
+            suffix = f' [{idx}]' if key_totals[key] > 1 else ''
+            label = f'Week {entry.win.week_number}:{suffix} {entry.title}'.strip()
+            entry_data.append({
+                'id': entry.id,
+                'label': label,
+                'team_id': entry.team_id,
+                'team_name': entry.team.name,
+                'week_number': entry.win.week_number,
+                'title': entry.title,
+                'description': entry.description,
+            })
+
+        return {
+            'phase': phase,
+            'entries': entry_data,
+            'categories': [{'value': v, 'label': l} for v, l in CATEGORY_CHOICES],
+        }
+
+    @staticmethod
+    def get_admin_survey_data(survey_pk):
+        """Return survey + entry data for admin override form."""
+        survey = (
+            MonthlyWinSurvey.objects
+            .select_related('monthly_win', 'recipient')
+            .prefetch_related('teams', 'monthly_win__wins', 'nominations')
+            .get(pk=survey_pk)
+        )
+        mw = survey.monthly_win
+
+        if survey.phase == MonthlyWinSurvey.PHASE_1:
+            team_ids = list(survey.teams.values_list('id', flat=True))
+            entries = (
+                WinEntry.objects
+                .filter(win__in=mw.wins.all(), team_id__in=team_ids)
+                .select_related('win', 'team')
+                .order_by('team__name', 'win__week_number', 'created_at')
+            )
+        else:
+            nominated_ids = (
+                MonthlyWinSurveyNomination.objects
+                .filter(survey__monthly_win=mw, survey__phase=MonthlyWinSurvey.PHASE_1, is_dismissed=False)
+                .values_list('entry_id', flat=True)
+                .distinct()
+            )
+            entries = (
+                WinEntry.objects
+                .filter(pk__in=nominated_ids)
+                .select_related('win', 'team')
+                .order_by('team__name', 'win__week_number', 'created_at')
+            )
+
+        entries_list = list(entries)
+        key_totals = defaultdict(int)
+        for entry in entries_list:
+            key_totals[(entry.team_id, entry.win_id)] += 1
+
+        counters = defaultdict(int)
+        entry_data = []
+        for entry in entries_list:
+            key = (entry.team_id, entry.win_id)
+            counters[key] += 1
+            idx = counters[key]
+            suffix = f' [{idx}]' if key_totals[key] > 1 else ''
+            label = f'Week {entry.win.week_number}:{suffix} {entry.title}'.strip()
+            entry_data.append({
+                'id': entry.id,
+                'label': label,
+                'team_id': entry.team_id,
+                'team_name': entry.team.name,
+                'week_number': entry.win.week_number,
+                'title': entry.title,
+                'description': entry.description,
+            })
+
+        existing_noms = [
+            {'entry_id': n.entry_id, 'category': n.category}
+            for n in survey.nominations.all()
+        ]
+
+        return {
+            'phase': survey.phase,
+            'recipient_name': survey.recipient.get_full_name() or survey.recipient.email,
+            'team_names': [t.name for t in survey.teams.all()],
+            'entries': entry_data,
+            'categories': [{'value': v, 'label': l} for v, l in CATEGORY_CHOICES],
+            'existing_nominations': existing_noms,
+        }
+
+    @staticmethod
+    def override_survey_with_nominations(survey_pk, nominations_data) -> MonthlyWinSurvey:
+        """
+        Admin fills in survey on behalf of a PO and marks it as overridden.
+        Applies same validation rules as submit_survey.
+        """
+        survey = MonthlyWinSurvey.objects.select_related('monthly_win').prefetch_related('teams').get(pk=survey_pk)
+        if survey.status != MonthlyWinSurvey.STATUS_PENDING:
+            raise ValidationError('Only pending surveys can be overridden.')
+
+        if survey.phase == MonthlyWinSurvey.PHASE_1:
+            team_cat_counts = defaultdict(int)
+            team_ids = set(survey.teams.values_list('id', flat=True))
+            for nom in nominations_data:
+                entry = WinEntry.objects.select_related('team').get(pk=nom['entry_id'])
+                if entry.team_id not in team_ids:
+                    raise ValidationError(f'Entry {nom["entry_id"]} does not belong to this survey\'s teams.')
+                key = (entry.team_id, nom['category'])
+                team_cat_counts[key] += 1
+                if team_cat_counts[key] > 2:
+                    raise ValidationError(f'You may select at most 2 {nom["category"]} wins per team.')
+        else:
+            cat_counts = defaultdict(int)
+            for nom in nominations_data:
+                cat_counts[nom['category']] += 1
+                if cat_counts[nom['category']] > 2:
+                    raise ValidationError(f'You may select at most 2 {nom["category"]} wins.')
+
+        entry_categories = defaultdict(set)
+        for nom in nominations_data:
+            entry_categories[nom['entry_id']].add(nom['category'])
+        for entry_id, cats in entry_categories.items():
+            if len(cats) > 1:
+                raise ValidationError('A win cannot be selected for both Delivery and Operational Excellence.')
+
+        survey.nominations.all().delete()
+        for nom in nominations_data:
+            MonthlyWinSurveyNomination.objects.create(
+                survey=survey,
+                entry_id=nom['entry_id'],
+                category=nom['category'],
+            )
+
+        survey.status = MonthlyWinSurvey.STATUS_OVERRIDDEN
+        survey.completed_at = datetime.now(tz=timezone.utc)
+        survey.save(update_fields=['status', 'completed_at'])
+        return survey
 
     @staticmethod
     def get_phase1_nominations(monthly_win_pk):

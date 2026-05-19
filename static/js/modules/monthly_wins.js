@@ -164,6 +164,7 @@ function showListBanner(msg, type) {
 const MW_PK = window.MONTHLY_WIN_PK;
 let _mw = null;
 let _pendingDismissNomPk = null;
+let _pendingOverrideSurveyPk = null;
 
 async function initDetailPage() {
     await loadMW();
@@ -178,6 +179,34 @@ async function initDetailPage() {
             await loadMW();
         } catch (err) {
             showFlash(String(err?.detail || 'Failed to dismiss.'), 'danger');
+        }
+    });
+
+    document.getElementById('btn-submit-override')?.addEventListener('click', async () => {
+        if (!_pendingOverrideSurveyPk) return;
+        const banner = document.getElementById('override-form-banner');
+        banner.classList.add('d-none');
+
+        const nominations = [];
+        document.querySelectorAll('#override-survey-body input[type=checkbox]:checked').forEach(chk => {
+            nominations.push({ entry_id: parseInt(chk.dataset.entry), category: chk.dataset.cat });
+        });
+
+        const btn = document.getElementById('btn-submit-override');
+        btn.disabled = true;
+        try {
+            const { method, href } = API_URLS.monthly_wins.overrideSubmit(_pendingOverrideSurveyPk);
+            await apiFetch(href, { method, body: JSON.stringify({ nominations }) });
+            bootstrap.Modal.getOrCreateInstance(document.getElementById('overrideFormModal')).hide();
+            showFlash('Survey override submitted.', 'success');
+            await loadMW();
+        } catch (err) {
+            const d = err?.data || err;
+            const msg = String(d?.detail || d?.error || 'Failed to submit override.');
+            banner.textContent = msg;
+            banner.classList.remove('d-none');
+        } finally {
+            btn.disabled = false;
         }
     });
 }
@@ -215,6 +244,9 @@ function renderActions(mw) {
     const actions = [];
 
     if (mw.status === 'draft') {
+        actions.push(`<button class="btn btn-outline-secondary btn-sm" onclick="doPreviewPhase1()">
+            <i class="bi bi-eye me-1"></i>Preview Phase 1
+        </button>`);
         actions.push(`<button class="btn btn-primary btn-sm" onclick="doLaunchPhase1()">
             <i class="bi bi-1-circle me-1"></i>Launch Phase 1
         </button>`);
@@ -225,6 +257,9 @@ function renderActions(mw) {
         </button>`);
     }
     if (mw.status === 'phase1_complete') {
+        actions.push(`<button class="btn btn-outline-secondary btn-sm" onclick="doPreviewPhase2()">
+            <i class="bi bi-eye me-1"></i>Preview Phase 2
+        </button>`);
         actions.push(`<button class="btn btn-warning btn-sm" onclick="doLaunchPhase2()">
             <i class="bi bi-2-circle me-1"></i>Launch Phase 2
         </button>`);
@@ -262,8 +297,8 @@ function renderPhase1Panel(mw) {
                     <button class="btn btn-ghost-icon btn-sm" title="Send Reminder" onclick="doRemind(${s.id})">
                         <i class="bi bi-bell"></i>
                     </button>
-                    <button class="btn btn-ghost-icon btn-sm" title="Override (no response)" onclick="doOverride(${s.id})">
-                        <i class="bi bi-skip-forward"></i>
+                    <button class="btn btn-ghost-icon btn-sm" title="Complete on Behalf of PO" onclick="openOverrideForm(${s.id})">
+                        <i class="bi bi-pencil-square"></i>
                     </button>` : ''}
             </div>
         </div>`).join('');
@@ -285,8 +320,8 @@ function renderPhase2Panel(mw) {
                     <button class="btn btn-ghost-icon btn-sm" title="Send Reminder" onclick="doRemind(${s.id})">
                         <i class="bi bi-bell"></i>
                     </button>
-                    <button class="btn btn-ghost-icon btn-sm" title="Override" onclick="doOverride(${s.id})">
-                        <i class="bi bi-skip-forward"></i>
+                    <button class="btn btn-ghost-icon btn-sm" title="Complete on Behalf of PO" onclick="openOverrideForm(${s.id})">
+                        <i class="bi bi-pencil-square"></i>
                     </button>` : ''}
             </div>
         </div>`).join('');
@@ -469,6 +504,269 @@ window.doUndismiss = async function(nomPk) {
     } catch (err) {
         showFlash(String(err?.detail || 'Failed.'), 'danger');
     }
+};
+
+// ── Phase Preview ──────────────────────────────────────────────────────────────
+
+window.doPreviewPhase1 = async function() {
+    const modalEl = document.getElementById('previewModal');
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    document.getElementById('preview-modal-title').textContent = 'Phase 1 Survey Preview';
+    document.getElementById('preview-modal-subtitle').textContent = 'Select a team to see the exact survey POs will receive.';
+    document.getElementById('preview-banner').classList.remove('d-none');
+    document.getElementById('preview-survey-body').innerHTML = '<p class="text-secondary small">Select a team above to preview the survey.</p>';
+
+    const teamSelector = document.getElementById('preview-team-selector');
+    const teamSelect = document.getElementById('preview-team-select');
+    teamSelect.innerHTML = '<option value="">— select team —</option>';
+    teamSelector.classList.remove('d-none');
+    teamSelect.onchange = null;
+    modal.show();
+
+    try {
+        const { href } = API_URLS.monthly_wins.previewTeams(MW_PK);
+        const teams = await apiFetch(href, { method: 'GET' });
+        if (!teams.length) {
+            document.getElementById('preview-survey-body').innerHTML = '<p class="text-secondary small">No entries found. Add weekly wins first.</p>';
+            return;
+        }
+        teams.forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = t.name;
+            teamSelect.appendChild(opt);
+        });
+
+        teamSelect.onchange = async function() {
+            const teamId = this.value;
+            if (!teamId) {
+                document.getElementById('preview-survey-body').innerHTML = '<p class="text-secondary small">Select a team above to preview the survey.</p>';
+                return;
+            }
+            document.getElementById('preview-survey-body').innerHTML = '<p class="text-secondary small">Loading…</p>';
+            try {
+                const { href: ph } = API_URLS.monthly_wins.previewSurvey(MW_PK, 'phase1', teamId);
+                const data = await apiFetch(ph, { method: 'GET' });
+                document.getElementById('preview-survey-body').innerHTML = renderPreviewSurveyBody(data);
+            } catch (err) {
+                document.getElementById('preview-survey-body').innerHTML =
+                    `<p class="text-danger small">${escHtml(String(err?.detail || 'Failed to load preview.'))}</p>`;
+            }
+        };
+    } catch (err) {
+        document.getElementById('preview-survey-body').innerHTML =
+            `<p class="text-danger small">${escHtml(String(err?.detail || 'Failed to load teams.'))}</p>`;
+    }
+};
+
+window.doPreviewPhase2 = async function() {
+    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('previewModal'));
+    document.getElementById('preview-modal-title').textContent = 'Phase 2 Survey Preview';
+    document.getElementById('preview-modal-subtitle').textContent = 'This is the final voting survey all Product Owners will see.';
+    document.getElementById('preview-banner').classList.remove('d-none');
+    document.getElementById('preview-survey-body').innerHTML = '<p class="text-secondary small">Loading…</p>';
+    document.getElementById('preview-team-selector').classList.add('d-none');
+    modal.show();
+
+    try {
+        const { href } = API_URLS.monthly_wins.previewSurvey(MW_PK, 'phase2');
+        const data = await apiFetch(href, { method: 'GET' });
+        document.getElementById('preview-survey-body').innerHTML = renderPreviewSurveyBody(data);
+    } catch (err) {
+        document.getElementById('preview-survey-body').innerHTML =
+            `<p class="text-danger small">${escHtml(String(err?.detail || 'Failed to load preview.'))}</p>`;
+    }
+};
+
+function renderPreviewSurveyBody(data) {
+    const { phase, categories, entries } = data;
+    if (!entries.length) {
+        return '<p class="text-secondary small">No entries available for this selection.</p>';
+    }
+
+    return categories.map(cat => {
+        const catEntries = entries.filter(e => true); // all entries shown per category; selection is per-PO
+        if (!catEntries.length) return '';
+
+        const isCatDelivery = cat.value === 'delivery';
+        const borderColor = isCatDelivery ? '#3b82f6' : '#f59e0b';
+        const iconClass = isCatDelivery ? 'bi-rocket text-primary' : 'bi-gear text-warning';
+
+        let entriesHtml;
+        if (phase === 'phase1') {
+            const byTeam = {};
+            catEntries.forEach(e => {
+                if (!byTeam[e.team_name]) byTeam[e.team_name] = [];
+                byTeam[e.team_name].push(e);
+            });
+            entriesHtml = Object.entries(byTeam).map(([teamName, teamEntries]) => `
+                <div class="mb-3">
+                    <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:6px">
+                        ${escHtml(teamName)}
+                    </div>
+                    ${teamEntries.map(e => `
+                        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-bottom:6px">
+                            <div style="font-weight:600;font-size:.9rem">${escHtml(e.label)}</div>
+                            ${e.description ? `<div style="font-size:.8rem;color:#6b7280;margin-top:3px">${escHtml(e.description)}</div>` : ''}
+                        </div>`).join('')}
+                </div>`).join('');
+        } else {
+            entriesHtml = catEntries.map(e => `
+                <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-bottom:6px">
+                    <div style="font-weight:600;font-size:.9rem">${escHtml(e.label)}</div>
+                    <div style="font-size:.8rem;color:#6b7280">${escHtml(e.team_name)}</div>
+                    ${e.description ? `<div style="font-size:.8rem;color:#6b7280;margin-top:3px">${escHtml(e.description)}</div>` : ''}
+                </div>`).join('');
+        }
+
+        const limitNote = phase === 'phase1' ? 'Select up to 2 per team.' : 'Select up to 2 overall.';
+
+        return `
+            <div style="border-left:4px solid ${borderColor};padding-left:1rem;margin-bottom:2rem">
+                <h5 style="font-weight:700;margin-bottom:.25rem">
+                    <i class="bi ${iconClass} me-2"></i>${escHtml(cat.label)} Wins
+                </h5>
+                <p style="font-size:.85rem;color:#6b7280;margin-bottom:.75rem">${limitNote}</p>
+                ${entriesHtml}
+            </div>`;
+    }).join('');
+}
+
+// ── Override Form ──────────────────────────────────────────────────────────────
+
+window.openOverrideForm = async function(surveyPk) {
+    _pendingOverrideSurveyPk = surveyPk;
+    const modalEl = document.getElementById('overrideFormModal');
+    document.getElementById('override-recipient-label').textContent = '';
+    document.getElementById('override-form-banner').classList.add('d-none');
+    document.getElementById('override-survey-body').innerHTML = '<p class="text-secondary small">Loading…</p>';
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+
+    try {
+        const { href } = API_URLS.monthly_wins.surveyDataForAdmin(surveyPk);
+        const data = await apiFetch(href, { method: 'GET' });
+        document.getElementById('override-recipient-label').textContent =
+            `${data.recipient_name}  ·  ${data.team_names.join(', ')}`;
+        document.getElementById('override-survey-body').innerHTML = renderOverrideFormBody(data);
+        // restore previously saved nominations
+        data.existing_nominations.forEach(({ entry_id, category }) => {
+            const chk = document.getElementById(`ov-chk-${category}-${entry_id}`);
+            if (chk) {
+                chk.checked = true;
+                const opt = chk.closest('.ov-win-option');
+                if (opt) { opt.style.borderColor = '#3b82f6'; opt.style.background = '#eff6ff'; }
+            }
+        });
+    } catch (err) {
+        document.getElementById('override-survey-body').innerHTML =
+            `<p class="text-danger small">${escHtml(String(err?.detail || 'Failed to load survey data.'))}</p>`;
+    }
+};
+
+function renderOverrideFormBody(data) {
+    const { phase, categories, entries } = data;
+    if (!entries.length) {
+        return '<p class="text-secondary small">No entries available for this survey.</p>';
+    }
+
+    return categories.map(cat => {
+        const isCatDelivery = cat.value === 'delivery';
+        const borderColor = isCatDelivery ? '#3b82f6' : '#f59e0b';
+        const iconClass = isCatDelivery ? 'bi-rocket text-primary' : 'bi-gear text-warning';
+
+        let entriesHtml;
+        if (phase === 'phase1') {
+            const byTeam = {};
+            entries.forEach(e => {
+                if (!byTeam[e.team_name]) byTeam[e.team_name] = [];
+                byTeam[e.team_name].push(e);
+            });
+            entriesHtml = Object.entries(byTeam).map(([teamName, teamEntries]) => `
+                <div class="mb-3">
+                    <div style="font-size:.8rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#6b7280;margin-bottom:6px">
+                        ${escHtml(teamName)}
+                    </div>
+                    ${teamEntries.map(e => `
+                        <div class="ov-win-option" id="ov-opt-${cat.value}-${e.id}"
+                             onclick="ovToggle(this,'${cat.value}',${e.id},2,'${escHtml(teamName).replace(/'/g, "\\'")}')"
+                             style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;transition:border-color .15s">
+                            <div class="d-flex align-items-start gap-2">
+                                <input type="checkbox" class="mt-1 flex-shrink-0"
+                                       id="ov-chk-${cat.value}-${e.id}"
+                                       data-entry="${e.id}" data-cat="${cat.value}" data-team="${escHtml(teamName)}">
+                                <div>
+                                    <div style="font-weight:600;font-size:.9rem">${escHtml(e.label)}</div>
+                                    ${e.description ? `<div style="font-size:.8rem;color:#6b7280;margin-top:3px">${escHtml(e.description)}</div>` : ''}
+                                </div>
+                            </div>
+                        </div>`).join('')}
+                </div>`).join('');
+        } else {
+            entriesHtml = entries.map(e => `
+                <div class="ov-win-option" id="ov-opt-${cat.value}-${e.id}"
+                     onclick="ovToggle(this,'${cat.value}',${e.id},2,null)"
+                     style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:10px 14px;margin-bottom:6px;cursor:pointer;transition:border-color .15s">
+                    <div class="d-flex align-items-start gap-2">
+                        <input type="checkbox" class="mt-1 flex-shrink-0"
+                               id="ov-chk-${cat.value}-${e.id}"
+                               data-entry="${e.id}" data-cat="${cat.value}">
+                        <div>
+                            <div style="font-weight:600;font-size:.9rem">${escHtml(e.label)}</div>
+                            <div style="font-size:.8rem;color:#6b7280">${escHtml(e.team_name)}</div>
+                            ${e.description ? `<div style="font-size:.8rem;color:#6b7280;margin-top:3px">${escHtml(e.description)}</div>` : ''}
+                        </div>
+                    </div>
+                </div>`).join('');
+        }
+
+        const limitNote = phase === 'phase1' ? 'Select up to 2 per team per category.' : 'Select up to 2 per category.';
+
+        return `
+            <div style="border-left:4px solid ${borderColor};padding-left:1rem;margin-bottom:2rem">
+                <h6 style="font-weight:700;margin-bottom:.25rem">
+                    <i class="bi ${iconClass} me-2"></i>${escHtml(cat.label)} Wins
+                </h6>
+                <p style="font-size:.85rem;color:#6b7280;margin-bottom:.75rem">${limitNote}</p>
+                ${entriesHtml}
+            </div>`;
+    }).join('');
+}
+
+window.ovToggle = function(el, category, entryId, maxPerGroup, teamName) {
+    const chk = el.querySelector('input[type=checkbox]');
+    const willCheck = !chk.checked;
+    const banner = document.getElementById('override-form-banner');
+    banner.classList.add('d-none');
+
+    if (willCheck) {
+        // Cross-category check
+        const allCats = ['delivery', 'operational_excellence'];
+        for (const otherCat of allCats) {
+            if (otherCat === category) continue;
+            const otherChk = document.getElementById(`ov-chk-${otherCat}-${entryId}`);
+            if (otherChk && otherChk.checked) {
+                banner.textContent = 'A win cannot be selected for both Delivery and Operational Excellence.';
+                banner.classList.remove('d-none');
+                return;
+            }
+        }
+        // Per-group limit check
+        const selector = teamName
+            ? `#override-survey-body input[data-cat="${CSS.escape(category)}"][data-team="${CSS.escape(teamName)}"]:checked`
+            : `#override-survey-body input[data-cat="${CSS.escape(category)}"]:checked`;
+        const existing = document.querySelectorAll(selector);
+        if (existing.length >= maxPerGroup) {
+            banner.textContent = teamName
+                ? `You can select at most ${maxPerGroup} wins per team per category.`
+                : `You can select at most ${maxPerGroup} wins per category.`;
+            banner.classList.remove('d-none');
+            return;
+        }
+    }
+
+    chk.checked = willCheck;
+    el.style.borderColor = willCheck ? '#3b82f6' : '#e5e7eb';
+    el.style.background = willCheck ? '#eff6ff' : '#fff';
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -3,18 +3,22 @@ from django.db import models
 
 
 class Notification(models.Model):
-    TYPE_COMMENT_MENTION   = 'comment_mention'
-    TYPE_PROJECT_APPROVED  = 'project_approved'
-    TYPE_RECHARGE_FORECAST = 'recharge_forecast'
-    TYPE_RECHARGE_ACTUALS  = 'recharge_actuals'
-    TYPE_PROJECT_FOLLOW    = 'project_follow'
+    TYPE_COMMENT_MENTION      = 'comment_mention'
+    TYPE_PROJECT_APPROVED     = 'project_approved'
+    TYPE_RECHARGE_FORECAST    = 'recharge_forecast'
+    TYPE_RECHARGE_ACTUALS     = 'recharge_actuals'
+    TYPE_PROJECT_FOLLOW       = 'project_follow'
+    TYPE_MONTHLY_WINS_PHASE1  = 'monthly_wins_phase1'
+    TYPE_MONTHLY_WINS_PHASE2  = 'monthly_wins_phase2'
 
     TYPE_CHOICES = [
-        (TYPE_COMMENT_MENTION,   'Comment Mention'),
-        (TYPE_PROJECT_APPROVED,  'Project Approved'),
-        (TYPE_RECHARGE_FORECAST, 'Recharge Forecast'),
-        (TYPE_RECHARGE_ACTUALS,  'Recharge Actuals'),
-        (TYPE_PROJECT_FOLLOW,    'Project Update'),
+        (TYPE_COMMENT_MENTION,     'Comment Mention'),
+        (TYPE_PROJECT_APPROVED,    'Project Approved'),
+        (TYPE_RECHARGE_FORECAST,   'Recharge Forecast'),
+        (TYPE_RECHARGE_ACTUALS,    'Recharge Actuals'),
+        (TYPE_PROJECT_FOLLOW,      'Project Update'),
+        (TYPE_MONTHLY_WINS_PHASE1, 'Monthly Wins Phase 1'),
+        (TYPE_MONTHLY_WINS_PHASE2, 'Monthly Wins Phase 2'),
     ]
 
     user              = models.ForeignKey(

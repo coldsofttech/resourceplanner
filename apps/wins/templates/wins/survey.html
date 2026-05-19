@@ -161,25 +161,38 @@
 </div>
 
 <script>
+function showFormBanner(msg) {
+    const banner = document.getElementById('form-banner');
+    banner.textContent = msg;
+    banner.classList.remove('d-none');
+    setTimeout(() => banner.classList.add('d-none'), 3500);
+}
+
 function toggleOption(el, category, entryId, maxPerGroup, teamName) {
     const chk = el.querySelector('input[type=checkbox]');
     const willCheck = !chk.checked;
 
     if (willCheck) {
-        // Check limit
-        const group = teamName || category;
+        // Cross-category check: same entry cannot be in both categories
+        const allCats = ['delivery', 'operational_excellence'];
+        for (const otherCat of allCats) {
+            if (otherCat === category) continue;
+            const otherChk = document.getElementById(`chk-${otherCat}-${entryId}`);
+            if (otherChk && otherChk.checked) {
+                showFormBanner('A win cannot be selected for both Delivery and Operational Excellence.');
+                return;
+            }
+        }
+        // Per-group limit check
         const existing = document.querySelectorAll(
             teamName
-                ? `input[data-cat="${category}"][data-team="${teamName}"]:checked`
+                ? `input[data-cat="${category}"][data-team="${CSS.escape(teamName)}"]:checked`
                 : `input[data-cat="${category}"]:checked`
         );
         if (existing.length >= maxPerGroup) {
-            const banner = document.getElementById('form-banner');
-            banner.textContent = teamName
+            showFormBanner(teamName
                 ? `You can select at most ${maxPerGroup} wins per team per category.`
-                : `You can select at most ${maxPerGroup} wins per category.`;
-            banner.classList.remove('d-none');
-            setTimeout(() => banner.classList.add('d-none'), 3000);
+                : `You can select at most ${maxPerGroup} wins per category.`);
             return;
         }
     }

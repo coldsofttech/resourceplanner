@@ -5,7 +5,7 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import Win, WinEntry, MonthlyWin, MonthlyWinSurvey, MonthlyWinSurveyNomination, TeamProductOwner
+from .models import Win, WinEntry, MonthlyWin, MonthlyWinSurveyNomination, TeamProductOwner
 from .serializers import (
     WinSerializer, WinDetailSerializer, WinEntrySerializer,
     MonthlyWinSerializer, MonthlyWinDetailSerializer,
@@ -13,6 +13,7 @@ from .serializers import (
     TeamProductOwnerSerializer,
 )
 from .services import WinService, MonthlyWinService, TeamProductOwnerService
+from .models import MonthlyWinSurvey
 
 logger = logging.getLogger(__name__)
 
@@ -369,6 +370,59 @@ class MonthlyWinViewSet(viewsets.ViewSet):
         except MonthlyWinSurveyNomination.DoesNotExist:
             return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response(MonthlyWinNominationSerializer(nom).data)
+
+    # ── Preview endpoints ────────────────────────────────────────────────────
+
+    @action(detail=True, methods=['get'], url_path='preview-teams')
+    def preview_teams(self, request, pk=None):
+        """Return teams that have entries in selected weeks — for Phase 1 preview dropdown."""
+        try:
+            teams = MonthlyWinService.get_teams_for_preview(pk)
+            return Response(teams)
+        except MonthlyWin.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=True, methods=['get'], url_path='preview-survey')
+    def preview_survey(self, request, pk=None):
+        """Preview the survey form before launching a phase."""
+        phase = request.query_params.get('phase', MonthlyWinSurvey.PHASE_1)
+        team_id = request.query_params.get('team_id') or None
+        try:
+            data = MonthlyWinService.get_preview_survey_data(pk, phase, team_id)
+            return Response(data)
+        except MonthlyWin.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except ValidationError as exc:
+            return Response(
+                exc.message_dict if hasattr(exc, 'message_dict') else {'error': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+    # ── Admin override form ──────────────────────────────────────────────────
+
+    @action(detail=False, methods=['get'], url_path=r'surveys/(?P<survey_pk>\d+)/survey-data')
+    def survey_data_for_admin(self, request, survey_pk=None):
+        """Return survey data so admin can fill in on behalf of a PO."""
+        try:
+            data = MonthlyWinService.get_admin_survey_data(survey_pk)
+            return Response(data)
+        except MonthlyWinSurvey.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['post'], url_path=r'surveys/(?P<survey_pk>\d+)/override-submit')
+    def override_survey_submit(self, request, survey_pk=None):
+        """Admin submits nominations and marks survey as overridden."""
+        nominations_data = request.data.get('nominations', [])
+        try:
+            survey = MonthlyWinService.override_survey_with_nominations(survey_pk, nominations_data)
+        except MonthlyWinSurvey.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        except ValidationError as exc:
+            return Response(
+                exc.message_dict if hasattr(exc, 'message_dict') else {'error': str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(MonthlyWinSurveySerializer(survey).data)
 
 
 class TeamProductOwnerViewSet(viewsets.ViewSet):
