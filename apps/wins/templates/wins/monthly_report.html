@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Monthly Wins Report{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center gap-3">
+    <a href="/wins/monthly/" class="btn btn-ghost-icon" title="Back to Monthly Wins">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div>
+        <h1 class="rp-page-title"><i class="bi bi-stars me-2 text-warning"></i>Monthly Wins Report — {{ monthly_win.name }}</h1>
+        <p class="rp-page-subtitle">Survey results and declared winners</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Summary cards -->
+<div class="row g-3 mb-4" id="mw-report-summary"></div>
+
+<!-- Declared winners -->
+<div class="rp-card mb-4" id="winners-card">
+    <h6 class="rp-card-heading"><i class="bi bi-trophy-fill me-2 text-warning"></i>Declared Winners</h6>
+    <div id="winners-output"><p class="text-secondary small">Loading…</p></div>
+</div>
+
+<!-- Phase 1 nominations table -->
+<div class="rp-card mb-4">
+    <h6 class="rp-card-heading"><i class="bi bi-1-circle me-2 text-primary"></i>Phase 1 — All Nominations</h6>
+    <div id="phase1-output"><p class="text-secondary small">Loading…</p></div>
+</div>
+
+<!-- Phase 2 survey results table -->
+<div class="rp-card mb-4">
+    <h6 class="rp-card-heading"><i class="bi bi-2-circle me-2 text-warning"></i>Phase 2 — Survey Status</h6>
+    <div id="phase2-output"><p class="text-secondary small">Loading…</p></div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.winner-card { border-left: 4px solid; padding: 14px 16px; border-radius: 0 8px 8px 0; margin-bottom: 10px; }
+.winner-card.delivery { border-color: #3b82f6; background: #eff6ff; }
+.winner-card.ops { border-color: #f59e0b; background: #fffbeb; }
+.rank-badge { font-size: 1.2rem; font-weight: 800; min-width: 32px; }
+@media print {
+    .rp-page-header, .rp-sidebar { display: none !important; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>window.MONTHLY_WIN_PK = {{ monthly_win.pk }};</script>
+<script type="module" src="{% static 'js/modules/monthly_wins.js' %}"></script>
+{% endblock %}

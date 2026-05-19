@@ -160,12 +160,15 @@ async function renderStatusFilterOptions() {
 }
 
 function renderTeamRow(team) {
+    const avatarHtml = team.avatar_svg
+        ? `<span style="display:inline-block;width:28px;height:28px;border-radius:50%;overflow:hidden;vertical-align:middle;margin-right:8px;flex-shrink:0">${team.avatar_svg}</span>`
+        : '';
     return `
         <tr data-team-id="${team.id}">
             <td>
                 <a href="${URLS.delivery_teams.detail(team.id)}"
-                   class="rp-link fw-500">
-                    ${escHtml(team.name)}
+                   class="rp-link fw-500 d-inline-flex align-items-center">
+                    ${avatarHtml}${escHtml(team.name)}
                 </a>
             </td>
             <td class="text-secondary"
@@ -483,6 +486,13 @@ function renderDetailTitle(team) {
         .getElementById('team-status')
         .classList.add(team.is_active ? 'rp-badge--success' : 'rp-badge--muted');
     document.getElementById('edit-team-btn').href = URLS.delivery_teams.edit(teamPk);
+
+    const avatarWrapper = document.getElementById('team-avatar-wrapper');
+    if (avatarWrapper && team.avatar_svg) {
+        avatarWrapper.innerHTML = team.avatar_svg;
+        const svg = avatarWrapper.querySelector('svg');
+        if (svg) { svg.style.width = '100%'; svg.style.height = '100%'; }
+    }
 }
 
 function renderTeamDetails(team) {

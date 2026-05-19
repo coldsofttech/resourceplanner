@@ -663,7 +663,7 @@ class ResourcePlanCommentService:
         }
 
     @staticmethod
-    def add_comment(plan, comment_text, posted_by="Anonymous", user=None):
+    def add_comment(plan, comment_text, posted_by="Anonymous", user=None, mentioned_user_ids=None):
         import re
         from html.parser import HTMLParser
 
@@ -689,7 +689,9 @@ class ResourcePlanCommentService:
             posted_by_user=user,
         )
 
-        mention_ids = [int(uid) for uid in re.findall(r'data-user-id="(\d+)"', comment_text)]
+        mention_ids = [int(i) for i in (mentioned_user_ids or []) if str(i).isdigit()]
+        if not mention_ids:
+            mention_ids = [int(uid) for uid in re.findall(r'data-user-id="(\d+)"', comment_text)]
         if mention_ids:
             from django.contrib.auth import get_user_model
             User = get_user_model()

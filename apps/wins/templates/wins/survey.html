@@ -1,0 +1,211 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Wins Survey</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { background: #f0f4f8; }
+        .survey-card { max-width: 820px; margin: 2rem auto; }
+        .category-section { border-left: 4px solid; padding-left: 1rem; margin-bottom: 2rem; }
+        .category-section.delivery { border-color: #3b82f6; }
+        .category-section.ops { border-color: #f59e0b; }
+        .team-group { margin-bottom: 1rem; }
+        .team-label { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; margin-bottom: 6px; }
+        .win-option { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 14px; margin-bottom: 6px; cursor: pointer; transition: border-color .15s, background .15s; }
+        .win-option:hover { border-color: #3b82f6; background: #eff6ff; }
+        .win-option.selected { border-color: #3b82f6; background: #eff6ff; }
+        .win-option input[type=checkbox] { margin-right: 8px; }
+        .win-title { font-weight: 600; font-size: 0.9rem; }
+        .win-desc { font-size: 0.8rem; color: #6b7280; margin-top: 3px; }
+        .counter-badge { font-size: 0.75rem; color: #6b7280; }
+    </style>
+</head>
+<body>
+<div class="survey-card">
+    <div class="card shadow-sm">
+        <div class="card-body p-4">
+            <div class="mb-4">
+                <h2 class="fw-bold mb-1">
+                    <i class="bi bi-stars text-warning me-2"></i>Monthly Wins Survey
+                </h2>
+                <p class="text-secondary mb-0">{{ monthly_win.name }}</p>
+                {% if survey.phase == 'phase1' %}
+                <p class="text-secondary small mt-1">
+                    Teams covered: <strong>{% for team in survey.teams.all %}{{ team.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</strong>
+                </p>
+                {% endif %}
+                {% if monthly_win.phase1_deadline and survey.phase == 'phase1' %}
+                <div class="alert alert-warning py-2 mt-2 mb-0 small">
+                    <i class="bi bi-clock me-1"></i>Please respond by <strong>{{ monthly_win.phase1_deadline|date:"d M Y H:i" }}</strong>
+                </div>
+                {% elif monthly_win.phase2_deadline and survey.phase == 'phase2' %}
+                <div class="alert alert-warning py-2 mt-2 mb-0 small">
+                    <i class="bi bi-clock me-1"></i>Please respond by <strong>{{ monthly_win.phase2_deadline|date:"d M Y H:i" }}</strong>
+                </div>
+                {% endif %}
+            </div>
+
+            {% if survey.status != 'pending' %}
+            <div class="alert alert-info">
+                <i class="bi bi-info-circle me-2"></i>
+                {% if survey.status == 'completed' %}
+                    You have already submitted your responses. Thank you!
+                {% else %}
+                    This survey has been completed or overridden.
+                {% endif %}
+            </div>
+            {% else %}
+
+            {% if error %}
+            <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>{{ error }}</div>
+            {% endif %}
+
+            <form method="post" id="survey-form" novalidate>
+                {% csrf_token %}
+                <div id="form-banner" class="alert alert-danger d-none mb-3"></div>
+
+                {% if survey.phase == 'phase1' %}
+                <p class="mb-4 text-secondary">
+                    For each category below, select <strong>up to 2 wins per team</strong>.
+                    The format is: <em>Week N: Win Title</em>
+                </p>
+                {% else %}
+                <p class="mb-4 text-secondary">
+                    Select <strong>up to 2 wins per category</strong> across all teams — these will be the overall monthly winners.
+                </p>
+                {% endif %}
+
+                {% for cat in categories %}
+                <div class="category-section {% if cat.value == 'delivery' %}delivery{% else %}ops{% endif %} mb-4">
+                    <h5 class="fw-bold mb-1">
+                        {% if cat.value == 'delivery' %}
+                            <i class="bi bi-rocket text-primary me-2"></i>
+                        {% else %}
+                            <i class="bi bi-gear text-warning me-2"></i>
+                        {% endif %}
+                        Q{% if cat.value == 'delivery' %}1{% else %}2{% endif %}: {{ cat.label }} Wins
+                    </h5>
+                    {% if survey.phase == 'phase1' %}
+                    <p class="text-secondary small mb-3">Select up to 2 per team.</p>
+                    {% else %}
+                    <p class="text-secondary small mb-3">Select up to 2 overall.</p>
+                    {% endif %}
+
+                    {% if survey.phase == 'phase1' %}
+                    {% regroup entries by team_name as team_list %}
+                    {% for team_group in team_list %}
+                    <div class="team-group">
+                        <div class="team-label">{{ team_group.grouper }}</div>
+                        {% for entry in team_group.list %}
+                        <div class="win-option" id="opt-{{ cat.value }}-{{ entry.id }}"
+                             onclick="toggleOption(this, '{{ cat.value }}', {{ entry.id }}, 2, '{{ team_group.grouper }}')">
+                            <div class="d-flex align-items-start gap-2">
+                                <input type="checkbox" class="mt-1 flex-shrink-0"
+                                       id="chk-{{ cat.value }}-{{ entry.id }}"
+                                       data-entry="{{ entry.id }}" data-cat="{{ cat.value }}" data-team="{{ team_group.grouper }}"
+                                       {% if entry.id in existing_nominations %}checked{% endif %}>
+                                <div>
+                                    <div class="win-title">{{ entry.label }}</div>
+                                    {% if entry.description %}
+                                    <div class="win-desc">{{ entry.description }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                    {% else %}
+                    {% for entry in entries %}
+                    <div class="win-option" id="opt-{{ cat.value }}-{{ entry.id }}"
+                         onclick="toggleOption(this, '{{ cat.value }}', {{ entry.id }}, 2, null)">
+                        <div class="d-flex align-items-start gap-2">
+                            <input type="checkbox" class="mt-1 flex-shrink-0"
+                                   id="chk-{{ cat.value }}-{{ entry.id }}"
+                                   data-entry="{{ entry.id }}" data-cat="{{ cat.value }}"
+                                   {% if entry.id in existing_nominations %}checked{% endif %}>
+                            <div>
+                                <div class="win-title">{{ entry.label }}</div>
+                                <div class="text-muted small">{{ entry.team_name }}</div>
+                                {% if entry.description %}
+                                <div class="win-desc">{{ entry.description }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
+
+                    {% if not entries %}
+                    <p class="text-secondary small">No wins available for this category.</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+
+                <!-- Hidden fields built by JS on submit -->
+                <div id="hidden-nominations"></div>
+
+                <div class="d-flex justify-content-end mt-4">
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-send me-2"></i>Submit Survey
+                    </button>
+                </div>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+function toggleOption(el, category, entryId, maxPerGroup, teamName) {
+    const chk = el.querySelector('input[type=checkbox]');
+    const willCheck = !chk.checked;
+
+    if (willCheck) {
+        // Check limit
+        const group = teamName || category;
+        const existing = document.querySelectorAll(
+            teamName
+                ? `input[data-cat="${category}"][data-team="${teamName}"]:checked`
+                : `input[data-cat="${category}"]:checked`
+        );
+        if (existing.length >= maxPerGroup) {
+            const banner = document.getElementById('form-banner');
+            banner.textContent = teamName
+                ? `You can select at most ${maxPerGroup} wins per team per category.`
+                : `You can select at most ${maxPerGroup} wins per category.`;
+            banner.classList.remove('d-none');
+            setTimeout(() => banner.classList.add('d-none'), 3000);
+            return;
+        }
+    }
+
+    chk.checked = willCheck;
+    el.classList.toggle('selected', willCheck);
+}
+
+document.getElementById('survey-form')?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const container = document.getElementById('hidden-nominations');
+    container.innerHTML = '';
+    document.querySelectorAll('input[type=checkbox]:checked').forEach(chk => {
+        const inp = document.createElement('input');
+        inp.type = 'hidden';
+        inp.name = 'nominations';
+        inp.value = JSON.stringify({ entry_id: chk.dataset.entry, category: chk.dataset.cat });
+        container.appendChild(inp);
+    });
+    this.submit();
+});
+
+// Restore checked state on page load
+document.querySelectorAll('input[type=checkbox]:checked').forEach(chk => {
+    chk.closest('.win-option')?.classList.add('selected');
+});
+</script>
+</body>
+</html>

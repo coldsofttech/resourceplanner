@@ -461,8 +461,9 @@ class ResourcePlanViewSet(viewsets.ViewSet):
             comment_text = request.data.get("comment", "")
             posted_by = request.user.get_full_name() or request.user.email
             try:
+                mentioned_ids = request.data.get("mentioned_user_ids") or []
                 comment = ResourcePlanCommentService.add_comment(
-                    plan, comment_text, posted_by, user=request.user
+                    plan, comment_text, posted_by, user=request.user, mentioned_user_ids=mentioned_ids
                 )
                 return Response(
                     ResourcePlanCommentSerializer(comment).data,

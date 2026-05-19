@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Weekly Wins Report{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/wins/" class="btn btn-ghost-icon" title="Back to Wins">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title"><i class="bi bi-bar-chart-line me-2"></i>Weekly Wins Report</h1>
+            <p class="rp-page-subtitle">View wins by week or date range</p>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Filter controls -->
+<div class="rp-card mb-4">
+    <div class="d-flex gap-3 mb-3 flex-wrap align-items-center">
+        <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-primary active" id="btn-mode-week" onclick="setMode('week')">By Week</button>
+            <button class="btn btn-sm btn-outline-primary" id="btn-mode-range" onclick="setMode('range')">Date Range</button>
+        </div>
+    </div>
+
+    <div id="filter-week" class="d-flex align-items-end gap-3 flex-wrap">
+        <div class="rp-field mb-0" style="min-width:280px">
+            <label class="rp-label">Select Week</label>
+            <select id="report-week-select" class="form-select rp-input">
+                <option value="">— choose a week —</option>
+            </select>
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-load-week-report">
+            <i class="bi bi-search me-1"></i>Load Report
+        </button>
+    </div>
+
+    <div id="filter-range" class="d-none d-flex align-items-end gap-3 flex-wrap">
+        <div class="rp-field mb-0">
+            <label class="rp-label">From</label>
+            <input type="date" id="report-date-from" class="form-control rp-input" style="min-width:160px">
+        </div>
+        <div class="rp-field mb-0">
+            <label class="rp-label">To</label>
+            <input type="date" id="report-date-to" class="form-control rp-input" style="min-width:160px">
+        </div>
+        <button class="btn btn-primary btn-sm" id="btn-load-range-report">
+            <i class="bi bi-search me-1"></i>Load Report
+        </button>
+    </div>
+</div>
+
+<div id="report-banner" class="alert d-none mb-3"></div>
+
+<!-- Summary cards -->
+<div id="summary-cards" class="row g-3 mb-4 d-none"></div>
+
+<!-- Report output -->
+<div id="report-output" class="d-none">
+    <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+        <h5 id="report-title" class="mb-0"></h5>
+        <button class="btn btn-outline-secondary btn-sm" onclick="window.print()">
+            <i class="bi bi-printer me-1"></i>Print / Export
+        </button>
+    </div>
+
+    <!-- Tabular output -->
+    <div class="table-responsive">
+        <table class="rp-table" id="report-table">
+            <thead>
+                <tr>
+                    <th>Team</th>
+                    <th style="white-space:nowrap">Week</th>
+                    <th style="white-space:nowrap">Date Range</th>
+                    <th>Win</th>
+                </tr>
+            </thead>
+            <tbody id="report-table-body"></tbody>
+        </table>
+    </div>
+</div>
+
+<div id="report-empty" class="text-secondary small d-none">No wins found for the selected period.</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+@media print {
+    .rp-page-header, .rp-card:first-of-type, .rp-sidebar { display: none !important; }
+    #report-output { display: block !important; }
+    #summary-cards { display: flex !important; }
+    tr { break-inside: avoid; }
+}
+.summary-card-count { font-size: 1.5rem; font-weight: 700; color: var(--bs-primary); }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/wins.js' %}"></script>
+{% endblock %}

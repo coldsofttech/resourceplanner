@@ -38,6 +38,7 @@ let _suggestTimeout = null;
 let _selectedContactId = null;
 
 let _commentQuill = null;
+let _editCommentQuill = null;
 let _commentAttachFiles = [];
 
 async function initDetailView() {
@@ -167,6 +168,7 @@ let _mentionQuery = null;
 let _mentionRange  = null;
 let _mentionActive = -1;
 let _mentionResults = [];
+let _pendingMentionIds = new Set();   // track IDs of @ mentions inserted in current draft
 
 async function _handleMentionInput() {
     const dropdown = document.getElementById('mention-dropdown');
@@ -219,9 +221,10 @@ function _insertMention(idx) {
     const dropdown = document.getElementById('mention-dropdown');
     dropdown.style.display = 'none';
     _commentQuill.deleteText(_mentionRange.index, _mentionRange.length, 'user');
-    const mentionHtml = `<span class="mention" data-user-id="${user.id}" contenteditable="false">@${escHtml(user.display_name)}</span>&nbsp;`;
+    const mentionHtml = `<a class="mention" href="/users/${user.id}/" data-user-id="${user.id}" contenteditable="false">@${escHtml(user.display_name)}</a>&nbsp;`;
     _commentQuill.clipboard.dangerouslyPasteHTML(_mentionRange.index, mentionHtml, 'user');
     _commentQuill.setSelection(_mentionRange.index + user.display_name.length + 2, 0, 'user');
+    _pendingMentionIds.add(user.id);
     _mentionQuery = null;
     _mentionRange = null;
 }
@@ -572,7 +575,7 @@ async function handlePostComment() {
 
     try {
         const { method, href } = API_URLS.projects.comments.create(projectPk);
-        await apiFetch(href, { method, body: JSON.stringify({ comment: commentHtml }) });
+        await apiFetch(href, { method, body: JSON.stringify({ comment: commentHtml, mentioned_user_ids: [..._pendingMentionIds] }) });
 
         // Upload pending attachments (fire-and-forget best-effort)
         for (const file of _commentAttachFiles) {
@@ -589,6 +592,7 @@ async function handlePostComment() {
         }
 
         if (_commentQuill) { _commentQuill.setContents([]); }
+        _pendingMentionIds.clear();
         _commentAttachFiles = [];
         document.getElementById('comment-attachments-preview').innerHTML = '';
         showFlash('Comment posted.', 'success');
@@ -601,10 +605,46 @@ async function handlePostComment() {
     }
 }
 
-function openEditCommentModal(commentId, currentText) {
-    document.getElementById('edit-comment-input').value = currentText;
+let _editMentionIds = new Set();
+
+function openEditCommentModal(commentId, currentHtml) {
+    _editMentionIds = new Set();
+    // Seed existing mention IDs from the saved HTML
+    if (currentHtml) {
+        const matches = currentHtml.matchAll(/data-user-id="(\d+)"/g);
+        for (const m of matches) _editMentionIds.add(parseInt(m[1]));
+    }
+    if (!_editCommentQuill && window.Quill) {
+        _editCommentQuill = new Quill('#edit-comment-editor', {
+            theme: 'snow',
+            modules: { toolbar: [['bold', 'italic', 'underline'], ['link', 'image'], [{ list: 'bullet' }], ['clean']] },
+        });
+        _editCommentQuill.getModule('toolbar').addHandler('image', () => {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = 'image/*';
+            input.onchange = async () => {
+                const file = input.files[0];
+                if (!file) return;
+                const fd = new FormData();
+                fd.append('image', file);
+                try {
+                    const { href } = API_URLS.projects.commentUploadImage(projectPk);
+                    const resp = await fetch(href, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRFToken': _csrfToken() }, body: fd });
+                    const data = await resp.json();
+                    const range = _editCommentQuill.getSelection(true);
+                    _editCommentQuill.insertEmbed(range.index, 'image', data.url, 'user');
+                } catch { showFlash('Image upload failed.', 'danger'); }
+            };
+            input.click();
+        });
+    }
+    if (_editCommentQuill) {
+        _editCommentQuill.clipboard.dangerouslyPasteHTML(0, currentHtml ?? '');
+        _editCommentQuill.setSelection(_editCommentQuill.getLength(), 0);
+    }
     document.getElementById('confirm-edit-comment-btn').dataset.commentId = commentId;
     document.getElementById('proj-edit-comment-banner').classList.add('d-none');
+    document.getElementById('edit-comment-err').classList.add('d-none');
     _showModal('projEditCommentModal');
 }
 
@@ -617,11 +657,16 @@ function openDeleteCommentModal(commentId) {
 async function handleSaveEditComment() {
     const btn = document.getElementById('confirm-edit-comment-btn');
     const commentId = btn.dataset.commentId;
-    const text = document.getElementById('edit-comment-input').value.trim();
-    if (!text) {
-        document.getElementById('edit-comment-input').classList.add('is-invalid');
-        return;
+
+    let commentHtml = '';
+    if (_editCommentQuill) {
+        commentHtml = _editCommentQuill.root.innerHTML.trim();
+        if (commentHtml === '<p><br></p>' || !commentHtml) {
+            document.getElementById('edit-comment-err').classList.remove('d-none');
+            return;
+        }
     }
+    document.getElementById('edit-comment-err').classList.add('d-none');
 
     const prevText = btn.textContent;
     btn.disabled = true;
@@ -629,7 +674,7 @@ async function handleSaveEditComment() {
 
     try {
         const { method, href } = API_URLS.projects.comments.patch(projectPk, commentId);
-        await apiFetch(href, { method, body: JSON.stringify({ comment: text }) });
+        await apiFetch(href, { method, body: JSON.stringify({ comment: commentHtml, mentioned_user_ids: [..._editMentionIds] }) });
         _hideModal('projEditCommentModal');
         showFlash('Comment updated.', 'success');
         renderComments(commentPage);

@@ -83,7 +83,14 @@ INSTALLED_APPS = [
     "apps.business_units",
     "apps.onboarding",
     "apps.notifications",
+    "apps.wins",
+    "apps.jobs_admin",
 ]
+
+# ── Jobs API ──────────────────────────────────────────────────────────────────
+# Set this env var to a strong random string. Use the same value as the
+# Authorization header token when calling POST /api/v1/jobs/{name}/run/.
+JOB_SERVICE_TOKEN = os.environ.get('JOB_SERVICE_TOKEN', '')
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -202,6 +209,73 @@ PASSWORD_RESET_TIMEOUT = 86400  # 24 hours
 # Email — all settings (host, port, user, password, from, protocol) are managed
 # via the Configurations UI. The backend delegates to ConfigurationService at runtime.
 EMAIL_BACKEND = "apps.users.email_backend.ConfigurationEmailBackend"
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# LOG_DIR: override via env var LOG_DIR; defaults to BASE_DIR/logs.
+LOG_DIR = Path(os.environ.get('LOG_DIR', str(BASE_DIR / 'logs')))
+LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '%(asctime)s [%(levelname)s] %(name)s — %(message)s',
+            'datefmt': '%Y-%m-%d %H:%M:%S',
+        },
+        'simple': {
+            'format': '[%(levelname)s] %(message)s',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        # Rotating log for the Team (delivery_teams) module.
+        # Generic pattern — copy this block and update the filename + logger name
+        # to add rotating logs for other modules.
+        'delivery_teams_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(LOG_DIR / 'delivery_teams.log'),
+            'maxBytes': int(os.environ.get('LOG_MAX_BYTES', str(10 * 1024 * 1024))),  # 10 MB
+            'backupCount': 5,
+            'formatter': 'verbose',
+            'encoding': 'utf-8',
+        },
+    },
+    'loggers': {
+        # Root logger — warnings and above to console
+        '': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+        },
+        # Django internals
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # All app loggers default to console at INFO
+        'apps': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # Team module — console + rotating file
+        'apps.delivery_teams': {
+            'handlers': ['console', 'delivery_teams_file'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # Jobs
+        'jobs': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [

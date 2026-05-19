@@ -116,7 +116,7 @@ class Project(models.Model):
     def clean(self):
         errors = {}
         if self.status == self.STATUS_IN_PROGRESS:
-            if not (self.code or "").strip():
+            if not (self.pk and self.codes.exists()):
                 errors["code"] = "Code is required when status is In Progress."
             if not self.assigned_team_id:
                 errors["assigned_team"] = (

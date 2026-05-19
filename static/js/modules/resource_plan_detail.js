@@ -30,6 +30,7 @@ let _mentionQuery = '';
 let _mentionRange = null;
 let _mentionResults = [];
 let _mentionActiveIdx = 0;
+let _pendingMentionIds = new Set();
 
 // Engine state
 let _enginePollTimer = null;
@@ -427,8 +428,9 @@ function _insertMention(idx) {
     const user = _mentionResults[idx];
     if (!user || !_mentionRange) return;
     _commentQuill.deleteText(_mentionRange.index, _mentionRange.length, 'user');
-    const mentionHtml = `<span class="mention" data-user-id="${user.id}" contenteditable="false">@${escHtml(user.display_name)}</span>`;
+    const mentionHtml = `<a class="mention" href="/users/${user.id}/" data-user-id="${user.id}" contenteditable="false">@${escHtml(user.display_name)}</a>`;
     _commentQuill.clipboard.dangerouslyPasteHTML(_mentionRange.index, mentionHtml + '&nbsp;', 'user');
+    _pendingMentionIds.add(user.id);
     _commentQuill.setSelection(_mentionRange.index + user.display_name.length + 2, 0, 'user');
     _closeMentionDropdown();
 }
@@ -526,11 +528,12 @@ async function postComment() {
 
     try {
         const { method, href } = API_URLS.resource_plans.comments.create(planPk);
-        await apiFetch(href, { method, body: JSON.stringify({ comment: commentHtml }) });
+        await apiFetch(href, { method, body: JSON.stringify({ comment: commentHtml, mentioned_user_ids: [..._pendingMentionIds] }) });
 
         if (_commentQuill) {
             _commentQuill.setContents([]);
         }
+        _pendingMentionIds.clear();
         _commentAttachFiles = [];
         _renderAttachChips();
         showFlash('Comment posted.', 'success');

@@ -170,6 +170,39 @@ CONFIGURATION_DEFAULTS = {
         "is_secret": False,
         "module": "general",
     },
+    "WIN_START_NUMBER": {
+        "label": "Win Start Number",
+        "value": "1",
+        "description": (
+            "The starting week number assigned to the first Weekly Win entry. "
+            "Subsequent weeks auto-increment from this value."
+        ),
+        "data_type": "integer",
+        "is_secret": False,
+        "module": "general",
+    },
+    "WINS_REVIEW_EMAIL_RECIPIENTS": {
+        "label": "Weekly Win Review Email Recipients",
+        "value": "",
+        "description": (
+            "Comma-separated list of email addresses that receive the Weekly Wins review document "
+            "when Review Complete is triggered (e.g. manager@example.com, team@example.com)."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
+    "SITE_URL": {
+        "label": "Site URL",
+        "value": "",
+        "description": (
+            "Base URL of this application without a trailing slash "
+            "(e.g. https://app.example.com). Used in email links for surveys and notifications."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
     "SPRINT_DURATION_DAYS": {
         "label": "Sprint Duration (days)",
         "value": "14",
@@ -186,6 +219,19 @@ CONFIGURATION_DEFAULTS = {
         "value": "1150",
         "description": (
             "Day rate in GBP (£) used for calculating sprint cost based on story points. "
+        ),
+        "data_type": "integer",
+        "is_secret": False,
+        "module": "general",
+    },
+    "DATA_RETENTION_YEARS": {
+        "label": "Data Retention (years)",
+        "value": "7",
+        "description": (
+            "Number of years to retain historical data. "
+            "The nightly data-retention job permanently deletes records "
+            "(history tables, comments, notifications, closed items) older than this threshold. "
+            "Default: 7 years."
         ),
         "data_type": "integer",
         "is_secret": False,

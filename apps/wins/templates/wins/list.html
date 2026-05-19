@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Weekly Wins{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title"><i class="bi bi-trophy me-2"></i>Weekly Wins</h1>
+        <p class="rp-page-subtitle">Capture and celebrate team wins every week</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <a href="/wins/report/" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-bar-chart-line me-1"></i>Weekly Wins Report
+        </a>
+        <a href="/wins/monthly/" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-stars me-1"></i>Monthly Wins
+        </a>
+        <button class="btn btn-primary btn-sm" id="btn-new-win">
+            <i class="bi bi-plus-lg me-1"></i>New Week
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="wins-banner" class="alert d-none mb-3" role="alert"></div>
+
+<!-- Win list -->
+<div id="wins-list-container">
+    <p class="text-secondary small">Loading…</p>
+</div>
+<div id="wins-pagination" class="mt-3"></div>
+
+<!-- New Win Modal -->
+<div class="modal fade" id="newWinModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-trophy me-2"></i>New Weekly Win</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="new-win-banner" class="alert alert-danger d-none mb-3"></div>
+                <div class="rp-field mb-3">
+                    <label class="rp-label">Week Start Date <span class="text-danger">*</span></label>
+                    <input type="date" id="new-win-date" class="form-control rp-input">
+                    <div class="form-text text-secondary">Select a Monday. Week number will be auto-assigned.</div>
+                </div>
+                <div id="new-win-preview" class="alert alert-info d-none py-2 small"></div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-create-win">
+                    <i class="bi bi-plus-lg me-1"></i>Create Week
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/wins.js' %}"></script>
+{% endblock %}

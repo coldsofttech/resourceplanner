@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Monthly Wins{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/wins/" class="btn btn-ghost-icon" title="Back to Wins">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title"><i class="bi bi-stars me-2"></i>Monthly Wins</h1>
+            <p class="rp-page-subtitle">Two-phase voting to select the best wins of the month</p>
+        </div>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/wins/monthly/product-owners/" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-people me-1"></i>Manage Product Owners
+        </a>
+        <button class="btn btn-primary btn-sm" id="btn-new-monthly">
+            <i class="bi bi-plus-lg me-1"></i>New Monthly Win
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="monthly-banner" class="alert d-none mb-3" role="alert"></div>
+<div id="monthly-list-container"><p class="text-secondary small">Loading…</p></div>
+<div id="monthly-pagination" class="mt-3"></div>
+
+<!-- New Monthly Win Modal -->
+<div class="modal fade" id="newMonthlyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-stars me-2"></i>New Monthly Win</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="new-monthly-banner" class="alert alert-danger d-none mb-3"></div>
+                <div class="rp-field mb-3">
+                    <label class="rp-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" id="monthly-name" class="form-control rp-input" maxlength="200"
+                           placeholder="e.g. May 2025 Monthly Wins">
+                </div>
+                <div class="rp-field mb-3">
+                    <label class="rp-label">Phase 1 Deadline</label>
+                    <input type="datetime-local" id="monthly-phase1-deadline" class="form-control rp-input">
+                    <div class="form-text text-secondary">When POs must complete Phase 1 voting by.</div>
+                </div>
+                <div class="rp-field mb-3">
+                    <label class="rp-label">Select Weeks <span class="text-danger">*</span></label>
+                    <div id="weeks-picker" class="border rounded p-2" style="max-height:200px;overflow-y:auto">
+                        <p class="text-secondary small mb-0">Loading weeks…</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-create-monthly">
+                    <i class="bi bi-plus-lg me-1"></i>Create
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/monthly_wins.js' %}"></script>
+{% endblock %}

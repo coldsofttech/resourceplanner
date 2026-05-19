@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Product Owners{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/wins/monthly/" class="btn btn-ghost-icon" title="Back to Monthly Wins">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title"><i class="bi bi-people me-2"></i>Product Owners</h1>
+            <p class="rp-page-subtitle">Configure which users are Product Owners for each team</p>
+        </div>
+    </div>
+    <button class="btn btn-primary btn-sm" id="btn-add-po">
+        <i class="bi bi-plus-lg me-1"></i>Assign Product Owner
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="po-banner" class="alert d-none mb-3"></div>
+<div id="po-container"><p class="text-secondary small">Loading…</p></div>
+
+<!-- Assign PO Modal -->
+<div class="modal fade" id="addPOModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title">Assign Product Owner</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="add-po-banner" class="alert alert-danger d-none mb-3"></div>
+                <div class="rp-field mb-3">
+                    <label class="rp-label">Team <span class="text-danger">*</span></label>
+                    <select id="po-team" class="form-select rp-input">
+                        <option value="">— select team —</option>
+                    </select>
+                </div>
+                <div class="rp-field">
+                    <label class="rp-label">User <span class="text-danger">*</span></label>
+                    <select id="po-user" class="form-select rp-input">
+                        <option value="">— select user —</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-save-po">Assign</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/monthly_wins.js' %}"></script>
+{% endblock %}

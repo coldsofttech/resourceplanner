@@ -498,8 +498,31 @@ class ProjectService:
             raise
 
     @staticmethod
+    def _notify_project_followers(project, title, body='', actor=None):
+        try:
+            from apps.notifications.services import NotificationService
+            from apps.notifications.models import Notification
+            from .models import ProjectFollower
+            qs = ProjectFollower.objects.filter(project=project)
+            if actor and getattr(actor, 'is_authenticated', False):
+                qs = qs.exclude(user=actor)
+            from django.contrib.auth import get_user_model
+            User = get_user_model()
+            follower_ids = list(qs.values_list('user_id', flat=True))
+            for fu in User.objects.filter(pk__in=follower_ids, is_active=True):
+                NotificationService.create(
+                    fu,
+                    title=title,
+                    notification_type=Notification.TYPE_PROJECT_FOLLOW,
+                    body=body,
+                    link=f'/projects/{project.pk}/',
+                )
+        except Exception:
+            logger.exception('Failed to notify followers for project %s', project.pk)
+
+    @staticmethod
     @transaction.atomic
-    def update_project(project_id: int, data: dict, operational_only: bool = False):
+    def update_project(project_id: int, data: dict, operational_only: bool = False, user=None):
         if not project_id:
             raise ValidationError("Invalid: project_id must be a positive integer.")
         if not isinstance(data, dict):
@@ -509,12 +532,9 @@ class ProjectService:
         if not project:
             raise ValidationError(f"Project '{project_id}' does not exist.")
 
-        old_status = Project.objects.get(pk=project_id).status
-        old_sub_status = (
-            Project.objects.get(pk=project_id).sub_status
-            if hasattr(project, "sub_status")
-            else None
-        )
+        old_status = project.status
+        old_sub_status = project.sub_status if hasattr(project, "sub_status") else None
+        old_assigned_team_id = project.assigned_team_id
 
         if operational_only:
             # Only update operational fields
@@ -600,6 +620,15 @@ class ProjectService:
                     reason=data.get("reason") or None,
                 )
 
+            if not operational_only and "assigned_team" in data and project.assigned_team_id != old_assigned_team_id:
+                team_name = project.assigned_team.name if project.assigned_team else 'None'
+                ProjectService._notify_project_followers(
+                    project,
+                    title=f'Assigned team changed on {project.name}',
+                    body=f'Team: {team_name}',
+                    actor=user,
+                )
+
             return project
         except IntegrityError as e:
             logger.error("IntegrityError updating project %s: %s", project_id, e)
@@ -619,7 +648,7 @@ class ProjectService:
 
     @staticmethod
     @transaction.atomic
-    def update_project_teams(project_id: int, data: dict):
+    def update_project_teams(project_id: int, data: dict, user=None):
         if not isinstance(data, dict):
             raise ValidationError("Invalid: data must be a dictionary.")
 
@@ -627,12 +656,23 @@ class ProjectService:
         if not project:
             raise ValidationError(f"Project '{project_id}' does not exist.")
 
+        old_assigned_team_id = project.assigned_team_id
+
         if "assigned_team" in data:
             try:
                 new_assigned_id = ProjectService._pk(data.get("assigned_team")) or None
                 project.assigned_team_id = new_assigned_id
                 project.full_clean()
                 project.save(update_fields=["assigned_team", "updated_at"])
+                if project.assigned_team_id != old_assigned_team_id:
+                    project.refresh_from_db(fields=["assigned_team"])
+                    team_name = project.assigned_team.name if project.assigned_team else 'None'
+                    ProjectService._notify_project_followers(
+                        project,
+                        title=f'Assigned team changed on {project.name}',
+                        body=f'Team: {team_name}',
+                        actor=user,
+                    )
             except DatabaseError as e:
                 logger.exception(
                     "DatabaseError updating project teams %s: %s", project_id, e
@@ -1084,7 +1124,7 @@ class ProjectCommentService:
 
     @staticmethod
     @transaction.atomic
-    def create_comment(project_id: int, comment_text: str, user=None):
+    def create_comment(project_id: int, comment_text: str, user=None, mentioned_user_ids=None):
         project = Project.objects.get(pk=project_id)
         if not project:
             raise ValidationError(f"Project '{project_id}' does not exist.")
@@ -1103,8 +1143,10 @@ class ProjectCommentService:
                 posted_by=posted_by,
                 posted_by_user=user if (user and user.is_authenticated) else None,
             )
-            # Extract & persist @mentions, then send in-app notifications
-            mentioned_ids = ProjectCommentService._extract_mention_ids(comment_text)
+            # Use explicit mention IDs from the client (more reliable than parsing Quill HTML)
+            mentioned_ids = [int(i) for i in (mentioned_user_ids or []) if str(i).isdigit()]
+            if not mentioned_ids:
+                mentioned_ids = ProjectCommentService._extract_mention_ids(comment_text)
             if mentioned_ids:
                 comment.mentioned_users.set(mentioned_ids)
                 try:
@@ -1176,7 +1218,7 @@ class ProjectCommentService:
 
     @staticmethod
     @transaction.atomic
-    def update_comment(comment_id: int, data: dict):
+    def update_comment(comment_id: int, data: dict, user=None):
         comment = ProjectComment.objects.get(pk=comment_id)
         if not comment:
             raise ValidationError(f"Comment '{comment_id}' does not exist.")
@@ -1187,6 +1229,30 @@ class ProjectCommentService:
                 raise ValidationError({"comment": "Comment cannot be blank."})
             comment.comment = new_text
             comment.is_edited = True
+            # Update mentioned users
+            raw_ids = data.get("mentioned_user_ids") or []
+            mentioned_ids = [int(i) for i in raw_ids if str(i).isdigit()]
+            if not mentioned_ids:
+                mentioned_ids = ProjectCommentService._extract_mention_ids(new_text)
+            comment.mentioned_users.set(mentioned_ids)
+            if mentioned_ids:
+                try:
+                    from django.contrib.auth import get_user_model
+                    from apps.notifications.services import NotificationService
+                    from apps.notifications.models import Notification
+                    User = get_user_model()
+                    posted_by = user.get_full_name() or user.email if user else 'Anonymous'
+                    for mu in User.objects.filter(pk__in=mentioned_ids, is_active=True):
+                        if user and mu.pk == user.pk:
+                            continue
+                        NotificationService.create(
+                            mu,
+                            title=f'{posted_by} mentioned you in a comment on {comment.project.name}',
+                            notification_type=Notification.TYPE_COMMENT_MENTION,
+                            link=f'/projects/{comment.project_id}/',
+                        )
+                except Exception:
+                    logger.exception("Failed to create mention notifications for edited comment %s", comment_id)
 
         if "is_pinned" in data:
             new_pinned = bool(data["is_pinned"])
@@ -1270,16 +1336,27 @@ class ProjectCodeService:
         }
 
     @staticmethod
-    def set_code(project_id: int, code: str, notes: str | None = None):
+    def set_code(project_id: int, code: str, notes: str | None = None, user=None):
         code = code.strip()
         if not code:
             raise ValueError("code is required")
 
-        return ProjectCode.objects.create(
+        entry = ProjectCode.objects.create(
             project_id=project_id,
             code=code,
             notes=notes or None,
         )
+        try:
+            project = Project.objects.get(pk=project_id)
+            ProjectService._notify_project_followers(
+                project,
+                title=f'Project code updated on {project.name}',
+                body=f'Code: {code}',
+                actor=user,
+            )
+        except Exception:
+            logger.exception('Failed to notify followers after code set for project %s', project_id)
+        return entry
 
 
 class ProjectEstimateService:

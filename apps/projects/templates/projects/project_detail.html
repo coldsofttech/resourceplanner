@@ -1299,12 +1299,9 @@
                     role="alert"
                 ></div>
                 <div class="rp-field">
-                    <textarea
-                        id="edit-comment-input"
-                        class="form-control rp-input rp-comment-textarea"
-                        rows="4"
-                    ></textarea>
-                    <div class="invalid-feedback" id="edit-comment-err"></div>
+                    <div id="edit-comment-editor"
+                         style="min-height:100px;border:1px solid var(--rp-border-color,#dee2e6);border-radius:6px;font-size:14px"></div>
+                    <div class="invalid-feedback d-none" id="edit-comment-err">Comment cannot be blank.</div>
                 </div>
             </div>
             <div class="modal-footer border-0 pt-0">
@@ -2104,6 +2101,10 @@
 #mention-dropdown .mention-item small { color: var(--rp-text-muted, #6c757d); }
 .comment-attach-chip { display:inline-flex;align-items:center;gap:4px;background:var(--rp-badge-bg,#f1f5f9);border-radius:4px;padding:2px 8px;font-size:12px; }
 .comment-attach-chip .rm-attach { cursor:pointer;color:var(--rp-text-muted);margin-left:2px; }
+.rp-comment-body img { max-width: 100%; height: auto; display: block; margin: 4px 0; border-radius: 4px; }
+#edit-comment-editor .ql-editor { min-height: 100px; font-size: 14px; }
+a.mention { color: var(--bs-primary); font-weight: 500; text-decoration: none; }
+a.mention:hover { text-decoration: underline; }
 </style>
 {% endblock %}
 

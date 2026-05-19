@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Win Detail{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/wins/" class="btn btn-ghost-icon" title="Back to Wins">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title" id="win-title">Loading…</h1>
+            <p class="rp-page-subtitle" id="win-subtitle"></p>
+        </div>
+    </div>
+    <div class="d-flex gap-2 align-items-center">
+        <span id="win-status-badge" class="d-none"></span>
+        <button class="btn btn-success btn-sm d-none" id="btn-review-complete" title="Mark as reviewed and send email">
+            <i class="bi bi-check2-circle me-1"></i>Review Complete
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="win-banner" class="alert d-none mb-3" role="alert"></div>
+
+<div class="row g-4">
+    <!-- Left: team accordion -->
+    <div class="col-lg-8">
+        <div id="teams-accordion" class="accordion rp-accordion"></div>
+        <div id="teams-loading" class="text-secondary small">Loading teams…</div>
+    </div>
+
+    <!-- Right: hint panel -->
+    <div class="col-lg-4">
+        <div class="rp-card rp-card--info sticky-top" style="top: 80px">
+            <h6 class="rp-card-heading"><i class="bi bi-lightbulb me-2 text-warning"></i>Tips for great wins</h6>
+            <ul class="list-unstyled small mb-0" style="line-height:1.7">
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i>Use <strong>Title</strong> as a punchy headline</li>
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i>Add <strong>Description</strong> with context: what was delivered, benefits &amp; outcomes</li>
+                <li><i class="bi bi-check-circle-fill text-success me-2"></i>Include <strong>next steps</strong> if relevant</li>
+                <li class="mt-2 text-danger"><i class="bi bi-currency-pound me-2"></i>If this is a <strong>cost-saving</strong> win, call out the saving amount prominently!</li>
+            </ul>
+            <hr class="my-3">
+            <p class="small text-secondary mb-0">
+                <strong>Example title:</strong><br>
+                <em>Migrated auth to SSO — 40% faster onboarding</em><br><br>
+                <strong>Example description:</strong><br>
+                <em>Eliminated 3 support tickets/week. Next: guest users. Cost saving: ~£12k/yr.</em>
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Entry Modal -->
+<div class="modal fade" id="addEntryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="add-entry-modal-title">Add Win</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="add-entry-banner" class="alert alert-danger d-none mb-3"></div>
+                <div class="rp-field mb-3">
+                    <label class="rp-label">Title <span class="text-danger">*</span></label>
+                    <input type="text" id="entry-title" class="form-control rp-input" maxlength="200"
+                           placeholder="e.g. Migrated auth to SSO — 40% faster onboarding">
+                </div>
+                <div class="rp-field">
+                    <label class="rp-label">Description <span class="text-secondary small">(optional)</span></label>
+                    <textarea id="entry-description" class="form-control rp-input" rows="4"
+                              placeholder="Additional context: what was delivered, benefits, outcomes, next steps…"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-save-entry">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Entry Confirm -->
+<div class="modal fade" id="deleteEntryModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:360px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete entry?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">This win entry will be permanently deleted.</div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btn-confirm-delete-entry">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Review Complete Confirm -->
+<div class="modal fade" id="reviewCompleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-check2-circle me-2 text-success"></i>Mark Review Complete?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="mb-1">This will:</p>
+                <ul class="small mb-0">
+                    <li>Generate a Word document with all wins for this week</li>
+                    <li>Send it by email to the configured recipients</li>
+                    <li>Mark this week as <strong>Review Complete</strong></li>
+                </ul>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-success" id="btn-confirm-review-complete">
+                    <i class="bi bi-check2-circle me-1"></i>Confirm &amp; Send
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.win-entry-card { padding: 12px 14px; border-left: 3px solid var(--bs-primary); background: var(--bs-tertiary-bg, #f8f9fa); border-radius: 0 6px 6px 0; margin-bottom: 8px; }
+.win-entry-title { font-weight: 600; font-size: 0.9rem; }
+.win-entry-desc { font-size: 0.825rem; color: var(--bs-secondary-color); margin-top: 3px; white-space: pre-wrap; }
+.win-entry-actions { opacity: 0; transition: opacity .15s; }
+.win-entry-card:hover .win-entry-actions { opacity: 1; }
+.win-entry-meta { font-size: 0.75rem; color: var(--bs-secondary-color); margin-top: 4px; }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>window.WIN_PK = {{ win_pk }};</script>
+<script type="module" src="{% static 'js/modules/wins.js' %}"></script>
+{% endblock %}

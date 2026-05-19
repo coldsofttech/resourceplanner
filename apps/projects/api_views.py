@@ -215,7 +215,7 @@ class ProjectViewSet(viewsets.ViewSet):
                 if k in operational_fields
             }
             updated = ProjectService.update_project(
-                pk, filtered_data, operational_only=True
+                pk, filtered_data, operational_only=True, user=request.user
             )
             return Response(
                 ProjectOperationalSerializer(updated).data, status=status.HTTP_200_OK
@@ -259,7 +259,7 @@ class ProjectViewSet(viewsets.ViewSet):
                     ProjectTeamsSerializer(instance).data, status=status.HTTP_200_OK
                 )
 
-            updated = ProjectService.update_project_teams(pk, request.data)
+            updated = ProjectService.update_project_teams(pk, request.data, user=request.user)
             return Response(
                 ProjectTeamsSerializer(updated).data, status=status.HTTP_200_OK
             )
@@ -328,7 +328,7 @@ class ProjectViewSet(viewsets.ViewSet):
 
             serializer = ProjectSerializer(instance, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
-            updated = ProjectService.update_project(pk, serializer.validated_data)
+            updated = ProjectService.update_project(pk, serializer.validated_data, user=request.user)
             return Response(ProjectSerializer(updated).data, status=status.HTTP_200_OK)
         except (DjangoValidationError, DRFValidationError, ValueError) as e:
             return Response(
@@ -755,7 +755,8 @@ class ProjectViewSet(viewsets.ViewSet):
 
             if request.method == "POST":
                 comment_text = (request.data.get("comment") or "").strip()
-                comment = ProjectCommentService.create_comment(pk, comment_text, user=request.user)
+                mentioned_ids = request.data.get("mentioned_user_ids") or []
+                comment = ProjectCommentService.create_comment(pk, comment_text, user=request.user, mentioned_user_ids=mentioned_ids)
                 return Response(
                     ProjectCommentSerializer(comment).data,
                     status=status.HTTP_201_CREATED,
@@ -799,7 +800,7 @@ class ProjectViewSet(viewsets.ViewSet):
                 )
 
             if request.method == "PATCH":
-                comment = ProjectCommentService.update_comment(comment_pk, request.data)
+                comment = ProjectCommentService.update_comment(comment_pk, request.data, user=request.user)
                 return Response(
                     ProjectCommentSerializer(comment).data, status=status.HTTP_200_OK
                 )
@@ -859,6 +860,7 @@ class ProjectViewSet(viewsets.ViewSet):
                     instance.pk,
                     serializer.validated_data["code"],
                     serializer.validated_data.get("notes") or None,
+                    user=request.user,
                 )
                 return Response(
                     ProjectCodeSerializer(code_entry).data,

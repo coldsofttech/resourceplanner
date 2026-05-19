@@ -1,9 +1,16 @@
+from django.shortcuts import redirect
 from django.views.generic import TemplateView
 
 _SLUG_TEMPLATES = {
     'sprint-forecast-actuals': 'reporting/sprint_fa_report.html',
     'kpi-estimate-accuracy':   'reporting/kpi_report.html',
     'monthly-finance':         'reporting/monthly_finance_report.html',
+}
+
+# Slugs that have dedicated pages — redirect rather than rendering a generic template
+_SLUG_REDIRECTS = {
+    'weekly-wins': '/wins/report/',
+    'monthly-wins': '/wins/monthly/',
 }
 
 _CONFIGURE_SLUG_TEMPLATES = {
@@ -17,6 +24,12 @@ class ReportingIndexView(TemplateView):
 
 class StandardReportView(TemplateView):
     template_name = "reporting/standard_report.html"
+
+    def get(self, request, *args, **kwargs):
+        slug = self.kwargs.get('slug', '')
+        if slug in _SLUG_REDIRECTS:
+            return redirect(_SLUG_REDIRECTS[slug])
+        return super().get(request, *args, **kwargs)
 
     def get_template_names(self):
         slug = self.kwargs.get('slug', '')

@@ -512,14 +512,15 @@ class UserViewSet(ViewSet):
     def mention_search(self, request):
         """Lightweight search returning id + display_name for @mention autocomplete."""
         q = request.query_params.get('q', '').strip()
-        if not q or len(q) < 1:
-            return Response([])
         from django.db.models import Q
-        qs = User.objects.filter(is_active=True).filter(
-            Q(first_name__icontains=q) |
-            Q(last_name__icontains=q) |
-            Q(email__icontains=q)
-        ).order_by('first_name', 'last_name')[:15]
+        qs = User.objects.filter(is_active=True)
+        if q:
+            qs = qs.filter(
+                Q(first_name__icontains=q) |
+                Q(last_name__icontains=q) |
+                Q(email__icontains=q)
+            )
+        qs = qs.order_by('first_name', 'last_name')[:15]
         return Response([
             {'id': u.pk, 'display_name': u.get_full_name() or u.email, 'email': u.email}
             for u in qs

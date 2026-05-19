@@ -122,4 +122,9 @@ urlpatterns = [
     path("onboarding/", include("apps.onboarding.urls")),
     # Notifications
     path("api/v1/", include("apps.notifications.api_urls")),
+    # Wins
+    path("api/v1/", include("apps.wins.api_urls")),
+    path("wins/", include("apps.wins.urls")),
+    # Jobs API (service-token auth only)
+    path("api/v1/", include("apps.jobs_admin.api_urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
