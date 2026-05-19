@@ -249,6 +249,7 @@ async function _uploadCsv(teamId, file) {
 
 async function _openReviewCompleteModal() {
     const rcModal = new bootstrap.Modal(document.getElementById('reviewCompleteModal'));
+    document.getElementById('rc-errors-section').classList.add('d-none');
     document.getElementById('rc-warnings-section').classList.add('d-none');
     document.getElementById('rc-no-warnings').classList.add('d-none');
     document.getElementById('rc-override-check').checked = false;
@@ -258,6 +259,22 @@ async function _openReviewCompleteModal() {
 
     try {
         const data = await apiFetch(_apiNs.review_warnings(_sprintId).href);
+
+        if (data.has_errors) {
+            // Hard errors — show and keep Complete disabled regardless
+            const list = document.getElementById('rc-errors-list');
+            list.innerHTML = data.errors.map(e => `<li>${_esc(e)}</li>`).join('');
+            document.getElementById('rc-errors-section').classList.remove('d-none');
+            // Still show warnings below errors if any exist
+            if (data.has_warnings) {
+                document.getElementById('rc-warnings-list').innerHTML =
+                    data.warnings.map(w => `<li>${_esc(w)}</li>`).join('');
+                document.getElementById('rc-warnings-section').classList.remove('d-none');
+            }
+            // Complete button stays disabled — errors must be fixed first
+            return;
+        }
+
         if (data.has_warnings) {
             const list = document.getElementById('rc-warnings-list');
             list.innerHTML = data.warnings.map(w => `<li>${_esc(w)}</li>`).join('');
@@ -292,7 +309,9 @@ async function _submitReviewComplete() {
         showFlash('Review marked as complete.', 'success');
         await _loadPage();
     } catch (e) {
-        if (e.data?.warnings) {
+        if (e.data?.has_errors) {
+            showFlash('Review blocked: fix the listed project code errors first.', 'danger');
+        } else if (e.data?.warnings) {
             showFlash('Warnings found. Check the override box to proceed.', 'warning');
         } else {
             showFlash(e.data?.error || 'Failed to complete review.', 'danger');

@@ -497,6 +497,45 @@ class ImportConfirmService:
 class ImportReviewCompleteService:
 
     @staticmethod
+    def check_errors(sprint_id, import_type=IMPORT_TYPE_FORECAST):
+        """Return hard-error strings that block review complete regardless of override.
+
+        Currently checks: every project referenced by confirmed rows must have a
+        ProjectActuals record with a non-empty code field.
+        """
+        from apps.sprint_forecast.models import ProjectActuals
+
+        confirmed_rows = SprintConfirmedRow.objects.filter(
+            sprint_id=sprint_id, import_type=import_type,
+        ).select_related('label__project')
+
+        # Collect unique projects (skip rows without a project mapping)
+        projects = {}
+        for row in confirmed_rows:
+            project = row.label.project if row.label else None
+            if project and project.id not in projects:
+                projects[project.id] = project.name
+
+        if not projects:
+            return []
+
+        actuals_with_code = set(
+            ProjectActuals.objects.filter(
+                project_id__in=projects.keys(),
+            ).exclude(code='').values_list('project_id', flat=True)
+        )
+
+        errors = []
+        for pid, pname in sorted(projects.items(), key=lambda x: x[1]):
+            if pid not in actuals_with_code:
+                errors.append(
+                    f'Project "{pname}" does not have a project code set. '
+                    f'Add a code via Project Actuals before completing this review.'
+                )
+
+        return errors
+
+    @staticmethod
     def check_warnings(sprint_id, import_type=IMPORT_TYPE_FORECAST):
         """Return list of warning strings. Empty list = no warnings."""
         from apps.delivery_teams.models import DeliveryTeam

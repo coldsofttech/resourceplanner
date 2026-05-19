@@ -25,6 +25,7 @@ from .services import (
     DemandCapacityConfigService,
     DemandCapacityService,
     KPIReportService,
+    MonthlyFinanceReportService,
     ReportService,
     SprintForecastActualsService,
 )
@@ -723,3 +724,99 @@ class KPIReportConfigureView(APIView):
             return _db_error_response(e, 'kpi configure post')
         except Exception as e:
             return _unexpected_error_response(e, 'kpi configure post')
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/reports/standard/monthly-finance/months/
+# ---------------------------------------------------------------------------
+
+class MonthlyFinanceMonthListView(APIView):
+    def get(self, request):
+        try:
+            months = MonthlyFinanceReportService.get_months()
+            return Response({'results': months}, status=status.HTTP_200_OK)
+        except DatabaseError as e:
+            return _db_error_response(e, 'monthly finance months')
+        except Exception as e:
+            return _unexpected_error_response(e, 'monthly finance months')
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/reports/standard/monthly-finance/data/?month=YYYY-MM
+# ---------------------------------------------------------------------------
+
+class MonthlyFinanceDataView(APIView):
+    def get(self, request):
+        try:
+            month_str = request.query_params.get('month', '').strip()
+            if not month_str:
+                return Response(
+                    {'error': "'month' query parameter is required (format: YYYY-MM)."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            data = MonthlyFinanceReportService.get_data(month_str)
+            if data is None:
+                return Response(
+                    {'error': 'Invalid month format. Use YYYY-MM.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            response = Response(data, status=status.HTTP_200_OK)
+            response['Cache-Control'] = 'no-store, no-cache, must-revalidate'
+            response['Pragma'] = 'no-cache'
+            return response
+        except DatabaseError as e:
+            return _db_error_response(e, 'monthly finance data')
+        except Exception as e:
+            return _unexpected_error_response(e, 'monthly finance data')
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/reports/standard/monthly-finance/export/?month=YYYY-MM&fmt=csv|xlsx
+# ---------------------------------------------------------------------------
+
+class MonthlyFinanceExportView(APIView):
+    def get(self, request):
+        try:
+            month_str = request.query_params.get('month', '').strip()
+            fmt       = request.query_params.get('fmt', 'csv').lower()
+
+            if not month_str:
+                return Response(
+                    {'error': "'month' query parameter is required."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            data = MonthlyFinanceReportService.get_data(month_str)
+            if data is None:
+                return Response(
+                    {'error': 'Invalid month format. Use YYYY-MM.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if data.get('error'):
+                return Response(
+                    {'error': 'Report cannot be exported — not all sprints have actuals confirmed.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            safe_month = month_str.replace('-', '_')
+            base_name  = f"monthly_finance_{safe_month}"
+
+            if fmt == 'xlsx':
+                content  = MonthlyFinanceReportService.export_xlsx(data)
+                response = HttpResponse(
+                    content,
+                    content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                )
+                response['Content-Disposition'] = f'attachment; filename="{base_name}.xlsx"'
+                return response
+
+            content  = MonthlyFinanceReportService.export_csv(data)
+            response = HttpResponse(content, content_type='text/csv; charset=utf-8-sig')
+            response['Content-Disposition'] = f'attachment; filename="{base_name}.csv"'
+            return response
+
+        except DatabaseError as e:
+            return _db_error_response(e, 'monthly finance export')
+        except Exception as e:
+            return _unexpected_error_response(e, 'monthly finance export')

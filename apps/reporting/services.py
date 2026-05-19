@@ -1345,6 +1345,265 @@ class KPIReportService:
 
 
 # ---------------------------------------------------------------------------
+# Monthly Finance Report — Aggregated Recharge Pivot by Project & Programme
+# ---------------------------------------------------------------------------
+
+class MonthlyFinanceReportService:
+
+    SLUG = 'monthly-finance'
+
+    @staticmethod
+    def get_months():
+        """Return distinct year-months where sprints exist, newest first."""
+        from apps.sprints.models import Sprint
+
+        rows = (
+            Sprint.objects
+            .filter(end_date__isnull=False)
+            .values('end_date__year', 'end_date__month')
+            .distinct()
+            .order_by('-end_date__year', '-end_date__month')
+        )
+
+        return [
+            {
+                'value': f"{r['end_date__year']:04d}-{r['end_date__month']:02d}",
+                'label': f"{_MONTH_NAMES[r['end_date__month'] - 1]} {r['end_date__year']}",
+            }
+            for r in rows
+            if r['end_date__year'] and r['end_date__month']
+        ]
+
+    @staticmethod
+    def get_data(month_str):
+        from decimal import Decimal
+
+        from apps.sprint_forecast.models import (
+            IMPORT_TYPE_ACTUAL,
+            RECHARGE_TYPE_ACTUAL,
+            ProjectActuals,
+            Recharge,
+            SprintImportReviewComplete,
+        )
+        from apps.sprints.models import Sprint
+
+        try:
+            year  = int(month_str[:4])
+            month = int(month_str[5:7])
+        except (ValueError, IndexError, AttributeError):
+            return None
+
+        sprints = list(
+            Sprint.objects.filter(
+                end_date__year=year,
+                end_date__month=month,
+            ).order_by('start_date')
+        )
+
+        month_label = f"{_MONTH_NAMES[month - 1]} {year}"
+
+        if not sprints:
+            return {
+                'month': month_str,
+                'month_label': month_label,
+                'error': 'no_sprints',
+                'rows': [],
+                'sprints': [],
+                'sprint_info': [],
+            }
+
+        sprint_ids = [s.id for s in sprints]
+
+        sprints_with_actuals = set(
+            SprintImportReviewComplete.objects.filter(
+                sprint_id__in=sprint_ids,
+                import_type=IMPORT_TYPE_ACTUAL,
+            ).values_list('sprint_id', flat=True)
+        )
+
+        sprint_info = [
+            {
+                'id': s.id,
+                'name': s.sprint_name,
+                'has_actuals': s.id in sprints_with_actuals,
+            }
+            for s in sprints
+        ]
+
+        total_sprints   = len(sprint_ids)
+        actuals_count   = len(sprints_with_actuals)
+
+        if actuals_count < total_sprints:
+            return {
+                'month': month_str,
+                'month_label': month_label,
+                'error': 'incomplete_actuals',
+                'total_sprints': total_sprints,
+                'actuals_sprints': actuals_count,
+                'missing_sprints': total_sprints - actuals_count,
+                'sprint_info': sprint_info,
+                'rows': [],
+            }
+
+        recharges = list(
+            Recharge.objects.filter(
+                sprint_id__in=sprint_ids,
+                type=RECHARGE_TYPE_ACTUAL,
+            ).select_related('project', 'programme')
+        )
+
+        project_ids = {r.project_id for r in recharges if r.project_id}
+        actuals_code_map = {
+            a.project_id: a.code
+            for a in ProjectActuals.objects.filter(project_id__in=project_ids)
+        }
+
+        pivot = {}
+        for r in recharges:
+            key = (r.project_id, r.programme_id)
+            if key not in pivot:
+                proj = r.project
+                prog = r.programme
+                pivot[key] = {
+                    'project_id':   r.project_id,
+                    'project_code': actuals_code_map.get(r.project_id, '') or '',
+                    'project_name': proj.name if proj else '—',
+                    'programme_id': r.programme_id,
+                    'programme':    prog.name if prog else '—',
+                    'total_cost':   Decimal('0'),
+                    'total_days':   Decimal('0'),
+                }
+            pivot[key]['total_cost'] += r.total_cost
+            pivot[key]['total_days'] += r.total_days
+
+        rows = sorted(
+            pivot.values(),
+            key=lambda x: (x['project_code'] or x['project_name'], x['programme']),
+        )
+
+        for row in rows:
+            row['total_cost'] = _r2(row['total_cost'])
+            row['total_days'] = _r2(row['total_days'])
+
+        grand_total_cost = sum(r['total_cost'] for r in rows)
+        grand_total_days = sum(r['total_days'] for r in rows)
+
+        return {
+            'month':       month_str,
+            'month_label': month_label,
+            'sprints':     [{'id': s.id, 'name': s.sprint_name} for s in sprints],
+            'sprint_info': sprint_info,
+            'rows':        rows,
+            'summary': {
+                'total_projects':    len({r['project_id'] for r in rows}),
+                'total_rows':        len(rows),
+                'grand_total_cost':  _r2(grand_total_cost),
+                'grand_total_days':  _r2(grand_total_days),
+            },
+        }
+
+    @staticmethod
+    def export_csv(data: dict) -> bytes:
+        rows        = data.get('rows', [])
+        month_label = data.get('month_label', '')
+        s           = data.get('summary', {})
+
+        buf = io.StringIO()
+        w   = csv.writer(buf)
+        w.writerow(['Monthly Finance Report', month_label])
+        w.writerow([])
+        w.writerow(['Project Code', 'Project Name', 'Programme', 'Total Days', 'Total Cost (£)'])
+        for r in rows:
+            w.writerow([
+                r['project_code'] or '—',
+                r['project_name'],
+                r['programme'],
+                f"{r['total_days']:.2f}",
+                f"{r['total_cost']:,.2f}",
+            ])
+        w.writerow([])
+        w.writerow([
+            '', '', 'TOTAL',
+            f"{s.get('grand_total_days', 0):.2f}",
+            f"{s.get('grand_total_cost', 0):,.2f}",
+        ])
+        return buf.getvalue().encode('utf-8-sig')
+
+    @staticmethod
+    def export_xlsx(data: dict) -> bytes:
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+
+        rows        = data.get('rows', [])
+        month_label = data.get('month_label', '')
+        s           = data.get('summary', {})
+
+        H_FILL   = PatternFill('solid', fgColor='1F4E79')
+        ALT_FILL = PatternFill('solid', fgColor='F0F4F8')
+        TOT_FILL = PatternFill('solid', fgColor='DBEAFE')
+        CENTER   = Alignment(horizontal='center')
+        GBP_FMT  = '£#,##0.00'
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'Monthly Finance'
+
+        ws.merge_cells('A1:E1')
+        tc = ws.cell(1, 1, f'Monthly Finance Report | {month_label}')
+        tc.font = Font(bold=True, size=13)
+
+        headers = ['Project Code', 'Project Name', 'Programme', 'Total Days', 'Total Cost (£)']
+        for ci, h in enumerate(headers, 1):
+            c = ws.cell(3, ci, h)
+            c.font      = Font(bold=True, color='FFFFFF')
+            c.fill      = H_FILL
+            c.alignment = CENTER
+
+        for ri, r in enumerate(rows, 4):
+            fill = ALT_FILL if ri % 2 == 0 else None
+            vals = [
+                r['project_code'] or '—',
+                r['project_name'],
+                r['programme'],
+                float(r['total_days']),
+                float(r['total_cost']),
+            ]
+            for ci, v in enumerate(vals, 1):
+                c = ws.cell(ri, ci, v)
+                if fill:
+                    c.fill = fill
+                if ci == 4:
+                    c.alignment = CENTER
+                elif ci == 5:
+                    c.number_format = GBP_FMT
+                    c.alignment     = CENTER
+
+        tr = len(rows) + 4
+        ws.cell(tr, 3, 'TOTAL').font = Font(bold=True)
+        ws.cell(tr, 3).fill          = TOT_FILL
+        for ci, v in [
+            (4, float(s.get('grand_total_days', 0))),
+            (5, float(s.get('grand_total_cost', 0))),
+        ]:
+            c               = ws.cell(tr, ci, v)
+            c.font          = Font(bold=True)
+            c.fill          = TOT_FILL
+            c.alignment     = CENTER
+            if ci == 5:
+                c.number_format = GBP_FMT
+
+        col_widths = [18, 32, 24, 14, 18]
+        for ci, cw in enumerate(col_widths, 1):
+            ws.column_dimensions[get_column_letter(ci)].width = cw
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf.read()
+
+
+# ---------------------------------------------------------------------------
 # Registry
 # ---------------------------------------------------------------------------
 

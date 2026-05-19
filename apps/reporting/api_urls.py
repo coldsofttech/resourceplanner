@@ -5,6 +5,9 @@ from .api_views import (
     KPIReportDataView,
     KPIReportExportView,
     KPIReportMonthListView,
+    MonthlyFinanceDataView,
+    MonthlyFinanceExportView,
+    MonthlyFinanceMonthListView,
     ReportDetailView,
     ReportListCreateView,
     SprintFAFinancialYearListView,
@@ -19,8 +22,9 @@ from .api_views import (
     StandardReportMetaView,
 )
 
-_FA_SLUG  = 'sprint-forecast-actuals'
-_KPI_SLUG = 'kpi-estimate-accuracy'
+_FA_SLUG      = 'sprint-forecast-actuals'
+_KPI_SLUG     = 'kpi-estimate-accuracy'
+_FINANCE_SLUG = 'monthly-finance'
 
 urlpatterns = [
     # Report registry
@@ -47,6 +51,23 @@ urlpatterns = [
         f"reports/standard/{_FA_SLUG}/financial-years/",
         SprintFAFinancialYearListView.as_view(),
         name="sprint-fa-fy-list",
+    ),
+
+    # Monthly Finance Report — specific routes BEFORE generic slug routes
+    path(
+        f"reports/standard/{_FINANCE_SLUG}/months/",
+        MonthlyFinanceMonthListView.as_view(),
+        name="monthly-finance-months",
+    ),
+    path(
+        f"reports/standard/{_FINANCE_SLUG}/data/",
+        MonthlyFinanceDataView.as_view(),
+        name="monthly-finance-data",
+    ),
+    path(
+        f"reports/standard/{_FINANCE_SLUG}/export/",
+        MonthlyFinanceExportView.as_view(),
+        name="monthly-finance-export",
     ),
 
     # KPI Estimate % Accuracy — specific routes BEFORE generic slug routes

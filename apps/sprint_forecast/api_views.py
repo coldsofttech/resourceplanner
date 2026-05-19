@@ -403,8 +403,14 @@ class BaseSprintImportViewSet(viewsets.ViewSet):
         if not sprint_id:
             return Response({'error': 'sprint_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
+            errors   = ImportReviewCompleteService.check_errors(sprint_id, import_type=self.import_type)
             warnings = ImportReviewCompleteService.check_warnings(sprint_id, import_type=self.import_type)
-            return Response({'warnings': warnings, 'has_warnings': bool(warnings)})
+            return Response({
+                'errors':      errors,
+                'has_errors':  bool(errors),
+                'warnings':    warnings,
+                'has_warnings': bool(warnings),
+            })
         except Exception as e:
             logger.exception('Error checking warnings: %s', e)
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -418,6 +424,15 @@ class BaseSprintImportViewSet(viewsets.ViewSet):
             return _sprint_locked_response()
         override = request.data.get('override', False)
         override_notes = request.data.get('override_notes', '')
+
+        # Hard errors always block — cannot be overridden
+        errors = ImportReviewCompleteService.check_errors(sprint_id, import_type=self.import_type)
+        if errors:
+            return Response(
+                {'errors': errors, 'has_errors': True,
+                 'detail': 'Review cannot proceed. Fix the listed errors first.'},
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
 
         if not override:
             warnings = ImportReviewCompleteService.check_warnings(sprint_id, import_type=self.import_type)

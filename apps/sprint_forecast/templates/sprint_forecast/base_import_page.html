@@ -53,6 +53,19 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
+                <!-- Hard errors — cannot be overridden -->
+                <div id="rc-errors-section" class="d-none">
+                    <div class="alert alert-danger py-2 mb-3">
+                        <div class="d-flex align-items-start gap-2">
+                            <i class="bi bi-x-octagon-fill mt-1 flex-shrink-0"></i>
+                            <div>
+                                <strong class="d-block mb-1">Errors must be fixed before completing:</strong>
+                                <ul id="rc-errors-list" class="mb-0 ps-3" style="font-size:13px"></ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Soft warnings — can be overridden -->
                 <div id="rc-warnings-section" class="d-none">
                     <div class="alert alert-warning py-2 mb-3">
                         <strong>Warnings found:</strong>

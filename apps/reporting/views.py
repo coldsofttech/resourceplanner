@@ -3,6 +3,7 @@ from django.views.generic import TemplateView
 _SLUG_TEMPLATES = {
     'sprint-forecast-actuals': 'reporting/sprint_fa_report.html',
     'kpi-estimate-accuracy':   'reporting/kpi_report.html',
+    'monthly-finance':         'reporting/monthly_finance_report.html',
 }
 
 _CONFIGURE_SLUG_TEMPLATES = {

@@ -1,0 +1,487 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Monthly Finance Report — Resource Planner{% endblock %}
+
+{% block extra_css %}
+<style>
+/* ── Filters ── */
+.mfr-filters {
+    background: var(--rp-surface);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+}
+.mfr-filters label, .mfr-filters select { font-size: 13px; }
+
+/* ── Accordion table ── */
+.mfr-accordion { border: 1px solid var(--bs-border-color); border-radius: 6px; overflow: hidden; }
+
+.mfr-header-row {
+    display: grid;
+    grid-template-columns: 1fr 140px 160px 36px;
+    align-items: center;
+    padding: 9px 14px;
+    cursor: pointer;
+    background: var(--rp-surface);
+    border-bottom: 1px solid var(--bs-border-color-translucent);
+    transition: background .12s;
+    user-select: none;
+}
+.mfr-header-row:hover { background: var(--bs-tertiary-bg, #f8f9fa); }
+.mfr-header-row:last-child { border-bottom: none; }
+.mfr-header-row.expanded { border-bottom-color: var(--bs-border-color); }
+
+.mfr-header-row .col-code { font-size: 13px; }
+.mfr-header-row .col-days { font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
+.mfr-header-row .col-cost { font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.mfr-header-row .col-chevron { text-align: center; color: var(--bs-secondary-color); font-size: 12px; transition: transform .2s; }
+.mfr-header-row.expanded .col-chevron { transform: rotate(180deg); }
+
+/* ── Project code pill ── */
+.mfr-code-pill {
+    display: inline-block;
+    padding: 2px 10px; border-radius: 10px;
+    background: #dbeafe; color: #1e40af;
+    font-size: 11px; font-weight: 600; font-family: var(--font-mono, monospace);
+}
+.mfr-code-none {
+    display: inline-block;
+    padding: 2px 8px; border-radius: 10px;
+    background: #f3f4f6; color: #9ca3af;
+    font-size: 11px; font-style: italic;
+}
+
+/* ── Detail panel ── */
+.mfr-detail { display: none; background: var(--bs-tertiary-bg, #f8f9fa); border-bottom: 1px solid var(--bs-border-color-translucent); }
+.mfr-detail.open { display: block; }
+.mfr-detail-inner { padding: 10px 14px 12px 28px; }
+
+.mfr-project-name {
+    font-size: 12px; font-weight: 600; color: var(--rp-text);
+    margin-bottom: 8px;
+}
+.mfr-project-name .label { font-size: 11px; font-weight: 400; color: var(--bs-secondary-color); margin-right: 4px; }
+
+/* ── Detail sub-table ── */
+.mfr-sub-table { font-size: 12px; width: 100%; border-collapse: collapse; }
+.mfr-sub-table th {
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--bs-secondary-color); padding: 4px 10px 4px 0; border-bottom: 1px solid var(--bs-border-color);
+}
+.mfr-sub-table th.num { text-align: right; }
+.mfr-sub-table td { padding: 5px 10px 5px 0; border-bottom: 1px solid var(--bs-border-color-translucent); vertical-align: middle; }
+.mfr-sub-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.mfr-sub-table tr:last-child td { border-bottom: none; }
+
+/* ── Column header bar ── */
+.mfr-col-header {
+    display: grid;
+    grid-template-columns: 1fr 140px 160px 36px;
+    padding: 6px 14px;
+    background: var(--bs-tertiary-bg, #f8f9fa);
+    border-bottom: 2px solid var(--bs-border-color);
+    font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--bs-secondary-color);
+}
+.mfr-col-header .ch-days { text-align: right; }
+.mfr-col-header .ch-cost { text-align: right; }
+
+/* ── Totals bar ── */
+.mfr-totals-bar {
+    display: grid;
+    grid-template-columns: 1fr 140px 160px 36px;
+    padding: 9px 14px;
+    border-top: 2px solid var(--bs-border-color);
+    background: #dbeafe22;
+    font-size: 13px; font-weight: 600;
+}
+.mfr-totals-bar .tot-days { text-align: right; font-variant-numeric: tabular-nums; }
+.mfr-totals-bar .tot-cost { text-align: right; font-variant-numeric: tabular-nums; color: var(--bs-primary); }
+
+/* ── Sprint coverage chips ── */
+.mfr-sprint-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 12px;
+    font-size: 11px; font-weight: 500; border: 1px solid transparent;
+}
+.mfr-sprint-chip.ok   { background: #d1fae5; color: #065f46; border-color: #6ee7b7; }
+.mfr-sprint-chip.miss { background: #fee2e2; color: #991b1b; border-color: #fca5a5; }
+
+/* ── Placeholder / warning ── */
+.mfr-placeholder {
+    min-height: 160px; display: flex; align-items: center;
+    justify-content: center; color: var(--bs-secondary-color);
+    font-size: 14px; flex-direction: column; gap: 8px;
+}
+.mfr-warning {
+    background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 16px 20px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1" style="font-size:13px">
+                <li class="breadcrumb-item"><a href="/reports/">Reports</a></li>
+                <li class="breadcrumb-item active">Monthly Finance Report</li>
+            </ol>
+        </nav>
+        <h1 class="rp-page-title mb-0">Monthly Finance Report</h1>
+        <p class="text-secondary mb-0" style="font-size:13px">
+            Aggregated recharge actuals by project and programme for cross-charging with the finance team.
+        </p>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="mfr-filters">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+            <label class="form-label mb-1">Month</label>
+            <select id="filter-month" class="form-select form-select-sm">
+                <option value="">— Select month —</option>
+            </select>
+        </div>
+        <div class="col-auto d-flex gap-2 align-items-end">
+            <button id="btn-run" class="btn btn-sm btn-primary">
+                <i class="bi bi-play-fill me-1"></i>Run
+            </button>
+            <button id="btn-csv" class="btn btn-sm btn-outline-secondary" disabled title="Download CSV">
+                <i class="bi bi-filetype-csv me-1"></i>CSV
+            </button>
+            <button id="btn-xlsx" class="btn btn-sm btn-outline-secondary" disabled title="Download XLSX">
+                <i class="bi bi-file-earmark-excel me-1"></i>XLSX
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Sprint coverage -->
+<div id="sprint-coverage" class="d-none mb-3">
+    <div class="d-flex align-items-center gap-2 flex-wrap" style="font-size:12px">
+        <span class="text-secondary fw-500">Sprints in month:</span>
+        <div id="sprint-chips" class="d-flex gap-1 flex-wrap"></div>
+    </div>
+</div>
+
+<!-- Placeholder -->
+<div id="mfr-placeholder" class="mfr-placeholder">
+    <i class="bi bi-cash-stack display-5 opacity-25"></i>
+    <span>Select a month and click Run to generate the report.</span>
+</div>
+
+<!-- No sprints -->
+<div id="mfr-no-sprints" class="d-none text-secondary py-4 text-center" style="font-size:14px">
+    <i class="bi bi-calendar-x d-block display-5 mb-2 opacity-25"></i>
+    No sprints found for the selected month.
+</div>
+
+<!-- Warning: incomplete actuals -->
+<div id="mfr-warning" class="mfr-warning d-none">
+    <div class="d-flex align-items-start gap-3">
+        <i class="bi bi-exclamation-triangle-fill text-warning mt-1" style="font-size:20px"></i>
+        <div>
+            <div class="fw-semibold mb-1" style="font-size:14px">Actuals not complete for all sprints</div>
+            <p class="mb-2 text-secondary" id="mfr-warning-text" style="font-size:13px"></p>
+            <p class="mb-0 text-secondary" style="font-size:12px">
+                Once all sprints have actuals confirmed, this report can be generated and exported.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Summary cards -->
+<div id="mfr-summary" class="d-none mb-3">
+    <div class="row g-2">
+        <div class="col-auto">
+            <div class="border rounded px-3 py-2 text-center" style="min-width:120px">
+                <div class="text-secondary" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">Projects</div>
+                <div class="fw-bold" style="font-size:20px" id="sum-projects">—</div>
+            </div>
+        </div>
+        <div class="col-auto">
+            <div class="border rounded px-3 py-2 text-center" style="min-width:140px">
+                <div class="text-secondary" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">Total Days</div>
+                <div class="fw-bold" style="font-size:20px" id="sum-days">—</div>
+            </div>
+        </div>
+        <div class="col-auto">
+            <div class="border rounded px-3 py-2 text-center" style="min-width:160px">
+                <div class="text-secondary" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">Total Cost</div>
+                <div class="fw-bold text-primary" style="font-size:20px" id="sum-cost">—</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Accordion report -->
+<div id="mfr-report" class="d-none">
+    <!-- Column headers -->
+    <div class="mfr-col-header">
+        <div>Project Code</div>
+        <div class="ch-days">Total Days</div>
+        <div class="ch-cost">Total Cost</div>
+        <div></div>
+    </div>
+    <!-- Rows injected here -->
+    <div id="mfr-accordion" class="mfr-accordion"></div>
+    <!-- Totals -->
+    <div class="mfr-totals-bar">
+        <div>Grand Total</div>
+        <div class="tot-days" id="tot-days">—</div>
+        <div class="tot-cost" id="tot-cost">—</div>
+        <div></div>
+    </div>
+</div>
+
+<div id="mfr-empty" class="d-none text-secondary py-4 text-center" style="font-size:14px">
+    No recharge actuals found for the selected month.
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+
+    const SLUG = '{{ slug }}';
+    let currentMonth = '';
+
+    // ── Init ─────────────────────────────────────────────────────────────────
+    async function init() {
+        try {
+            const res  = await fetch(`/api/v1/reports/standard/${SLUG}/months/`);
+            if (!res.ok) return;
+            const json = await res.json();
+            const sel  = document.getElementById('filter-month');
+            (json.results || []).forEach(m => {
+                sel.insertAdjacentHTML('beforeend',
+                    `<option value="${esc(m.value)}">${esc(m.label)}</option>`);
+            });
+        } catch (_) {}
+    }
+
+    // ── Run ──────────────────────────────────────────────────────────────────
+    document.getElementById('btn-run').addEventListener('click', async () => {
+        const month = document.getElementById('filter-month').value;
+        if (!month) { alert('Please select a month.'); return; }
+        currentMonth = month;
+        await runReport(month);
+    });
+
+    async function runReport(month) {
+        setBusy(true);
+        hideAll();
+        try {
+            const res = await fetch(`/api/v1/reports/standard/${SLUG}/data/?month=${month}`);
+            if (!res.ok) { showPlaceholder('An error occurred loading report data.'); return; }
+            const data = await res.json();
+
+            renderSprintCoverage(data);
+
+            if (data.error === 'no_sprints') {
+                document.getElementById('mfr-no-sprints').classList.remove('d-none');
+                return;
+            }
+            if (data.error === 'incomplete_actuals') {
+                renderWarning(data);
+                return;
+            }
+            renderReport(data);
+        } catch (e) {
+            showPlaceholder('An error occurred: ' + e.message);
+        } finally {
+            setBusy(false);
+        }
+    }
+
+    // ── Sprint chips ──────────────────────────────────────────────────────────
+    function renderSprintCoverage(data) {
+        const info = data.sprint_info || [];
+        if (!info.length) return;
+        document.getElementById('sprint-chips').innerHTML = info.map(s => {
+            const cls  = s.has_actuals ? 'ok' : 'miss';
+            const icon = s.has_actuals ? 'bi-check-circle-fill' : 'bi-x-circle-fill';
+            return `<span class="mfr-sprint-chip ${cls}"><i class="bi ${icon}"></i>${esc(s.name)}</span>`;
+        }).join('');
+        document.getElementById('sprint-coverage').classList.remove('d-none');
+    }
+
+    // ── Warning ──────────────────────────────────────────────────────────────
+    function renderWarning(data) {
+        document.getElementById('mfr-warning-text').textContent =
+            `Actuals are confirmed for ${data.actuals_sprints} of ${data.total_sprints} sprint(s) ` +
+            `in ${data.month_label}. ${data.missing_sprints} sprint(s) still need actuals.`;
+        document.getElementById('mfr-warning').classList.remove('d-none');
+    }
+
+    // ── Accordion report ──────────────────────────────────────────────────────
+    function renderReport(data) {
+        const rows    = data.rows || [];
+        const summary = data.summary || {};
+
+        if (!rows.length) {
+            document.getElementById('mfr-empty').classList.remove('d-none');
+            return;
+        }
+
+        // Group flat rows by project
+        const groups = [];
+        const seen   = new Map();
+        rows.forEach(r => {
+            if (!seen.has(r.project_id)) {
+                const g = {
+                    project_id:   r.project_id,
+                    project_code: r.project_code,
+                    project_name: r.project_name,
+                    total_cost:   0,
+                    total_days:   0,
+                    rows:         [],
+                };
+                seen.set(r.project_id, g);
+                groups.push(g);
+            }
+            const g = seen.get(r.project_id);
+            g.total_cost += r.total_cost;
+            g.total_days += r.total_days;
+            g.rows.push(r);
+        });
+
+        // Summary cards
+        document.getElementById('sum-projects').textContent = summary.total_projects ?? groups.length;
+        document.getElementById('sum-days').textContent     = fmt2(summary.grand_total_days);
+        document.getElementById('sum-cost').textContent     = fmtGBP(summary.grand_total_cost);
+        document.getElementById('mfr-summary').classList.remove('d-none');
+
+        // Totals bar
+        document.getElementById('tot-days').textContent = fmt2(summary.grand_total_days);
+        document.getElementById('tot-cost').textContent = fmtGBP(summary.grand_total_cost);
+
+        // Build accordion
+        const accordion = document.getElementById('mfr-accordion');
+        accordion.innerHTML = '';
+
+        groups.forEach((g, idx) => {
+            const itemId   = `mfr-item-${idx}`;
+            const detailId = `mfr-detail-${idx}`;
+
+            const codePill = g.project_code
+                ? `<span class="mfr-code-pill">${esc(g.project_code)}</span>`
+                : `<span class="mfr-code-none">No code</span>`;
+
+            // Sub-table rows
+            const subRows = g.rows.map(r =>
+                `<tr>
+                    <td>${esc(r.programme)}</td>
+                    <td class="num">${fmt2(r.total_days)}</td>
+                    <td class="num">${fmtGBP(r.total_cost)}</td>
+                </tr>`
+            ).join('');
+
+            const item = document.createElement('div');
+            item.innerHTML = `
+                <div class="mfr-header-row" id="${itemId}" role="button" aria-expanded="false" aria-controls="${detailId}">
+                    <div class="col-code">${codePill}</div>
+                    <div class="col-days">${fmt2(g.total_days)}</div>
+                    <div class="col-cost">${fmtGBP(g.total_cost)}</div>
+                    <div class="col-chevron"><i class="bi bi-chevron-down"></i></div>
+                </div>
+                <div class="mfr-detail" id="${detailId}">
+                    <div class="mfr-detail-inner">
+                        <div class="mfr-project-name">
+                            <span class="label">Project</span>${esc(g.project_name)}
+                        </div>
+                        <table class="mfr-sub-table">
+                            <thead>
+                                <tr>
+                                    <th>Programme</th>
+                                    <th class="num">Days</th>
+                                    <th class="num">Cost</th>
+                                </tr>
+                            </thead>
+                            <tbody>${subRows}</tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            accordion.appendChild(item);
+
+            // Toggle on header click
+            item.querySelector(`#${itemId}`).addEventListener('click', () => {
+                const header = item.querySelector(`#${itemId}`);
+                const detail = item.querySelector(`#${detailId}`);
+                const isOpen = detail.classList.contains('open');
+                detail.classList.toggle('open', !isOpen);
+                header.classList.toggle('expanded', !isOpen);
+                header.setAttribute('aria-expanded', String(!isOpen));
+            });
+        });
+
+        document.getElementById('mfr-report').classList.remove('d-none');
+        enableExports(true);
+    }
+
+    // ── Exports ───────────────────────────────────────────────────────────────
+    function enableExports(on) {
+        ['btn-csv', 'btn-xlsx'].forEach(id => {
+            document.getElementById(id).disabled = !on;
+        });
+    }
+    document.getElementById('btn-csv').addEventListener('click', () => {
+        if (currentMonth) window.location.href =
+            `/api/v1/reports/standard/${SLUG}/export/?month=${currentMonth}&fmt=csv`;
+    });
+    document.getElementById('btn-xlsx').addEventListener('click', () => {
+        if (currentMonth) window.location.href =
+            `/api/v1/reports/standard/${SLUG}/export/?month=${currentMonth}&fmt=xlsx`;
+    });
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    function hideAll() {
+        ['mfr-placeholder','mfr-no-sprints','mfr-warning','mfr-summary',
+         'mfr-report','mfr-empty','sprint-coverage'].forEach(id => {
+            document.getElementById(id).classList.add('d-none');
+        });
+        enableExports(false);
+    }
+
+    function showPlaceholder(msg) {
+        const el = document.getElementById('mfr-placeholder');
+        el.innerHTML = `<i class="bi bi-exclamation-circle display-5 opacity-25"></i><span>${esc(msg)}</span>`;
+        el.classList.remove('d-none');
+    }
+
+    function setBusy(on) {
+        const btn = document.getElementById('btn-run');
+        btn.disabled = on;
+        btn.innerHTML = on
+            ? '<span class="spinner-border spinner-border-sm me-1"></span>Running…'
+            : '<i class="bi bi-play-fill me-1"></i>Run';
+    }
+
+    function fmtGBP(v) {
+        return '£' + Number(v || 0).toLocaleString('en-GB', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2,
+        });
+    }
+
+    function fmt2(v) {
+        return Number(v || 0).toLocaleString('en-GB', {
+            minimumFractionDigits: 2, maximumFractionDigits: 2,
+        });
+    }
+
+    function esc(s) {
+        return String(s || '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    init();
+})();
+</script>
+{% endblock %}
