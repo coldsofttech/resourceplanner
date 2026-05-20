@@ -14,6 +14,7 @@ REGISTERED_JOBS = {
     'data_retention':       'jobs.data_retention',
     'sprint_status':        'jobs.sprint_status',
     'financial_year_status': 'jobs.financial_year_status',
+    'todo_reminders':       'jobs.todo_reminders',
 }
 
 

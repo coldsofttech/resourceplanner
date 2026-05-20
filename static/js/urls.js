@@ -1257,4 +1257,17 @@ export const URLS = {
         snapshots:  (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/snapshots/`,
         audit_log:  (planId, versionId) => `/resource-plans/${planId}/versions/${versionId}/audit/`,
     },
+    todos: {
+        list:         { method: 'GET',    href: `${API_BASE}todos/` },
+        create:       { method: 'POST',   href: `${API_BASE}todos/` },
+        detail:       (pk) => ({ method: 'GET',    href: `${API_BASE}todos/${pk}/` }),
+        update:       (pk) => ({ method: 'PATCH',  href: `${API_BASE}todos/${pk}/` }),
+        delete:       (pk) => ({ method: 'DELETE', href: `${API_BASE}todos/${pk}/` }),
+        complete:     (pk) => ({ method: 'POST',   href: `${API_BASE}todos/${pk}/complete/` }),
+        reopen:       (pk) => ({ method: 'POST',   href: `${API_BASE}todos/${pk}/reopen/` }),
+        comments:     (pk) => ({ method: 'GET',    href: `${API_BASE}todos/${pk}/comments/` }),
+        addComment:   (pk) => ({ method: 'POST',   href: `${API_BASE}todos/${pk}/comments/` }),
+        deleteComment:(pk, cpk) => ({ method: 'DELETE', href: `${API_BASE}todos/${pk}/comments/${cpk}/` }),
+        mentionUsers: (q)  => ({ method: 'GET',    href: `${API_BASE}todos/mention-users/?q=${encodeURIComponent(q)}` }),
+    },
 };

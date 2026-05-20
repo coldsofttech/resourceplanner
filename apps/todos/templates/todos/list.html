@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}To-Do{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title"><i class="bi bi-check2-square me-2"></i>To-Do</h1>
+        <p class="rp-page-subtitle">Tasks, reminders, and action items</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-primary btn-sm" id="btn-new-todo">
+            <i class="bi bi-plus-lg me-1"></i>New Task
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="todo-banner" class="alert d-none mb-3" role="alert"></div>
+
+<!-- Filters -->
+<div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
+    <div class="btn-group btn-group-sm" id="scope-tabs" role="group">
+        <button type="button" class="btn btn-outline-secondary active" data-scope="mine">Mine</button>
+        <button type="button" class="btn btn-outline-secondary" data-scope="assigned">Assigned to me</button>
+        <button type="button" class="btn btn-outline-secondary" data-scope="all">All</button>
+    </div>
+
+    <select id="filter-status" class="form-select form-select-sm" style="width:auto">
+        <option value="">All statuses</option>
+        <option value="open">Open</option>
+        <option value="in_progress">In Progress</option>
+        <option value="done">Done</option>
+    </select>
+
+    <select id="filter-priority" class="form-select form-select-sm" style="width:auto">
+        <option value="">All priorities</option>
+        <option value="urgent">Urgent</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+    </select>
+
+    <select id="filter-due" class="form-select form-select-sm" style="width:auto">
+        <option value="">Any due date</option>
+        <option value="today">Due today</option>
+        <option value="overdue">Overdue</option>
+        <option value="this_week">This week</option>
+    </select>
+
+    <div class="input-group input-group-sm" style="max-width:220px">
+        <span class="input-group-text bg-transparent"><i class="bi bi-search"></i></span>
+        <input type="text" id="filter-search" class="form-control" placeholder="Search…">
+    </div>
+</div>
+
+<!-- Todo list -->
+<div id="todo-list-container">
+    <p class="text-secondary small">Loading…</p>
+</div>
+<div id="todo-pagination" class="mt-3"></div>
+
+<!-- New / Edit Todo Modal -->
+<div class="modal fade" id="todoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="todo-modal-title"><i class="bi bi-plus-circle me-2"></i>New Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="todo-modal-banner" class="alert alert-danger d-none mb-3"></div>
+                <input type="hidden" id="todo-edit-id">
+
+                <div class="rp-field mb-3">
+                    <label class="rp-label">Title <span class="text-danger">*</span></label>
+                    <input type="text" id="todo-title" class="form-control rp-input" placeholder="What needs to be done?">
+                </div>
+
+                <div class="rp-field mb-3">
+                    <label class="rp-label">Description</label>
+                    <textarea id="todo-description" class="form-control rp-input" rows="3"
+                              placeholder="Add details… (use @name to mention someone)"></textarea>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6">
+                        <label class="rp-label">Priority</label>
+                        <select id="todo-priority" class="form-select rp-input">
+                            <option value="low">Low</option>
+                            <option value="medium" selected>Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="rp-label">Assign to</label>
+                        <select id="todo-assigned" class="form-select rp-input">
+                            <option value="">Unassigned</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6">
+                        <label class="rp-label">Due date</label>
+                        <input type="date" id="todo-due-date" class="form-control rp-input">
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="rp-label">Reminder</label>
+                        <input type="datetime-local" id="todo-reminder-at" class="form-control rp-input">
+                    </div>
+                </div>
+
+                <!-- Recurring -->
+                <div class="rp-field mb-2">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="todo-is-recurring">
+                        <label class="form-check-label" for="todo-is-recurring">Recurring task</label>
+                    </div>
+                </div>
+                <div id="recurrence-fields" class="d-none">
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-4">
+                            <label class="rp-label">Repeat every</label>
+                            <input type="number" id="todo-recurrence-interval" class="form-control rp-input" value="1" min="1">
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="rp-label">Frequency</label>
+                            <select id="todo-recurrence-rule" class="form-select rp-input">
+                                <option value="daily">Day(s)</option>
+                                <option value="weekly" selected>Week(s)</option>
+                                <option value="monthly">Month(s)</option>
+                                <option value="yearly">Year(s)</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="rp-label">End date</label>
+                            <input type="date" id="todo-recurrence-end-date" class="form-control rp-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-save-todo">
+                    <i class="bi bi-check-lg me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirm Modal -->
+<div class="modal fade" id="deleteTodoModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:420px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Delete Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="delete-todo-title"></strong>? This cannot be undone.</p>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-danger" id="btn-confirm-delete">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/todos.js' %}"></script>
+{% endblock %}

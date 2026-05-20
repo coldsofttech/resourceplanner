@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Task Detail{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <a href="/todos/" class="text-secondary small text-decoration-none mb-1 d-inline-block">
+            <i class="bi bi-chevron-left me-1"></i>Back to To-Do
+        </a>
+        <h1 class="rp-page-title" id="todo-detail-title">Loading…</h1>
+    </div>
+    <div class="d-flex gap-2 flex-wrap" id="todo-actions">
+        <!-- populated by JS -->
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="todo-detail-banner" class="alert d-none mb-3" role="alert"></div>
+
+<div class="row g-4">
+    <!-- Main detail card -->
+    <div class="col-lg-8">
+        <div class="card rp-card mb-4">
+            <div class="card-body" id="todo-detail-body">
+                <p class="text-secondary small">Loading…</p>
+            </div>
+        </div>
+
+        <!-- Comments -->
+        <div class="card rp-card">
+            <div class="card-header border-0 pb-0 pt-3 px-4 d-flex align-items-center justify-content-between">
+                <span class="fw-500">Comments</span>
+            </div>
+            <div class="card-body px-4">
+                <div id="comments-list">
+                    <p class="text-secondary small">Loading…</p>
+                </div>
+
+                <!-- New comment box -->
+                <div class="mt-3" id="new-comment-area">
+                    <label class="rp-label mb-1">Add a comment</label>
+                    <div class="position-relative">
+                        <textarea id="new-comment-content" class="form-control rp-input" rows="3"
+                                  placeholder="Write a comment… type @name to mention someone"></textarea>
+                        <!-- @mention autocomplete dropdown -->
+                        <div id="mention-dropdown"
+                             class="dropdown-menu shadow-sm"
+                             style="display:none;position:absolute;z-index:1050;min-width:220px;max-height:200px;overflow-y:auto;"></div>
+                    </div>
+                    <div class="d-flex justify-content-end mt-2">
+                        <button class="btn btn-sm btn-primary" id="btn-add-comment">
+                            <i class="bi bi-send me-1"></i>Post
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar meta -->
+    <div class="col-lg-4">
+        <div class="card rp-card">
+            <div class="card-body px-4 py-3" id="todo-meta-body">
+                <p class="text-secondary small">Loading…</p>
+            </div>
+        </div>
+
+        <!-- Recurring children -->
+        <div class="card rp-card mt-3 d-none" id="recurring-card">
+            <div class="card-header border-0 pt-3 px-4 pb-0">
+                <span class="fw-500 small">Recurrence history</span>
+            </div>
+            <div class="card-body px-4" id="recurring-list"></div>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Modal (reused from list) -->
+<div class="modal fade" id="todoEditModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="edit-modal-banner" class="alert alert-danger d-none mb-3"></div>
+
+                <div class="rp-field mb-3">
+                    <label class="rp-label">Title <span class="text-danger">*</span></label>
+                    <input type="text" id="edit-todo-title" class="form-control rp-input">
+                </div>
+                <div class="rp-field mb-3">
+                    <label class="rp-label">Description</label>
+                    <textarea id="edit-todo-description" class="form-control rp-input" rows="3"></textarea>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6">
+                        <label class="rp-label">Priority</label>
+                        <select id="edit-todo-priority" class="form-select rp-input">
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                        </select>
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="rp-label">Status</label>
+                        <select id="edit-todo-status" class="form-select rp-input">
+                            <option value="open">Open</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="done">Done</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-sm-6">
+                        <label class="rp-label">Due date</label>
+                        <input type="date" id="edit-todo-due-date" class="form-control rp-input">
+                    </div>
+                    <div class="col-sm-6">
+                        <label class="rp-label">Reminder</label>
+                        <input type="datetime-local" id="edit-todo-reminder-at" class="form-control rp-input">
+                    </div>
+                </div>
+                <div class="rp-field mb-2">
+                    <label class="rp-label">Assign to</label>
+                    <select id="edit-todo-assigned" class="form-select rp-input">
+                        <option value="">Unassigned</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-save-edit">
+                    <i class="bi bi-check-lg me-1"></i>Save changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>window.TODO_PK = {{ todo_pk }};</script>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/todos.js' %}"></script>
+{% endblock %}

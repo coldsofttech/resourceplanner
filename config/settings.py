@@ -84,6 +84,7 @@ INSTALLED_APPS = [
     "apps.onboarding",
     "apps.notifications",
     "apps.wins",
+    "apps.todos",
     "apps.jobs_admin",
 ]
 

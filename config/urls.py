@@ -125,6 +125,9 @@ urlpatterns = [
     # Wins
     path("api/v1/", include("apps.wins.api_urls")),
     path("wins/", include("apps.wins.urls")),
+    # To-Do
+    path("api/v1/", include("apps.todos.api_urls")),
+    path("todos/", include("apps.todos.urls")),
     # Jobs API (service-token auth only)
     path("api/v1/", include("apps.jobs_admin.api_urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

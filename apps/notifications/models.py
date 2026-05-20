@@ -10,6 +10,9 @@ class Notification(models.Model):
     TYPE_PROJECT_FOLLOW       = 'project_follow'
     TYPE_MONTHLY_WINS_PHASE1  = 'monthly_wins_phase1'
     TYPE_MONTHLY_WINS_PHASE2  = 'monthly_wins_phase2'
+    TYPE_TODO_MENTION         = 'todo_mention'
+    TYPE_TODO_ASSIGNED        = 'todo_assigned'
+    TYPE_TODO_REMINDER        = 'todo_reminder'
 
     TYPE_CHOICES = [
         (TYPE_COMMENT_MENTION,     'Comment Mention'),
@@ -19,6 +22,9 @@ class Notification(models.Model):
         (TYPE_PROJECT_FOLLOW,      'Project Update'),
         (TYPE_MONTHLY_WINS_PHASE1, 'Monthly Wins Phase 1'),
         (TYPE_MONTHLY_WINS_PHASE2, 'Monthly Wins Phase 2'),
+        (TYPE_TODO_MENTION,        'To-Do Mention'),
+        (TYPE_TODO_ASSIGNED,       'To-Do Assigned'),
+        (TYPE_TODO_REMINDER,       'To-Do Reminder'),
     ]
 
     user              = models.ForeignKey(
