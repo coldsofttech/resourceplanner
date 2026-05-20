@@ -91,13 +91,13 @@
     user-select: none;
 }
 .cr-field-item:hover { background: var(--color-surface-muted, #f1f5f9); }
-.cr-field-item .cr-ft { font-size: 9px; font-weight: 700; text-transform: uppercase; padding: 1px 4px; border-radius: 3px; }
-.cr-ft-text    { background: #dbeafe; color: #1d4ed8; }
-.cr-ft-number  { background: #d1fae5; color: #065f46; }
-.cr-ft-date    { background: #fef3c7; color: #92400e; }
-.cr-ft-datetime{ background: #fef3c7; color: #92400e; }
-.cr-ft-boolean { background: #ede9fe; color: #5b21b6; }
-.cr-ft-choice  { background: #fce7f3; color: #9d174d; }
+.cr-field-item .cr-ft { font-size: 14px; padding: 0 2px; flex-shrink: 0; }
+.cr-ft-text    { color: #1d4ed8; }
+.cr-ft-number  { color: #065f46; }
+.cr-ft-date    { color: #92400e; }
+.cr-ft-datetime{ color: #92400e; }
+.cr-ft-boolean { color: #5b21b6; }
+.cr-ft-choice  { color: #9d174d; }
 
 /* ── Center panel: config tabs ── */
 .cr-center {
@@ -132,7 +132,7 @@
 .cr-viz-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
+    gap: 5px;
     margin-bottom: 16px;
 }
 .cr-viz-btn {
@@ -140,18 +140,20 @@
     flex-direction: column;
     align-items: center;
     gap: 3px;
-    padding: 8px 4px;
+    padding: 7px 3px;
     border: 1px solid var(--color-border-sm, #e5e7eb);
     border-radius: 6px;
     background: var(--color-surface, #fff);
     cursor: pointer;
-    font-size: 10px;
+    font-size: 9px;
     color: var(--rp-text-muted, #6b7280);
     transition: border-color .15s, background .15s;
+    white-space: nowrap;
+    overflow: hidden;
 }
 .cr-viz-btn:hover { border-color: var(--rp-primary, #0d6efd); background: var(--color-surface-muted, #f1f5f9); }
 .cr-viz-btn.active { border-color: var(--rp-primary, #0d6efd); background: #eff6ff; color: var(--rp-primary, #0d6efd); font-weight: 700; }
-.cr-viz-btn i { font-size: 18px; }
+.cr-viz-btn i { font-size: 16px; }
 
 /* Config slots */
 .cr-slot {
@@ -193,18 +195,32 @@
 }
 .cr-slot-chip .cr-chip-remove:hover { opacity: 1; }
 
-/* Values row */
-.cr-value-row {
-    display: flex;
+/* Value chips */
+.cr-val-chip {
+    display: inline-flex;
     align-items: center;
-    gap: 4px;
-    margin-bottom: 4px;
-    padding: 4px 6px;
-    background: var(--color-surface-muted, #f8fafc);
-    border-radius: 5px;
-    font-size: 12px;
+    border: 1px solid #bfdbfe;
+    border-radius: 4px;
+    font-size: 11px;
+    margin: 2px;
+    overflow: hidden;
+    background: #f0f9ff;
 }
-.cr-value-row select { font-size: 11px; border: 1px solid var(--color-border-sm, #e5e7eb); border-radius: 4px; padding: 1px 4px; }
+.cr-val-aggr {
+    background: #1e3a5f;
+    color: #fff;
+    padding: 2px 6px;
+    cursor: pointer;
+    font-weight: 700;
+    font-size: 10px;
+    white-space: nowrap;
+    border-right: 1px solid #bfdbfe;
+    user-select: none;
+}
+.cr-val-aggr:hover { background: #2563eb; }
+.cr-val-field { color: #1d4ed8; padding: 2px 5px; }
+.cr-val-add { cursor: pointer; color: var(--rp-text-muted, #6b7280); font-size: 14px; }
+.cr-val-add:hover { color: var(--rp-primary, #0d6efd); }
 
 /* Filters */
 .cr-filter-row {
@@ -257,13 +273,43 @@
     font-size: 14px;
     gap: 12px;
 }
+/* Slot drag feedback */
+.cr-slot-drop { cursor: default; }
+.cr-slot-drop.drag-over { border-color: var(--rp-primary, #0d6efd); background: #eff6ff; }
+.cr-slot-hint { font-size: 11px; color: var(--rp-text-muted, #9ca3af); }
+.cr-field-item[draggable="true"] { cursor: grab; }
+.cr-field-item[draggable="true"]:active { cursor: grabbing; opacity: .7; }
+
+/* Canvas title */
+.cr-canvas-title { margin-bottom: 12px; }
+.cr-title    { font-size: 15px; font-weight: 700; color: var(--rp-text, #1e293b); }
+.cr-subtitle { font-size: 12px; color: var(--rp-text-muted, #6b7280); margin-top: 2px; }
+.cr-bordered { border: 1px solid var(--color-border-sm, #e5e7eb) !important; border-radius: 8px; padding: 20px !important; }
+
+/* Table */
 .cr-table-wrap { overflow: auto; }
 .cr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .cr-table th { background: #1e3a5f; color: #fff; padding: 7px 10px; text-align: left; white-space: nowrap; font-size: 12px; }
 .cr-table td { padding: 6px 10px; border-bottom: 1px solid var(--color-border-sm, #e5e7eb); }
 .cr-table tr:hover td { background: var(--color-surface-muted, #f8fafc); }
 .cr-pivot-total { font-weight: 700; background: var(--color-surface-muted, #f1f5f9) !important; }
-.cr-heatmap-cell { text-align: center; }
+
+/* Heatmap grid */
+.cr-heatmap-wrap { overflow: auto; }
+.cr-heatmap-grid { display: inline-block; min-width: 100%; font-size: 12px; }
+.cr-hm-header, .cr-hm-row { display: flex; }
+.cr-hm-cell { min-width: 80px; max-width: 180px; padding: 5px 8px; border: 1px solid var(--color-border-sm, #e5e7eb); text-align: center; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cr-hm-label   { min-width: 130px; background: var(--color-surface-muted, #f1f5f9); font-weight: 700; font-size: 11px; text-align: left; }
+.cr-hm-col-head{ background: #1e3a5f; color: #fff; font-weight: 600; font-size: 11px; }
+.cr-hm-row-head{ min-width: 130px; background: var(--color-surface-muted, #f1f5f9); font-weight: 600; text-align: left; }
+.cr-hm-data    { transition: background .15s; }
+
+/* Card visual */
+.cr-card-wrap { padding: 8px; }
+.cr-cards { display: flex; flex-wrap: wrap; gap: 16px; padding: 16px; }
+.cr-card  { background: var(--color-surface, #fff); border: 1px solid var(--color-border-sm, #e5e7eb); border-radius: 10px; padding: 20px 24px; min-width: 150px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
+.cr-card-value { font-size: 30px; font-weight: 700; color: var(--rp-primary, #0d6efd); line-height: 1.2; }
+.cr-card-label { font-size: 11px; color: var(--rp-text-muted, #6b7280); margin-top: 6px; text-transform: uppercase; letter-spacing: .06em; }
 </style>
 {% endblock %}
 
@@ -340,19 +386,26 @@
                 <div class="cr-tab" data-tab="filters" onclick="crSwitchTab('filters')">
                     <i class="bi bi-funnel me-1"></i>Filters
                 </div>
+                <div class="cr-tab" data-tab="format" onclick="crSwitchTab('format')">
+                    <i class="bi bi-palette me-1"></i>Format
+                </div>
             </div>
             <div class="cr-center-body">
                 <!-- Visual tab -->
                 <div id="cr-tab-visual">
                     <div class="cr-slot-label mb-2">Visualization</div>
                     <div class="cr-viz-grid" id="cr-viz-grid">
-                        <button class="cr-viz-btn active" data-viz="table" onclick="crSetViz('table')"><i class="bi bi-table"></i>Table</button>
-                        <button class="cr-viz-btn" data-viz="pivot" onclick="crSetViz('pivot')"><i class="bi bi-layout-three-columns"></i>Pivot</button>
-                        <button class="cr-viz-btn" data-viz="bar" onclick="crSetViz('bar')"><i class="bi bi-bar-chart"></i>Bar</button>
-                        <button class="cr-viz-btn" data-viz="stacked_bar" onclick="crSetViz('stacked_bar')"><i class="bi bi-bar-chart-steps"></i>Stacked</button>
-                        <button class="cr-viz-btn" data-viz="pie" onclick="crSetViz('pie')"><i class="bi bi-pie-chart"></i>Pie</button>
-                        <button class="cr-viz-btn" data-viz="line" onclick="crSetViz('line')"><i class="bi bi-graph-up"></i>Line</button>
-                        <button class="cr-viz-btn" data-viz="heatmap" onclick="crSetViz('heatmap')"><i class="bi bi-grid-3x3"></i>Heatmap</button>
+                        <button class="cr-viz-btn active" data-viz="table"          onclick="crSetViz('table')">         <i class="bi bi-table"></i>Table</button>
+                        <button class="cr-viz-btn"        data-viz="pivot"          onclick="crSetViz('pivot')">         <i class="bi bi-layout-three-columns"></i>Pivot</button>
+                        <button class="cr-viz-btn"        data-viz="card"           onclick="crSetViz('card')">          <i class="bi bi-card-heading"></i>Card</button>
+                        <button class="cr-viz-btn"        data-viz="bar"            onclick="crSetViz('bar')">           <i class="bi bi-bar-chart"></i>Bar</button>
+                        <button class="cr-viz-btn"        data-viz="column"         onclick="crSetViz('column')">        <i class="bi bi-bar-chart-fill"></i>Column</button>
+                        <button class="cr-viz-btn"        data-viz="stacked_bar"    onclick="crSetViz('stacked_bar')">   <i class="bi bi-bar-chart-steps"></i>St. Bar</button>
+                        <button class="cr-viz-btn"        data-viz="stacked_column" onclick="crSetViz('stacked_column')"><i class="bi bi-bar-chart-line-fill"></i>St. Col</button>
+                        <button class="cr-viz-btn"        data-viz="line"           onclick="crSetViz('line')">          <i class="bi bi-graph-up"></i>Line</button>
+                        <button class="cr-viz-btn"        data-viz="pie"            onclick="crSetViz('pie')">           <i class="bi bi-pie-chart"></i>Pie</button>
+                        <button class="cr-viz-btn"        data-viz="combo"          onclick="crSetViz('combo')">         <i class="bi bi-bar-chart-line"></i>Combo</button>
+                        <button class="cr-viz-btn"        data-viz="heatmap"        onclick="crSetViz('heatmap')">       <i class="bi bi-grid-3x3"></i>Heatmap</button>
                     </div>
                     <div id="cr-config-slots"></div>
                 </div>
@@ -367,6 +420,28 @@
                     </div>
                     <div id="cr-filters-list"></div>
                     <p id="cr-filters-empty" class="text-secondary small">No filters applied.</p>
+                </div>
+
+                <!-- Format tab -->
+                <div id="cr-tab-format" class="d-none">
+                    <div class="cr-slot-label mb-1">Title</div>
+                    <input type="text" class="form-control form-control-sm mb-2" id="cr-fmt-title" placeholder="Leave blank to use report name">
+                    <div class="cr-slot-label mb-1">Subtitle</div>
+                    <input type="text" class="form-control form-control-sm mb-2" id="cr-fmt-subtitle" placeholder="Optional subtitle">
+                    <div class="cr-slot-label mb-1">X-Axis Label</div>
+                    <input type="text" class="form-control form-control-sm mb-2" id="cr-fmt-xlabel" placeholder="X axis label">
+                    <div class="cr-slot-label mb-1">Y-Axis Label</div>
+                    <input type="text" class="form-control form-control-sm mb-2" id="cr-fmt-ylabel" placeholder="Y axis label">
+                    <div class="cr-slot-label mb-1">Font Size</div>
+                    <select class="form-select form-select-sm mb-2" id="cr-fmt-fontsize">
+                        <option value="sm">Small (11px)</option>
+                        <option value="md" selected>Medium (13px)</option>
+                        <option value="lg">Large (15px)</option>
+                    </select>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" id="cr-fmt-border">
+                        <label class="form-check-label small" for="cr-fmt-border">Show border around canvas</label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -388,6 +463,8 @@
                     <canvas id="cr-chart" style="max-height:480px"></canvas>
                 </div>
                 <div id="cr-table-wrap" class="cr-table-wrap d-none"></div>
+                <div id="cr-card-wrap" class="cr-card-wrap d-none"></div>
+                <div id="cr-heatmap-wrap" class="cr-heatmap-wrap d-none"></div>
             </div>
         </div>
     </div>

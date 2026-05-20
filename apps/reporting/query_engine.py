@@ -103,15 +103,15 @@ def execute(config: Dict, data_source_key: str) -> Dict:
     """
     Execute a report config and return structured data.
 
-    config shape:
+    config keys:
       visualization: str
-      fields:        [str, ...]
+      fields:        [str, ...]   (table raw columns)
       filters:       [{field, operator, value}, ...]
-      values:        [{field, aggregation}, ...]
-      axis:          str   (bar / line / heatmap x-axis)
-      legend:        str   (bar / line grouping)
-      rows:          str   (pivot row dimension)
-      columns:       str   (pivot column dimension)
+      values:        [{field, aggregation, series_type?}, ...]
+      axis:          str   (bar / line / pie x-axis)
+      legend:        str   (bar / line grouping / color)
+      rows:          str   (pivot / heatmap row dimension)
+      columns:       str   (pivot / heatmap column dimension)
     """
     ds = get_data_source(data_source_key)
     if not ds:
@@ -119,6 +119,11 @@ def execute(config: Dict, data_source_key: str) -> Dict:
 
     model = _import_model(ds['model'])
     qs    = model.objects.all()
+
+    # Apply data-source-level base filters (e.g. import_type=FORECAST)
+    base_filt = _build_filter_q(ds.get('base_filters', []))
+    if base_filt:
+        qs = qs.filter(base_filt)
 
     filt = _build_filter_q(config.get('filters', []))
     if filt:
@@ -129,15 +134,15 @@ def execute(config: Dict, data_source_key: str) -> Dict:
 
     if viz == 'table':
         return _table(qs, config, field_map, ds)
-    if viz == 'pivot':
-        return _pivot(qs, config, field_map)
-    if viz == 'heatmap':
+    if viz in ('pivot', 'heatmap'):
         result = _pivot(qs, config, field_map)
-        result['type'] = 'heatmap'
+        result['type'] = viz
         return result
     if viz == 'pie':
         return _pie(qs, config, field_map)
-    # bar / stacked_bar / line
+    if viz == 'card':
+        return _card(qs, config, field_map)
+    # bar, stacked_bar, column, stacked_column, line, combo
     return _chart(qs, config, field_map, viz)
 
 
@@ -145,16 +150,24 @@ def execute(config: Dict, data_source_key: str) -> Dict:
 
 def _table(qs, config, field_map, ds) -> Dict:
     all_field_keys = [f['key'] for f in ds['fields']]
-    fields = config.get('fields') or all_field_keys
+    fields     = config.get('fields') or all_field_keys
+    values_cfg = config.get('values') or []
 
+    # Grouped table: group by selected fields and compute aggregations
+    if fields and values_cfg:
+        qs, fk_map   = _annotate_fk_fields(qs, fields)
+        group_keys   = [_resolve_key(fk, fk_map) for fk in fields]
+        ann          = _value_annotations(values_cfg)
+        rows         = list(qs.values(*group_keys).annotate(**ann).order_by(*group_keys)[:MAX_ROWS])
+        dim_cols     = [{'key': _resolve_key(fk, fk_map), 'label': field_map.get(fk, fk)} for fk in fields]
+        val_cols     = [{'key': f'_val{i}', 'label': _value_label(v, field_map)} for i, v in enumerate(values_cfg)]
+        return {'type': 'table', 'columns': dim_cols + val_cols, 'rows': rows, 'total': len(rows)}
+
+    # Raw table
     qs, fk_map = _annotate_fk_fields(qs, fields)
     val_keys   = [_resolve_key(fk, fk_map) for fk in fields]
-
-    rows = list(qs.values(*val_keys)[:MAX_ROWS])
-    columns = [
-        {'key': _resolve_key(fk, fk_map), 'label': field_map.get(fk, fk)}
-        for fk in fields
-    ]
+    rows       = list(qs.values(*val_keys)[:MAX_ROWS])
+    columns    = [{'key': _resolve_key(fk, fk_map), 'label': field_map.get(fk, fk)} for fk in fields]
     return {'type': 'table', 'columns': columns, 'rows': rows, 'total': len(rows)}
 
 
@@ -177,25 +190,33 @@ def _chart(qs, config, field_map, viz) -> Dict:
 
     v_labels = [_value_label(v, field_map) for v in values_cfg]
 
-    if legend_key and legend_key in (group_keys if len(group_keys) > 1 else []):
+    if legend_key and len(group_keys) > 1:
         all_x = sorted({str(r.get(axis_key, '')) for r in rows})
         all_l = sorted({str(r.get(legend_key, '')) for r in rows})
         datasets = [
             {
-                'label': lv,
-                'data':  [next((r.get('_val0', 0) for r in rows
-                                if str(r.get(axis_key, '')) == x and str(r.get(legend_key, '')) == lv), 0)
-                          for x in all_x],
+                'label':       lv,
+                'series_type': values_cfg[0].get('series_type', 'bar') if values_cfg else 'bar',
+                'data':        [next((r.get('_val0', 0) for r in rows
+                                     if str(r.get(axis_key, '')) == x
+                                     and str(r.get(legend_key, '')) == lv), 0)
+                                for x in all_x],
             }
             for lv in all_l
         ]
         return {'type': viz, 'labels': all_x, 'datasets': datasets,
                 'axis_label': field_map.get(axis, axis), 'legend_label': field_map.get(legend, legend)}
     else:
-        labels = [str(r.get(axis_key, '')) for r in rows]
-        data   = [r.get('_val0', 0) for r in rows]
-        return {'type': viz, 'labels': labels,
-                'datasets': [{'label': v_labels[0] if v_labels else 'Count', 'data': data}],
+        labels   = [str(r.get(axis_key, '')) for r in rows]
+        datasets = [
+            {
+                'label':       v_labels[i] if i < len(v_labels) else 'Value',
+                'series_type': v.get('series_type', 'bar'),
+                'data':        [r.get(f'_val{i}', 0) for r in rows],
+            }
+            for i, v in enumerate(values_cfg)
+        ]
+        return {'type': viz, 'labels': labels, 'datasets': datasets,
                 'axis_label': field_map.get(axis, axis)}
 
 
@@ -213,6 +234,21 @@ def _pie(qs, config, field_map) -> Dict:
 
     return {'type': 'pie', 'labels': labels,
             'datasets': [{'label': field_map.get(axis, axis), 'data': data}]}
+
+
+def _card(qs, config, field_map) -> Dict:
+    values_cfg = config.get('values') or [{'field': 'id', 'aggregation': AGG_COUNT}]
+    cards = []
+    for i, v in enumerate(values_cfg[:6]):
+        fn  = _AGG_FNS.get(v.get('aggregation') or AGG_COUNT, _AGG_FNS[AGG_COUNT])
+        ann = {f'_val{i}': fn(v.get('field') or 'id')}
+        try:
+            row = qs.aggregate(**ann)
+            val = row.get(f'_val{i}', 0)
+        except Exception:
+            val = None
+        cards.append({'label': _value_label(v, field_map), 'value': val})
+    return {'type': 'card', 'cards': cards}
 
 
 def _pivot(qs, config, field_map) -> Dict:

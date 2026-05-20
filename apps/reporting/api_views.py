@@ -946,8 +946,9 @@ class CustomReportPreviewView(APIView):
         if not ds:
             return Response({'error': f'Unknown data source: {data_source}'}, status=status.HTTP_400_BAD_REQUEST)
 
+        ALLOW_ALL = {'wins', 'financial_years', 'business_units', 'public_holidays', 'skills', 'programmes', 'projects', 'resource_plans', 'sprint_forecast', 'onboarding', 'teams'}
         if not request.user.is_staff and not request.user.has_module_perms(ds['app_label']):
-            if ds['app_label'] not in ('wins', 'financial_years'):
+            if ds['app_label'] not in ALLOW_ALL:
                 return Response(
                     {'error': f'You do not have permission to query {ds["label"]}.'},
                     status=status.HTTP_403_FORBIDDEN,
