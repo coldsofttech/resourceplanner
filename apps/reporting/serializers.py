@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import DemandCapacityConfig, ProgrammeCategoryMapping, Report
+from .models import CustomReport, CustomReportShare, DemandCapacityConfig, ProgrammeCategoryMapping, Report
 
 
 class ReportSerializer(serializers.ModelSerializer):
@@ -112,3 +112,62 @@ class KPIBulkCommentSerializer(serializers.Serializer):
         if not value:
             raise serializers.ValidationError("At least one comment entry is required.")
         return value
+
+
+class CustomReportShareSerializer(serializers.ModelSerializer):
+    user_name  = serializers.SerializerMethodField()
+    user_email = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = CustomReportShare
+        fields = ['id', 'user', 'user_name', 'user_email', 'permission', 'created_at']
+        read_only_fields = ['id', 'created_at']
+
+    def get_user_name(self, obj):
+        return obj.user.get_full_name() or obj.user.email
+
+    def get_user_email(self, obj):
+        return obj.user.email
+
+
+class CustomReportSerializer(serializers.ModelSerializer):
+    owner_name  = serializers.SerializerMethodField()
+    shares      = CustomReportShareSerializer(many=True, read_only=True)
+    can_edit    = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = CustomReport
+        fields = [
+            'id', 'name', 'description', 'owner', 'owner_name',
+            'data_source', 'visualization', 'config',
+            'is_shared', 'shares', 'can_edit',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'owner', 'created_at', 'updated_at']
+
+    def get_owner_name(self, obj):
+        return obj.owner.get_full_name() or obj.owner.email
+
+    def get_can_edit(self, obj):
+        request = self.context.get('request')
+        if not request:
+            return False
+        return obj.can_edit(request.user)
+
+
+class CustomReportWriteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = CustomReport
+        fields = ['name', 'description', 'data_source', 'visualization', 'config', 'is_shared']
+
+    def validate_visualization(self, value):
+        valid = [c[0] for c in CustomReport.VISUALIZATION_CHOICES]
+        if value not in valid:
+            raise serializers.ValidationError(f'Must be one of: {", ".join(valid)}')
+        return value
+
+
+class CustomReportShareWriteSerializer(serializers.Serializer):
+    user_id    = serializers.IntegerField()
+    permission = serializers.ChoiceField(choices=[CustomReportShare.PERM_VIEW, CustomReportShare.PERM_EDIT],
+                                         default=CustomReportShare.PERM_VIEW)

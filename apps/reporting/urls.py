@@ -1,6 +1,12 @@
 from django.urls import path
 
-from .views import ReportingIndexView, StandardReportConfigureView, StandardReportView
+from .views import (
+    CustomReportEditorView,
+    CustomReportListView,
+    ReportingIndexView,
+    StandardReportConfigureView,
+    StandardReportView,
+)
 
 app_name = "reporting"
 
@@ -16,4 +22,7 @@ urlpatterns = [
         StandardReportConfigureView.as_view(),
         name="standard-report-configure",
     ),
+    path("custom/", CustomReportListView.as_view(), name="custom-report-list"),
+    path("custom/new/", CustomReportEditorView.as_view(), name="custom-report-new"),
+    path("custom/<int:pk>/", CustomReportEditorView.as_view(), name="custom-report-editor"),
 ]

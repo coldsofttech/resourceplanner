@@ -25,13 +25,17 @@
 <section class="mb-5">
     <div class="d-flex align-items-center justify-content-between mb-3">
         <h2 class="rp-section-title mb-0">Custom Reports</h2>
-        <button class="btn btn-sm btn-outline-secondary" disabled title="Coming soon">
-            <i class="bi bi-plus me-1"></i>New Report
-        </button>
+        <div class="d-flex gap-2">
+            <a href="/reports/custom/" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-list me-1"></i>All Reports
+            </a>
+            <a href="/reports/custom/new/" class="btn btn-sm btn-primary">
+                <i class="bi bi-plus me-1"></i>New Report
+            </a>
+        </div>
     </div>
-    <div class="rp-empty-state py-4 text-center text-secondary border rounded" style="font-size:14px">
-        <i class="bi bi-bar-chart-line display-6 d-block mb-2 opacity-50"></i>
-        Custom report builder coming soon.
+    <div id="custom-reports-grid" class="row g-3">
+        <div class="col-12 text-secondary" style="font-size:14px">Loading…</div>
     </div>
 </section>
 {% endblock %}
@@ -79,6 +83,49 @@
         }
     }
     loadStandardReports();
+
+    async function loadCustomReports() {
+        const grid = document.getElementById('custom-reports-grid');
+        try {
+            const res = await fetch('/api/v1/custom-reports/');
+            if (!res.ok) throw new Error();
+            const reports = await res.json();
+            if (!reports.length) {
+                grid.innerHTML = `<div class="col-12 text-secondary" style="font-size:14px">
+                    No custom reports yet. <a href="/reports/custom/new/">Create one</a>.
+                </div>`;
+                return;
+            }
+            // Show up to 6 most recent
+            const recent = reports.slice(0, 6);
+            grid.innerHTML = recent.map(r => `
+                <div class="col-md-4 col-lg-3">
+                    <a href="/reports/custom/${r.id}/" class="rp-report-card card h-100 text-decoration-none">
+                        <div class="card-body">
+                            <div class="d-flex align-items-start gap-2 mb-2">
+                                <span class="rp-report-icon">
+                                    <i class="bi bi-bar-chart-line text-warning"></i>
+                                </span>
+                                <div>
+                                    <div class="fw-semibold" style="font-size:15px">${r.name}</div>
+                                    <span class="badge bg-warning bg-opacity-25 text-warning-emphasis" style="font-size:10px">Custom</span>
+                                </div>
+                            </div>
+                            <p class="text-secondary mb-0" style="font-size:13px">${r.data_source || ''}</p>
+                        </div>
+                        <div class="card-footer bg-transparent border-top-0 pt-0 pb-3 px-3">
+                            <span class="text-warning" style="font-size:13px">
+                                Edit report <i class="bi bi-arrow-right ms-1"></i>
+                            </span>
+                        </div>
+                    </a>
+                </div>
+            `).join('');
+        } catch {
+            grid.innerHTML = '<div class="col-12 text-secondary" style="font-size:14px">No custom reports yet.</div>';
+        }
+    }
+    loadCustomReports();
 })();
 </script>
 <style>

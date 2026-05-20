@@ -1,6 +1,13 @@
 from django.urls import path
 
 from .api_views import (
+    CustomReportDataSourcesView,
+    CustomReportDetailView,
+    CustomReportExecuteView,
+    CustomReportExportView,
+    CustomReportListCreateView,
+    CustomReportPreviewView,
+    CustomReportShareView,
     KPIReportConfigureView,
     KPIReportDataView,
     KPIReportExportView,
@@ -123,4 +130,22 @@ urlpatterns = [
         StandardReportMappingDetailView.as_view(),
         name="standard-report-mapping-detail",
     ),
+
+    # Custom Reports
+    path("custom-reports/data-sources/",
+         CustomReportDataSourcesView.as_view(), name="custom-report-data-sources"),
+    path("custom-reports/preview/",
+         CustomReportPreviewView.as_view(), name="custom-report-preview"),
+    path("custom-reports/",
+         CustomReportListCreateView.as_view(), name="custom-report-list-create"),
+    path("custom-reports/<int:pk>/",
+         CustomReportDetailView.as_view(), name="custom-report-detail"),
+    path("custom-reports/<int:pk>/execute/",
+         CustomReportExecuteView.as_view(), name="custom-report-execute"),
+    path("custom-reports/<int:pk>/export/",
+         CustomReportExportView.as_view(), name="custom-report-export"),
+    path("custom-reports/<int:pk>/share/",
+         CustomReportShareView.as_view(), name="custom-report-share"),
+    path("custom-reports/<int:pk>/share/<int:user_id>/",
+         CustomReportShareView.as_view(), name="custom-report-share-delete"),
 ]

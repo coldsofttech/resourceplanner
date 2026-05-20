@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Custom Reports{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-center justify-content-between flex-wrap gap-3">
+    <div class="d-flex align-items-center gap-3">
+        <a href="/reports/" class="btn btn-ghost-icon" title="Back to Reports">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+        <div>
+            <h1 class="rp-page-title">Custom Reports</h1>
+            <p class="rp-page-subtitle">Build, save and share your own reports.</p>
+        </div>
+    </div>
+    <a href="/reports/custom/new/" class="btn btn-primary btn-sm">
+        <i class="bi bi-plus me-1"></i>New Report
+    </a>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="cr-list-banner" class="alert d-none mb-3"></div>
+
+<div id="cr-list-container">
+    <p class="text-secondary small">Loading…</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module">
+import { apiFetch, escHtml, formatDateTime } from '/static/js/main.js';
+import { API_URLS } from '/static/js/urls.js';
+
+async function load() {
+    const container = document.getElementById('cr-list-container');
+    try {
+        const reports = await apiFetch(API_URLS.custom_reports.list.href, { method: 'GET' });
+        if (!reports.length) {
+            container.innerHTML = `
+                <div class="rp-empty-state py-5 text-center text-secondary">
+                    <i class="bi bi-bar-chart-line display-5 d-block mb-2 opacity-50"></i>
+                    <p>No custom reports yet. <a href="/reports/custom/new/">Create your first report</a>.</p>
+                </div>`;
+            return;
+        }
+        container.innerHTML = `
+        <div class="table-responsive">
+            <table class="rp-table">
+                <thead><tr>
+                    <th>Name</th>
+                    <th>Data Source</th>
+                    <th>Visualization</th>
+                    <th>Owner</th>
+                    <th>Last Updated</th>
+                    <th>Shared</th>
+                    <th></th>
+                </tr></thead>
+                <tbody>
+                    ${reports.map(r => `
+                    <tr>
+                        <td><strong>${escHtml(r.name)}</strong></td>
+                        <td class="small">${escHtml(r.data_source || '—')}</td>
+                        <td class="small">${escHtml(r.visualization || '—')}</td>
+                        <td class="small text-secondary">${escHtml(r.owner_name || '')}</td>
+                        <td class="small text-secondary">${r.updated_at ? new Date(r.updated_at).toLocaleString('en-GB') : '—'}</td>
+                        <td class="text-center">${r.is_shared ? '<i class="bi bi-share text-primary"></i>' : '<span class="text-secondary">—</span>'}</td>
+                        <td class="text-center">
+                            <a href="/reports/custom/${r.id}/" class="btn btn-ghost-icon btn-sm" title="Open">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                            ${r.can_edit ? `
+                            <button class="btn btn-ghost-icon btn-ghost-icon--danger btn-sm" title="Delete" onclick="deleteReport(${r.id}, this)">
+                                <i class="bi bi-trash"></i>
+                            </button>` : ''}
+                        </td>
+                    </tr>`).join('')}
+                </tbody>
+            </table>
+        </div>`;
+    } catch (err) {
+        container.innerHTML = '<p class="text-danger small">Failed to load reports.</p>';
+    }
+}
+
+window.deleteReport = async function(pk, btn) {
+    if (!confirm('Delete this report? This cannot be undone.')) return;
+    btn.disabled = true;
+    try {
+        const { method, href } = API_URLS.custom_reports.delete(pk);
+        await apiFetch(href, { method });
+        await load();
+    } catch {
+        btn.disabled = false;
+    }
+};
+
+load();
+</script>
+{% endblock %}

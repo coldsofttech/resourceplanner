@@ -148,3 +148,99 @@ class KPIReportComment(models.Model):
 
     def __str__(self):
         return f"KPI Comment — {self.project} ({self.month})"
+
+
+class CustomReport(models.Model):
+    CHART_TABLE       = 'table'
+    CHART_PIVOT       = 'pivot'
+    CHART_BAR         = 'bar'
+    CHART_STACKED_BAR = 'stacked_bar'
+    CHART_PIE         = 'pie'
+    CHART_LINE        = 'line'
+    CHART_HEATMAP     = 'heatmap'
+
+    VISUALIZATION_CHOICES = [
+        (CHART_TABLE,       'Table'),
+        (CHART_PIVOT,       'Pivot'),
+        (CHART_BAR,         'Bar Chart'),
+        (CHART_STACKED_BAR, 'Stacked Bar Chart'),
+        (CHART_PIE,         'Pie Chart'),
+        (CHART_LINE,        'Line Chart'),
+        (CHART_HEATMAP,     'Heatmap'),
+    ]
+
+    PERM_VIEW = 'view'
+    PERM_EDIT = 'edit'
+
+    name          = models.CharField(max_length=200)
+    description   = models.TextField(blank=True)
+    owner         = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='owned_custom_reports',
+    )
+    data_source   = models.CharField(max_length=100, blank=True)
+    visualization = models.CharField(max_length=20, choices=VISUALIZATION_CHOICES, default=CHART_TABLE)
+    # config: {fields, filters, axis, legend, rows, columns, values}
+    config        = models.JSONField(default=dict, blank=True)
+    is_shared     = models.BooleanField(default=False)
+    created_at    = models.DateTimeField(auto_now_add=True)
+    created_by    = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='created_custom_reports',
+    )
+    updated_at    = models.DateTimeField(auto_now=True)
+    updated_by    = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='updated_custom_reports',
+    )
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return self.name
+
+    def can_view(self, user) -> bool:
+        if user.is_staff or self.owner_id == user.pk:
+            return True
+        return self.shares.filter(user=user).exists()
+
+    def can_edit(self, user) -> bool:
+        if user.is_staff or self.owner_id == user.pk:
+            return True
+        return self.shares.filter(user=user, permission=CustomReport.PERM_EDIT).exists()
+
+
+class CustomReportShare(models.Model):
+    PERM_VIEW = 'view'
+    PERM_EDIT = 'edit'
+    PERMISSION_CHOICES = [(PERM_VIEW, 'View'), (PERM_EDIT, 'Edit')]
+
+    report     = models.ForeignKey(CustomReport, on_delete=models.CASCADE, related_name='shares')
+    user       = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='custom_report_shares',
+    )
+    permission = models.CharField(max_length=10, choices=PERMISSION_CHOICES, default=PERM_VIEW)
+    shared_by  = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='shared_custom_reports',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        constraints = [
+            models.UniqueConstraint(fields=['report', 'user'], name='unique_custom_report_share')
+        ]
+
+    def __str__(self):
+        return f"{self.report} → {self.user} ({self.permission})"

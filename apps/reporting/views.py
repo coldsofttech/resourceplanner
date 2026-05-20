@@ -1,4 +1,4 @@
-from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import TemplateView
 
 _SLUG_TEMPLATES = {
@@ -51,4 +51,18 @@ class StandardReportConfigureView(TemplateView):
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["slug"] = self.kwargs["slug"]
+        return ctx
+
+
+class CustomReportListView(TemplateView):
+    template_name = "reporting/custom_report_list.html"
+
+
+class CustomReportEditorView(TemplateView):
+    template_name = "reporting/custom_report.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        pk = self.kwargs.get('pk')
+        ctx['report_pk'] = pk or 'null'
         return ctx

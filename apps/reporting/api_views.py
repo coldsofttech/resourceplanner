@@ -820,3 +820,313 @@ class MonthlyFinanceExportView(APIView):
             return _db_error_response(e, 'monthly finance export')
         except Exception as e:
             return _unexpected_error_response(e, 'monthly finance export')
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Custom Reports
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CustomReportDataSourcesView(APIView):
+    """GET /api/v1/custom-reports/data-sources/"""
+
+    def get(self, request):
+        from .data_sources import list_data_sources
+        sources = list_data_sources()
+        # Filter to sources the user has access to
+        if not request.user.is_staff:
+            sources = [
+                s for s in sources
+                if request.user.has_module_perms(s['app_label'])
+                or s['app_label'] in ('wins', 'financial_years')  # open to all authenticated
+            ]
+        return Response(sources)
+
+
+class CustomReportListCreateView(APIView):
+    """
+    GET  /api/v1/custom-reports/   — list user's own + shared reports
+    POST /api/v1/custom-reports/   — create a new report
+    """
+
+    def get(self, request):
+        from django.db.models import Q as DQ
+        from .models import CustomReport
+        from .serializers import CustomReportSerializer
+        qs = (
+            CustomReport.objects
+            .filter(DQ(owner=request.user) | DQ(shares__user=request.user))
+            .distinct()
+            .prefetch_related('shares__user')
+            .select_related('owner')
+        )
+        return Response(CustomReportSerializer(qs, many=True, context={'request': request}).data)
+
+    def post(self, request):
+        from .models import CustomReport
+        from .serializers import CustomReportWriteSerializer, CustomReportSerializer
+        ser = CustomReportWriteSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+        report = ser.save(owner=request.user, created_by=request.user, updated_by=request.user)
+        return Response(
+            CustomReportSerializer(report, context={'request': request}).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class CustomReportDetailView(APIView):
+    """
+    GET    /api/v1/custom-reports/{pk}/
+    PATCH  /api/v1/custom-reports/{pk}/
+    DELETE /api/v1/custom-reports/{pk}/
+    """
+
+    def _get_report(self, pk, user, require_edit=False):
+        from .models import CustomReport
+        try:
+            report = (
+                CustomReport.objects
+                .prefetch_related('shares__user')
+                .select_related('owner')
+                .get(pk=pk)
+            )
+        except CustomReport.DoesNotExist:
+            return None, Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if require_edit and not report.can_edit(user):
+            return None, Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        if not require_edit and not report.can_view(user):
+            return None, Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+        return report, None
+
+    def get(self, request, pk):
+        report, err = self._get_report(pk, request.user)
+        if err:
+            return err
+        from .serializers import CustomReportSerializer
+        return Response(CustomReportSerializer(report, context={'request': request}).data)
+
+    def patch(self, request, pk):
+        report, err = self._get_report(pk, request.user, require_edit=True)
+        if err:
+            return err
+        from .serializers import CustomReportWriteSerializer, CustomReportSerializer
+        ser = CustomReportWriteSerializer(report, data=request.data, partial=True)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+        ser.save(updated_by=request.user)
+        return Response(CustomReportSerializer(report, context={'request': request}).data)
+
+    def delete(self, request, pk):
+        from .models import CustomReport
+        try:
+            report = CustomReport.objects.get(pk=pk)
+        except CustomReport.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if report.owner_id != request.user.pk and not request.user.is_staff:
+            return Response({'detail': 'Only the owner can delete this report.'}, status=status.HTTP_403_FORBIDDEN)
+        report.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CustomReportPreviewView(APIView):
+    """POST /api/v1/custom-reports/preview/ — execute without a saved report."""
+
+    def post(self, request):
+        from .data_sources import get_data_source
+        from .query_engine import execute
+
+        data_source   = request.data.get('data_source', '')
+        visualization = request.data.get('visualization', 'table')
+        config        = request.data.get('config', {})
+
+        if not data_source:
+            return Response({'error': 'data_source is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        ds = get_data_source(data_source)
+        if not ds:
+            return Response({'error': f'Unknown data source: {data_source}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not request.user.is_staff and not request.user.has_module_perms(ds['app_label']):
+            if ds['app_label'] not in ('wins', 'financial_years'):
+                return Response(
+                    {'error': f'You do not have permission to query {ds["label"]}.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        merged = dict(config)
+        merged['visualization'] = visualization
+
+        try:
+            result = execute(merged, data_source)
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except DatabaseError as e:
+            return _db_error_response(e, 'custom report preview')
+        except Exception as e:
+            return _unexpected_error_response(e, 'custom report preview')
+
+        return Response(result)
+
+
+class CustomReportExecuteView(APIView):
+    """POST /api/v1/custom-reports/{pk}/execute/"""
+
+    def post(self, request, pk):
+        from .models import CustomReport
+        from .data_sources import get_data_source
+        from .query_engine import execute
+
+        try:
+            report = CustomReport.objects.get(pk=pk)
+        except CustomReport.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not report.can_view(request.user):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        # Allow config override from request body (for live preview before save)
+        config        = request.data.get('config') or report.config
+        data_source   = request.data.get('data_source') or report.data_source
+        visualization = request.data.get('visualization') or report.visualization
+
+        if not data_source:
+            return Response({'error': 'data_source is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        ds = get_data_source(data_source)
+        if not ds:
+            return Response({'error': f'Unknown data source: {data_source}'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not request.user.is_staff and not request.user.has_module_perms(ds['app_label']):
+            # Allow open sources
+            if ds['app_label'] not in ('wins', 'financial_years'):
+                return Response(
+                    {'error': f'You do not have permission to query the {ds["label"]} data source.'},
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        merged = dict(config)
+        merged['visualization'] = visualization
+
+        try:
+            result = execute(merged, data_source)
+        except DjangoValidationError as exc:
+            return Response({'error': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except DatabaseError as e:
+            return _db_error_response(e, 'custom report execute')
+        except Exception as e:
+            return _unexpected_error_response(e, 'custom report execute')
+
+        return Response(result)
+
+
+class CustomReportExportView(APIView):
+    """GET /api/v1/custom-reports/{pk}/export/?fmt=csv|xlsx"""
+
+    def get(self, request, pk):
+        from .models import CustomReport
+        from .data_sources import get_data_source
+        from .query_engine import execute, export_csv, export_xlsx
+
+        try:
+            report = CustomReport.objects.get(pk=pk)
+        except CustomReport.DoesNotExist:
+            return Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not report.can_view(request.user):
+            return Response({'detail': 'Permission denied.'}, status=status.HTTP_403_FORBIDDEN)
+
+        viz = report.visualization
+        if viz not in ('table', 'pivot', 'heatmap'):
+            return Response(
+                {'error': 'CSV/XLSX export is only available for Table, Pivot, and Heatmap visualizations.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ds = get_data_source(report.data_source)
+        if not ds:
+            return Response({'error': 'Invalid data source'}, status=status.HTTP_400_BAD_REQUEST)
+
+        merged = dict(report.config)
+        merged['visualization'] = viz
+
+        try:
+            result = execute(merged, report.data_source)
+        except Exception as e:
+            return _unexpected_error_response(e, 'custom report export')
+
+        fmt      = request.query_params.get('fmt', 'csv').lower()
+        filename = report.name.replace(' ', '_')[:50]
+
+        if fmt == 'xlsx':
+            content  = export_xlsx(result)
+            response = HttpResponse(
+                content,
+                content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            )
+            response['Content-Disposition'] = f'attachment; filename="{filename}.xlsx"'
+        else:
+            content  = export_csv(result)
+            response = HttpResponse(content, content_type='text/csv; charset=utf-8-sig')
+            response['Content-Disposition'] = f'attachment; filename="{filename}.csv"'
+
+        return response
+
+
+class CustomReportShareView(APIView):
+    """
+    GET    /api/v1/custom-reports/{pk}/share/            — list shares
+    POST   /api/v1/custom-reports/{pk}/share/            — add/update share
+    DELETE /api/v1/custom-reports/{pk}/share/{user_id}/  — remove share
+    """
+
+    def _get_owner_report(self, pk, user):
+        from .models import CustomReport
+        try:
+            report = CustomReport.objects.get(pk=pk)
+        except CustomReport.DoesNotExist:
+            return None, Response({'detail': 'Not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if report.owner_id != user.pk and not user.is_staff:
+            return None, Response({'detail': 'Only the owner can manage sharing.'}, status=status.HTTP_403_FORBIDDEN)
+        return report, None
+
+    def get(self, request, pk):
+        report, err = self._get_owner_report(pk, request.user)
+        if err:
+            return err
+        from .serializers import CustomReportShareSerializer
+        return Response(CustomReportShareSerializer(report.shares.select_related('user'), many=True).data)
+
+    def post(self, request, pk):
+        report, err = self._get_owner_report(pk, request.user)
+        if err:
+            return err
+        from .models import CustomReportShare
+        from .serializers import CustomReportShareWriteSerializer, CustomReportShareSerializer
+        from django.contrib.auth import get_user_model
+        ser = CustomReportShareWriteSerializer(data=request.data)
+        if not ser.is_valid():
+            return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+        User = get_user_model()
+        try:
+            target = User.objects.get(pk=ser.validated_data['user_id'])
+        except User.DoesNotExist:
+            return Response({'error': 'User not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if target == request.user:
+            return Response({'error': 'Cannot share with yourself.'}, status=status.HTTP_400_BAD_REQUEST)
+        share, _ = CustomReportShare.objects.update_or_create(
+            report=report, user=target,
+            defaults={'permission': ser.validated_data['permission'], 'shared_by': request.user},
+        )
+        if report.shares.exists() and not report.is_shared:
+            report.is_shared = True
+            report.save(update_fields=['is_shared'])
+        return Response(CustomReportShareSerializer(share).data, status=status.HTTP_200_OK)
+
+    def delete(self, request, pk, user_id):
+        report, err = self._get_owner_report(pk, request.user)
+        if err:
+            return err
+        from .models import CustomReportShare
+        CustomReportShare.objects.filter(report=report, user_id=user_id).delete()
+        if not report.shares.exists():
+            report.is_shared = False
+            report.save(update_fields=['is_shared'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
