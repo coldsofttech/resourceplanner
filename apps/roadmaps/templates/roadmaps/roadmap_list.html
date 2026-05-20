@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Roadmaps — Resource Planner{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Roadmaps</h1>
+        <p class="rp-page-subtitle">Plan and visualise project delivery timelines</p>
+    </div>
+    <button class="btn btn-primary btn-sm" id="new-roadmap-btn">
+        <i class="bi bi-plus-lg me-1"></i>New Roadmap
+    </button>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="roadmaps-grid" class="row g-3">
+    <div class="col-12 text-secondary py-4 text-center" id="roadmaps-loading">
+        <div class="spinner-border spinner-border-sm me-2"></div>Loading…
+    </div>
+</div>
+
+<!-- New Roadmap Modal -->
+<div class="modal fade" id="new-roadmap-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-map me-2"></i>New Roadmap</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="rp-label mb-1" for="rm-name">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="rm-name" placeholder="e.g. FY2026 Programme Roadmap">
+                </div>
+                <div class="mb-3">
+                    <label class="rp-label mb-1" for="rm-desc">Description</label>
+                    <textarea class="form-control form-control-sm" id="rm-desc" rows="2"
+                              placeholder="Optional description…"></textarea>
+                </div>
+                <div id="rm-error" class="alert alert-danger d-none py-2 px-3" style="font-size:13px"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="rm-save-btn">Create Roadmap</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/roadmaps.js' %}"></script>
+{% endblock %}

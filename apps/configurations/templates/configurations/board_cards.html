@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Board Card Settings — Resource Planner{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title">Board Card Settings</h1>
+        <p class="rp-page-subtitle">Configure which fields appear on project cards in the board view</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/projects/" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-kanban me-1"></i>Open Board View
+        </a>
+        <button class="btn btn-sm btn-primary" id="bc-save-btn">
+            <i class="bi bi-check-lg me-1"></i>Save Settings
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+    <!-- Left: Field configuration -->
+    <div class="col-12 col-lg-5">
+        <div class="rp-card p-4">
+            <h6 class="fw-600 mb-1">Card Fields</h6>
+            <p class="text-secondary small mb-3">
+                Toggle fields on/off. Drag <i class="bi bi-grip-vertical"></i> to reorder how they appear on the card.
+            </p>
+            <div id="bc-field-list" class="d-flex flex-column gap-2">
+                <!-- Populated by JS -->
+            </div>
+
+            <div id="bc-save-success" class="alert alert-success mt-3 d-none py-2 px-3" style="font-size:13px">
+                <i class="bi bi-check-circle me-2"></i>Settings saved.
+            </div>
+            <div id="bc-save-error" class="alert alert-danger mt-3 d-none py-2 px-3" style="font-size:13px"></div>
+        </div>
+    </div>
+
+    <!-- Right: Live preview -->
+    <div class="col-12 col-lg-7">
+        <div class="rp-card p-4" style="position:sticky;top:80px">
+            <h6 class="fw-600 mb-1">Preview</h6>
+            <p class="text-secondary small mb-3">Live preview — updates as you change settings.</p>
+
+            <!-- Simulated board column -->
+            <div class="bc-preview-col" id="bc-preview-col"
+                 style="max-width:280px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;overflow:hidden">
+                <div class="bc-preview-col-header"
+                     style="padding:10px 12px;font-weight:600;font-size:13px;color:#7c3aed;background:rgba(255,255,255,.7);border-bottom:1px solid #ddd6fe;display:flex;align-items:center;gap:6px">
+                    <i class="bi bi-arrow-right-circle"></i>
+                    <span>In Progress</span>
+                    <span style="font-size:11px;padding:1px 6px;border-radius:10px;background:#ddd6fe;color:#7c3aed;margin-left:4px">3</span>
+                </div>
+                <div style="padding:8px;display:flex;flex-direction:column;gap:8px">
+                    <div id="bc-card-preview" class="rp-board-card">
+                        <!-- Preview card — populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <h6 class="fw-600 mb-2" style="font-size:13px">Sample data used in preview</h6>
+                <div class="row g-2" style="font-size:12px">
+                    <div class="col-6">
+                        <label class="rp-label mb-1">Project name</label>
+                        <input type="text" class="form-control form-control-sm" id="prev-name" value="Customer Portal Redesign">
+                    </div>
+                    <div class="col-6">
+                        <label class="rp-label mb-1">Code</label>
+                        <input type="text" class="form-control form-control-sm" id="prev-code" value="CPR-001">
+                    </div>
+                    <div class="col-6">
+                        <label class="rp-label mb-1">Programme</label>
+                        <input type="text" class="form-control form-control-sm" id="prev-programme" value="Digital Transformation">
+                    </div>
+                    <div class="col-6">
+                        <label class="rp-label mb-1">Team</label>
+                        <input type="text" class="form-control form-control-sm" id="prev-team" value="Platform Team">
+                    </div>
+                    <div class="col-6">
+                        <label class="rp-label mb-1">Type</label>
+                        <input type="text" class="form-control form-control-sm" id="prev-type" value="Development">
+                    </div>
+                    <div class="col-6">
+                        <label class="rp-label mb-1">Priority</label>
+                        <select class="form-select form-select-sm" id="prev-priority">
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="HIGH" selected>High</option>
+                            <option value="VERY_HIGH">Very High</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="rp-label mb-1">Sub-status</label>
+                        <input type="text" class="form-control form-control-sm" id="prev-substatus" value="In Review">
+                    </div>
+                    <div class="col-6">
+                        <label class="rp-label mb-1">Confidence</label>
+                        <select class="form-select form-select-sm" id="prev-confidence">
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM" selected>Medium</option>
+                            <option value="HIGH">High</option>
+                            <option value="VERY_HIGH">Very High</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="rp-label mb-1">Start date</label>
+                        <input type="text" class="form-control form-control-sm" id="prev-start" value="1 Jan">
+                    </div>
+                    <div class="col-6">
+                        <label class="rp-label mb-1">End date</label>
+                        <input type="text" class="form-control form-control-sm" id="prev-end" value="30 Jun">
+                    </div>
+                    <div class="col-12">
+                        <label class="rp-label mb-1">Tags (comma-separated)</label>
+                        <input type="text" class="form-control form-control-sm" id="prev-tags" value="UX, API, Mobile">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
+<script type="module">
+import { buildCard } from "{% static 'js/modules/project_board.js' %}";
+
+const FIELDS = [
+    { key: 'show_programme',  label: 'Programme',   icon: 'bi-collection',   code: 'BOARD_CARD_SHOW_PROGRAMME' },
+    { key: 'show_team',       label: 'Team',         icon: 'bi-people',       code: 'BOARD_CARD_SHOW_TEAM' },
+    { key: 'show_priority',   label: 'Priority',     icon: 'bi-flag',         code: 'BOARD_CARD_SHOW_PRIORITY' },
+    { key: 'show_type',       label: 'Type',         icon: 'bi-tag',          code: 'BOARD_CARD_SHOW_TYPE' },
+    { key: 'show_tags',       label: 'Tags',         icon: 'bi-hash',         code: 'BOARD_CARD_SHOW_TAGS' },
+    { key: 'show_code',       label: 'Code',         icon: 'bi-upc',          code: 'BOARD_CARD_SHOW_CODE' },
+    { key: 'show_substatus',  label: 'Sub-status',   icon: 'bi-layers',       code: 'BOARD_CARD_SHOW_SUBSTATUS' },
+    { key: 'show_confidence', label: 'Confidence',   icon: 'bi-speedometer2', code: 'BOARD_CARD_SHOW_CONFIDENCE' },
+    { key: 'show_dates',      label: 'Dates',        icon: 'bi-calendar3',    code: 'BOARD_CARD_SHOW_DATES' },
+];
+
+const PRIORITY_LABELS = { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', VERY_HIGH: 'Very High' };
+const CONFIDENCE_LABELS = { LOW: 'Low', MEDIUM: 'Medium', HIGH: 'High', VERY_HIGH: 'Very High' };
+
+let _state = {};         // { show_programme: true, ... }
+let _order = [];         // ['show_programme', 'show_team', ...]
+let _existingIds = {};   // code -> config id (for PATCH vs POST)
+
+function getCsrf() {
+    return document.cookie.split(';').map(c => c.trim())
+        .find(c => c.startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+// ── Load current settings ─────────────────────────────────────────────────────
+async function loadSettings() {
+    FIELDS.forEach(f => { _state[f.key] = true; });
+    _order = FIELDS.map(f => f.key);
+
+    try {
+        const res = await fetch('/api/v1/configurations/?module=board_cards&page_size=50');
+        if (!res.ok) return;
+        const data = await res.json();
+        const configs = data.results || data;
+        configs.forEach(c => {
+            _existingIds[c.code] = c.id;
+            const key = c.code.toLowerCase().replace('board_card_', '');
+            if (key in _state) {
+                _state[key] = !(c.value === 'false' || c.value === '0');
+            }
+            if (c.code === 'BOARD_CARD_FIELD_ORDER' && c.value) {
+                const ord = c.value.split(',').map(s => s.trim()).filter(Boolean);
+                if (ord.length) _order = ord;
+            }
+        });
+    } catch { /* use defaults */ }
+}
+
+// ── Render field list ─────────────────────────────────────────────────────────
+function renderFieldList() {
+    const listEl = document.getElementById('bc-field-list');
+    const ordered = _order.map(k => FIELDS.find(f => f.key === k)).filter(Boolean);
+    // Add any fields not in order yet
+    FIELDS.forEach(f => { if (!ordered.find(o => o.key === f.key)) ordered.push(f); });
+
+    listEl.innerHTML = ordered.map(f => `
+        <div class="bc-field-row d-flex align-items-center gap-3 p-2 rounded" data-key="${f.key}"
+             style="background:var(--color-surface);border:1px solid var(--color-border-sm)">
+            <span class="bc-drag-handle text-secondary" style="cursor:grab;font-size:16px;line-height:1">
+                <i class="bi bi-grip-vertical"></i>
+            </span>
+            <i class="bi ${f.icon} text-secondary" style="font-size:14px;width:16px"></i>
+            <span style="font-size:13px;font-weight:500;flex:1">${f.label}</span>
+            <div class="form-check form-switch mb-0">
+                <input class="form-check-input bc-toggle" type="checkbox" role="switch"
+                       id="bc-${f.key}" data-key="${f.key}"
+                       ${_state[f.key] ? 'checked' : ''} style="cursor:pointer">
+            </div>
+        </div>`).join('');
+
+    // Drag-to-reorder via SortableJS
+    if (typeof Sortable !== 'undefined') {
+        new Sortable(listEl, {
+            handle: '.bc-drag-handle',
+            animation: 150,
+            ghostClass: 'bc-ghost',
+            onEnd() {
+                _order = [...listEl.querySelectorAll('.bc-field-row')].map(el => el.dataset.key);
+                updatePreview();
+            },
+        });
+    }
+
+    // Toggle handlers
+    listEl.querySelectorAll('.bc-toggle').forEach(cb => {
+        cb.addEventListener('change', () => {
+            _state[cb.dataset.key] = cb.checked;
+            updatePreview();
+        });
+    });
+}
+
+// ── Preview ───────────────────────────────────────────────────────────────────
+function getSampleProject() {
+    const priorityVal = document.getElementById('prev-priority')?.value || 'HIGH';
+    const confVal     = document.getElementById('prev-confidence')?.value || 'MEDIUM';
+    const tags = (document.getElementById('prev-tags')?.value || '').split(',')
+        .map(t => ({ name: t.trim() })).filter(t => t.name);
+    return {
+        id: 0,
+        name: document.getElementById('prev-name')?.value || 'Sample Project',
+        code: document.getElementById('prev-code')?.value || 'CODE-001',
+        programme_name: document.getElementById('prev-programme')?.value || 'Programme A',
+        assigned_team_name: document.getElementById('prev-team')?.value || 'Team Alpha',
+        project_type_name: document.getElementById('prev-type')?.value || 'Development',
+        sub_status_name: document.getElementById('prev-substatus')?.value || 'In Review',
+        priority: priorityVal,
+        priority_display: PRIORITY_LABELS[priorityVal] || priorityVal,
+        confidence: confVal,
+        confidence_display: CONFIDENCE_LABELS[confVal] || confVal,
+        tentative_start_date: document.getElementById('prev-start')?.value || '2026-01-01',
+        tentative_end_date: document.getElementById('prev-end')?.value || '2026-06-30',
+        tags,
+        status: 'IN_PROGRESS',
+    };
+}
+
+function updatePreview() {
+    // Temporarily set module-level _cardConfig and _fieldOrder
+    // We call buildCard with the current state injected via a custom approach:
+    // buildCard reads from module-level variables, so we update them via a trick
+    const previewEl = document.getElementById('bc-card-preview');
+    if (!previewEl) return;
+
+    // Build the card HTML manually matching the same logic as buildCard
+    const project = getSampleProject();
+    const PRIORITY_COLORS = { LOW: '#94a3b8', MEDIUM: '#f59e0b', HIGH: '#ef4444', VERY_HIGH: '#7c3aed' };
+    const priorityColor = PRIORITY_COLORS[project.priority] || '#94a3b8';
+
+    function esc(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function fmtD(s) { return s; }
+
+    const ordered = _order.map(k => FIELDS.find(f => f.key === k)).filter(Boolean);
+    const lines = [];
+
+    ordered.forEach(f => {
+        if (!_state[f.key]) return;
+        switch (f.key) {
+            case 'show_code':
+                if (project.code) lines.push(`<div class="rp-board-card-meta"><i class="bi bi-upc me-1"></i>${esc(project.code)}</div>`); break;
+            case 'show_type':
+                if (project.project_type_name) lines.push(`<div class="rp-board-card-meta"><i class="bi bi-tag me-1"></i>${esc(project.project_type_name)}</div>`); break;
+            case 'show_programme':
+                if (project.programme_name) lines.push(`<div class="rp-board-card-meta"><i class="bi bi-collection me-1"></i>${esc(project.programme_name)}</div>`); break;
+            case 'show_team':
+                if (project.assigned_team_name) lines.push(`<div class="rp-board-card-meta"><i class="bi bi-people me-1"></i>${esc(project.assigned_team_name)}</div>`); break;
+            case 'show_substatus':
+                if (project.sub_status_name) lines.push(`<div class="rp-board-card-meta"><i class="bi bi-layers me-1"></i>${esc(project.sub_status_name)}</div>`); break;
+            case 'show_confidence':
+                if (project.confidence_display) lines.push(`<div class="rp-board-card-meta"><i class="bi bi-speedometer2 me-1"></i>${esc(project.confidence_display)}</div>`); break;
+            case 'show_dates':
+                if (project.tentative_start_date || project.tentative_end_date) {
+                    lines.push(`<div class="rp-board-card-meta"><i class="bi bi-calendar3 me-1"></i>${fmtD(project.tentative_start_date)} → ${fmtD(project.tentative_end_date)}</div>`);
+                } break;
+            case 'show_tags':
+                if (project.tags?.length) {
+                    const tags = project.tags.slice(0,3).map(t => `<span class="rp-board-tag">${esc(t.name)}</span>`).join('');
+                    lines.push(`<div class="rp-board-card-tags">${tags}</div>`);
+                } break;
+            case 'show_priority':
+                if (project.priority_display) {
+                    lines.push(`<div class="rp-board-card-footer">
+                        <span class="rp-board-priority-badge" style="background:${priorityColor}22;color:${priorityColor}">
+                            ${esc(project.priority_display)}
+                        </span></div>`);
+                } break;
+        }
+    });
+
+    previewEl.innerHTML = `
+        <div class="rp-board-card-priority-bar" style="background:${priorityColor}"></div>
+        <div class="rp-board-card-body">
+            <div class="rp-board-card-name">${esc(project.name)}</div>
+            ${lines.join('')}
+        </div>`;
+}
+
+// ── Save ──────────────────────────────────────────────────────────────────────
+async function saveSettings() {
+    const saveBtn = document.getElementById('bc-save-btn');
+    const successEl = document.getElementById('bc-save-success');
+    const errorEl = document.getElementById('bc-save-error');
+    successEl.classList.add('d-none');
+    errorEl.classList.add('d-none');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
+
+    const ordered = _order.map(k => FIELDS.find(f => f.key === k)).filter(Boolean);
+    const toSave = FIELDS.map(f => ({
+        code: f.code,
+        label: `Board Card: Show ${f.label}`,
+        value: _state[f.key] ? 'true' : 'false',
+        data_type: 'boolean',
+        module: 'board_cards',
+    }));
+    // Field order
+    toSave.push({
+        code: 'BOARD_CARD_FIELD_ORDER',
+        label: 'Board Card: Field display order',
+        value: _order.join(','),
+        data_type: 'string',
+        module: 'board_cards',
+    });
+
+    try {
+        for (const item of toSave) {
+            const existingId = _existingIds[item.code];
+            if (existingId) {
+                await fetch(`/api/v1/configurations/${existingId}/`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+                    body: JSON.stringify({ value: item.value }),
+                });
+            } else {
+                const res = await fetch('/api/v1/configurations/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrf() },
+                    body: JSON.stringify(item),
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    _existingIds[item.code] = data.id;
+                }
+            }
+        }
+        successEl.classList.remove('d-none');
+        setTimeout(() => successEl.classList.add('d-none'), 3000);
+    } catch (err) {
+        errorEl.textContent = `Failed to save: ${err.message}`;
+        errorEl.classList.remove('d-none');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Settings';
+    }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+await loadSettings();
+renderFieldList();
+updatePreview();
+
+document.getElementById('bc-save-btn')?.addEventListener('click', saveSettings);
+
+// Update preview on sample data changes
+['prev-name','prev-code','prev-programme','prev-team','prev-type',
+ 'prev-substatus','prev-start','prev-end','prev-tags','prev-priority','prev-confidence'].forEach(id => {
+    document.getElementById(id)?.addEventListener('input', updatePreview);
+    document.getElementById(id)?.addEventListener('change', updatePreview);
+});
+</script>
+<style>
+.bc-ghost { opacity: .35; border: 2px dashed var(--color-primary) !important; border-radius: 6px; }
+.bc-field-row { transition: background .1s; }
+.bc-field-row:hover { background: var(--color-muted-lt) !important; }
+</style>
+{% endblock %}

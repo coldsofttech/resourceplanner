@@ -98,3 +98,10 @@ class RechargeContactsListView(View):
 class DatabaseConfigView(View):
     def get(self, request, *args, **kwargs):
         return render(request, 'configurations/database.html')
+
+
+# ── Board Cards configuration view ───────────────────────────────────────────
+
+class BoardCardsConfigView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'configurations/board_cards.html')

@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Roadmap — Resource Planner{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title" id="roadmap-title">Loading…</h1>
+        <p class="rp-page-subtitle" id="roadmap-desc"></p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+        <!-- Aggregation -->
+        <div class="d-flex align-items-center gap-2">
+            <label class="rp-label mb-0" style="white-space:nowrap">Group by</label>
+            <select class="form-select form-select-sm" id="rm-group-by" style="width:auto">
+                <option value="none">None</option>
+                <option value="team">Team</option>
+                <option value="programme">Programme</option>
+                <option value="category">Category</option>
+            </select>
+        </div>
+        <!-- FY filter -->
+        <select class="form-select form-select-sm" id="rm-fy-filter" style="width:auto">
+            <option value="">All sprints</option>
+        </select>
+        <!-- Add item -->
+        <button class="btn btn-sm btn-outline-secondary" id="add-item-btn">
+            <i class="bi bi-plus-lg me-1"></i>Add Item
+        </button>
+        <!-- Import projects -->
+        <button class="btn btn-sm btn-outline-secondary" id="import-projects-btn">
+            <i class="bi bi-box-arrow-in-down me-1"></i>Import Projects
+        </button>
+        <!-- Back -->
+        <a href="/roadmaps/" class="btn btn-sm btn-ghost-icon" title="Back to roadmaps">
+            <i class="bi bi-arrow-left"></i>
+        </a>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<!-- Legend -->
+<div class="d-flex align-items-center gap-3 mb-3 flex-wrap" id="rm-legend" style="font-size:12px">
+    <span class="d-flex align-items-center gap-1">
+        <span class="rm-legend-dot" style="background:#6366f1"></span>Project
+    </span>
+    <span class="d-flex align-items-center gap-1">
+        <span class="rm-legend-dot" style="background:#f59e0b"></span>Milestone
+    </span>
+    <span class="d-flex align-items-center gap-1">
+        <span class="rm-legend-dot" style="background:#94a3b8"></span>Placeholder
+    </span>
+    <span class="d-flex align-items-center gap-1">
+        <span class="rm-legend-diamond"></span>Milestone marker
+    </span>
+</div>
+
+<!-- Gantt chart container -->
+<div class="rp-card p-0 mb-3" style="overflow:hidden">
+    <div id="rm-gantt-wrap" style="overflow-x:auto; overflow-y:auto; max-height:72vh">
+        <div id="rm-gantt" class="rm-gantt">
+            <div class="text-center text-secondary py-5">
+                <div class="spinner-border spinner-border-sm me-2"></div>Loading roadmap…
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add / Edit Item Modal -->
+<div class="modal fade" id="item-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="item-modal-title">Add Item</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-12 col-md-6">
+                        <label class="rp-label mb-1">Type</label>
+                        <select class="form-select form-select-sm" id="item-type">
+                            <option value="project">Project</option>
+                            <option value="milestone">Milestone</option>
+                            <option value="placeholder">Placeholder</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="rp-label mb-1">Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control form-control-sm" id="item-name">
+                    </div>
+                    <div class="col-12 col-md-6" id="item-team-group">
+                        <label class="rp-label mb-1">Team</label>
+                        <select class="form-select form-select-sm" id="item-team">
+                            <option value="">— none —</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="rp-label mb-1">Programme</label>
+                        <select class="form-select form-select-sm" id="item-programme">
+                            <option value="">— none —</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="rp-label mb-1">Start Sprint</label>
+                        <select class="form-select form-select-sm" id="item-start-sprint">
+                            <option value="">— none —</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6" id="item-end-sprint-group">
+                        <label class="rp-label mb-1">End Sprint</label>
+                        <select class="form-select form-select-sm" id="item-end-sprint">
+                            <option value="">— none —</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="rp-label mb-1">Category</label>
+                        <input type="text" class="form-control form-control-sm" id="item-category"
+                               placeholder="e.g. Wave 1, Platform, BAU">
+                    </div>
+                    <div class="col-12 col-md-6">
+                        <label class="rp-label mb-1">Colour</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <input type="color" class="form-control form-control-color form-control-sm"
+                                   id="item-color" value="#6366f1" style="width:50px;height:32px">
+                            <span class="text-secondary" style="font-size:12px">Bar colour on the chart</span>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="rp-label mb-1">Notes</label>
+                        <textarea class="form-control form-control-sm" id="item-notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div id="item-error" class="alert alert-danger mt-3 d-none py-2 px-3" style="font-size:13px"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-danger me-auto d-none" id="item-delete-btn">
+                    <i class="bi bi-trash me-1"></i>Delete
+                </button>
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="item-save-btn">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Milestone Modal -->
+<div class="modal fade" id="milestone-modal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Milestone</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="rp-label mb-1">Name <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control form-control-sm" id="ms-name">
+                </div>
+                <div class="mb-3">
+                    <label class="rp-label mb-1">Sprint</label>
+                    <select class="form-select form-select-sm" id="ms-sprint">
+                        <option value="">— none —</option>
+                    </select>
+                </div>
+                <div id="ms-error" class="alert alert-danger d-none py-2 px-3" style="font-size:13px"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="ms-save-btn">Add Milestone</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Projects Modal -->
+<div class="modal fade" id="import-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-box-arrow-in-down me-2"></i>Import Projects</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary small mb-3">
+                    Select projects to add to this roadmap. Imported items are independent — changes here do not affect the original project.
+                </p>
+                <input type="text" class="form-control form-control-sm mb-3" id="import-search"
+                       placeholder="Search projects…">
+                <div id="import-project-list" style="max-height:360px;overflow-y:auto"></div>
+                <div id="import-error" class="alert alert-danger mt-3 d-none py-2 px-3" style="font-size:13px"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="import-confirm-btn">
+                    Import Selected (<span id="import-count">0</span>)
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<input type="hidden" id="roadmap-pk" value="{{ roadmap_pk }}">
+{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static 'js/modules/roadmap_detail.js' %}"></script>
+{% endblock %}

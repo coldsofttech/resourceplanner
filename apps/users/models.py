@@ -1,8 +1,11 @@
+import secrets
 import uuid
+from datetime import timedelta
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
 from django.db import models
+from django.utils import timezone
 
 
 def _avatar_upload_path(instance, filename):
@@ -161,6 +164,35 @@ class GroupPermissionCategoryAssignment(models.Model):
 
     def effective_scope(self):
         return self.scope_override or self.category.scope
+
+
+class RefreshToken(models.Model):
+    """Opaque refresh token for the Bearer auth flow (/api/v1/auth/login)."""
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='refresh_token',
+    )
+    key = models.CharField(max_length=80, unique=True)
+    expires_at = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    REFRESH_EXPIRY_DAYS = 30
+
+    @classmethod
+    def generate_key(cls):
+        return secrets.token_urlsafe(40)
+
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    def rotate(self):
+        self.key = self.generate_key()
+        self.expires_at = timezone.now() + timedelta(days=self.REFRESH_EXPIRY_DAYS)
+        self.save(update_fields=['key', 'expires_at'])
+
+    def __str__(self):
+        return f'RefreshToken({self.user_id})'
 
 
 class GroupProfile(models.Model):

@@ -45,4 +45,30 @@
 {% load static %}
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 <script type="module" src="{% static 'js/modules/dashboard.js' %}"></script>
+<script type="module">
+import { initHints } from "{% static 'js/modules/hints.js' %}";
+initHints('dashboard', [
+    {
+        id: 'welcome',
+        target: '#dashboard-grid',
+        title: 'Welcome to your Dashboard',
+        body: 'This is your overview hub — widgets show live summaries of projects, sprints, and team health. You can reorder and hide widgets to suit your workflow.',
+        placement: 'top',
+    },
+    {
+        id: 'configure',
+        target: '#dashboard-config-btn',
+        title: 'Customise your layout',
+        body: 'Click <strong>Configure</strong> to drag-and-drop widgets into the order you prefer and hide any that are not relevant to you.',
+        placement: 'bottom',
+    },
+    {
+        id: 'sidebar',
+        target: '.rp-sidebar',
+        title: 'Navigate with the sidebar',
+        body: 'Use the left sidebar to jump between Teams, Projects, Sprints, Reports, and more. Click the arrow at the bottom to collapse it for more space.',
+        placement: 'right',
+    },
+]);
+</script>
 {% endblock %}

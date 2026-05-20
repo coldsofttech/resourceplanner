@@ -128,6 +128,25 @@
     loadCustomReports();
 })();
 </script>
+<script type="module">
+import { initHints } from "{% static 'js/modules/hints.js' %}";
+initHints('reports', [
+    {
+        id: 'standard-reports',
+        target: '#standard-reports-grid',
+        title: 'Standard Reports',
+        body: 'Pre-built reports covering resource utilisation, sprint actuals, and financial summaries. Click any card to open the report.',
+        placement: 'top',
+    },
+    {
+        id: 'custom-reports',
+        target: 'a[href="/reports/custom/new/"]',
+        title: 'Build a Custom Report',
+        body: 'Create reports from any data source — projects, team members, sprints, and more — with filters, grouping, and custom columns.',
+        placement: 'bottom',
+    },
+]);
+</script>
 <style>
 .rp-report-card {
     border: 1px solid var(--bs-border-color);

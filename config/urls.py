@@ -106,6 +106,7 @@ urlpatterns = [
     path("project-approval/", include("apps.configurations.project_approval_urls")),
     path("recharge-contacts/", include("apps.configurations.recharge_contacts_urls")),
     path("database/", include("apps.configurations.database_urls")),
+    path("board-cards/", include("apps.configurations.board_cards_urls")),
     # Generic Modules
     path("import/", include("apps.import.urls")),
     # Reporting
@@ -134,10 +135,15 @@ urlpatterns = [
     path("org-chart/", include("apps.orgchart.urls")),
     # How-To Guides
     path("how-to/", include("apps.howto.urls")),
+    # Roadmaps
+    path("api/v1/", include("apps.roadmaps.api_urls")),
+    path("roadmaps/", include("apps.roadmaps.urls")),
     # First-time setup wizard (bypasses auth middleware)
     path("setup/", include("apps.setup.urls")),
-    # API token authentication
+    # API token authentication (legacy — kept for backward compat)
     path("api/v1/auth/token/", include("apps.users.token_urls")),
+    # Bearer token login / refresh
+    path("api/v1/auth/", include("apps.users.login_urls")),
     # Jobs API (service-token auth only)
     path("api/v1/", include("apps.jobs_admin.api_urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

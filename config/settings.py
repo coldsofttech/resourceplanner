@@ -89,6 +89,7 @@ INSTALLED_APPS = [
     "apps.howto",
     "apps.jobs_admin",
     "apps.setup",
+    "apps.roadmaps",
     "rest_framework.authtoken",
 ]
 
@@ -341,6 +342,7 @@ LOGGING = {
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
+        "apps.users.authentication.BearerTokenAuthentication",
         "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.BasicAuthentication",
     ],

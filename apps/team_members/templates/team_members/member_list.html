@@ -224,4 +224,30 @@
 <script type="module" src="{% static 'js/list/render.js' %}"></script>
 <script type="module" src="{% static 'js/export.js' %}"></script>
 <script type="module" src="{% static 'js/modules/team_members.js' %}"></script>
+<script type="module">
+import { initHints } from "{% static 'js/modules/hints.js' %}";
+initHints('team-members', [
+    {
+        id: 'stats',
+        target: '.row.g-3.mb-4',
+        title: 'Member overview',
+        body: 'At a glance: total members, active count, and role breakdown. These update as you add or deactivate members.',
+        placement: 'bottom',
+    },
+    {
+        id: 'filters',
+        target: '#filterAccordion',
+        title: 'Filter members',
+        body: 'Expand Filters to narrow by team, employment type, role, skill, or location. Combine multiple filters to find exactly who you need.',
+        placement: 'bottom',
+    },
+    {
+        id: 'add',
+        target: 'a[href="/team-members/new/"]',
+        title: 'Add a team member',
+        body: 'Click <strong>New Member</strong> to onboard a new person — set their role, team assignment, employment type, and skills.',
+        placement: 'bottom',
+    },
+]);
+</script>
 {% endblock %}

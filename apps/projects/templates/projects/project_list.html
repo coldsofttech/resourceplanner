@@ -122,8 +122,18 @@
         />
     </div>
 
-    <!-- Column picker -->
-    <div class="position-relative">
+    <!-- View toggle -->
+    <div class="btn-group btn-group-sm" role="group" aria-label="View mode">
+        <button type="button" class="btn btn-outline-secondary active" id="view-table-btn" title="Table view">
+            <i class="bi bi-table"></i>
+        </button>
+        <button type="button" class="btn btn-outline-secondary" id="view-board-btn" title="Board view">
+            <i class="bi bi-kanban"></i>
+        </button>
+    </div>
+
+    <!-- Column picker (table view only) -->
+    <div class="position-relative" id="col-picker-wrap">
         <button
             class="btn btn-outline-secondary btn-sm d-flex align-items-center gap-1"
             id="col-picker-btn"
@@ -134,7 +144,7 @@
         </button>
         <div
             id="col-picker-panel"
-            class="rp-col-picker-panel d-none"
+            class="rp-col-picker-panel d-none" style="right:0;left:auto"
         >
             <div class="px-3 pt-3 pb-1">
                 <p class="text-secondary small fw-500 mb-2">Toggle columns</p>
@@ -285,8 +295,13 @@
     </div>
 </div>
 
+<!-- Board view -->
+<div id="proj-board" class="d-none mb-3">
+    <!-- .rp-board-columns scaffold built by project_board.js -->
+</div>
+
 <!-- Table -->
-<div class="rp-table-wrap" style="overflow-x: auto">
+<div class="rp-table-wrap" id="proj-table-wrap" style="overflow-x: auto">
     <table class="table rp-table" id="proj-table" style="min-width: 900px">
         <thead>
             <tr>
@@ -649,9 +664,11 @@
 {% endblock %} {% block extra_js %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 <script type="module" src="{% static 'js/list/fetch.js' %}"></script>
 <script type="module" src="{% static 'js/list/sort.js' %}"></script>
 <script type="module" src="{% static 'js/list/render.js' %}"></script>
 <script type="module" src="{% static 'js/export.js' %}"></script>
 <script type="module" src="{% static 'js/modules/projects.js' %}"></script>
+<script type="module" src="{% static 'js/modules/project_board.js' %}"></script>
 {% endblock %}
