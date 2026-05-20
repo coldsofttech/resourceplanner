@@ -91,6 +91,55 @@ class RoadmapItem(models.Model):
         return f'{self.roadmap.name} / {self.name}'
 
 
+class RoadmapTask(models.Model):
+    """A task or milestone belonging to a roadmap item."""
+    TASK = 'task'
+    MILESTONE = 'milestone'
+    TYPE_CHOICES = [('task', 'Task'), ('milestone', 'Milestone')]
+
+    roadmap_item = models.ForeignKey(
+        RoadmapItem,
+        on_delete=models.CASCADE,
+        related_name='tasks',
+    )
+    task_type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=TASK)
+    name = models.CharField(max_length=200)
+    assignee = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='roadmap_tasks',
+    )
+    jira_id = models.CharField(max_length=50, blank=True, default='')
+    is_blocker = models.BooleanField(default=False)
+    start_sprint = models.ForeignKey(
+        'sprints.Sprint',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rm_tasks_start',
+    )
+    end_sprint = models.ForeignKey(
+        'sprints.Sprint',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='rm_tasks_end',
+    )
+    is_complete = models.BooleanField(default=False)
+    display_order = models.PositiveIntegerField(default=0)
+    notes = models.TextField(blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['display_order', 'id']
+
+    def __str__(self):
+        return f'{self.roadmap_item.name} / {self.name}'
+
+
 class RoadmapMilestone(models.Model):
     """A key event or gate pinned to a sprint within a roadmap item."""
     roadmap_item = models.ForeignKey(

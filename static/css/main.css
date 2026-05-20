@@ -3213,3 +3213,25 @@ body.modal-open {
 .rp-board-chosen { box-shadow: 0 8px 24px rgba(0,0,0,.16); }
 .rp-board-dragging { cursor: grabbing; transform: rotate(1deg); }
 [data-theme="dark"] .rp-board-col-header { background: rgba(0,0,0,.15); }
+
+/* ── Roadmap task summary view ─────────────────────────────────────────────── */
+.rm-tasks-item-row td {
+    background: var(--color-muted-lt);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--color-border);
+}
+.rm-tasks-sub-row td {
+    padding: 5px 12px;
+    border-bottom: 1px solid var(--color-border-lt);
+    vertical-align: middle;
+}
+.rp-avatar-chip {
+    display: inline-flex;
+    align-items: center;
+    background: var(--color-primary-lt);
+    color: var(--color-primary);
+    border-radius: 20px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 500;
+}

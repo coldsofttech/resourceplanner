@@ -10,8 +10,26 @@
         <p class="rp-page-subtitle" id="roadmap-desc"></p>
     </div>
     <div class="d-flex gap-2 flex-wrap align-items-center">
-        <!-- Aggregation -->
-        <div class="d-flex align-items-center gap-2">
+        <!-- View mode -->
+        <div class="btn-group btn-group-sm" role="group" id="rm-view-toggle">
+            <button type="button" class="btn btn-outline-secondary active" data-view="gantt" title="Gantt view">
+                <i class="bi bi-bar-chart-steps me-1"></i>Gantt
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-view="tasks" title="Tasks view">
+                <i class="bi bi-list-task me-1"></i>Tasks
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-view="projects" title="Projects view">
+                <i class="bi bi-diagram-3 me-1"></i>Projects
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-view="programme" title="Programme view">
+                <i class="bi bi-layers me-1"></i>Programme
+            </button>
+            <button type="button" class="btn btn-outline-secondary" data-view="custom" title="Custom / Category view">
+                <i class="bi bi-grid me-1"></i>Custom
+            </button>
+        </div>
+        <!-- Gantt-only controls -->
+        <div id="rm-gantt-controls" class="d-flex align-items-center gap-2">
             <label class="rp-label mb-0" style="white-space:nowrap">Group by</label>
             <select class="form-select form-select-sm" id="rm-group-by" style="width:auto">
                 <option value="none">None</option>
@@ -20,7 +38,7 @@
                 <option value="category">Category</option>
             </select>
         </div>
-        <!-- FY filter -->
+        <!-- FY filter (all views) -->
         <select class="form-select form-select-sm" id="rm-fy-filter" style="width:auto">
             <option value="">All sprints</option>
         </select>
@@ -30,7 +48,7 @@
         </button>
         <!-- Import projects -->
         <button class="btn btn-sm btn-outline-secondary" id="import-projects-btn">
-            <i class="bi bi-box-arrow-in-down me-1"></i>Import Projects
+            <i class="bi bi-box-arrow-in-down me-1"></i>Import
         </button>
         <!-- Back -->
         <a href="/roadmaps/" class="btn btn-sm btn-ghost-icon" title="Back to roadmaps">
@@ -42,7 +60,7 @@
 
 {% block content %}
 
-<!-- Legend -->
+<!-- Legend (gantt only) -->
 <div class="d-flex align-items-center gap-3 mb-3 flex-wrap" id="rm-legend" style="font-size:12px">
     <span class="d-flex align-items-center gap-1">
         <span class="rm-legend-dot" style="background:#6366f1"></span>Project
@@ -56,9 +74,12 @@
     <span class="d-flex align-items-center gap-1">
         <span class="rm-legend-diamond"></span>Milestone marker
     </span>
+    <span class="d-flex align-items-center gap-1 ms-2">
+        <span class="badge bg-danger" style="font-size:10px">BLOCKER</span>Blocked task
+    </span>
 </div>
 
-<!-- Gantt chart container -->
+<!-- Chart / table container -->
 <div class="rp-card p-0 mb-3" style="overflow:hidden">
     <div id="rm-gantt-wrap" style="overflow-x:auto; overflow-y:auto; max-height:72vh">
         <div id="rm-gantt" class="rm-gantt">
@@ -69,7 +90,7 @@
     </div>
 </div>
 
-<!-- Add / Edit Item Modal -->
+<!-- ── Add / Edit Item Modal ─────────────────────────────────────────────── -->
 <div class="modal fade" id="item-modal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
@@ -91,7 +112,7 @@
                         <label class="rp-label mb-1">Name <span class="text-danger">*</span></label>
                         <input type="text" class="form-control form-control-sm" id="item-name">
                     </div>
-                    <div class="col-12 col-md-6" id="item-team-group">
+                    <div class="col-12 col-md-6">
                         <label class="rp-label mb-1">Team</label>
                         <select class="form-select form-select-sm" id="item-team">
                             <option value="">— none —</option>
@@ -109,7 +130,7 @@
                             <option value="">— none —</option>
                         </select>
                     </div>
-                    <div class="col-12 col-md-6" id="item-end-sprint-group">
+                    <div class="col-12 col-md-6">
                         <label class="rp-label mb-1">End Sprint</label>
                         <select class="form-select form-select-sm" id="item-end-sprint">
                             <option value="">— none —</option>
@@ -146,7 +167,87 @@
     </div>
 </div>
 
-<!-- Add Milestone Modal -->
+<!-- ── Add / Edit Task Modal ─────────────────────────────────────────────── -->
+<div class="modal fade" id="task-modal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="task-modal-title">Tasks</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Task list -->
+                <div id="task-list-wrap" class="mb-3"></div>
+                <button class="btn btn-sm btn-outline-primary mb-3" id="task-add-new-btn">
+                    <i class="bi bi-plus-lg me-1"></i>Add Task / Milestone
+                </button>
+                <!-- Add/Edit form (hidden by default) -->
+                <div id="task-form-wrap" class="border rounded p-3 bg-light d-none">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-4">
+                            <label class="rp-label mb-1">Type</label>
+                            <select class="form-select form-select-sm" id="task-type">
+                                <option value="task">Task</option>
+                                <option value="milestone">Milestone</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-8">
+                            <label class="rp-label mb-1">Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control form-control-sm" id="task-name">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="rp-label mb-1">Assignee</label>
+                            <select class="form-select form-select-sm" id="task-assignee">
+                                <option value="">— none —</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="rp-label mb-1">Jira ID</label>
+                            <input type="text" class="form-control form-control-sm" id="task-jira-id"
+                                   placeholder="e.g. PROJ-123">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="rp-label mb-1">Start Sprint</label>
+                            <select class="form-select form-select-sm" id="task-start-sprint">
+                                <option value="">— none —</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="rp-label mb-1">End Sprint</label>
+                            <select class="form-select form-select-sm" id="task-end-sprint">
+                                <option value="">— none —</option>
+                            </select>
+                        </div>
+                        <div class="col-12 d-flex gap-3 align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="task-is-blocker">
+                                <label class="form-check-label rp-label" for="task-is-blocker">Blocker</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="task-is-complete">
+                                <label class="form-check-label rp-label" for="task-is-complete">Complete</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="rp-label mb-1">Notes</label>
+                            <textarea class="form-control form-control-sm" id="task-notes" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div id="task-error" class="alert alert-danger mt-2 d-none py-2 px-3" style="font-size:13px"></div>
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-sm btn-primary" id="task-save-btn">Save</button>
+                        <button class="btn btn-sm btn-outline-secondary" id="task-cancel-btn">Cancel</button>
+                        <button class="btn btn-sm btn-outline-danger ms-auto d-none" id="task-delete-btn">
+                            <i class="bi bi-trash me-1"></i>Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Gantt Milestone Modal ──────────────────────────────────────────────── -->
 <div class="modal fade" id="milestone-modal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -175,7 +276,7 @@
     </div>
 </div>
 
-<!-- Import Projects Modal -->
+<!-- ── Import Projects Modal ─────────────────────────────────────────────── -->
 <div class="modal fade" id="import-modal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">

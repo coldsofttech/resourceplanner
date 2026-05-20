@@ -7,12 +7,13 @@ from rest_framework.response import Response
 from apps.projects.models import Project
 from apps.projects.serializers import ProjectSerializer
 
-from .models import Roadmap, RoadmapItem, RoadmapMilestone
+from .models import Roadmap, RoadmapItem, RoadmapMilestone, RoadmapTask
 from .serializers import (
     RoadmapListSerializer,
     RoadmapMilestoneSerializer,
     RoadmapItemSerializer,
     RoadmapSerializer,
+    RoadmapTaskSerializer,
 )
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,9 @@ class RoadmapViewSet(viewsets.ViewSet):
         try:
             roadmap = Roadmap.objects.prefetch_related(
                 'items__milestones',
+                'items__tasks__assignee',
+                'items__tasks__start_sprint',
+                'items__tasks__end_sprint',
                 'items__start_sprint',
                 'items__end_sprint',
                 'items__project',
@@ -82,7 +86,7 @@ class RoadmapItemViewSet(viewsets.ViewSet):
         roadmap_id = request.query_params.get('roadmap')
         qs = RoadmapItem.objects.select_related(
             'project', 'programme', 'assigned_team', 'start_sprint', 'end_sprint',
-        ).prefetch_related('milestones')
+        ).prefetch_related('milestones', 'tasks__assignee', 'tasks__start_sprint', 'tasks__end_sprint')
         if roadmap_id:
             qs = qs.filter(roadmap_id=roadmap_id)
         serializer = RoadmapItemSerializer(qs, many=True)
@@ -166,4 +170,42 @@ class RoadmapMilestoneViewSet(viewsets.ViewSet):
         except RoadmapMilestone.DoesNotExist:
             return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
         milestone.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class RoadmapTaskViewSet(viewsets.ViewSet):
+
+    def list(self, request):
+        item_id = request.query_params.get('roadmap_item')
+        qs = RoadmapTask.objects.select_related('assignee', 'start_sprint', 'end_sprint')
+        if item_id:
+            qs = qs.filter(roadmap_item_id=item_id)
+        serializer = RoadmapTaskSerializer(qs, many=True)
+        return Response({'results': serializer.data})
+
+    def create(self, request):
+        serializer = RoadmapTaskSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        task = serializer.save()
+        return Response(RoadmapTaskSerializer(task).data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, pk=None):
+        try:
+            task = RoadmapTask.objects.get(pk=pk)
+        except RoadmapTask.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        serializer = RoadmapTaskSerializer(task, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(RoadmapTaskSerializer(task).data)
+
+    def partial_update(self, request, pk=None):
+        return self.update(request, pk)
+
+    def destroy(self, request, pk=None):
+        try:
+            task = RoadmapTask.objects.get(pk=pk)
+        except RoadmapTask.DoesNotExist:
+            return Response({'error': 'Not found'}, status=status.HTTP_404_NOT_FOUND)
+        task.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

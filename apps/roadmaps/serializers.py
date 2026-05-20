@@ -1,5 +1,47 @@
 from rest_framework import serializers
-from .models import Roadmap, RoadmapItem, RoadmapMilestone
+from .models import Roadmap, RoadmapItem, RoadmapMilestone, RoadmapTask
+
+
+class RoadmapTaskSerializer(serializers.ModelSerializer):
+    assignee_name = serializers.SerializerMethodField()
+    start_sprint_name = serializers.SerializerMethodField()
+    start_sprint_number = serializers.SerializerMethodField()
+    end_sprint_name = serializers.SerializerMethodField()
+    end_sprint_number = serializers.SerializerMethodField()
+    task_type_display = serializers.SerializerMethodField()
+
+    class Meta:
+        model = RoadmapTask
+        fields = [
+            'id', 'roadmap_item', 'task_type', 'task_type_display', 'name',
+            'assignee', 'assignee_name',
+            'jira_id', 'is_blocker',
+            'start_sprint', 'start_sprint_name', 'start_sprint_number',
+            'end_sprint', 'end_sprint_name', 'end_sprint_number',
+            'is_complete', 'display_order', 'notes',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+    def get_task_type_display(self, obj):
+        return obj.get_task_type_display()
+
+    def get_assignee_name(self, obj):
+        if obj.assignee_id:
+            return obj.assignee.get_full_name() or obj.assignee.email
+        return None
+
+    def get_start_sprint_name(self, obj):
+        return obj.start_sprint.sprint_name if obj.start_sprint_id else None
+
+    def get_start_sprint_number(self, obj):
+        return obj.start_sprint.sprint_number if obj.start_sprint_id else None
+
+    def get_end_sprint_name(self, obj):
+        return obj.end_sprint.sprint_name if obj.end_sprint_id else None
+
+    def get_end_sprint_number(self, obj):
+        return obj.end_sprint.sprint_number if obj.end_sprint_id else None
 
 
 class RoadmapMilestoneSerializer(serializers.ModelSerializer):
@@ -28,6 +70,7 @@ class RoadmapMilestoneSerializer(serializers.ModelSerializer):
 
 class RoadmapItemSerializer(serializers.ModelSerializer):
     milestones = RoadmapMilestoneSerializer(many=True, read_only=True)
+    tasks = RoadmapTaskSerializer(many=True, read_only=True)
     project_name = serializers.SerializerMethodField()
     programme_name = serializers.SerializerMethodField()
     assigned_team_name = serializers.SerializerMethodField()
@@ -47,7 +90,7 @@ class RoadmapItemSerializer(serializers.ModelSerializer):
             'start_sprint', 'start_sprint_name', 'start_sprint_date',
             'end_sprint', 'end_sprint_name', 'end_sprint_date',
             'category', 'color', 'display_order', 'notes',
-            'milestones', 'created_at', 'updated_at',
+            'milestones', 'tasks', 'created_at', 'updated_at',
         ]
         read_only_fields = ['created_at', 'updated_at']
 
