@@ -222,21 +222,7 @@
 .cr-val-add { cursor: pointer; color: var(--rp-text-muted, #6b7280); font-size: 14px; }
 .cr-val-add:hover { color: var(--rp-primary, #0d6efd); }
 
-/* Filters */
-.cr-filter-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr auto;
-    gap: 4px;
-    align-items: center;
-    margin-bottom: 6px;
-}
-.cr-filter-row select, .cr-filter-row input {
-    font-size: 11px;
-    border: 1px solid var(--color-border-sm, #e5e7eb);
-    border-radius: 4px;
-    padding: 3px 5px;
-    width: 100%;
-}
+/* Filters — enhanced filter rows now defined in drag section above */
 
 /* ── Right panel: canvas ── */
 .cr-right {
@@ -280,11 +266,50 @@
 .cr-field-item[draggable="true"] { cursor: grab; }
 .cr-field-item[draggable="true"]:active { cursor: grabbing; opacity: .7; }
 
+/* Collapsible sections */
+.cr-section-content { overflow: hidden; transition: max-height .2s ease; max-height: 999px; }
+.cr-section-content.cr-collapsed { max-height: 0; }
+.cr-collapsible-head { cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; }
+.cr-chev { transition: transform .2s; font-size: 10px; }
+.cr-chev-up { transform: rotate(-90deg); }
+
+/* Field search */
+.cr-field-search { margin: 0 8px 6px; font-size: 12px; }
+
+/* Field group header (joined sources) */
+.cr-field-group-head { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--rp-text-muted, #6b7280); padding: 6px 8px 2px; border-top: 1px solid var(--color-border-sm, #e5e7eb); margin-top: 4px; }
+
+/* Join controls */
+.cr-join-list { padding: 0 8px; }
+.cr-join-chip { display: inline-flex; align-items: center; gap: 4px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 4px; padding: 2px 6px; font-size: 11px; color: #1d4ed8; margin: 2px 0; }
+.cr-join-chip .cr-chip-remove { cursor: pointer; opacity: .6; }
+.cr-join-chip .cr-chip-remove:hover { opacity: 1; }
+.cr-btn-join { display: block; margin: 4px 8px 4px; font-size: 11px; background: none; border: 1px dashed var(--color-border-sm, #c7d2fe); border-radius: 4px; padding: 3px 8px; color: var(--rp-primary, #0d6efd); cursor: pointer; width: calc(100% - 16px); text-align: left; }
+.cr-btn-join:hover { background: #eff6ff; }
+.cr-join-menu { position: absolute; z-index: 100; background: var(--color-surface, #fff); border: 1px solid var(--color-border-sm, #e5e7eb); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,.1); min-width: 200px; margin: 2px 8px; max-width: calc(100% - 16px); }
+.cr-join-opt { padding: 7px 12px; font-size: 12px; cursor: pointer; color: var(--rp-text, #1e293b); }
+.cr-join-opt:hover { background: var(--color-surface-muted, #f1f5f9); }
+
 /* Canvas title */
 .cr-canvas-title { margin-bottom: 12px; }
 .cr-title    { font-size: 15px; font-weight: 700; color: var(--rp-text, #1e293b); }
 .cr-subtitle { font-size: 12px; color: var(--rp-text-muted, #6b7280); margin-top: 2px; }
 .cr-bordered { border: 1px solid var(--color-border-sm, #e5e7eb) !important; border-radius: 8px; padding: 20px !important; }
+
+/* Filter drop zone */
+.cr-filter-dropzone { border: 1.5px dashed var(--color-border-sm, #e5e7eb); border-radius: 6px; padding: 6px 10px; font-size: 11px; color: var(--rp-text-muted, #9ca3af); text-align: center; margin-bottom: 8px; transition: border-color .15s, background .15s; }
+.cr-filter-dropzone.drag-over { border-color: var(--rp-primary, #0d6efd); background: #eff6ff; color: var(--rp-primary, #0d6efd); }
+
+/* Enhanced filter row */
+.cr-filter-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 4px; align-items: center; margin-bottom: 6px; }
+.cr-filter-field, .cr-filter-op, .cr-filter-val { font-size: 11px; border: 1px solid var(--color-border-sm, #e5e7eb); border-radius: 4px; padding: 3px 5px; width: 100%; }
+.cr-filter-val-wrap { display: flex; gap: 3px; }
+.cr-filter-val { flex: 1; }
+.cr-filter-multisel { font-size: 11px; border: 1px solid var(--color-border-sm, #e5e7eb); border-radius: 4px; padding: 2px; width: 100%; min-height: 52px; }
+
+/* Aggregation select in value chip */
+.cr-val-aggr-sel { background: #1e3a5f; color: #fff; border: none; padding: 2px 5px; font-size: 10px; font-weight: 700; cursor: pointer; outline: none; border-radius: 0; -webkit-appearance: none; appearance: none; min-width: 56px; }
+.cr-val-aggr-sel:focus { background: #2563eb; }
 
 /* Table */
 .cr-table-wrap { overflow: auto; }
@@ -310,6 +335,27 @@
 .cr-card  { background: var(--color-surface, #fff); border: 1px solid var(--color-border-sm, #e5e7eb); border-radius: 10px; padding: 20px 24px; min-width: 150px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.07); }
 .cr-card-value { font-size: 30px; font-weight: 700; color: var(--rp-primary, #0d6efd); line-height: 1.2; }
 .cr-card-label { font-size: 11px; color: var(--rp-text-muted, #6b7280); margin-top: 6px; text-transform: uppercase; letter-spacing: .06em; }
+
+/* Sidebar panel toggle buttons */
+.cr-left, .cr-center { transition: width .2s ease; }
+.cr-panel-collapsed  { width: 0 !important; overflow: hidden; }
+.cr-panel-toggle {
+    flex-shrink: 0;
+    width: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--color-surface, #fff);
+    border: none;
+    border-right: 1px solid var(--color-border-sm, #e5e7eb);
+    cursor: pointer;
+    color: var(--rp-text-muted, #9ca3af);
+    padding: 0;
+    z-index: 5;
+    position: relative;
+}
+.cr-panel-toggle:hover { background: #eff6ff; color: var(--rp-primary, #0d6efd); }
+.cr-panel-toggle i { font-size: 9px; }
 </style>
 {% endblock %}
 
@@ -366,19 +412,43 @@
     <div class="cr-body">
 
         <!-- Left: data sources + fields -->
-        <div class="cr-left">
-            <div class="cr-left-head">Data Source</div>
-            <select class="form-select form-select-sm cr-ds-select" id="cr-ds-select">
-                <option value="">— Select table —</option>
-            </select>
-            <div class="cr-left-head mt-1">Fields</div>
-            <div class="cr-fields-scroll" id="cr-fields-list">
-                <p class="text-secondary" style="font-size:12px;padding:4px 8px">Select a data source to see fields.</p>
+        <div class="cr-left" id="cr-left-panel" style="position:relative">
+            <!-- Data Source section (collapsible) -->
+            <div class="cr-left-head cr-collapsible-head" onclick="crToggleSection('cr-ds-section')">
+                <span>Data Source</span>
+                <i class="bi bi-chevron-down cr-chev" id="cr-ds-section-chev"></i>
+            </div>
+            <div class="cr-section-content" id="cr-ds-section">
+                <select class="form-select form-select-sm cr-ds-select" id="cr-ds-select">
+                    <option value="">— Select table —</option>
+                </select>
+                <div id="cr-join-list"></div>
+                <button class="cr-btn-join d-none" id="btn-add-join" onclick="crShowJoinMenu()">
+                    <i class="bi bi-plus-circle me-1"></i>Join related source
+                </button>
+                <div class="cr-join-menu d-none" id="cr-join-menu"></div>
+            </div>
+
+            <!-- Fields section (collapsible) -->
+            <div class="cr-left-head cr-collapsible-head mt-1" onclick="crToggleSection('cr-fields-section')">
+                <span>Fields</span>
+                <i class="bi bi-chevron-down cr-chev" id="cr-fields-section-chev"></i>
+            </div>
+            <div class="cr-section-content d-flex flex-column" id="cr-fields-section" style="flex:1;overflow:hidden">
+                <input type="search" class="form-control form-control-sm cr-field-search" id="cr-field-search" placeholder="Search fields…">
+                <div class="cr-fields-scroll" id="cr-fields-list">
+                    <p class="text-secondary" style="font-size:12px;padding:4px 8px">Select a data source to see fields.</p>
+                </div>
             </div>
         </div>
 
+        <!-- Left panel toggle -->
+        <button class="cr-panel-toggle" id="cr-left-toggle" onclick="crTogglePanel('left')" title="Toggle data panel">
+            <i class="bi bi-chevron-left" id="cr-left-toggle-icon"></i>
+        </button>
+
         <!-- Center: config tabs -->
-        <div class="cr-center">
+        <div class="cr-center" id="cr-center-panel">
             <div class="cr-center-tabs">
                 <div class="cr-tab active" data-tab="visual" onclick="crSwitchTab('visual')">
                     <i class="bi bi-sliders me-1"></i>Visual
@@ -393,7 +463,11 @@
             <div class="cr-center-body">
                 <!-- Visual tab -->
                 <div id="cr-tab-visual">
-                    <div class="cr-slot-label mb-2">Visualization</div>
+                    <div class="cr-slot-label cr-collapsible-head mb-1" onclick="crToggleSection('cr-viz-section')" style="cursor:pointer">
+                        <span>Visualization Type</span>
+                        <i class="bi bi-chevron-down cr-chev" id="cr-viz-section-chev" style="font-size:10px"></i>
+                    </div>
+                    <div class="cr-section-content" id="cr-viz-section">
                     <div class="cr-viz-grid" id="cr-viz-grid">
                         <button class="cr-viz-btn active" data-viz="table"          onclick="crSetViz('table')">         <i class="bi bi-table"></i>Table</button>
                         <button class="cr-viz-btn"        data-viz="pivot"          onclick="crSetViz('pivot')">         <i class="bi bi-layout-three-columns"></i>Pivot</button>
@@ -407,6 +481,7 @@
                         <button class="cr-viz-btn"        data-viz="combo"          onclick="crSetViz('combo')">         <i class="bi bi-bar-chart-line"></i>Combo</button>
                         <button class="cr-viz-btn"        data-viz="heatmap"        onclick="crSetViz('heatmap')">       <i class="bi bi-grid-3x3"></i>Heatmap</button>
                     </div>
+                    </div><!-- end cr-viz-section -->
                     <div id="cr-config-slots"></div>
                 </div>
 
@@ -418,33 +493,25 @@
                             <i class="bi bi-plus-circle"></i>
                         </button>
                     </div>
+                    <div class="cr-filter-dropzone" id="cr-filter-dropzone">
+                        <i class="bi bi-funnel me-1"></i>Drop a field here to add a filter
+                    </div>
                     <div id="cr-filters-list"></div>
                     <p id="cr-filters-empty" class="text-secondary small">No filters applied.</p>
                 </div>
 
-                <!-- Format tab -->
+                <!-- Format tab (content rendered dynamically per viz type) -->
                 <div id="cr-tab-format" class="d-none">
-                    <div class="cr-slot-label mb-1">Title</div>
-                    <input type="text" class="form-control form-control-sm mb-2" id="cr-fmt-title" placeholder="Leave blank to use report name">
-                    <div class="cr-slot-label mb-1">Subtitle</div>
-                    <input type="text" class="form-control form-control-sm mb-2" id="cr-fmt-subtitle" placeholder="Optional subtitle">
-                    <div class="cr-slot-label mb-1">X-Axis Label</div>
-                    <input type="text" class="form-control form-control-sm mb-2" id="cr-fmt-xlabel" placeholder="X axis label">
-                    <div class="cr-slot-label mb-1">Y-Axis Label</div>
-                    <input type="text" class="form-control form-control-sm mb-2" id="cr-fmt-ylabel" placeholder="Y axis label">
-                    <div class="cr-slot-label mb-1">Font Size</div>
-                    <select class="form-select form-select-sm mb-2" id="cr-fmt-fontsize">
-                        <option value="sm">Small (11px)</option>
-                        <option value="md" selected>Medium (13px)</option>
-                        <option value="lg">Large (15px)</option>
-                    </select>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input" type="checkbox" id="cr-fmt-border">
-                        <label class="form-check-label small" for="cr-fmt-border">Show border around canvas</label>
-                    </div>
+                    <!-- filled by renderFormatTab() -->
+                </div>
                 </div>
             </div>
         </div>
+
+        <!-- Center panel toggle -->
+        <button class="cr-panel-toggle" id="cr-center-toggle" onclick="crTogglePanel('center')" title="Toggle config panel">
+            <i class="bi bi-chevron-left" id="cr-center-toggle-icon"></i>
+        </button>
 
         <!-- Right: canvas -->
         <div class="cr-right">

@@ -28,6 +28,14 @@ _AGG_FNS = {
     AGG_MAXIMUM:        lambda f: Max(f),
 }
 
+def _as_list(v):
+    if isinstance(v, list):
+        return v
+    if isinstance(v, str) and ',' in v:
+        return [x.strip() for x in v.split(',')]
+    return [v] if v is not None else []
+
+
 _FILTER_OPS = {
     'eq':          lambda f, v: Q(**{f: v}),
     'neq':         lambda f, v: ~Q(**{f: v}),
@@ -37,8 +45,12 @@ _FILTER_OPS = {
     'lte':         lambda f, v: Q(**{f'{f}__lte': v}),
     'contains':    lambda f, v: Q(**{f'{f}__icontains': v}),
     'starts_with': lambda f, v: Q(**{f'{f}__istartswith': v}),
-    'is_null':     lambda f, v: Q(**{f'{f}__isnull': bool(v)}),
-    'in':          lambda f, v: Q(**{f'{f}__in': v if isinstance(v, list) else [v]}),
+    'ends_with':   lambda f, v: Q(**{f'{f}__iendswith': v}),
+    'is_null':     lambda f, v: Q(**{f'{f}__isnull': True}),
+    'is_not_null': lambda f, v: Q(**{f'{f}__isnull': False}),
+    'in':          lambda f, v: Q(**{f'{f}__in': _as_list(v)}),
+    'not_in':      lambda f, v: ~Q(**{f'{f}__in': _as_list(v)}),
+    'range':       lambda f, v: Q(**{f'{f}__range': v if isinstance(v, list) and len(v) == 2 else [v, v]}),
 }
 
 MAX_ROWS = 5000

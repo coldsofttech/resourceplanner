@@ -44,10 +44,31 @@ DATA_SOURCES: List[Dict[str, Any]] = [
         ],
     },
 
+    # ── Team Member Assignments (team ↔ member join) ─────────────────────────────
+    {
+        'key': 'team_member_assignments', 'label': 'Team Member Assignments', 'app_label': 'team_members',
+        'model': 'apps.team_members.models.TeamMemberAssignment',
+        'related_sources': {'teams': 'team', 'team_members': 'member'},
+        'fields': [
+            _f('id',                            'ID',                  T_NUMBER,   groupable=False, aggregatable=True),
+            _f('team__name',                    'Team Name',           T_TEXT),
+            _f('team__is_active',               'Team Active',         T_BOOLEAN),
+            _f('member__display_name',          'Member Name',         T_TEXT),
+            _f('member__email_address',         'Member Email',        T_TEXT,    groupable=False),
+            _f('member__role__role',            'Member Role',         T_TEXT),
+            _f('member__employment_type__name', 'Employment Type',     T_TEXT),
+            _f('member__location__city',        'Location (City)',     T_TEXT),
+            _f('member__location__country',     'Location (Country)',  T_TEXT),
+            _f('member__is_active',             'Member Active',       T_BOOLEAN),
+            _f('member__start_date',            'Start Date',          T_DATE,    groupable=False),
+        ],
+    },
+
     # ── Delivery Teams ────────────────────────────────────────────────────────
     {
         'key': 'teams', 'label': 'Delivery Teams', 'app_label': 'delivery_teams',
         'model': 'apps.delivery_teams.models.DeliveryTeam',
+        'related_sources': {'team_member_assignments': 'member_assignments'},
         'fields': [
             _f('id',           'ID',           T_NUMBER,   groupable=False, aggregatable=True),
             _f('name',         'Team Name',    T_TEXT),
@@ -63,6 +84,7 @@ DATA_SOURCES: List[Dict[str, Any]] = [
     {
         'key': 'team_members', 'label': 'Team Members', 'app_label': 'team_members',
         'model': 'apps.team_members.models.TeamMember',
+        'related_sources': {'team_member_assignments': 'member'},
         'fields': [
             _f('id',                    'ID',               T_NUMBER,   groupable=False, aggregatable=True),
             _f('display_name',          'Name',             T_TEXT),
@@ -111,6 +133,7 @@ DATA_SOURCES: List[Dict[str, Any]] = [
     {
         'key': 'projects', 'label': 'Projects', 'app_label': 'projects',
         'model': 'apps.projects.models.Project',
+        'related_sources': {'programmes': 'programme', 'teams': 'assigned_team', 'project_budgets': 'projectbudget', 'project_estimates': 'projectestimate'},
         'fields': [
             _f('id',                   'ID',                T_NUMBER,   groupable=False, aggregatable=True),
             _f('name',                 'Project Name',      T_TEXT),
@@ -251,6 +274,7 @@ DATA_SOURCES: List[Dict[str, Any]] = [
     {
         'key': 'sprint_capacity', 'label': 'Sprint Capacity', 'app_label': 'sprints',
         'model': 'apps.sprint_capacity.models.SprintCapacity',
+        'related_sources': {'team_members': 'team_member', 'sprints': 'sprint'},
         'fields': [
             _f('id',                              'ID',                   T_NUMBER,  groupable=False, aggregatable=True),
             _f('team_member__display_name',       'Team Member',          T_TEXT),
@@ -335,6 +359,7 @@ DATA_SOURCES: List[Dict[str, Any]] = [
     {
         'key': 'resource_plan_allocations', 'label': 'Resource Plan Allocations', 'app_label': 'resource_plans',
         'model': 'apps.resource_plans.models.ResourcePlanAllocation',
+        'related_sources': {'projects': 'project', 'teams': 'team', 'team_members': 'team_member', 'programmes': 'programme', 'sprints': 'sprint'},
         'fields': [
             _f('id',                           'ID',            T_NUMBER,  groupable=False, aggregatable=True),
             _f('project__name',                'Project',       T_TEXT),
@@ -475,7 +500,13 @@ def get_data_source(key: str) -> Optional[Dict]:
 
 def list_data_sources() -> List[Dict]:
     return [
-        {'key': ds['key'], 'label': ds['label'], 'app_label': ds['app_label'], 'fields': ds['fields']}
+        {
+            'key':             ds['key'],
+            'label':           ds['label'],
+            'app_label':       ds['app_label'],
+            'fields':          ds['fields'],
+            'related_sources': ds.get('related_sources', {}),
+        }
         for ds in DATA_SOURCES
     ]
 
