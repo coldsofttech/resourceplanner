@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Jira Integration — How-To{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb rp-breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="/how-to/">How-To Guides</a></li>
+            <li class="breadcrumb-item active">Jira Integration</li>
+        </ol>
+    </nav>
+    <h1 class="rp-page-title"><i class="bi bi-kanban me-2 text-info"></i>Jira Integration</h1>
+    <p class="rp-page-subtitle">Sync sprints and issues from Jira Cloud or Jira Server / Data Center.</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><i class="bi bi-info-circle me-2 text-info"></i>Overview</h5>
+                <p class="text-secondary small mb-2">
+                    The Jira integration lets Resource Planner read sprint boards, issues, and time-tracking data
+                    from your Atlassian instance.  Data flows <strong>one-way</strong> (Jira → Resource Planner);
+                    no writes are made to Jira.
+                </p>
+                <ul class="small text-secondary mb-0">
+                    <li>Import active and completed sprints by project key</li>
+                    <li>Map Jira users to Resource Planner team members</li>
+                    <li>Pull story points and logged hours for forecast comparison</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-info me-2">1</span>Create a Jira API token</h5>
+                <ol class="small text-secondary mb-0">
+                    <li>Go to <strong>id.atlassian.com → Security → API tokens</strong>.</li>
+                    <li>Click <strong>Create API token</strong>, give it a label like <em>ResourcePlanner</em>.</li>
+                    <li>Copy the token — you will not see it again.</li>
+                    <li>For Jira Server, use your account password or a Personal Access Token (PAT) from
+                        <strong>Profile → Personal Access Tokens</strong> (requires Jira 8.14+).</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-info me-2">2</span>Configure the integration</h5>
+                <ol class="small text-secondary mb-0">
+                    <li>Navigate to <strong>Settings → Integrations → Jira</strong>.</li>
+                    <li>Enable the module.</li>
+                    <li>Fill in:
+                        <ul class="mt-1">
+                            <li><strong>Base URL</strong> — e.g. <code>https://yourorg.atlassian.net</code> (no trailing slash)</li>
+                            <li><strong>Email</strong> — the Atlassian account email used to generate the token</li>
+                            <li><strong>API Token</strong> — the token from step 1 (stored encrypted)</li>
+                            <li><strong>Project Keys</strong> — comma-separated Jira project keys to sync, e.g. <code>RP,PLAT</code></li>
+                        </ul>
+                    </li>
+                    <li>Save, then click <strong>Test Connection</strong>.</li>
+                </ol>
+            </div>
+        </div>
+
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-info me-2">3</span>Run the sync job</h5>
+                <p class="small text-secondary mb-2">
+                    Syncing is handled by the background job <code>jira_sync</code>.  Trigger it manually or schedule it:
+                </p>
+                <div class="bg-light rounded p-3 font-monospace small mb-2">
+                    # Via Jobs Admin UI<br>
+                    Settings → Jobs → jira_sync → Run Now<br><br>
+                    # Or via API (service token required)<br>
+                    POST /api/v1/jobs/run/<br>
+                    {"job_name": "jira_sync"}
+                </div>
+                <p class="small text-secondary mb-0">
+                    For continuous sync, schedule this job every 15–60 minutes via cron or AWS EventBridge.
+                    See the <a href="/how-to/jobs/">Jobs &amp; Deployment guide</a> for details.
+                </p>
+            </div>
+        </div>
+
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-info me-2">4</span>User mapping</h5>
+                <p class="small text-secondary mb-2">
+                    Resource Planner matches Jira users to team members by <strong>email address</strong>.
+                    If a Jira user's email doesn't match any team member, their issues are tracked as
+                    <em>unassigned</em> in reports.
+                </p>
+                <div class="alert alert-info small py-2 mb-0">
+                    <i class="bi bi-lightbulb me-1"></i>
+                    Ensure team members in Resource Planner have the same email addresses as their
+                    Atlassian/Jira accounts for accurate attribution.
+                </div>
+            </div>
+        </div>
+
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><i class="bi bi-wrench me-2 text-secondary"></i>Troubleshooting</h5>
+                <table class="table table-sm small mb-0">
+                    <thead class="table-light">
+                        <tr><th>Error</th><th>Cause</th><th>Fix</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>401</td><td>Invalid token or email</td><td>Regenerate API token; confirm email matches</td></tr>
+                        <tr><td>403</td><td>Token lacks Browse Projects permission</td><td>Add the Atlassian account to the project(s)</td></tr>
+                        <tr><td>Project not found</td><td>Wrong project key</td><td>Check keys in Jira board URL (<code>/jira/software/projects/<strong>KEY</strong>/</code>)</td></tr>
+                        <tr><td>No sprints imported</td><td>Board type mismatch</td><td>Only Scrum boards have sprints; Kanban boards do not</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+    <div class="col-lg-4">
+        <div class="card rp-card sticky-top" style="top:80px">
+            <div class="card-body px-4 py-3">
+                <p class="fw-600 small mb-2">Other guides</p>
+                <ul class="list-unstyled small mb-0">
+                    <li class="mb-1"><a href="/how-to/ai/"><i class="bi bi-robot me-2 text-primary"></i>AI Integration</a></li>
+                    <li class="mb-1"><a href="/how-to/sso/"><i class="bi bi-shield-lock me-2 text-success"></i>SSO / SAML</a></li>
+                    <li class="mb-1"><a href="/how-to/email/"><i class="bi bi-envelope-at me-2 text-warning"></i>Email Setup</a></li>
+                    <li class="mb-1"><a href="/how-to/jobs/"><i class="bi bi-rocket-takeoff me-2 text-secondary"></i>Jobs &amp; Deployment</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

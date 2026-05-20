@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}How-To Guides{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3">
+    <h1 class="rp-page-title"><i class="bi bi-book me-2"></i>How-To Guides</h1>
+    <p class="rp-page-subtitle">Step-by-step setup and integration documentation for Resource Planner.</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+    <div class="col-md-6 col-xl-4">
+        <a href="/how-to/ai/" class="text-decoration-none">
+            <div class="card rp-card h-100 rp-card-hover">
+                <div class="card-body px-4 py-4">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <span class="rp-icon-badge bg-primary-subtle text-primary fs-4">
+                            <i class="bi bi-robot"></i>
+                        </span>
+                        <h5 class="mb-0 fw-600">AI Integration</h5>
+                    </div>
+                    <p class="text-secondary small mb-0">
+                        Connect an OpenAI-compatible API key, configure the AI module, and use AI-assisted features
+                        like sprint forecasting and smart suggestions.
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent border-0 px-4 pb-3">
+                    <span class="small text-primary fw-500">Read guide <i class="bi bi-arrow-right ms-1"></i></span>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <a href="/how-to/jira/" class="text-decoration-none">
+            <div class="card rp-card h-100 rp-card-hover">
+                <div class="card-body px-4 py-4">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <span class="rp-icon-badge bg-info-subtle text-info fs-4">
+                            <i class="bi bi-kanban"></i>
+                        </span>
+                        <h5 class="mb-0 fw-600">Jira Integration</h5>
+                    </div>
+                    <p class="text-secondary small mb-0">
+                        Link your Jira Cloud or Server instance, configure project mapping, and sync sprints
+                        and issues into Resource Planner.
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent border-0 px-4 pb-3">
+                    <span class="small text-info fw-500">Read guide <i class="bi bi-arrow-right ms-1"></i></span>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <a href="/how-to/sso/" class="text-decoration-none">
+            <div class="card rp-card h-100 rp-card-hover">
+                <div class="card-body px-4 py-4">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <span class="rp-icon-badge bg-success-subtle text-success fs-4">
+                            <i class="bi bi-shield-lock"></i>
+                        </span>
+                        <h5 class="mb-0 fw-600">SSO / SAML</h5>
+                    </div>
+                    <p class="text-secondary small mb-0">
+                        Set up Single Sign-On via SAML 2.0 or OIDC with Azure AD, Okta, Google Workspace,
+                        or any compatible identity provider.
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent border-0 px-4 pb-3">
+                    <span class="small text-success fw-500">Read guide <i class="bi bi-arrow-right ms-1"></i></span>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <a href="/how-to/email/" class="text-decoration-none">
+            <div class="card rp-card h-100 rp-card-hover">
+                <div class="card-body px-4 py-4">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <span class="rp-icon-badge bg-warning-subtle text-warning fs-4">
+                            <i class="bi bi-envelope-at"></i>
+                        </span>
+                        <h5 class="mb-0 fw-600">Email Setup</h5>
+                    </div>
+                    <p class="text-secondary small mb-0">
+                        Configure SMTP or AWS SES for outbound email — notifications, reminders, sprint reports,
+                        and recharge summaries.
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent border-0 px-4 pb-3">
+                    <span class="small text-warning fw-500">Read guide <i class="bi bi-arrow-right ms-1"></i></span>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    <div class="col-md-6 col-xl-4">
+        <a href="/how-to/jobs/" class="text-decoration-none">
+            <div class="card rp-card h-100 rp-card-hover">
+                <div class="card-body px-4 py-4">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <span class="rp-icon-badge bg-secondary-subtle text-secondary fs-4">
+                            <i class="bi bi-rocket-takeoff"></i>
+                        </span>
+                        <h5 class="mb-0 fw-600">Jobs &amp; Deployment</h5>
+                    </div>
+                    <p class="text-secondary small mb-0">
+                        Register background jobs, schedule them via cron or AWS EventBridge, and deploy
+                        Resource Planner to production using Docker or a bare-metal server.
+                    </p>
+                </div>
+                <div class="card-footer bg-transparent border-0 px-4 pb-3">
+                    <span class="small text-secondary fw-500">Read guide <i class="bi bi-arrow-right ms-1"></i></span>
+                </div>
+            </div>
+        </a>
+    </div>
+
+</div>
+{% endblock %}

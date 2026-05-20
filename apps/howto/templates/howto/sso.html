@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}SSO / SAML — How-To{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb rp-breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="/how-to/">How-To Guides</a></li>
+            <li class="breadcrumb-item active">SSO / SAML</li>
+        </ol>
+    </nav>
+    <h1 class="rp-page-title"><i class="bi bi-shield-lock me-2 text-success"></i>SSO / SAML</h1>
+    <p class="rp-page-subtitle">Single Sign-On via SAML 2.0 or OIDC with Azure AD, Okta, Google, or any compatible IdP.</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><i class="bi bi-info-circle me-2 text-success"></i>Overview</h5>
+                <p class="text-secondary small mb-2">
+                    Resource Planner supports SSO via <strong>python-social-auth</strong> (OIDC / OAuth 2.0) and
+                    <strong>djangosaml2</strong> (SAML 2.0).  Users are matched to existing accounts by email.
+                    First-time login creates an account automatically unless <code>SSO_AUTO_CREATE_USERS=false</code>.
+                </p>
+                <p class="text-secondary small mb-0">
+                    Supported providers: <strong>Azure AD / Entra ID</strong>, <strong>Okta</strong>,
+                    <strong>Google Workspace</strong>, <strong>Auth0</strong>, any SAML 2.0 IdP.
+                </p>
+            </div>
+        </div>
+
+        <!-- OIDC -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-success me-2">OIDC</span>OIDC / OAuth 2.0 Setup</h5>
+                <ol class="small text-secondary mb-3">
+                    <li>Register a new application in your IdP (Azure App Registration, Okta App, Google OAuth client).</li>
+                    <li>Set the <strong>Redirect URI</strong> to:<br>
+                        <code class="d-block bg-light rounded px-2 py-1 mt-1">https://&lt;your-domain&gt;/auth/complete/&lt;backend&gt;/</code>
+                        where <code>&lt;backend&gt;</code> is <code>azuread-oauth2</code>, <code>okta-oauth2</code>, or <code>google-oauth2</code>.
+                    </li>
+                    <li>Copy the <strong>Client ID</strong> and <strong>Client Secret</strong>.</li>
+                    <li>In Resource Planner, go to <strong>Settings → Integrations → SSO</strong>, enable the module, and fill in:
+                        <ul class="mt-1">
+                            <li><code>Provider</code> — choose the backend</li>
+                            <li><code>Client ID</code></li>
+                            <li><code>Client Secret</code> (stored encrypted)</li>
+                            <li><code>Tenant ID</code> (Azure only)</li>
+                        </ul>
+                    </li>
+                    <li>Set the environment variables that python-social-auth expects:</li>
+                </ol>
+                <div class="bg-light rounded p-3 font-monospace small mb-3">
+                    SOCIAL_AUTH_AZUREAD_OAUTH2_KEY=&lt;client-id&gt;<br>
+                    SOCIAL_AUTH_AZUREAD_OAUTH2_SECRET=&lt;client-secret&gt;<br>
+                    SOCIAL_AUTH_AZUREAD_TENANT_ID=&lt;tenant-id&gt;
+                </div>
+                <div class="alert alert-info small py-2 mb-0">
+                    <i class="bi bi-lightbulb me-1"></i>
+                    When <code>SECRETS_SOURCE=aws</code>, store these under a Secrets Manager secret and read them
+                    via a custom settings loader — the SSO module wizard fields serve as documentation only in that case.
+                </div>
+            </div>
+        </div>
+
+        <!-- SAML -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-success me-2">SAML</span>SAML 2.0 Setup</h5>
+                <ol class="small text-secondary mb-3">
+                    <li>Install the SAML dependency:<br>
+                        <code class="d-block bg-light rounded px-2 py-1 mt-1">pip install djangosaml2 pysaml2</code>
+                    </li>
+                    <li>Add <code>djangosaml2</code> to <code>INSTALLED_APPS</code> and include its URLs.</li>
+                    <li>Export your IdP metadata XML from Azure (<strong>Endpoints → Federation Metadata</strong>) or Okta (<strong>Sign On → Identity Provider metadata</strong>).</li>
+                    <li>Upload the IdP metadata XML in <strong>Settings → Integrations → SSO → SAML Metadata</strong>.</li>
+                    <li>Download the Service Provider (SP) metadata from <code>/saml2/metadata/</code> and register it with your IdP as a new application.</li>
+                    <li>Map attributes:<br>
+                        <code class="d-block bg-light rounded px-2 py-1 mt-1">urn:oid:0.9.2342.19200300.100.1.3 → email</code>
+                    </li>
+                </ol>
+                <div class="alert alert-warning small py-2 mb-0">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    SAML requires <code>xmlsec1</code> to be installed on the server: <code>apt install xmlsec1</code> (Debian/Ubuntu) or <code>brew install libxmlsec1</code> (macOS).
+                </div>
+            </div>
+        </div>
+
+        <!-- Azure AD quick-start -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-success me-2">Azure</span>Azure AD / Entra ID Quick-Start</h5>
+                <ol class="small text-secondary mb-0">
+                    <li>Azure Portal → <strong>App registrations → New registration</strong></li>
+                    <li>Name: <em>ResourcePlanner</em>, supported account type: <em>Single tenant</em></li>
+                    <li>Redirect URI: <code>https://&lt;domain&gt;/auth/complete/azuread-oauth2/</code></li>
+                    <li>After creation: <strong>Certificates &amp; secrets → New client secret</strong></li>
+                    <li>Copy the Application (client) ID and the new secret value</li>
+                    <li>Under <strong>Token configuration → Add optional claim</strong>, add <code>email</code> for ID tokens</li>
+                    <li>Under <strong>API permissions</strong>, ensure <code>openid</code>, <code>email</code>, <code>profile</code> are granted</li>
+                    <li>Paste client ID and secret into Resource Planner SSO settings</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><i class="bi bi-wrench me-2 text-secondary"></i>Troubleshooting</h5>
+                <table class="table table-sm small mb-0">
+                    <thead class="table-light">
+                        <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Redirect loop</td><td><code>LOGIN_URL</code> points to SSO, no fallback</td><td>Ensure <code>/login/</code> route exists as a fallback</td></tr>
+                        <tr><td>User created but no access</td><td>Missing group / role assignment</td><td>Auto-assign a default group in <code>SOCIAL_AUTH_PIPELINE</code></td></tr>
+                        <tr><td>Email mismatch</td><td>IdP sends a different email claim</td><td>Check attribute mapping; add <code>email</code> claim to IdP app</td></tr>
+                        <tr><td>SAML signature error</td><td>Clock skew &gt; 5 min between servers</td><td>Sync NTP on Django host</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+    <div class="col-lg-4">
+        <div class="card rp-card sticky-top" style="top:80px">
+            <div class="card-body px-4 py-3">
+                <p class="fw-600 small mb-2">Other guides</p>
+                <ul class="list-unstyled small mb-0">
+                    <li class="mb-1"><a href="/how-to/ai/"><i class="bi bi-robot me-2 text-primary"></i>AI Integration</a></li>
+                    <li class="mb-1"><a href="/how-to/jira/"><i class="bi bi-kanban me-2 text-info"></i>Jira Integration</a></li>
+                    <li class="mb-1"><a href="/how-to/email/"><i class="bi bi-envelope-at me-2 text-warning"></i>Email Setup</a></li>
+                    <li class="mb-1"><a href="/how-to/jobs/"><i class="bi bi-rocket-takeoff me-2 text-secondary"></i>Jobs &amp; Deployment</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

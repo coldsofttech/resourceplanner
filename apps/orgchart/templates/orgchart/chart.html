@@ -1,0 +1,707 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Org Chart{% endblock %}
+
+{% block extra_css %}
+<style>
+#org-chart-wrap {
+    position: relative;
+    width: 100%;
+    min-height: 560px;
+    background: var(--rp-surface, #fff);
+    border: 1px solid var(--rp-border-color, #e5e7eb);
+    border-radius: 8px;
+    overflow: hidden;
+}
+.org-node-card {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px 14px 8px;
+    background: var(--rp-surface, #fff);
+    border: 1.5px solid #3b82f6;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,.08);
+    transition: box-shadow .15s;
+    width: 100%; height: 100%; box-sizing: border-box;
+}
+.org-node-card:hover { box-shadow: 0 3px 12px rgba(59,130,246,.18); }
+.org-node-card.vacant { border-color: #f59e0b; background: #fffbeb; }
+.org-node-card.vacant .org-node-name { color: #92400e; }
+.org-node-top { flex: 1; cursor: pointer; width: 100%; }
+.org-node-avatar {
+    width: 34px; height: 34px; border-radius: 50%;
+    background: #3b82f6; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 600; margin-bottom: 5px;
+    flex-shrink: 0;
+}
+.org-node-avatar-team { border-radius: 8px; }
+.org-node-card.vacant .org-node-avatar { background: #f59e0b; }
+.org-node-name  { font-size: 12.5px; font-weight: 600; line-height: 1.3; color: var(--rp-text, #111); }
+.org-node-title { font-size: 10.5px; color: #6b7280; margin-top: 2px; }
+.org-node-team  { font-size: 10px; color: #3b82f6; margin-top: 2px; }
+.org-node-badge-vacant {
+    font-size: 9px; background: #fef3c7; color: #92400e;
+    border: 1px solid #f59e0b; border-radius: 3px;
+    padding: 1px 4px; margin-top: 3px; align-self: flex-start;
+}
+.org-node-badge-team {
+    font-size: 9px; background: #eff6ff; color: #1d4ed8;
+    border: 1px solid #3b82f6; border-radius: 3px;
+    padding: 1px 4px; margin-top: 3px; align-self: flex-start;
+}
+/* + button overlay */
+.oc-node-wrap {
+    position: relative; width: 100%; height: 100%;
+    padding: 13px 0; box-sizing: border-box;
+}
+.oc-add-btn {
+    position: absolute; left: 50%; transform: translateX(-50%);
+    width: 22px; height: 22px; border-radius: 50%;
+    border: 1.5px solid #94a3b8; background: #fff;
+    color: #64748b; font-size: 17px; font-weight: 300;
+    line-height: 19px; text-align: center;
+    cursor: pointer; padding: 0; z-index: 5;
+    opacity: 0; transition: opacity .15s, border-color .15s, color .15s;
+    display: block;
+}
+.oc-add-btn:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; }
+.oc-node-wrap:hover .oc-add-btn { opacity: 1; }
+.oc-add-btn-top    { top: 1px; }
+.oc-add-btn-bottom { bottom: 1px; }
+/* team colour strip */
+.org-node-strip {
+    height: 3px; border-radius: 5px 5px 0 0;
+    margin: -10px -14px 7px; width: calc(100% + 28px);
+}
+/* toolbar */
+#oc-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+#oc-search { max-width: 200px; }
+</style>
+{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title"><i class="bi bi-diagram-3 me-2"></i>Org Chart</h1>
+        <p class="rp-page-subtitle">Visualise your organisation's structure.</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <button class="btn btn-outline-secondary btn-sm" id="btn-import">
+            <i class="bi bi-people me-1"></i>Import from Team Members
+        </button>
+        <button class="btn btn-primary btn-sm" id="btn-add-node">
+            <i class="bi bi-plus-lg me-1"></i>Add Node
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="oc-banner" class="alert d-none mb-3" role="alert"></div>
+
+<!-- Toolbar -->
+<div id="oc-toolbar">
+    <input type="text" id="oc-search" class="form-control form-control-sm" placeholder="Search name or title…">
+    <select id="oc-filter-team" class="form-select form-select-sm" style="width:auto">
+        <option value="">All teams</option>
+    </select>
+    <div class="form-check form-switch ms-2 mb-0" style="white-space:nowrap">
+        <input class="form-check-input" type="checkbox" id="oc-show-vacant" checked>
+        <label class="form-check-label small" for="oc-show-vacant">Show vacant</label>
+    </div>
+    <button class="btn btn-sm btn-outline-secondary ms-auto" id="btn-oc-expand">
+        <i class="bi bi-arrows-expand"></i>
+    </button>
+    <button class="btn btn-sm btn-outline-secondary" id="btn-oc-collapse">
+        <i class="bi bi-arrows-collapse"></i>
+    </button>
+    <button class="btn btn-sm btn-outline-secondary" id="btn-oc-fit">
+        <i class="bi bi-fullscreen"></i> Fit
+    </button>
+    <button class="btn btn-sm btn-outline-secondary" id="btn-oc-export">
+        <i class="bi bi-download me-1"></i>Export SVG
+    </button>
+</div>
+
+<!-- Chart container -->
+<div id="org-chart-wrap">
+    <div id="org-chart-container" style="width:100%;height:600px;"></div>
+</div>
+
+<!-- Legend -->
+<div class="d-flex gap-3 mt-3 small text-secondary flex-wrap">
+    <span><span class="d-inline-block rounded-circle me-1" style="width:12px;height:12px;background:#3b82f6;vertical-align:middle"></span>Active member</span>
+    <span><span class="d-inline-block rounded-circle me-1" style="width:12px;height:12px;background:#f59e0b;vertical-align:middle"></span>Vacant position</span>
+    <span><span class="d-inline-block rounded me-1" style="width:12px;height:12px;background:#3b82f6;vertical-align:middle"></span>Team node</span>
+</div>
+
+<!-- Add / Edit Node Modal -->
+<div class="modal fade" id="nodeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title" id="node-modal-title"><i class="bi bi-person-plus me-2"></i>Add Node</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="node-modal-banner" class="alert alert-danger d-none mb-3"></div>
+                <input type="hidden" id="node-edit-id">
+
+                <!-- Node Type toggle -->
+                <div class="mb-3">
+                    <label class="rp-label">Node Type</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="node-type-radio" id="nt-member" value="member" autocomplete="off" checked>
+                        <label class="btn btn-outline-primary btn-sm" for="nt-member">
+                            <i class="bi bi-person me-1"></i>Member
+                        </label>
+                        <input type="radio" class="btn-check" name="node-type-radio" id="nt-team" value="team" autocomplete="off">
+                        <label class="btn btn-outline-primary btn-sm" for="nt-team">
+                            <i class="bi bi-people me-1"></i>Team
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Name (always visible) -->
+                <div class="mb-3">
+                    <label class="rp-label">Name <span class="text-danger">*</span></label>
+                    <input type="text" id="node-name" class="form-control rp-input" placeholder="Full name">
+                </div>
+
+                <!-- Represents Team — team type only -->
+                <div class="mb-3 d-none" id="row-represents-team">
+                    <label class="rp-label">Represents Team <span class="text-danger">*</span></label>
+                    <select id="node-team" class="form-select rp-input">
+                        <option value="">Select team…</option>
+                    </select>
+                </div>
+
+                <!-- Member-specific fields -->
+                <div id="member-fields">
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-6">
+                            <label class="rp-label">Job Title / Position</label>
+                            <input type="text" id="node-job-title" class="form-control rp-input" placeholder="e.g. Senior Engineer">
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="rp-label">Email</label>
+                            <input type="email" id="node-email" class="form-control rp-input">
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-sm-6">
+                            <label class="rp-label">Team (Group)</label>
+                            <select id="node-team-group" class="form-select rp-input">
+                                <option value="">No team</option>
+                            </select>
+                        </div>
+                        <div class="col-sm-6">
+                            <label class="rp-label">Link to Team Member</label>
+                            <select id="node-team-member" class="form-select rp-input">
+                                <option value="">None</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="node-is-vacant">
+                        <label class="form-check-label" for="node-is-vacant">Vacant position</label>
+                    </div>
+                </div>
+
+                <!-- Reports to (always visible) -->
+                <div>
+                    <label class="rp-label">Reports to (Parent)</label>
+                    <select id="node-parent" class="form-select rp-input">
+                        <option value="">Top level (no parent)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-danger me-auto d-none" id="btn-delete-node">
+                    <i class="bi bi-trash me-1"></i>Delete
+                </button>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-save-node">
+                    <i class="bi bi-check-lg me-1"></i>Save
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import Modal -->
+<div class="modal fade" id="importModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:460px">
+        <div class="modal-content rp-modal">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title"><i class="bi bi-people me-2"></i>Import from Team Members</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-secondary small">
+                    This will create org chart nodes for all active team members not already in the chart.
+                    Each node will be pre-filled with the member's name, role, and team.
+                </p>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="import-clear-existing">
+                    <label class="form-check-label small" for="import-clear-existing">
+                        Clear existing nodes before import
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary" id="btn-confirm-import">
+                    <i class="bi bi-download me-1"></i>Import
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<!-- D3 v7 + d3-flextree (peer dep of d3-org-chart) + d3-org-chart v2 -->
+<script src="https://d3js.org/d3.v7.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-flextree@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/d3-org-chart@2"></script>
+<script>
+'use strict';
+
+const CSRF = (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
+
+async function apiFetch(url, opts = {}) {
+    const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
+        ...opts,
+    });
+    const body = res.status === 204 ? null : await res.json().catch(() => ({}));
+    if (!res.ok) throw body;
+    return body;
+}
+
+function showBanner(msg, type) {
+    const el = document.getElementById('oc-banner');
+    el.className = `alert alert-${type} mb-3`;
+    el.textContent = msg;
+    el.classList.remove('d-none');
+    setTimeout(() => el.classList.add('d-none'), 5000);
+}
+
+function esc(s) {
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let allNodes         = [];
+let allTeams         = [];
+let allMemberOptions = [];
+let chart;
+let searchQ    = '';
+let filterTeam = '';
+let showVacant = true;
+
+const TEAM_PALETTE = ['#3b82f6','#10b981','#8b5cf6','#f97316','#ef4444','#06b6d4','#ec4899','#84cc16','#f59e0b','#64748b'];
+function getTeamColor(teamId) {
+    if (!teamId) return '#94a3b8';
+    const idx = allTeams.findIndex(t => t.id === teamId);
+    return idx >= 0 ? TEAM_PALETTE[idx % TEAM_PALETTE.length] : '#94a3b8';
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', async () => {
+    initChart();
+    await Promise.all([loadTeams(), loadMemberOptions(), loadNodes()]);
+    bindEvents();
+});
+
+function initChart() {
+    chart = new d3.OrgChart()
+        .container('#org-chart-container')
+        .svgHeight(600)
+        .nodeWidth(d  => d.data._virtual ? 2 : 220)
+        .nodeHeight(d => d.data._virtual ? 2 : 128)
+        .childrenMargin(() => 50)
+        .compactMarginBetween(() => 15)
+        .compactMarginPair(() => 80)
+        .nodeContent(function (d) {
+            const n = d.data;
+            if (n._virtual) return '<div style="width:2px;height:2px;overflow:hidden;opacity:0"></div>';
+
+            const isTeam    = n.node_type === 'team';
+            const teamColor = getTeamColor(n.team);
+
+            if (isTeam) {
+                return `
+                <div class="oc-node-wrap">
+                    <button class="oc-add-btn oc-add-btn-top"
+                        onclick="event.stopPropagation();openAddParentModal(${n.id})"
+                        title="Add parent node">+</button>
+                    <div class="org-node-card" style="border-color:${teamColor}">
+                        <div class="org-node-strip" style="background:${teamColor}"></div>
+                        <div class="org-node-top" onclick="openEditModal(${n.id})">
+                            <div class="org-node-avatar org-node-avatar-team" style="background:${teamColor}">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                                    <path d="M7 14s-1 0-1-1 1-4 5-4 5 3 5 4-1 1-1 1H7zm4-6a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/>
+                                    <path fill-rule="evenodd" d="M5.216 14A2.238 2.238 0 0 1 5 13c0-1.355.68-2.75 1.936-3.72A6.325 6.325 0 0 0 5 9c-4 0-5 3-5 4s1 1 1 1h4.216z"/>
+                                    <path d="M4.5 8a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/>
+                                </svg>
+                            </div>
+                            <div class="org-node-name">${esc(n.name)}</div>
+                            <div class="org-node-badge-team">TEAM</div>
+                        </div>
+                    </div>
+                    <button class="oc-add-btn oc-add-btn-bottom"
+                        onclick="event.stopPropagation();openAddChildModal(${n.id})"
+                        title="Add child node">+</button>
+                </div>`;
+            }
+
+            // Member card
+            const stripColor  = n.is_vacant ? '#f59e0b' : teamColor;
+            const initials    = (n.name || '?').split(/[\s,]+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+            const vacantCls   = n.is_vacant ? ' vacant' : '';
+            const vacantBadge = n.is_vacant ? '<div class="org-node-badge-vacant">VACANT</div>' : '';
+            const teamTag     = n.team_name ? `<div class="org-node-team">${esc(n.team_name)}</div>` : '';
+            const imgHtml     = n.avatar_url
+                ? `<img src="${esc(n.avatar_url)}" style="width:34px;height:34px;border-radius:50%;object-fit:cover;margin-bottom:5px">`
+                : `<div class="org-node-avatar" style="background:${stripColor}">${esc(initials)}</div>`;
+            return `
+            <div class="oc-node-wrap">
+                <button class="oc-add-btn oc-add-btn-top"
+                    onclick="event.stopPropagation();openAddParentModal(${n.id})"
+                    title="Add parent node">+</button>
+                <div class="org-node-card${vacantCls}" style="border-color:${stripColor}">
+                    <div class="org-node-strip" style="background:${stripColor}"></div>
+                    <div class="org-node-top" onclick="openEditModal(${n.id})">
+                        ${imgHtml}
+                        <div class="org-node-name">${esc(n.name)}</div>
+                        ${n.job_title ? `<div class="org-node-title">${esc(n.job_title)}</div>` : ''}
+                        ${teamTag}
+                        ${vacantBadge}
+                    </div>
+                </div>
+                <button class="oc-add-btn oc-add-btn-bottom"
+                    onclick="event.stopPropagation();openAddChildModal(${n.id})"
+                    title="Add child node">+</button>
+            </div>`;
+        });
+    // Don't render yet — wait for real data so fit() has actual dimensions
+}
+
+async function loadNodes() {
+    try {
+        allNodes = await apiFetch('/api/v1/orgchart/nodes/', { method: 'GET' });
+    } catch (err) {
+        console.error('Org chart API error:', err);
+        showBanner('Could not load org chart data.', 'danger');
+        return;
+    }
+    renderChart();
+}
+
+async function loadTeams() {
+    try {
+        allTeams = await apiFetch('/api/v1/orgchart/teams/', { method: 'GET' });
+        const filterSel = document.getElementById('oc-filter-team');
+        const teamSel   = document.getElementById('node-team');       // "Represents Team"
+        const groupSel  = document.getElementById('node-team-group'); // member's "Team (Group)"
+        allTeams.forEach(t => {
+            const opt = `<option value="${t.id}">${esc(t.name)}</option>`;
+            filterSel.innerHTML += opt;
+            teamSel.innerHTML   += opt;
+            groupSel.innerHTML  += opt;
+        });
+    } catch { /* non-fatal */ }
+}
+
+async function loadMemberOptions() {
+    try {
+        allMemberOptions = await apiFetch('/api/v1/orgchart/members/', { method: 'GET' });
+        const sel = document.getElementById('node-team-member');
+        allMemberOptions.forEach(m => {
+            sel.innerHTML += `<option value="${m.id}">${esc(m.display_name)} &lt;${esc(m.email_address)}&gt;</option>`;
+        });
+    } catch { /* non-fatal */ }
+}
+
+function renderChart() {
+    let visible = allNodes;
+
+    if (searchQ) {
+        const q = searchQ.toLowerCase();
+        visible = visible.filter(n =>
+            (n.name || '').toLowerCase().includes(q) ||
+            (n.job_title || '').toLowerCase().includes(q));
+    }
+    if (filterTeam) {
+        visible = visible.filter(n => String(n.team) === filterTeam);
+    }
+    if (!showVacant) {
+        visible = visible.filter(n => !n.is_vacant);
+    }
+
+    const data = visible.map(n => ({
+        nodeId:       String(n.id),
+        parentNodeId: n.parent ? String(n.parent) : null,
+        id:           n.id,
+        node_type:    n.node_type,
+        name:         n.name,
+        job_title:    n.job_title,
+        email:        n.email,
+        avatar_url:   n.avatar_url,
+        team:         n.team,
+        team_name:    n.team_name,
+        is_vacant:    n.is_vacant,
+    }));
+
+    // Sort siblings by team so same-team nodes appear side-by-side
+    data.sort((a, b) => {
+        if ((a.parentNodeId || '') !== (b.parentNodeId || '')) return 0;
+        return (a.team || 0) - (b.team || 0);
+    });
+
+    // d3-hierarchy requires exactly one root; inject a virtual one when there are multiple
+    const roots = data.filter(n => !n.parentNodeId);
+    if (roots.length > 1) {
+        data.unshift({ nodeId: '__root__', parentNodeId: null, id: null,
+                       name: 'Organisation', _virtual: true });
+        roots.forEach(n => { n.parentNodeId = '__root__'; });
+    }
+
+    chart.data(data).render();
+    // Defer fit() so the browser finishes laying out foreignObject nodes first
+    setTimeout(() => { try { chart.fit(); } catch (e) { console.warn('chart.fit():', e); } }, 150);
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+function bindEvents() {
+    let searchTimer;
+    document.getElementById('oc-search').addEventListener('input', e => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => { searchQ = e.target.value; renderChart(); }, 250);
+    });
+    document.getElementById('oc-filter-team').addEventListener('change', e => {
+        filterTeam = e.target.value; renderChart();
+    });
+    document.getElementById('oc-show-vacant').addEventListener('change', e => {
+        showVacant = e.target.checked; renderChart();
+    });
+
+    document.getElementById('btn-oc-expand').addEventListener('click', () => chart.expandAll().fit());
+    document.getElementById('btn-oc-collapse').addEventListener('click', () => chart.collapseAll().fit());
+    document.getElementById('btn-oc-fit').addEventListener('click', () => chart.fit());
+    document.getElementById('btn-oc-export').addEventListener('click', exportSVG);
+
+    document.getElementById('btn-add-node').addEventListener('click', openAddModal);
+    document.getElementById('btn-save-node').addEventListener('click', saveNode);
+    document.getElementById('btn-delete-node').addEventListener('click', deleteNode);
+    document.getElementById('btn-import').addEventListener('click', () => {
+        document.getElementById('import-clear-existing').checked = false;
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('importModal')).show();
+    });
+    document.getElementById('btn-confirm-import').addEventListener('click', doImport);
+
+    // Node type toggle
+    document.querySelectorAll('input[name="node-type-radio"]').forEach(radio => {
+        radio.addEventListener('change', () => onNodeTypeChange(radio.value));
+    });
+
+    // Auto-fill name from selected team (team node type)
+    document.getElementById('node-team').addEventListener('change', () => {
+        if (!document.getElementById('nt-team').checked) return;
+        const teamId = document.getElementById('node-team').value;
+        if (!teamId) return;
+        const team = allTeams.find(t => String(t.id) === teamId);
+        if (team && !document.getElementById('node-name').value.trim()) {
+            document.getElementById('node-name').value = team.name;
+        }
+    });
+
+    // Auto-fill name from selected team member (member node type)
+    document.getElementById('node-team-member').addEventListener('change', () => {
+        const memberId = document.getElementById('node-team-member').value;
+        if (!memberId) return;
+        const m = allMemberOptions.find(m => String(m.id) === memberId);
+        if (!m) return;
+        if (!document.getElementById('node-name').value.trim()) {
+            document.getElementById('node-name').value = m.display_name;
+        }
+    });
+}
+
+// ── Node type toggle ──────────────────────────────────────────────────────────
+function onNodeTypeChange(type) {
+    const isTeam = type === 'team';
+    document.getElementById('row-represents-team').classList.toggle('d-none', !isTeam);
+    document.getElementById('member-fields').classList.toggle('d-none', isTeam);
+}
+
+// ── Node modal ────────────────────────────────────────────────────────────────
+function populateParentSelect(excludeId = null) {
+    const sel = document.getElementById('node-parent');
+    sel.innerHTML = '<option value="">Top level (no parent)</option>';
+    allNodes.forEach(n => {
+        if (n.id === excludeId) return;
+        sel.innerHTML += `<option value="${n.id}">${esc(n.name)}${n.job_title ? ' — ' + esc(n.job_title) : ''}</option>`;
+    });
+}
+
+function openAddModal() {
+    document.getElementById('node-edit-id').value       = '';
+    document.getElementById('node-name').value          = '';
+    document.getElementById('node-job-title').value     = '';
+    document.getElementById('node-email').value         = '';
+    document.getElementById('node-is-vacant').checked   = false;
+    document.getElementById('node-team').value          = '';
+    document.getElementById('node-team-group').value    = '';
+    document.getElementById('node-team-member').value   = '';
+    document.getElementById('nt-member').checked        = true;
+    onNodeTypeChange('member');
+    document.getElementById('node-modal-title').innerHTML = '<i class="bi bi-person-plus me-2"></i>Add Node';
+    document.getElementById('btn-delete-node').classList.add('d-none');
+    document.getElementById('node-modal-banner').classList.add('d-none');
+    delete document.getElementById('nodeModal').dataset.insertParentFor;
+    populateParentSelect();
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('nodeModal')).show();
+}
+
+window.openAddChildModal = function(nodeId) {
+    openAddModal();
+    document.getElementById('node-parent').value = String(nodeId);
+};
+
+window.openAddParentModal = function(nodeId) {
+    const target = allNodes.find(n => n.id === nodeId);
+    if (!target) return;
+    openAddModal();
+    document.getElementById('node-parent').value = target.parent ? String(target.parent) : '';
+    document.getElementById('node-modal-title').innerHTML = '<i class="bi bi-person-plus me-2"></i>Add Parent Node';
+    document.getElementById('nodeModal').dataset.insertParentFor = nodeId;
+};
+
+window.openEditModal = function (id) {
+    if (!id) return;
+    const node = allNodes.find(n => n.id === id);
+    if (!node) return;
+
+    document.getElementById('node-edit-id').value     = node.id;
+    document.getElementById('node-name').value        = node.name;
+    document.getElementById('node-job-title').value   = node.job_title || '';
+    document.getElementById('node-email').value       = node.email     || '';
+    document.getElementById('node-is-vacant').checked = node.is_vacant;
+
+    const nodeType = node.node_type || 'member';
+    document.getElementById(nodeType === 'team' ? 'nt-team' : 'nt-member').checked = true;
+    onNodeTypeChange(nodeType);
+
+    if (nodeType === 'team') {
+        document.getElementById('node-team').value       = node.team ? String(node.team) : '';
+        document.getElementById('node-team-group').value = '';
+        document.getElementById('node-team-member').value = '';
+    } else {
+        document.getElementById('node-team').value        = '';
+        document.getElementById('node-team-group').value  = node.team        ? String(node.team)        : '';
+        document.getElementById('node-team-member').value = node.team_member ? String(node.team_member) : '';
+    }
+
+    document.getElementById('node-modal-title').innerHTML = '<i class="bi bi-pencil me-2"></i>Edit Node';
+    document.getElementById('btn-delete-node').classList.remove('d-none');
+    document.getElementById('node-modal-banner').classList.add('d-none');
+    delete document.getElementById('nodeModal').dataset.insertParentFor;
+    populateParentSelect(id);
+    document.getElementById('node-parent').value = node.parent ? String(node.parent) : '';
+    bootstrap.Modal.getOrCreateInstance(document.getElementById('nodeModal')).show();
+};
+
+async function saveNode() {
+    const editId          = document.getElementById('node-edit-id').value;
+    const insertParentFor = document.getElementById('nodeModal').dataset.insertParentFor || '';
+    const name            = document.getElementById('node-name').value.trim();
+    const banner          = document.getElementById('node-modal-banner');
+    const nodeType        = document.querySelector('input[name="node-type-radio"]:checked').value;
+    const isTeam          = nodeType === 'team';
+
+    if (!name) {
+        banner.textContent = 'Name is required.';
+        banner.classList.remove('d-none');
+        return;
+    }
+    if (isTeam && !document.getElementById('node-team').value) {
+        banner.textContent = 'Please select a team this node represents.';
+        banner.classList.remove('d-none');
+        return;
+    }
+    banner.classList.add('d-none');
+
+    const payload = {
+        node_type:   nodeType,
+        name,
+        job_title:   isTeam ? '' : document.getElementById('node-job-title').value,
+        email:       isTeam ? '' : document.getElementById('node-email').value,
+        is_vacant:   isTeam ? false : document.getElementById('node-is-vacant').checked,
+        team:        isTeam
+            ? (document.getElementById('node-team').value       || null)
+            : (document.getElementById('node-team-group').value || null),
+        team_member: isTeam ? null : (document.getElementById('node-team-member').value || null),
+        parent:      document.getElementById('node-parent').value || null,
+    };
+
+    try {
+        let saved;
+        if (editId) {
+            saved = await apiFetch(`/api/v1/orgchart/nodes/${editId}/`, { method: 'PATCH', body: JSON.stringify(payload) });
+        } else {
+            saved = await apiFetch('/api/v1/orgchart/nodes/', { method: 'POST', body: JSON.stringify(payload) });
+            if (insertParentFor) {
+                await apiFetch(`/api/v1/orgchart/nodes/${insertParentFor}/`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({ parent: saved.id }),
+                });
+            }
+        }
+        bootstrap.Modal.getInstance(document.getElementById('nodeModal'))?.hide();
+        showBanner(editId ? 'Node updated.' : 'Node added.', 'success');
+        await loadNodes();
+    } catch (err) {
+        const msg = err ? Object.values(err).flat().join(' ') : 'Error saving node.';
+        banner.textContent = msg;
+        banner.classList.remove('d-none');
+    }
+}
+
+async function deleteNode() {
+    const id = document.getElementById('node-edit-id').value;
+    if (!id) return;
+    try {
+        await apiFetch(`/api/v1/orgchart/nodes/${id}/`, { method: 'DELETE' });
+        bootstrap.Modal.getInstance(document.getElementById('nodeModal'))?.hide();
+        showBanner('Node deleted.', 'success');
+        await loadNodes();
+    } catch { showBanner('Could not delete node.', 'danger'); }
+}
+
+async function doImport() {
+    const clearExisting = document.getElementById('import-clear-existing').checked;
+    const btn = document.getElementById('btn-confirm-import');
+    btn.disabled = true;
+    try {
+        const result = await apiFetch('/api/v1/orgchart/import/', {
+            method: 'POST',
+            body: JSON.stringify({ clear_existing: clearExisting }),
+        });
+        bootstrap.Modal.getInstance(document.getElementById('importModal'))?.hide();
+        showBanner(result.message || 'Import complete.', 'success');
+        await loadNodes();
+    } catch { showBanner('Import failed.', 'danger'); }
+    finally { btn.disabled = false; }
+}
+
+function exportSVG() {
+    chart.exportImg({ full: true, scale: 2, save: true });
+}
+</script>
+{% endblock %}

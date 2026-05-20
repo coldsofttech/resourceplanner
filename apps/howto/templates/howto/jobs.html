@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Jobs & Deployment — How-To{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb rp-breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="/how-to/">How-To Guides</a></li>
+            <li class="breadcrumb-item active">Jobs &amp; Deployment</li>
+        </ol>
+    </nav>
+    <h1 class="rp-page-title"><i class="bi bi-rocket-takeoff me-2 text-secondary"></i>Jobs &amp; Deployment</h1>
+    <p class="rp-page-subtitle">Register background jobs, schedule them, and deploy Resource Planner to production.</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+
+        <!-- Jobs system overview -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><i class="bi bi-info-circle me-2 text-secondary"></i>Background Jobs</h5>
+                <p class="text-secondary small mb-2">
+                    Resource Planner has a lightweight job runner at <code>jobs/runner.py</code>.
+                    Each job is a Python module with a <code>run() → dict</code> function registered in
+                    <code>REGISTERED_JOBS</code>.  Jobs are triggered via the <strong>Jobs Admin API</strong>
+                    (service-token authentication) or the UI at <strong>Settings → Jobs</strong>.
+                </p>
+                <p class="text-secondary small mb-0">Built-in jobs:</p>
+                <table class="table table-sm small mt-2 mb-0">
+                    <thead class="table-light">
+                        <tr><th>Job name</th><th>Module</th><th>Purpose</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>todo_reminders</code></td><td><code>jobs.todo_reminders</code></td><td>Send due/overdue To-Do reminder notifications</td></tr>
+                        <tr><td><code>jira_sync</code></td><td><code>jobs.jira_sync</code></td><td>Pull sprints and issues from Jira</td></tr>
+                        <tr><td><code>recharge_email</code></td><td><code>jobs.recharge_email</code></td><td>Send queued recharge forecast emails</td></tr>
+                        <tr><td><code>wins_digest</code></td><td><code>jobs.wins_digest</code></td><td>Send weekly/monthly win digest emails</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Registering a new job -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-secondary me-2">1</span>Register a new job</h5>
+                <ol class="small text-secondary mb-3">
+                    <li>Create a module under <code>jobs/</code>, e.g. <code>jobs/my_job.py</code>:
+                        <div class="bg-light rounded p-3 font-monospace small mt-1 mb-2">
+def run() -> dict:<br>
+&nbsp;&nbsp;&nbsp;&nbsp;# ... do work ...<br>
+&nbsp;&nbsp;&nbsp;&nbsp;return {'status': 'ok', 'processed': 42}
+                        </div>
+                    </li>
+                    <li>Register it in <code>jobs/runner.py</code>:
+                        <div class="bg-light rounded p-3 font-monospace small mt-1 mb-2">
+REGISTERED_JOBS = {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;...<br>
+&nbsp;&nbsp;&nbsp;&nbsp;'my_job': 'jobs.my_job',<br>
+}
+                        </div>
+                    </li>
+                    <li>Trigger it via the API:
+                        <div class="bg-light rounded p-3 font-monospace small mt-1">
+POST /api/v1/jobs/run/<br>
+Authorization: Token &lt;service-token&gt;<br>
+Content-Type: application/json<br><br>
+{"job_name": "my_job"}
+                        </div>
+                    </li>
+                </ol>
+                <div class="alert alert-info small py-2 mb-0">
+                    <i class="bi bi-lightbulb me-1"></i>
+                    Set the <code>JOBS_SERVICE_TOKEN</code> environment variable to a strong random string.
+                    This token is required for all <code>/api/v1/jobs/</code> endpoints.
+                </div>
+            </div>
+        </div>
+
+        <!-- Scheduling: cron -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-secondary me-2">2</span>Scheduling with cron</h5>
+                <p class="small text-secondary mb-2">Add entries to <code>crontab -e</code> on the server:</p>
+                <div class="bg-light rounded p-3 font-monospace small mb-3">
+# To-Do reminders every 15 minutes<br>
+*/15 * * * * curl -s -X POST https://&lt;domain&gt;/api/v1/jobs/run/ \<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-H "Authorization: Token $JOBS_TOKEN" \<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-H "Content-Type: application/json" \<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-d '{"job_name":"todo_reminders"}'<br><br>
+# Jira sync every 30 minutes<br>
+*/30 * * * * curl -s -X POST https://&lt;domain&gt;/api/v1/jobs/run/ \<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-H "Authorization: Token $JOBS_TOKEN" \<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-H "Content-Type: application/json" \<br>
+&nbsp;&nbsp;&nbsp;&nbsp;-d '{"job_name":"jira_sync"}'
+                </div>
+                <p class="small text-secondary mb-0">
+                    Alternatively, use <strong>Celery Beat</strong> or <strong>Django-Q</strong> for more robust scheduling.
+                </p>
+            </div>
+        </div>
+
+        <!-- Scheduling: AWS EventBridge -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-secondary me-2">3</span>Scheduling with AWS EventBridge</h5>
+                <ol class="small text-secondary mb-0">
+                    <li>Create an <strong>EventBridge Scheduler</strong> rule (cron or rate expression).</li>
+                    <li>Set the target to <strong>API Destination</strong> or <strong>Lambda</strong> that calls the job endpoint.</li>
+                    <li>For API Destination: provide the job URL, HTTP method POST, and attach a connection with <code>Authorization: Token &lt;service-token&gt;</code>.</li>
+                    <li>Add the request body <code>{"job_name": "todo_reminders"}</code> as a transformer or constant JSON payload.</li>
+                    <li>Grant the EventBridge role <code>scheduler:CreateSchedule</code> and <code>events:PutTargets</code>.</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Deployment: Docker -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-secondary me-2">4</span>Production deployment — Docker</h5>
+                <div class="bg-light rounded p-3 font-monospace small mb-3">
+# Build image<br>
+docker build -t resourceplanner:latest .<br><br>
+# Run with gunicorn<br>
+docker run -d \<br>
+&nbsp;&nbsp;--name rp-web \<br>
+&nbsp;&nbsp;-p 8000:8000 \<br>
+&nbsp;&nbsp;-e DB_ENGINE=postgresql \<br>
+&nbsp;&nbsp;-e DB_HOST=db \<br>
+&nbsp;&nbsp;-e DB_NAME=resourceplanner \<br>
+&nbsp;&nbsp;-e DB_USER=postgres \<br>
+&nbsp;&nbsp;-e DB_PASSWORD_SOURCE=aws \<br>
+&nbsp;&nbsp;-e DB_SECRET_NAME=resourceplanner/db/password \<br>
+&nbsp;&nbsp;-e DJANGO_SECRET_KEY=&lt;secret&gt; \<br>
+&nbsp;&nbsp;-e JOBS_SERVICE_TOKEN=&lt;token&gt; \<br>
+&nbsp;&nbsp;resourceplanner:latest \<br>
+&nbsp;&nbsp;gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
+                </div>
+                <p class="small text-secondary mb-2">
+                    Place a reverse proxy (nginx, Caddy, AWS ALB) in front on port 443 with TLS termination.
+                </p>
+                <p class="small text-secondary mb-0">
+                    Run migrations as part of the startup or as a separate init container:
+                </p>
+                <div class="bg-light rounded p-3 font-monospace small mt-2 mb-0">
+python manage.py migrate --noinput<br>
+python manage.py collectstatic --noinput
+                </div>
+            </div>
+        </div>
+
+        <!-- Deployment: bare metal -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-secondary me-2">5</span>Production deployment — bare metal / VM</h5>
+                <div class="bg-light rounded p-3 font-monospace small mb-3">
+# Install dependencies<br>
+pip install -r requirements.txt<br><br>
+# Set environment (use .env or systemd EnvironmentFile)<br>
+export DB_ENGINE=postgresql<br>
+export DJANGO_SECRET_KEY=&lt;strong-random-key&gt;<br>
+export DB_PASSWORD_SOURCE=env<br>
+export DB_PASSWORD=&lt;db-password&gt;<br><br>
+# Migrate and collect static<br>
+python manage.py migrate --noinput<br>
+python manage.py collectstatic --noinput<br><br>
+# Run with gunicorn (systemd unit recommended)<br>
+gunicorn config.wsgi:application \<br>
+&nbsp;&nbsp;--bind unix:/run/resourceplanner.sock \<br>
+&nbsp;&nbsp;--workers 4 \<br>
+&nbsp;&nbsp;--timeout 120
+                </div>
+                <p class="small text-secondary mb-0">
+                    Serve static files from <code>STATIC_ROOT</code> via nginx.  Point <code>/media/</code> to
+                    <code>MEDIA_ROOT</code> or use S3 with <code>django-storages</code>.
+                </p>
+            </div>
+        </div>
+
+        <!-- Environment variables reference -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><i class="bi bi-list-check me-2 text-secondary"></i>Key environment variables</h5>
+                <table class="table table-sm small mb-0">
+                    <thead class="table-light">
+                        <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>DJANGO_SECRET_KEY</code></td><td><em>required</em></td><td>Django secret key — generate a strong random value</td></tr>
+                        <tr><td><code>DEBUG</code></td><td><code>False</code></td><td>Set <code>True</code> only in development</td></tr>
+                        <tr><td><code>ALLOWED_HOSTS</code></td><td><code>localhost</code></td><td>Comma-separated list of valid hostnames</td></tr>
+                        <tr><td><code>DB_ENGINE</code></td><td><code>sqlite</code></td><td><code>sqlite</code> or <code>postgresql</code></td></tr>
+                        <tr><td><code>DB_NAME</code></td><td><code>resourceplanner</code></td><td>PostgreSQL database name</td></tr>
+                        <tr><td><code>DB_USER</code></td><td><code>postgres</code></td><td>PostgreSQL username</td></tr>
+                        <tr><td><code>DB_PASSWORD_SOURCE</code></td><td><code>env</code></td><td><code>env</code> or <code>aws</code></td></tr>
+                        <tr><td><code>DB_PASSWORD</code></td><td><code>""</code></td><td>Password when <code>DB_PASSWORD_SOURCE=env</code></td></tr>
+                        <tr><td><code>DB_SECRET_NAME</code></td><td><code>resourceplanner/db/password</code></td><td>AWS Secrets Manager secret name</td></tr>
+                        <tr><td><code>SECRETS_SOURCE</code></td><td><code>fernet</code></td><td>Config encryption: <code>fernet</code> or <code>aws</code></td></tr>
+                        <tr><td><code>JOBS_SERVICE_TOKEN</code></td><td><em>required</em></td><td>Bearer token for the Jobs API</td></tr>
+                        <tr><td><code>EMAIL_BACKEND</code></td><td>Django default SMTP</td><td>Override with <code>django_ses.SESBackend</code> for SES</td></tr>
+                        <tr><td><code>AVATAR_STORAGE</code></td><td><code>local</code></td><td><code>local</code> or <code>s3</code></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+    <div class="col-lg-4">
+        <div class="card rp-card sticky-top" style="top:80px">
+            <div class="card-body px-4 py-3">
+                <p class="fw-600 small mb-2">Other guides</p>
+                <ul class="list-unstyled small mb-0">
+                    <li class="mb-1"><a href="/how-to/ai/"><i class="bi bi-robot me-2 text-primary"></i>AI Integration</a></li>
+                    <li class="mb-1"><a href="/how-to/jira/"><i class="bi bi-kanban me-2 text-info"></i>Jira Integration</a></li>
+                    <li class="mb-1"><a href="/how-to/sso/"><i class="bi bi-shield-lock me-2 text-success"></i>SSO / SAML</a></li>
+                    <li class="mb-1"><a href="/how-to/email/"><i class="bi bi-envelope-at me-2 text-warning"></i>Email Setup</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

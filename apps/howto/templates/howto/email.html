@@ -1,0 +1,151 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Email Setup — How-To{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb rp-breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="/how-to/">How-To Guides</a></li>
+            <li class="breadcrumb-item active">Email Setup</li>
+        </ol>
+    </nav>
+    <h1 class="rp-page-title"><i class="bi bi-envelope-at me-2 text-warning"></i>Email Setup</h1>
+    <p class="rp-page-subtitle">Configure SMTP or AWS SES for notifications, reminders, and report emails.</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><i class="bi bi-info-circle me-2 text-warning"></i>Overview</h5>
+                <p class="text-secondary small mb-2">Resource Planner sends email for:</p>
+                <ul class="small text-secondary mb-2">
+                    <li>User creation / password reset</li>
+                    <li>To-Do reminders and @mention notifications</li>
+                    <li>Sprint recharge forecast and actuals</li>
+                    <li>Project approval workflow</li>
+                    <li>Weekly / monthly win reports</li>
+                </ul>
+                <p class="text-secondary small mb-0">
+                    All outbound email goes through Django's email backend.  You can choose <strong>SMTP</strong>
+                    (any provider) or <strong>AWS SES</strong>.
+                </p>
+            </div>
+        </div>
+
+        <!-- SMTP -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-warning text-dark me-2">SMTP</span>SMTP Configuration</h5>
+                <p class="small text-secondary mb-2">Go to <strong>Settings → Integrations → Email</strong> and fill in:</p>
+                <table class="table table-sm small mb-3">
+                    <thead class="table-light">
+                        <tr><th>Field</th><th>Example</th><th>Notes</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><code>SMTP Host</code></td><td><code>smtp.gmail.com</code></td><td>Or your provider's hostname</td></tr>
+                        <tr><td><code>SMTP Port</code></td><td><code>587</code></td><td>Use 465 for SSL, 587 for STARTTLS</td></tr>
+                        <tr><td><code>Use TLS</code></td><td>✓</td><td>Recommended for port 587</td></tr>
+                        <tr><td><code>Use SSL</code></td><td>—</td><td>Enable only for port 465</td></tr>
+                        <tr><td><code>SMTP User</code></td><td><code>noreply@example.com</code></td><td>Auth username</td></tr>
+                        <tr><td><code>SMTP Password</code></td><td><code>••••••••</code></td><td>Stored encrypted</td></tr>
+                        <tr><td><code>Default From</code></td><td><code>Resource Planner &lt;noreply@example.com&gt;</code></td><td>Display name + address</td></tr>
+                    </tbody>
+                </table>
+                <div class="alert alert-info small py-2 mb-0">
+                    <i class="bi bi-lightbulb me-1"></i>
+                    For Gmail: use an <strong>App Password</strong> (not your account password).  Enable 2-FA first, then generate
+                    an app password at <code>myaccount.google.com/apppasswords</code>.
+                </div>
+            </div>
+        </div>
+
+        <!-- AWS SES -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-warning text-dark me-2">SES</span>AWS SES Configuration</h5>
+                <ol class="small text-secondary mb-3">
+                    <li>Verify your sending domain or address in the <strong>AWS SES Console</strong>.</li>
+                    <li>If your account is in the SES sandbox, request production access.</li>
+                    <li>Create an IAM user or role with <code>ses:SendEmail</code> and <code>ses:SendRawEmail</code> permissions.</li>
+                    <li>Generate access keys for the IAM user.</li>
+                    <li>Set environment variables on the Django host:</li>
+                </ol>
+                <div class="bg-light rounded p-3 font-monospace small mb-3">
+                    EMAIL_BACKEND=django_ses.SESBackend<br>
+                    AWS_SES_REGION_NAME=us-east-1<br>
+                    AWS_ACCESS_KEY_ID=&lt;access-key&gt;<br>
+                    AWS_SECRET_ACCESS_KEY=&lt;secret-key&gt;<br>
+                    DEFAULT_FROM_EMAIL=noreply@example.com
+                </div>
+                <p class="small text-secondary mb-2">Install the SES backend:</p>
+                <div class="bg-light rounded p-3 font-monospace small mb-0">
+                    pip install django-ses
+                </div>
+            </div>
+        </div>
+
+        <!-- Email templates -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-warning text-dark me-2">Templates</span>Email Templates</h5>
+                <p class="small text-secondary mb-2">
+                    Each email type has a customisable template.  Go to <strong>Settings → Email Templates</strong>
+                    and select a scenario:
+                </p>
+                <ul class="small text-secondary mb-2">
+                    <li><code>user_created</code> — welcome email with temporary password</li>
+                    <li><code>password_reset</code> — reset link email</li>
+                    <li><code>recharge_forecast</code> — sprint recharge forecast email</li>
+                    <li><code>recharge_actuals</code> — actuals summary email</li>
+                    <li><code>project_approval</code> — project approval notification</li>
+                    <li><code>wins_weekly</code> / <code>wins_monthly</code> — win report emails</li>
+                </ul>
+                <p class="small text-secondary mb-0">
+                    Templates use a <strong>Quill</strong> rich-text editor and support dynamic variables like
+                    <code>{{user_name}}</code>, <code>{{sprint_name}}</code>.  A variable panel on the right lists
+                    all available placeholders for each scenario.
+                </p>
+            </div>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><i class="bi bi-wrench me-2 text-secondary"></i>Troubleshooting</h5>
+                <table class="table table-sm small mb-0">
+                    <thead class="table-light">
+                        <tr><th>Symptom</th><th>Cause</th><th>Fix</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td>Emails not sent</td><td>Backend not configured</td><td>Check <code>EMAIL_BACKEND</code> and SMTP settings; look at Django logs</td></tr>
+                        <tr><td>Authentication error (535)</td><td>Wrong password / app password</td><td>Regenerate app password; check 2-FA requirement</td></tr>
+                        <tr><td>Email goes to spam</td><td>No SPF / DKIM records</td><td>Add SPF TXT record; configure DKIM in SES or your provider</td></tr>
+                        <tr><td>SES AccessDenied</td><td>IAM policy missing SES perms</td><td>Attach <code>AmazonSESFullAccess</code> policy or inline <code>ses:Send*</code></td></tr>
+                        <tr><td>SES sandbox limit</td><td>Only verified addresses allowed</td><td>Request production access in SES console</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+    <div class="col-lg-4">
+        <div class="card rp-card sticky-top" style="top:80px">
+            <div class="card-body px-4 py-3">
+                <p class="fw-600 small mb-2">Other guides</p>
+                <ul class="list-unstyled small mb-0">
+                    <li class="mb-1"><a href="/how-to/ai/"><i class="bi bi-robot me-2 text-primary"></i>AI Integration</a></li>
+                    <li class="mb-1"><a href="/how-to/jira/"><i class="bi bi-kanban me-2 text-info"></i>Jira Integration</a></li>
+                    <li class="mb-1"><a href="/how-to/sso/"><i class="bi bi-shield-lock me-2 text-success"></i>SSO / SAML</a></li>
+                    <li class="mb-1"><a href="/how-to/jobs/"><i class="bi bi-rocket-takeoff me-2 text-secondary"></i>Jobs &amp; Deployment</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

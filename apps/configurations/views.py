@@ -84,3 +84,10 @@ class ProjectApprovalListView(View):
 class RechargeContactsListView(View):
     def get(self, request, *args, **kwargs):
         return render(request, 'configurations/recharge_contacts.html')
+
+
+# ── Database configuration view ───────────────────────────────────────────────
+
+class DatabaseConfigView(View):
+    def get(self, request, *args, **kwargs):
+        return render(request, 'configurations/database.html')

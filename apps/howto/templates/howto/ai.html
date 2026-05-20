@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}AI Integration — How-To{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb rp-breadcrumb mb-2">
+                <li class="breadcrumb-item"><a href="/how-to/">How-To Guides</a></li>
+                <li class="breadcrumb-item active">AI Integration</li>
+            </ol>
+        </nav>
+        <h1 class="rp-page-title"><i class="bi bi-robot me-2 text-primary"></i>AI Integration</h1>
+        <p class="rp-page-subtitle">Connect an OpenAI-compatible model to Resource Planner.</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+    <div class="col-lg-8">
+
+        <!-- Overview -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><i class="bi bi-info-circle me-2 text-primary"></i>Overview</h5>
+                <p class="text-secondary small mb-2">
+                    Resource Planner's AI module connects to any <strong>OpenAI-compatible API</strong> — including
+                    OpenAI, Azure OpenAI, and self-hosted models via LiteLLM or Ollama.  Once configured, AI powers:
+                </p>
+                <ul class="small text-secondary mb-0">
+                    <li>Sprint forecast narrative generation</li>
+                    <li>Smart suggestions on resource plans</li>
+                    <li>Recharge email draft assistance</li>
+                    <li>Natural-language search (future)</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Step 1 -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-primary me-2">1</span>Prerequisites</h5>
+                <ul class="small text-secondary mb-0">
+                    <li>An OpenAI API key <em>or</em> an Azure OpenAI deployment with endpoint URL and key.</li>
+                    <li>Django running with the <code>configurations</code> app installed (enabled by default).</li>
+                    <li>Staff or superuser account to access <strong>Settings → Integrations</strong>.</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-primary me-2">2</span>Enter your credentials</h5>
+                <ol class="small text-secondary mb-3">
+                    <li>Navigate to <strong>Settings → Integrations → AI</strong>.</li>
+                    <li>Toggle the module <strong>Enabled</strong>.</li>
+                    <li>Paste your <code>API Key</code>.  It will be encrypted at rest (Fernet or AWS SM depending on your <code>SECRETS_SOURCE</code> env var).</li>
+                    <li>Set the <code>API Base URL</code> if using Azure or a custom endpoint, e.g.:<br>
+                        <code class="d-block bg-light rounded px-2 py-1 mt-1">https://&lt;your-resource&gt;.openai.azure.com/openai/deployments/&lt;deployment&gt;</code>
+                    </li>
+                    <li>Set the <code>Model</code> field, e.g. <code>gpt-4o</code> or <code>gpt-3.5-turbo</code>.</li>
+                    <li>Click <strong>Save</strong>.</li>
+                </ol>
+                <div class="alert alert-warning small mb-0 py-2">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    Never hard-code API keys in <code>settings.py</code> or commit them to source control.
+                    Use the UI or <code>SECRETS_SOURCE=aws</code> with AWS Secrets Manager.
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-primary me-2">3</span>Verify the connection</h5>
+                <ol class="small text-secondary mb-0">
+                    <li>After saving, click <strong>Test Connection</strong> on the AI integration card.</li>
+                    <li>A green success banner confirms the model is reachable and the key is valid.</li>
+                    <li>A red error banner shows the HTTP status or network error — check firewall rules, proxy settings, or the key permissions.</li>
+                </ol>
+            </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-primary me-2">4</span>Azure OpenAI specifics</h5>
+                <p class="small text-secondary mb-2">When using Azure OpenAI you must provide both the endpoint <em>and</em> the API version:</p>
+                <div class="bg-light rounded p-3 font-monospace small mb-2">
+                    API Base URL: https://&lt;resource&gt;.openai.azure.com/<br>
+                    Model: &lt;deployment-name&gt;<br>
+                    API Version: 2024-02-01  <span class="text-secondary"># stored in the API Key field as JSON: {"key":"…","api_version":"…"}</span>
+                </div>
+                <p class="small text-secondary mb-0">
+                    Resource Planner's AI service reads <code>AZURE_OPENAI_API_VERSION</code> from the environment as a fallback.
+                </p>
+            </div>
+        </div>
+
+        <!-- Step 5 -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><span class="badge bg-primary me-2">5</span>Self-hosted / local models</h5>
+                <p class="small text-secondary mb-2">
+                    Any OpenAI-compatible server works.  For <strong>Ollama</strong>:
+                </p>
+                <div class="bg-light rounded p-3 font-monospace small mb-3">
+                    API Base URL: http://localhost:11434/v1<br>
+                    API Key: ollama  <span class="text-secondary"># any non-empty string</span><br>
+                    Model: llama3
+                </div>
+                <p class="small text-secondary mb-0">
+                    Ensure the server is reachable from the host running Django.  In Docker, use the
+                    service name or host network.
+                </p>
+            </div>
+        </div>
+
+        <!-- Troubleshooting -->
+        <div class="card rp-card mb-4">
+            <div class="card-body px-4 py-4">
+                <h5 class="fw-600 mb-3"><i class="bi bi-wrench me-2 text-secondary"></i>Troubleshooting</h5>
+                <table class="table table-sm small mb-0">
+                    <thead class="table-light">
+                        <tr><th>Symptom</th><th>Likely cause</th><th>Fix</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>401 Unauthorized</td>
+                            <td>Wrong or expired API key</td>
+                            <td>Regenerate key in OpenAI dashboard and re-save</td>
+                        </tr>
+                        <tr>
+                            <td>404 Not Found</td>
+                            <td>Wrong base URL or model name</td>
+                            <td>Check deployment name (Azure) or model slug</td>
+                        </tr>
+                        <tr>
+                            <td>Connection timeout</td>
+                            <td>Firewall / proxy blocking outbound HTTPS</td>
+                            <td>Set <code>HTTPS_PROXY</code> env var or allow egress on port 443</td>
+                        </tr>
+                        <tr>
+                            <td>Feature not appearing</td>
+                            <td>Module not enabled</td>
+                            <td>Toggle Enabled and save the integration card</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Sidebar nav -->
+    <div class="col-lg-4">
+        <div class="card rp-card sticky-top" style="top:80px">
+            <div class="card-body px-4 py-3">
+                <p class="fw-600 small mb-2">Other guides</p>
+                <ul class="list-unstyled small mb-0">
+                    <li class="mb-1"><a href="/how-to/jira/"><i class="bi bi-kanban me-2 text-info"></i>Jira Integration</a></li>
+                    <li class="mb-1"><a href="/how-to/sso/"><i class="bi bi-shield-lock me-2 text-success"></i>SSO / SAML</a></li>
+                    <li class="mb-1"><a href="/how-to/email/"><i class="bi bi-envelope-at me-2 text-warning"></i>Email Setup</a></li>
+                    <li class="mb-1"><a href="/how-to/jobs/"><i class="bi bi-rocket-takeoff me-2 text-secondary"></i>Jobs &amp; Deployment</a></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}

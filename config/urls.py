@@ -105,6 +105,7 @@ urlpatterns = [
     path("security/", include("apps.configurations.security_urls")),
     path("project-approval/", include("apps.configurations.project_approval_urls")),
     path("recharge-contacts/", include("apps.configurations.recharge_contacts_urls")),
+    path("database/", include("apps.configurations.database_urls")),
     # Generic Modules
     path("import/", include("apps.import.urls")),
     # Reporting
@@ -128,6 +129,11 @@ urlpatterns = [
     # To-Do
     path("api/v1/", include("apps.todos.api_urls")),
     path("todos/", include("apps.todos.urls")),
+    # Org Chart
+    path("api/v1/", include("apps.orgchart.api_urls")),
+    path("org-chart/", include("apps.orgchart.urls")),
+    # How-To Guides
+    path("how-to/", include("apps.howto.urls")),
     # Jobs API (service-token auth only)
     path("api/v1/", include("apps.jobs_admin.api_urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

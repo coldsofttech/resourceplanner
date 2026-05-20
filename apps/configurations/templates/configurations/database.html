@@ -1,0 +1,214 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Database Configuration{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3 d-flex align-items-start justify-content-between flex-wrap gap-3">
+    <div>
+        <h1 class="rp-page-title"><i class="bi bi-database me-2"></i>Database Configuration</h1>
+        <p class="rp-page-subtitle">Connection settings, engine selection, and AWS Secrets Manager integration.</p>
+    </div>
+    <div>
+        <button class="btn btn-outline-secondary btn-sm" id="btn-test-connection">
+            <i class="bi bi-plug me-1"></i>Test Connection
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="db-banner" class="alert d-none mb-4" role="alert"></div>
+
+<!-- Current status card -->
+<div class="row g-4 mb-4">
+    <div class="col-lg-6">
+        <div class="card rp-card h-100">
+            <div class="card-body px-4 py-3">
+                <h6 class="fw-600 mb-3"><i class="bi bi-info-circle me-2 text-primary"></i>Current Status</h6>
+                <div id="db-status-body"><p class="text-secondary small">Loading…</p></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card rp-card h-100">
+            <div class="card-body px-4 py-3">
+                <h6 class="fw-600 mb-3"><i class="bi bi-lightning me-2 text-warning"></i>Quick Switch</h6>
+                <p class="text-secondary small mb-3">
+                    The active engine is controlled by the <code>DB_ENGINE</code> environment variable.
+                    Set it before starting Django.
+                </p>
+                <table class="table table-sm rp-table mb-0">
+                    <thead><tr><th>Engine</th><th>Env var value</th></tr></thead>
+                    <tbody>
+                        <tr><td>SQLite (local dev)</td><td><code>DB_ENGINE=sqlite</code></td></tr>
+                        <tr><td>PostgreSQL (production)</td><td><code>DB_ENGINE=postgresql</code></td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SQLite section -->
+<div class="card rp-card mb-4">
+    <div class="card-body px-4 py-3">
+        <h6 class="fw-600 mb-2"><i class="bi bi-file-earmark-binary me-2"></i>SQLite (Local Development)</h6>
+        <p class="text-secondary small mb-3">No additional configuration required. The database file is stored at <code>db.sqlite3</code> in the project root.</p>
+        <div class="alert alert-info py-2 small mb-0">
+            <i class="bi bi-lightbulb me-2"></i>
+            SQLite is the default engine when <code>DB_ENGINE</code> is not set or is set to <code>sqlite</code>.
+            It is <strong>not suitable for production use</strong> — use PostgreSQL instead.
+        </div>
+    </div>
+</div>
+
+<!-- PostgreSQL section -->
+<div class="card rp-card mb-4">
+    <div class="card-body px-4 py-3">
+        <h6 class="fw-600 mb-3"><i class="bi bi-server me-2"></i>PostgreSQL (Production)</h6>
+        <p class="text-secondary small mb-3">
+            Set <code>DB_ENGINE=postgresql</code> and the following environment variables to connect to your PostgreSQL server.
+            Install the driver with <code>pip install psycopg2-binary</code> (already included in <code>requirements.txt</code>).
+        </p>
+
+        <div class="table-responsive mb-4">
+            <table class="table table-sm rp-table">
+                <thead>
+                    <tr>
+                        <th>Env var</th>
+                        <th>Default</th>
+                        <th>Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>DB_ENGINE</code></td><td><code>sqlite</code></td><td>Must be set to <code>postgresql</code></td></tr>
+                    <tr><td><code>DB_NAME</code></td><td><code>resourceplanner</code></td><td>Database name</td></tr>
+                    <tr><td><code>DB_USER</code></td><td><code>postgres</code></td><td>Database user</td></tr>
+                    <tr><td><code>DB_HOST</code></td><td><code>localhost</code></td><td>Hostname or IP of the PostgreSQL server</td></tr>
+                    <tr><td><code>DB_PORT</code></td><td><code>5432</code></td><td>TCP port</td></tr>
+                    <tr><td><code>DB_PASSWORD_SOURCE</code></td><td><code>env</code></td><td><code>env</code> or <code>aws</code></td></tr>
+                    <tr><td><code>DB_PASSWORD</code></td><td>—</td><td>Password (used when <code>DB_PASSWORD_SOURCE=env</code>)</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h6 class="fw-600 mb-2"><i class="bi bi-shield-lock me-2 text-success"></i>AWS Secrets Manager (recommended for production)</h6>
+        <p class="text-secondary small mb-3">
+            When <code>DB_PASSWORD_SOURCE=aws</code>, the application fetches the database password from
+            AWS Secrets Manager at startup — the password never lives in an environment variable or config file.
+        </p>
+        <div class="table-responsive mb-3">
+            <table class="table table-sm rp-table">
+                <thead>
+                    <tr><th>Env var</th><th>Default</th><th>Description</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>DB_PASSWORD_SOURCE</code></td><td><code>env</code></td><td>Set to <code>aws</code> to enable</td></tr>
+                    <tr><td><code>DB_SECRET_NAME</code></td><td><code>resourceplanner/db/password</code></td><td>Secret name in AWS Secrets Manager</td></tr>
+                    <tr><td><code>DB_SECRET_KEY</code></td><td><code>password</code></td><td>JSON key inside the secret (if secret is JSON)</td></tr>
+                    <tr><td><code>AWS_DEFAULT_REGION</code></td><td><code>us-east-1</code></td><td>AWS region where the secret lives</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="alert alert-warning py-2 small mb-0">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            The secret value can be a <strong>plain string</strong> (just the password) or a
+            <strong>JSON object</strong> such as <code>{"password": "mysecretpw"}</code>.
+            Use <code>DB_SECRET_KEY</code> to specify the JSON field name if using JSON format.
+        </div>
+    </div>
+</div>
+
+<!-- Setup steps -->
+<div class="card rp-card mb-4">
+    <div class="card-body px-4 py-3">
+        <h6 class="fw-600 mb-3"><i class="bi bi-list-check me-2"></i>PostgreSQL + AWS Secrets Manager — Setup Steps</h6>
+        <ol class="mb-0 small text-secondary" style="line-height:2">
+            <li>Create a PostgreSQL database and user on your server or RDS instance.</li>
+            <li>Create a secret in AWS Secrets Manager (e.g. <code>resourceplanner/db/password</code>) containing the password.</li>
+            <li>Attach an IAM policy to your application's role granting <code>secretsmanager:GetSecretValue</code> on that secret ARN.</li>
+            <li>Set the required env vars in your deployment environment (<code>DB_ENGINE</code>, <code>DB_NAME</code>, <code>DB_USER</code>, <code>DB_HOST</code>, <code>DB_PASSWORD_SOURCE=aws</code>, <code>DB_SECRET_NAME</code>, <code>AWS_DEFAULT_REGION</code>).</li>
+            <li>Run <code>python manage.py migrate</code> against the new PostgreSQL database.</li>
+            <li>Use the <strong>Test Connection</strong> button above to verify connectivity.</li>
+        </ol>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', async function () {
+    const banner   = document.getElementById('db-banner');
+    const statusEl = document.getElementById('db-status-body');
+
+    function showBanner(msg, type) {
+        banner.className = `alert alert-${type} mb-4`;
+        banner.textContent = msg;
+        banner.classList.remove('d-none');
+        setTimeout(() => banner.classList.add('d-none'), 5000);
+    }
+
+    async function apiFetch(url, opts) {
+        const csrf = (document.cookie.split(';').find(c => c.trim().startsWith('csrftoken=')) || '').split('=')[1] || '';
+        const res = await fetch(url, {
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            ...opts,
+        });
+        const body = res.status === 204 ? null : await res.json().catch(() => ({}));
+        if (!res.ok) throw body;
+        return body;
+    }
+
+    // Load status
+    try {
+        const data = await apiFetch('/api/v1/database/status/', { method: 'GET' });
+        const rows = data.engine === 'postgresql'
+            ? [
+                ['Engine', '<span class="badge bg-primary">PostgreSQL</span>'],
+                ['Host', data.host || '—'],
+                ['Port', data.port || '5432'],
+                ['Database', data.name || '—'],
+                ['User', data.user || '—'],
+                ['Password source', data.password_source === 'aws'
+                    ? '<span class="badge bg-success">AWS Secrets Manager</span>'
+                    : '<span class="badge bg-secondary">Environment variable</span>'],
+                ...(data.secret_name ? [['Secret name', `<code>${data.secret_name}</code>`]] : []),
+              ]
+            : [
+                ['Engine', '<span class="badge bg-secondary">SQLite</span>'],
+                ['File', `<code>${data.path || 'db.sqlite3'}</code>`],
+              ];
+        statusEl.innerHTML = rows.map(([label, val]) => `
+            <div class="d-flex justify-content-between align-items-center py-1 border-bottom" style="font-size:13px">
+                <span class="text-secondary">${label}</span>
+                <span>${val}</span>
+            </div>`).join('');
+    } catch {
+        statusEl.innerHTML = '<p class="text-danger small">Could not load status.</p>';
+    }
+
+    // Test connection
+    document.getElementById('btn-test-connection').addEventListener('click', async function () {
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Testing…';
+        try {
+            const result = await apiFetch('/api/v1/database/test-connection/', { method: 'POST' });
+            if (result.ok) {
+                showBanner(`Connection successful (${result.vendor}).`, 'success');
+            } else {
+                showBanner(`Connection failed: ${result.error}`, 'danger');
+            }
+        } catch (err) {
+            const msg = (err && err.error) ? err.error : 'Connection test failed.';
+            showBanner(msg, 'danger');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-plug me-1"></i>Test Connection';
+        }
+    });
+});
+</script>
+{% endblock %}

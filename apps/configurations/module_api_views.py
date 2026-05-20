@@ -146,3 +146,52 @@ class ProjectApprovalAPIView(_ModuleAPIView):
 
 class RechargeContactsAPIView(_ModuleAPIView):
     module = 'recharge_contacts'
+
+
+# ── Database config endpoints ──────────────────────────────────────────────────
+
+class DatabaseStatusAPIView(APIView):
+    """GET /api/v1/database/status/ — return current DB config (non-sensitive)."""
+
+    def get(self, request):
+        import os
+        from django.conf import settings as django_settings
+
+        engine = os.environ.get('DB_ENGINE', 'sqlite').lower()
+        db     = django_settings.DATABASES.get('default', {})
+
+        if engine == 'postgresql':
+            payload = {
+                'engine':          'postgresql',
+                'host':            db.get('HOST', ''),
+                'port':            db.get('PORT', '5432'),
+                'name':            db.get('NAME', ''),
+                'user':            db.get('USER', ''),
+                'password_source': os.environ.get('DB_PASSWORD_SOURCE', 'env'),
+                'secret_name':     os.environ.get('DB_SECRET_NAME', '') if os.environ.get('DB_PASSWORD_SOURCE') == 'aws' else '',
+            }
+        else:
+            payload = {
+                'engine': 'sqlite',
+                'path':   str(db.get('NAME', '')),
+            }
+
+        return Response(payload)
+
+
+class DatabaseTestConnectionAPIView(APIView):
+    """POST /api/v1/database/test-connection/ — verify DB is reachable."""
+
+    def post(self, request):
+        from django.db import connections
+        try:
+            conn = connections['default']
+            conn.ensure_connection()
+            vendor = conn.vendor          # 'sqlite', 'postgresql', etc.
+            return Response({'ok': True, 'vendor': vendor})
+        except Exception as exc:
+            logger.warning('DB test-connection failed: %s', exc)
+            return Response(
+                {'ok': False, 'error': str(exc)},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
