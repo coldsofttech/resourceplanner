@@ -23,6 +23,17 @@ CONFIGURATION_DEFAULTS = {
         "is_secret": False,
         "module": "general",
     },
+    "BASE_URL": {
+        "label": "Base URL",
+        "value": "",
+        "description": (
+            "Absolute base URL of this deployment (e.g. https://resourceplanner.example.com). "
+            "Used to generate SSO redirect URIs and email links. No trailing slash."
+        ),
+        "data_type": "string",
+        "is_secret": False,
+        "module": "general",
+    },
     # Avatar Storage
     "AVATAR_STORAGE": {
         "label": "Avatar Storage Backend",

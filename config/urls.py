@@ -134,6 +134,10 @@ urlpatterns = [
     path("org-chart/", include("apps.orgchart.urls")),
     # How-To Guides
     path("how-to/", include("apps.howto.urls")),
+    # First-time setup wizard (bypasses auth middleware)
+    path("setup/", include("apps.setup.urls")),
+    # API token authentication
+    path("api/v1/auth/token/", include("apps.users.token_urls")),
     # Jobs API (service-token auth only)
     path("api/v1/", include("apps.jobs_admin.api_urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

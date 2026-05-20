@@ -52,7 +52,14 @@ class IntegrationEmailListView(View):
 
 class IntegrationSSOListView(View):
     def get(self, request, *args, **kwargs):
-        return render(request, 'configurations/integration_sso.html')
+        base = request.build_absolute_uri('/').rstrip('/')
+        return render(request, 'configurations/integration_sso.html', {
+            'sp_base_url':        base,
+            'oauth2_redirect_uri': f'{base}/sso/oauth/callback/',
+            'saml_entity_id':     base,
+            'saml_acs_url':       f'{base}/saml/acs/',
+            'saml_metadata_url':  f'{base}/saml2/metadata/',
+        })
 
 
 class IntegrationJiraListView(View):

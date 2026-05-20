@@ -30,3 +30,8 @@ def howto_email(request):
 @login_required
 def howto_jobs(request):
     return render(request, 'howto/jobs.html')
+
+
+@login_required
+def howto_api(request):
+    return render(request, 'howto/api.html')

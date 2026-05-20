@@ -13,6 +13,7 @@ _EXEMPT = (
     '/logout/',
     '/register/',
     '/password-reset/',
+    '/setup/',
     '/profile/change-password/',
     '/sso/',
     '/static/',

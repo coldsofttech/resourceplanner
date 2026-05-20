@@ -59,8 +59,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 function updateProtocolPanels() {
     const protocol = document.getElementById('ctrl-SSO_PROTOCOL')?.value ?? 'oauth2';
     document.getElementById('panel-oauth2').classList.toggle('d-none', protocol !== 'oauth2');
-    document.getElementById('panel-saml').classList.toggle('d-none', protocol !== 'saml');
+    document.getElementById('panel-saml').classList.toggle('d-none',   protocol !== 'saml');
+
+    // Show the relevant generated-config card
+    document.getElementById('generated-oauth2')?.classList.toggle('d-none', protocol !== 'oauth2');
+    document.getElementById('generated-saml')?.classList.toggle('d-none',   protocol !== 'saml');
+
+    // Auto-fill SP Entity ID and ACS URL when switching to SAML and fields are blank
+    if (protocol === 'saml') {
+        const entityEl = document.getElementById('inp-SSO_SAML_SP_ENTITY_ID');
+        const acsEl    = document.getElementById('inp-SSO_SAML_SP_ACS_URL');
+        const entity   = document.getElementById('gen-saml-entity')?.textContent?.trim();
+        const acs      = document.getElementById('gen-saml-acs')?.textContent?.trim();
+        if (entityEl && !entityEl.value && entity) entityEl.value = entity;
+        if (acsEl    && !acsEl.value    && acs)    acsEl.value = acs;
+    }
 }
+
+window.rpCopyText = function(elementId) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    const text = el.textContent || el.value || '';
+    navigator.clipboard?.writeText(text).catch(() => {});
+};
 
 async function saveAll() {
     const protocol = document.getElementById('ctrl-SSO_PROTOCOL')?.value ?? 'oauth2';

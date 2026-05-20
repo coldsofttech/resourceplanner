@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}API Documentation — How-To{% endblock %}
+
+{% block page_header %}
+<div class="rp-page-header px-4 pt-4 pb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb rp-breadcrumb mb-2">
+            <li class="breadcrumb-item"><a href="/how-to/">How-To Guides</a></li>
+            <li class="breadcrumb-item active">API Documentation</li>
+        </ol>
+    </nav>
+    <h1 class="rp-page-title"><i class="bi bi-braces me-2 text-primary"></i>API Documentation</h1>
+    <p class="rp-page-subtitle">Authenticate and interact with the ResourcePlanner REST API from scripts, integrations, or any HTTP client.</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+<div class="col-lg-8">
+
+<!-- Overview -->
+<div class="card rp-card mb-4">
+    <div class="card-body px-4 py-4">
+        <h5 class="fw-600 mb-3"><i class="bi bi-info-circle me-2 text-primary"></i>Overview</h5>
+        <p class="text-secondary small mb-2">
+            The ResourcePlanner API is a <strong>REST API</strong> that returns JSON. All endpoints live under
+            <code>/api/v1/</code>. Requests must be authenticated; unauthenticated requests receive a
+            <code>403 Forbidden</code> response.
+        </p>
+        <p class="text-secondary small mb-0">
+            Three authentication methods are supported: <strong>Token</strong> (recommended for scripts),
+            <strong>Session</strong> (browser / cookie), and <strong>Basic</strong> (email:password,
+            useful for quick testing with curl).
+        </p>
+    </div>
+</div>
+
+<!-- Authentication -->
+<div class="card rp-card mb-4">
+    <div class="card-body px-4 py-4">
+        <h5 class="fw-600 mb-4"><i class="bi bi-key me-2 text-warning"></i>Authentication</h5>
+
+        <!-- Token auth -->
+        <h6 class="fw-600 mb-2">1 — Token Authentication (recommended)</h6>
+        <p class="text-secondary small mb-2">
+            Obtain a token by posting your email and password once. Include the token in every subsequent request header.
+        </p>
+
+        <p class="small fw-500 mb-1">Obtain a token</p>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-3" style="white-space:pre">POST /api/v1/auth/token/
+Content-Type: application/json
+
+{
+    "username": "your@email.com",
+    "password": "your-password"
+}
+
+<span class="text-success">→ 200 OK</span>
+{
+    "token": "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"
+}</div>
+
+        <p class="small fw-500 mb-1">Use the token in subsequent requests</p>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-3" style="white-space:pre">GET /api/v1/users/me/
+Authorization: Token 9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b</div>
+
+        <p class="small fw-500 mb-1">curl example</p>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-3" style="white-space:pre">TOKEN=$(curl -s -X POST https://yourhost/api/v1/auth/token/ \
+  -H "Content-Type: application/json" \
+  -d '{"username":"your@email.com","password":"your-password"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+
+curl -H "Authorization: Token $TOKEN" https://yourhost/api/v1/users/me/</div>
+
+        <!-- Basic auth -->
+        <h6 class="fw-600 mb-2 mt-4">2 — HTTP Basic Authentication</h6>
+        <p class="text-secondary small mb-2">
+            Pass <code>email:password</code> as Base64-encoded Basic credentials. Convenient for quick tests but not recommended for production scripts (credentials sent on every request).
+        </p>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-3" style="white-space:pre">curl -u "your@email.com:your-password" \
+  https://yourhost/api/v1/users/me/</div>
+
+        <!-- Python example -->
+        <h6 class="fw-600 mb-2 mt-4">3 — Python (requests library)</h6>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-0" style="white-space:pre">import requests
+
+BASE = "https://yourhost"
+
+# Obtain token
+r = requests.post(f"{BASE}/api/v1/auth/token/",
+                  json={"username": "your@email.com", "password": "your-password"})
+r.raise_for_status()
+TOKEN = r.json()["token"]
+
+session = requests.Session()
+session.headers.update({"Authorization": f"Token {TOKEN}"})
+
+# All subsequent calls use the session
+me = session.get(f"{BASE}/api/v1/users/me/").json()
+print(me["email"], me["first_name"])</div>
+    </div>
+</div>
+
+<!-- Use case 1: Users API -->
+<div class="card rp-card mb-4">
+    <div class="card-body px-4 py-4">
+        <h5 class="fw-600 mb-1"><i class="bi bi-people me-2 text-info"></i>Use Case 1 — Users API</h5>
+        <p class="text-secondary small mb-4">List users, look up a specific user, and retrieve your own profile.</p>
+
+        <h6 class="fw-600 mb-2">List all users</h6>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-2" style="white-space:pre">GET /api/v1/users/
+
+<span class="text-success">→ 200 OK</span>
+{
+    "count": 42,
+    "next": "/api/v1/users/?page=2",
+    "previous": null,
+    "results": [
+        {
+            "id": 1,
+            "email": "alice@example.com",
+            "first_name": "Alice",
+            "last_name": "Smith",
+            "is_active": true,
+            "is_staff": false,
+            "group_ids": [3],
+            "explicit_category_ids": [],
+            "effective_permission_ids": [...]
+        },
+        ...
+    ]
+}</div>
+        <p class="text-secondary small mb-3">
+            Add <code>?page_size=100</code> to fetch more records per page (max 200).
+            Add <code>?search=alice</code> to filter by name or email.
+        </p>
+
+        <h6 class="fw-600 mb-2">Get a single user</h6>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-3" style="white-space:pre">GET /api/v1/users/1/
+
+<span class="text-success">→ 200 OK</span>
+{
+    "id": 1,
+    "email": "alice@example.com",
+    "first_name": "Alice",
+    "last_name": "Smith",
+    "is_active": true,
+    "last_login": "2025-05-18T09:23:11Z",
+    "group_ids": [3],
+    ...
+}</div>
+
+        <h6 class="fw-600 mb-2">Get your own profile</h6>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-3" style="white-space:pre">GET /api/v1/users/me/
+
+<span class="text-success">→ 200 OK</span>
+{ "id": 7, "email": "you@example.com", "first_name": "You", ... }</div>
+
+        <h6 class="fw-600 mb-2">Python script — export active users to CSV</h6>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-0" style="white-space:pre">import csv, requests
+
+BASE  = "https://yourhost"
+TOKEN = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"
+HDR   = {"Authorization": f"Token {TOKEN}"}
+
+users, page = [], 1
+while True:
+    r = requests.get(f"{BASE}/api/v1/users/", params={"page": page, "page_size": 100}, headers=HDR)
+    r.raise_for_status()
+    data = r.json()
+    users.extend(data["results"])
+    if not data["next"]:
+        break
+    page += 1
+
+with open("users.csv", "w", newline="") as f:
+    w = csv.DictWriter(f, fieldnames=["id", "email", "first_name", "last_name", "is_active"])
+    w.writeheader()
+    for u in users:
+        w.writerow({k: u.get(k, "") for k in w.fieldnames})
+
+print(f"Exported {len(users)} users.")</div>
+    </div>
+</div>
+
+<!-- Use case 2: Team Members API -->
+<div class="card rp-card mb-4">
+    <div class="card-body px-4 py-4">
+        <h5 class="fw-600 mb-1"><i class="bi bi-person-workspace me-2 text-success"></i>Use Case 2 — Team Members API</h5>
+        <p class="text-secondary small mb-4">List team members, filter by team, and check current assignments.</p>
+
+        <h6 class="fw-600 mb-2">List team members</h6>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-2" style="white-space:pre">GET /api/v1/team-members/
+
+<span class="text-success">→ 200 OK</span>
+{
+    "count": 18,
+    "results": [
+        {
+            "id": 12,
+            "name": "Bob Jones",
+            "email": "bob@example.com",
+            "role": { "id": 2, "name": "Developer" },
+            "employment_type": { "id": 1, "name": "Full-time" },
+            "is_active": true,
+            "current_assignments": [
+                { "team": { "id": 5, "name": "Alpha" }, "allocation": 100 }
+            ]
+        },
+        ...
+    ]
+}</div>
+
+        <h6 class="fw-600 mb-2">Filter by delivery team</h6>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-3" style="white-space:pre">GET /api/v1/team-members/?team=5
+
+Returns only members currently assigned to team 5.</div>
+
+        <h6 class="fw-600 mb-2">Python script — list members with their teams</h6>
+        <div class="bg-dark text-light rounded p-3 font-monospace small mb-0" style="white-space:pre">import requests
+
+BASE  = "https://yourhost"
+TOKEN = "9944b09199c62bcf9418ad846dd0e4bbdfc6ee4b"
+HDR   = {"Authorization": f"Token {TOKEN}"}
+
+r = requests.get(f"{BASE}/api/v1/team-members/",
+                 params={"page_size": 200}, headers=HDR)
+r.raise_for_status()
+
+for m in r.json()["results"]:
+    teams = ", ".join(a["team"]["name"] for a in m.get("current_assignments", []))
+    print(f'{m["name"]:30s}  {m["role"]["name"]:20s}  teams: {teams or "—"}')</div>
+    </div>
+</div>
+
+<!-- Error codes -->
+<div class="card rp-card mb-4">
+    <div class="card-body px-4 py-4">
+        <h5 class="fw-600 mb-3"><i class="bi bi-exclamation-triangle me-2 text-danger"></i>Common Error Responses</h5>
+        <table class="table table-sm small mb-0">
+            <thead class="table-light">
+                <tr><th>Status</th><th>Meaning</th><th>Fix</th></tr>
+            </thead>
+            <tbody>
+                <tr><td><code>401</code></td><td>No credentials provided</td><td>Add <code>Authorization</code> header</td></tr>
+                <tr><td><code>403</code></td><td>Invalid token / insufficient permissions</td><td>Verify token; check user groups</td></tr>
+                <tr><td><code>404</code></td><td>Resource not found</td><td>Check the ID in the URL</td></tr>
+                <tr><td><code>400</code></td><td>Validation error</td><td>Read <code>response.json()</code> for field-level errors</td></tr>
+                <tr><td><code>429</code></td><td>Rate limited (if enabled)</td><td>Reduce request frequency</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</div><!-- /col-lg-8 -->
+
+<!-- Sidebar -->
+<div class="col-lg-4">
+    <div class="card rp-card sticky-top" style="top:80px">
+        <div class="card-body px-4 py-3">
+            <p class="fw-600 small mb-2">On this page</p>
+            <ul class="list-unstyled small mb-3">
+                <li class="mb-1"><a href="#" class="rp-link"><i class="bi bi-key me-1"></i>Authentication</a></li>
+                <li class="mb-1 ms-3"><a href="#" class="text-secondary">Token (recommended)</a></li>
+                <li class="mb-1 ms-3"><a href="#" class="text-secondary">Basic auth</a></li>
+                <li class="mb-1 ms-3"><a href="#" class="text-secondary">Python example</a></li>
+                <li class="mb-1"><a href="#" class="rp-link"><i class="bi bi-people me-1"></i>Users API</a></li>
+                <li class="mb-1"><a href="#" class="rp-link"><i class="bi bi-person-workspace me-1"></i>Team Members API</a></li>
+                <li class="mb-1"><a href="#" class="rp-link"><i class="bi bi-exclamation-triangle me-1"></i>Error codes</a></li>
+            </ul>
+            <hr class="my-2">
+            <p class="fw-600 small mb-2">Token endpoint</p>
+            <code class="small d-block bg-light rounded px-2 py-1 mb-3">POST /api/v1/auth/token/</code>
+            <p class="fw-600 small mb-2">Other guides</p>
+            <ul class="list-unstyled small mb-0">
+                <li class="mb-1"><a href="/how-to/sso/"><i class="bi bi-shield-lock me-2 text-success"></i>SSO Setup</a></li>
+                <li class="mb-1"><a href="/how-to/email/"><i class="bi bi-envelope-at me-2 text-warning"></i>Email Setup</a></li>
+                <li class="mb-1"><a href="/how-to/ai/"><i class="bi bi-robot me-2 text-primary"></i>AI Integration</a></li>
+                <li class="mb-1"><a href="/how-to/jobs/"><i class="bi bi-rocket-takeoff me-2 text-secondary"></i>Jobs &amp; Deployment</a></li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+</div><!-- /row -->
+{% endblock %}

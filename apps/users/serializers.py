@@ -191,12 +191,11 @@ class UserGroupMemberSerializer(serializers.ModelSerializer):
     full_name = serializers.SerializerMethodField()
     avatar_display = serializers.SerializerMethodField()
     joined_at = serializers.SerializerMethodField()
-    is_default_admin = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = ['id', 'email', 'first_name', 'last_name', 'full_name',
-                  'is_active', 'is_staff', 'avatar_display', 'joined_at', 'is_default_admin']
+                  'is_active', 'is_staff', 'avatar_display', 'joined_at']
 
     def get_full_name(self, obj):
         return obj.get_full_name() or obj.email
@@ -216,10 +215,6 @@ class UserGroupMemberSerializer(serializers.ModelSerializer):
         # Django's auth.Group M2M has no timestamp
         return None
 
-    def get_is_default_admin(self, obj):
-        from apps.users.apps import DEFAULT_ADMIN_EMAIL
-        return obj.email.lower() == DEFAULT_ADMIN_EMAIL.lower()
-
 
 class UserGroupSerializer(serializers.ModelSerializer):
     member_count = serializers.SerializerMethodField()
@@ -228,14 +223,16 @@ class UserGroupSerializer(serializers.ModelSerializer):
     description = serializers.SerializerMethodField()
     created_at = serializers.SerializerMethodField()
     updated_at = serializers.SerializerMethodField()
-    permission_ids = serializers.SerializerMethodField()
-    category_ids = serializers.SerializerMethodField()
+    permission_ids        = serializers.SerializerMethodField()
+    category_ids          = serializers.SerializerMethodField()
+    category_assignments  = serializers.SerializerMethodField()
 
     class Meta:
         model = Group
         fields = [
             'id', 'name', 'description', 'is_admin_group', 'is_system',
-            'member_count', 'permission_ids', 'category_ids', 'created_at', 'updated_at',
+            'member_count', 'permission_ids', 'category_ids', 'category_assignments',
+            'created_at', 'updated_at',
         ]
 
     def get_member_count(self, obj):
@@ -280,6 +277,15 @@ class UserGroupSerializer(serializers.ModelSerializer):
         except Exception:
             return []
 
+    def get_category_assignments(self, obj):
+        try:
+            return [
+                {'id': a.category_id, 'scope_override': a.scope_override}
+                for a in obj.profile.category_assignments.select_related('category').all()
+            ]
+        except Exception:
+            return []
+
     def validate_name(self, value):
         name = value.strip()
         if not name:
@@ -292,11 +298,48 @@ class UserGroupSerializer(serializers.ModelSerializer):
         return name
 
 
+def _apply_category_assignments(profile, group, cat_ids, assignments_data):
+    """Set permission_categories on a GroupProfile via assignments (with scope override)
+    or plain category_ids (no scope).  Syncs group.permissions afterwards."""
+    from apps.permissions.models import PermissionCategory
+    from apps.users.models import GroupPermissionCategoryAssignment
+
+    # Clear existing assignments using the through model directly (M2M .clear() is blocked for through models)
+    GroupPermissionCategoryAssignment.objects.filter(group=profile).delete()
+
+    if assignments_data:
+        for item in assignments_data:
+            cat_id     = item.get('id')
+            scope_over = item.get('scope_override', '')
+            try:
+                cat = PermissionCategory.objects.get(pk=cat_id)
+            except PermissionCategory.DoesNotExist:
+                continue
+            GroupPermissionCategoryAssignment.objects.create(
+                group=profile, category=cat, scope_override=scope_over,
+            )
+    elif cat_ids:
+        cats = PermissionCategory.objects.filter(id__in=cat_ids)
+        for cat in cats:
+            GroupPermissionCategoryAssignment.objects.create(
+                group=profile, category=cat, scope_override='',
+            )
+
+    # Sync Django permissions from all assigned categories
+    perm_ids = set()
+    for cat in profile.permission_categories.all():
+        perm_ids.update(cat.permissions.values_list('id', flat=True))
+    group.permissions.set(Permission.objects.filter(id__in=perm_ids))
+
+
 class UserGroupCreateSerializer(serializers.Serializer):
     name = serializers.CharField(max_length=150)
     description = serializers.CharField(required=False, default='', allow_blank=True)
     category_ids = serializers.ListField(
         child=serializers.IntegerField(), required=False, default=list
+    )
+    category_assignments = serializers.ListField(
+        child=serializers.DictField(), required=False, default=list
     )
 
     def validate_name(self, value):
@@ -308,8 +351,8 @@ class UserGroupCreateSerializer(serializers.Serializer):
         return name
 
     def create(self, validated_data):
-        from apps.permissions.models import PermissionCategory
-        cat_ids = validated_data.pop('category_ids', [])
+        cat_ids     = validated_data.pop('category_ids', [])
+        assignments = validated_data.pop('category_assignments', [])
         group = Group.objects.create(name=validated_data['name'])
         profile = GroupProfile.objects.create(
             group=group,
@@ -317,15 +360,7 @@ class UserGroupCreateSerializer(serializers.Serializer):
             is_admin_group=False,
             is_system=False,
         )
-        if cat_ids:
-            cats = PermissionCategory.objects.filter(id__in=cat_ids)
-            profile.permission_categories.set(cats)
-            perm_ids = set()
-            for cat in cats:
-                perm_ids.update(cat.permissions.values_list('id', flat=True))
-            if perm_ids:
-                group.permissions.set(Permission.objects.filter(id__in=perm_ids))
-        # Auto-compute is_admin_group: admin if perms span all available modules
+        _apply_category_assignments(profile, group, cat_ids, assignments)
         profile.is_admin_group = _is_admin_by_coverage(group)
         profile.save(update_fields=['is_admin_group'])
         return group

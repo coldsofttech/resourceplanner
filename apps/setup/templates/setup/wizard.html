@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Setup — ResourcePlanner</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { background: #f8fafc; min-height: 100vh; }
+        .setup-card { max-width: 640px; margin: 40px auto; }
+        .step-indicator { display: flex; gap: 0; margin-bottom: 32px; }
+        .step-dot {
+            flex: 1; height: 4px; border-radius: 2px;
+            background: #e2e8f0; margin: 0 2px;
+            transition: background 0.3s;
+        }
+        .step-dot.active  { background: #3b82f6; }
+        .step-dot.done    { background: #10b981; }
+        .setup-panel { display: none; }
+        .setup-panel.active { display: block; }
+        .step-title { font-size: 1.25rem; font-weight: 600; margin-bottom: 4px; }
+        .step-sub   { color: #64748b; font-size: 0.875rem; margin-bottom: 24px; }
+        .field-label { font-weight: 500; font-size: 0.875rem; margin-bottom: 4px; }
+        .field-hint  { color: #64748b; font-size: 0.8rem; margin-top: 2px; }
+        .error-msg   { color: #ef4444; font-size: 0.8rem; margin-top: 3px; }
+        .skip-link   { color: #94a3b8; font-size: 0.8rem; cursor: pointer; text-decoration: underline; }
+        .storage-card {
+            border: 2px solid #e2e8f0; border-radius: 8px;
+            padding: 14px 16px; cursor: pointer; transition: border-color 0.2s;
+            margin-bottom: 8px;
+        }
+        .storage-card:hover   { border-color: #93c5fd; }
+        .storage-card.selected { border-color: #3b82f6; background: #eff6ff; }
+        .storage-card input[type="radio"] { margin-right: 8px; }
+        .done-icon { font-size: 3rem; color: #10b981; }
+    </style>
+</head>
+<body>
+<div class="setup-card px-3">
+
+    <!-- Header -->
+    <div class="text-center mb-4 mt-5">
+        <div class="fw-700 fs-4 mb-1" style="letter-spacing:-0.5px">Resource<strong>Planner</strong></div>
+        <div class="text-secondary small">Initial Setup</div>
+    </div>
+
+    <!-- Progress dots -->
+    <div class="step-indicator" id="step-indicator">
+        <div class="step-dot" id="dot-0"></div>
+        <div class="step-dot" id="dot-1"></div>
+        <div class="step-dot" id="dot-2"></div>
+        <div class="step-dot" id="dot-3"></div>
+        <div class="step-dot" id="dot-4"></div>
+        <div class="step-dot" id="dot-5"></div>
+    </div>
+
+    <div class="card shadow-sm border-0 rounded-3">
+        <div class="card-body p-4">
+
+            <!-- Step 1: Admin Account -->
+            <div class="setup-panel active" id="panel-1">
+                <div class="step-title"><i class="bi bi-person-badge me-2 text-primary"></i>Admin Account</div>
+                <div class="step-sub">Create the initial administrator account. You will use this to log in and manage the system.</div>
+                <div id="admin-skip-notice" class="alert alert-success d-none small py-2">
+                    <i class="bi bi-check-circle me-1"></i>An administrator account already exists. This step will be skipped.
+                </div>
+                <div id="admin-fields">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <div class="field-label">First name</div>
+                            <input type="text" id="s1-first" class="form-control" placeholder="Jane" autocomplete="given-name">
+                        </div>
+                        <div class="col-6">
+                            <div class="field-label">Last name</div>
+                            <input type="text" id="s1-last" class="form-control" placeholder="Smith" autocomplete="family-name">
+                        </div>
+                        <div class="col-12">
+                            <div class="field-label">Email address <span class="text-danger">*</span></div>
+                            <input type="email" id="s1-email" class="form-control" placeholder="admin@example.com" autocomplete="email">
+                            <div class="error-msg d-none" id="err-s1-email"></div>
+                        </div>
+                        <div class="col-6">
+                            <div class="field-label">Password <span class="text-danger">*</span></div>
+                            <input type="password" id="s1-pwd" class="form-control" autocomplete="new-password">
+                            <div class="error-msg d-none" id="err-s1-pwd"></div>
+                        </div>
+                        <div class="col-6">
+                            <div class="field-label">Confirm password <span class="text-danger">*</span></div>
+                            <input type="password" id="s1-confirm" class="form-control" autocomplete="new-password">
+                            <div class="error-msg d-none" id="err-s1-confirm"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Application Settings -->
+            <div class="setup-panel" id="panel-2">
+                <div class="step-title"><i class="bi bi-gear me-2 text-primary"></i>Application Settings</div>
+                <div class="step-sub">Customise the name and base URL for this deployment.</div>
+                <div class="mb-3">
+                    <div class="field-label">Application name</div>
+                    <input type="text" id="s2-name" class="form-control" placeholder="Resource<b>Planner</b>" value="">
+                    <div class="field-hint">HTML is accepted. Shown in the top navigation bar.</div>
+                </div>
+                <div class="mb-3">
+                    <div class="field-label">Base URL</div>
+                    <input type="url" id="s2-url" class="form-control" placeholder="https://resourceplanner.example.com">
+                    <div class="field-hint">Used to build SSO redirect URIs and email links. No trailing slash.</div>
+                </div>
+            </div>
+
+            <!-- Step 3: Authentication -->
+            <div class="setup-panel" id="panel-3">
+                <div class="step-title"><i class="bi bi-shield-lock me-2 text-primary"></i>Authentication</div>
+                <div class="step-sub">Choose how users will sign in. Classic mode uses email and password. SSO delegates to an external provider.</div>
+                <div class="mb-3">
+                    <div class="field-label">Authentication mode</div>
+                    <select id="s3-mode" class="form-select">
+                        <option value="classic">Classic — email &amp; password</option>
+                        <option value="sso">SSO — Single Sign-On (SAML / OAuth2)</option>
+                    </select>
+                    <div class="field-hint">You can change this later in <strong>Settings → Security</strong>.</div>
+                </div>
+                <div class="form-check mt-3">
+                    <input class="form-check-input" type="checkbox" id="s3-reg">
+                    <label class="form-check-label small" for="s3-reg">
+                        Allow public self-registration
+                    </label>
+                </div>
+            </div>
+
+            <!-- Step 4: Storage -->
+            <div class="setup-panel" id="panel-4">
+                <div class="step-title"><i class="bi bi-hdd me-2 text-primary"></i>Storage</div>
+                <div class="step-sub">Configure where user avatars and file attachments are stored.</div>
+                <label class="storage-card selected d-flex align-items-start" id="stor-database" onclick="selectStorage('database')">
+                    <input type="radio" name="storage" value="database" checked>
+                    <div>
+                        <div class="fw-500 small">Database</div>
+                        <div class="text-secondary" style="font-size:0.8rem">Avatars stored in the database. No extra configuration needed.</div>
+                    </div>
+                </label>
+                <label class="storage-card d-flex align-items-start" id="stor-local" onclick="selectStorage('local')">
+                    <input type="radio" name="storage" value="local">
+                    <div>
+                        <div class="fw-500 small">Local filesystem</div>
+                        <div class="text-secondary" style="font-size:0.8rem">Files saved to a directory on this server.</div>
+                    </div>
+                </label>
+                <div id="local-path-row" class="ps-3 mt-1 d-none">
+                    <div class="field-label small">Local path</div>
+                    <input type="text" id="s4-local" class="form-control form-control-sm" placeholder="/var/rp/media/avatars">
+                </div>
+                <label class="storage-card d-flex align-items-start" id="stor-s3" onclick="selectStorage('s3')">
+                    <input type="radio" name="storage" value="s3">
+                    <div>
+                        <div class="fw-500 small">Amazon S3</div>
+                        <div class="text-secondary" style="font-size:0.8rem">Files stored in an S3-compatible bucket.</div>
+                    </div>
+                </label>
+                <div id="s3-arn-row" class="ps-3 mt-1 d-none">
+                    <div class="field-label small">S3 Bucket ARN</div>
+                    <input type="text" id="s4-s3" class="form-control form-control-sm" placeholder="arn:aws:s3:::my-bucket">
+                </div>
+            </div>
+
+            <!-- Step 5: Integrations (optional) -->
+            <div class="setup-panel" id="panel-5">
+                <div class="step-title"><i class="bi bi-plug me-2 text-primary"></i>Integrations <span class="badge bg-secondary fw-400 fs-7 ms-1">Optional</span></div>
+                <div class="step-sub">Configure email sending now. AI and Jira integrations can be set up later in Settings → Integrations.</div>
+                <div class="mb-3">
+                    <div class="field-label">SMTP Host</div>
+                    <input type="text" id="s5-host" class="form-control" placeholder="smtp.example.com">
+                </div>
+                <div class="row g-3">
+                    <div class="col-4">
+                        <div class="field-label">Port</div>
+                        <input type="number" id="s5-port" class="form-control" placeholder="587" value="587">
+                    </div>
+                    <div class="col-8">
+                        <div class="field-label">SMTP Username</div>
+                        <input type="text" id="s5-user" class="form-control" placeholder="noreply@example.com">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <div class="field-label">From address</div>
+                    <input type="email" id="s5-from" class="form-control" placeholder="ResourcePlanner &lt;noreply@example.com&gt;">
+                </div>
+                <div class="mt-2 text-center">
+                    <span class="skip-link" onclick="nextStep()">Skip this step →</span>
+                </div>
+            </div>
+
+            <!-- Step 6: Done -->
+            <div class="setup-panel" id="panel-6">
+                <div class="text-center py-3">
+                    <div class="done-icon mb-3"><i class="bi bi-check-circle-fill"></i></div>
+                    <div class="step-title">Setup complete!</div>
+                    <p class="text-secondary small">Your ResourcePlanner instance is ready. Sign in with the admin account you just created.</p>
+                    <a href="/login/" class="btn btn-primary mt-2">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Go to login
+                    </a>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <div class="d-flex justify-content-between align-items-center mt-3 mb-5">
+        <button class="btn btn-outline-secondary" id="btn-back" onclick="prevStep()" style="visibility:hidden">
+            <i class="bi bi-arrow-left me-1"></i>Back
+        </button>
+        <div id="step-label" class="text-secondary small">Step 1 of 6</div>
+        <button class="btn btn-primary" id="btn-next" onclick="nextStep()">
+            Next<i class="bi bi-arrow-right ms-1"></i>
+        </button>
+    </div>
+
+    <div id="global-error" class="alert alert-danger d-none small"></div>
+</div>
+
+<script>
+'use strict';
+
+let _step = 1;
+const TOTAL = 6;
+
+function updateUI() {
+    for (let i = 1; i <= TOTAL; i++) {
+        document.getElementById(`panel-${i}`)?.classList.toggle('active', i === _step);
+        const dot = document.getElementById(`dot-${i - 1}`);
+        if (dot) {
+            dot.className = 'step-dot' + (i < _step ? ' done' : i === _step ? ' active' : '');
+        }
+    }
+    document.getElementById('btn-back').style.visibility = _step > 1 && _step < TOTAL ? 'visible' : 'hidden';
+    document.getElementById('btn-next').style.display    = _step < TOTAL ? '' : 'none';
+    document.getElementById('step-label').textContent    = `Step ${_step} of ${TOTAL - 1}`;
+}
+
+function clearErrors() {
+    document.querySelectorAll('.error-msg').forEach(el => { el.textContent = ''; el.classList.add('d-none'); });
+    document.getElementById('global-error').classList.add('d-none');
+}
+
+function showErr(id, msg) {
+    const el = document.getElementById(`err-${id}`);
+    if (el) { el.textContent = msg; el.classList.remove('d-none'); }
+}
+
+async function nextStep() {
+    clearErrors();
+    const btn = document.getElementById('btn-next');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>…';
+
+    try {
+        const payload = buildPayload(_step);
+        const res = await fetch('/setup/step/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ step: _step, data: payload }),
+        });
+        const json = await res.json();
+
+        if (!res.ok) {
+            const errs = json.errors || {};
+            Object.entries(errs).forEach(([k, v]) => showErr(`s${_step}-${k}`, v));
+            if (json.error) {
+                const el = document.getElementById('global-error');
+                el.textContent = json.error; el.classList.remove('d-none');
+            }
+            return;
+        }
+
+        if (json.redirect) { window.location.href = json.redirect; return; }
+
+        _step++;
+
+        // After the last real step, fire the completion call before showing done screen
+        if (_step === TOTAL) {
+            const completeRes = await fetch('/setup/step/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ step: TOTAL, data: {} }),
+            });
+            if (!completeRes.ok) {
+                _step--;
+                const el = document.getElementById('global-error');
+                el.textContent = 'Could not mark setup complete. Please try again.';
+                el.classList.remove('d-none');
+                return;
+            }
+        }
+
+        updateUI();
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = _step < TOTAL ? 'Next<i class="bi bi-arrow-right ms-1"></i>' : '';
+    }
+}
+
+function prevStep() {
+    if (_step > 1) { _step--; updateUI(); clearErrors(); }
+}
+
+function buildPayload(step) {
+    if (step === 1) return {
+        first_name: document.getElementById('s1-first')?.value?.trim() || '',
+        last_name:  document.getElementById('s1-last')?.value?.trim() || '',
+        email:      document.getElementById('s1-email')?.value?.trim() || '',
+        password:   document.getElementById('s1-pwd')?.value || '',
+        confirm:    document.getElementById('s1-confirm')?.value || '',
+    };
+    if (step === 2) return {
+        app_name: document.getElementById('s2-name')?.value?.trim() || '',
+        base_url: document.getElementById('s2-url')?.value?.trim() || '',
+    };
+    if (step === 3) return {
+        auth_mode:          document.getElementById('s3-mode')?.value || 'classic',
+        allow_registration: document.getElementById('s3-reg')?.checked ? 'true' : 'false',
+    };
+    if (step === 4) {
+        const storage = document.querySelector('input[name="storage"]:checked')?.value || 'database';
+        return {
+            avatar_storage: storage,
+            local_path:     storage === 'local' ? (document.getElementById('s4-local')?.value?.trim() || '') : '',
+            s3_arn:         storage === 's3'    ? (document.getElementById('s4-s3')?.value?.trim()    || '') : '',
+        };
+    }
+    if (step === 5) return {
+        email_host: document.getElementById('s5-host')?.value?.trim() || '',
+        email_port: document.getElementById('s5-port')?.value?.trim() || '587',
+        email_user: document.getElementById('s5-user')?.value?.trim() || '',
+        email_from: document.getElementById('s5-from')?.value?.trim() || '',
+    };
+    if (step === 6) return {};
+    return {};
+}
+
+function selectStorage(val) {
+    ['database','local','s3'].forEach(v => {
+        document.getElementById(`stor-${v}`)?.classList.toggle('selected', v === val);
+        const radio = document.querySelector(`input[name="storage"][value="${v}"]`);
+        if (radio) radio.checked = v === val;
+    });
+    document.getElementById('local-path-row')?.classList.toggle('d-none', val !== 'local');
+    document.getElementById('s3-arn-row')?.classList.toggle('d-none',     val !== 's3');
+}
+
+// Pre-fill base URL from window.location
+document.addEventListener('DOMContentLoaded', () => {
+    const urlEl = document.getElementById('s2-url');
+    if (urlEl && !urlEl.value) {
+        urlEl.value = window.location.origin;
+    }
+    updateUI();
+});
+</script>
+</body>
+</html>

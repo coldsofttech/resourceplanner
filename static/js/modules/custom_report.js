@@ -59,7 +59,7 @@ const _s = {
     config: {
         fields: [], filters: [], axis: '', legend: '', rows: '', columns: '',
         values: [{ field: 'id', aggregation: 'count' }],
-        format: {}, joined_sources: [],
+        format: {}, joined_sources: [], sort_by: [],
     },
     allDataSources: [],   // full list from API (with related_sources)
     fieldDefs:     [],    // merged: primary + joined source fields
@@ -103,7 +103,7 @@ async function loadExistingReport() {
         _s.visualization = report.visualization;
         _s.config = Object.assign(
             { fields: [], filters: [], axis: '', legend: '', rows: '', columns: '',
-              values: [{ field: 'id', aggregation: 'count' }], format: {}, joined_sources: [] },
+              values: [{ field: 'id', aggregation: 'count' }], format: {}, joined_sources: [], sort_by: [] },
             report.config,
         );
         document.getElementById('cr-name').value = _s.name;
@@ -189,12 +189,13 @@ async function selectDataSource(key, preserveConfig = false, clearJoins = true) 
     renderJoinList();
 
     if (!preserveConfig) {
-        _s.config.fields  = [];
-        _s.config.axis    = '';
-        _s.config.legend  = '';
-        _s.config.rows    = '';
-        _s.config.columns = '';
-        _s.config.values  = [{ field: _s.fieldDefs[0]?.key || 'id', aggregation: 'count' }];
+        _s.config.fields   = [];
+        _s.config.axis     = '';
+        _s.config.legend   = '';
+        _s.config.rows     = '';
+        _s.config.columns  = '';
+        _s.config.values   = [{ field: _s.fieldDefs[0]?.key || 'id', aggregation: 'count' }];
+        _s.config.sort_by  = [];
         _s.dirty = true;
     }
     renderConfigSlots();
@@ -799,6 +800,65 @@ function exportImage() {
     link.href     = canvas.toDataURL('image/png'); link.click();
 }
 
+// ── Sort helpers ──────────────────────────────────────────────────────────────
+
+function getSortColumns() {
+    const viz = _s.visualization;
+    const fm  = Object.fromEntries(_s.fieldDefs.map(f => [f.key, f.label]));
+    const cols = [];
+    if (viz === 'table') {
+        (_s.config.fields || []).forEach(k => cols.push({ key: k, label: fm[k] || k }));
+    } else if (['bar','stacked_bar','column','stacked_column','line','combo','pie'].includes(viz)) {
+        if (_s.config.axis) cols.push({ key: _s.config.axis, label: fm[_s.config.axis] || _s.config.axis });
+    } else if (['pivot','heatmap'].includes(viz)) {
+        if (_s.config.rows)    cols.push({ key: _s.config.rows,    label: fm[_s.config.rows]    || _s.config.rows });
+        if (_s.config.columns) cols.push({ key: _s.config.columns, label: fm[_s.config.columns] || _s.config.columns });
+    }
+    (_s.config.values || []).forEach((v, i) => {
+        cols.push({ key: `_val${i}`, label: `${AGGR_LABELS[v.aggregation || 'count']}(${fm[v.field] || v.field || 'id'})` });
+    });
+    if (!cols.length) _s.fieldDefs.forEach(f => cols.push({ key: f.key, label: f.label }));
+    return cols;
+}
+
+function sortSectionHtml() {
+    const cols  = getSortColumns();
+    const rules = _s.config.sort_by || [];
+
+    const rulesHtml = rules.map((r, i) => {
+        const fieldOpts = cols.map(c =>
+            `<option value="${escAttr(c.key)}" ${r.field === c.key ? 'selected' : ''}>${escHtml(c.label)}</option>`
+        ).join('');
+        return `<div class="cr-filter-row">
+            <select class="cr-filter-field" onchange="crUpdateSort(${i},'field',this.value)">${fieldOpts}</select>
+            <select class="cr-filter-op" onchange="crUpdateSort(${i},'direction',this.value)">
+                <option value="asc"  ${r.direction !== 'desc' ? 'selected' : ''}>ASC ↑</option>
+                <option value="desc" ${r.direction === 'desc' ? 'selected' : ''}>DESC ↓</option>
+            </select>
+            <button class="btn btn-ghost-icon btn-ghost-icon--danger btn-sm p-0" onclick="crRemoveSort(${i})">
+                <i class="bi bi-x"></i></button>
+        </div>`;
+    }).join('');
+
+    return `<div class="cr-slot-label mb-1 d-flex justify-content-between align-items-center">
+        <span>Sort</span>
+        <span class="cr-val-add" onclick="crAddSort()" title="Add sort rule"><i class="bi bi-plus-circle"></i></span>
+    </div>
+    <div id="cr-sort-rules" class="mb-3">
+        ${rulesHtml || '<p class="text-secondary small mb-0">Default order. Add a rule to customise.</p>'}
+    </div>`;
+}
+
+window.crAddSort = () => {
+    const cols = getSortColumns();
+    if (!_s.config.sort_by) _s.config.sort_by = [];
+    _s.config.sort_by.push({ field: cols[0]?.key || '', direction: 'asc' });
+    renderFormatTab();
+    _s.dirty = true;
+};
+window.crRemoveSort  = (i)       => { _s.config.sort_by.splice(i, 1); renderFormatTab(); _s.dirty = true; };
+window.crUpdateSort  = (i, k, v) => { _s.config.sort_by[i][k] = v; renderFormatTab(); _s.dirty = true; };
+
 // ── Format tab (dynamic per viz type) ────────────────────────────────────────
 
 function renderFormatTab() {
@@ -815,7 +875,9 @@ function renderFormatTab() {
     const sel = (k, opts) => opts.map(([val, lbl]) =>
         `<option value="${val}" ${(fmt[k] || opts[1][0]) === val ? 'selected' : ''}>${lbl}</option>`).join('');
 
-    let html = `
+    let html = sortSectionHtml();
+
+    html += `
         <div class="cr-slot-label mb-1">Title</div>
         <input type="text" class="form-control form-control-sm mb-2" value="${v('title')}" placeholder="Leave blank to use report name" oninput="syncFmt('title',this.value)">
         <div class="cr-slot-label mb-1">Subtitle</div>

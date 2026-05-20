@@ -125,6 +125,48 @@
             <div id="ctrl-SSO_SAML_SP_ACS_URL"></div>
         </div>
     </div>
+
+    <!-- Generated SP config (shown after fields so user can copy values for IdP registration) -->
+    <div id="generated-oauth2" class="d-none mt-4">
+        <div class="alert alert-info mb-0">
+            <h6 class="fw-600 mb-2"><i class="bi bi-box-arrow-in-right me-2"></i>Register this in your Identity Provider</h6>
+            <div class="mb-1 small">
+                <span class="fw-500">Callback / Redirect URI:</span>
+                <code id="gen-oauth2-redirect" class="ms-2">{{ oauth2_redirect_uri }}</code>
+                <button class="btn btn-sm btn-link p-0 ms-1" onclick="rpCopyText('gen-oauth2-redirect')" title="Copy"><i class="bi bi-clipboard"></i></button>
+            </div>
+            <div class="text-secondary small">Add this URI to the list of allowed redirect URIs in your OAuth2 / OIDC application.</div>
+        </div>
+    </div>
+
+    <div id="generated-saml" class="d-none mt-4">
+        <div class="alert alert-info mb-0">
+            <h6 class="fw-600 mb-2"><i class="bi bi-file-earmark-code me-2"></i>Service Provider (SP) Configuration — register with your IdP</h6>
+            <table class="table table-sm small mb-2">
+                <tbody>
+                    <tr>
+                        <td class="fw-500 text-nowrap" style="width:200px">SP Entity ID</td>
+                        <td><code id="gen-saml-entity">{{ saml_entity_id }}</code>
+                            <button class="btn btn-sm btn-link p-0 ms-1" onclick="rpCopyText('gen-saml-entity')" title="Copy"><i class="bi bi-clipboard"></i></button></td>
+                    </tr>
+                    <tr>
+                        <td class="fw-500 text-nowrap">ACS URL</td>
+                        <td><code id="gen-saml-acs">{{ saml_acs_url }}</code>
+                            <button class="btn btn-sm btn-link p-0 ms-1" onclick="rpCopyText('gen-saml-acs')" title="Copy"><i class="bi bi-clipboard"></i></button></td>
+                    </tr>
+                    <tr>
+                        <td class="fw-500 text-nowrap">SP Metadata URL</td>
+                        <td>
+                            <a href="{{ saml_metadata_url }}" target="_blank" class="font-monospace small">{{ saml_metadata_url }}</a>
+                            <button class="btn btn-sm btn-link p-0 ms-1" onclick="rpCopyText('gen-saml-meta')" title="Copy"><i class="bi bi-clipboard"></i></button>
+                            <code id="gen-saml-meta" class="d-none">{{ saml_metadata_url }}</code>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+            <div class="text-secondary small">Download the SP metadata XML from the URL above and upload it to your IdP, or fill in the fields manually.</div>
+        </div>
+    </div>
 </div>
 
 <!-- Navigation -->

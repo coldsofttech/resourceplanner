@@ -9,4 +9,5 @@ urlpatterns = [
     path('sso/',    views.howto_sso,   name='howto-sso'),
     path('email/',  views.howto_email, name='howto-email'),
     path('jobs/',   views.howto_jobs,  name='howto-jobs'),
+    path('api/',    views.howto_api,   name='howto-api'),
 ]

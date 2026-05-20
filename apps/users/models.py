@@ -128,6 +128,41 @@ class PasswordHistory(models.Model):
         ordering = ['-created_at']
 
 
+_SCOPE_OVERRIDE_CHOICES = [
+    ('', 'Use category default'),
+    ('all',  'All — no restriction'),
+    ('team', 'Team — own delivery team only'),
+    ('self', 'Self — own records only'),
+]
+
+
+class GroupPermissionCategoryAssignment(models.Model):
+    """Through model for GroupProfile ↔ PermissionCategory with optional scope override."""
+    group = models.ForeignKey(
+        'users.GroupProfile',
+        on_delete=models.CASCADE,
+        related_name='category_assignments',
+    )
+    category = models.ForeignKey(
+        'permissions.PermissionCategory',
+        on_delete=models.CASCADE,
+        related_name='group_assignments',
+    )
+    scope_override = models.CharField(
+        max_length=10,
+        choices=_SCOPE_OVERRIDE_CHOICES,
+        blank=True,
+        default='',
+        help_text='Override the category scope for this group. Blank = use category default.',
+    )
+
+    class Meta:
+        unique_together = [('group', 'category')]
+
+    def effective_scope(self):
+        return self.scope_override or self.category.scope
+
+
 class GroupProfile(models.Model):
     """Extends Django's built-in auth.Group with metadata for application-level role management."""
     group = models.OneToOneField(
@@ -146,6 +181,7 @@ class GroupProfile(models.Model):
     )
     permission_categories = models.ManyToManyField(
         'permissions.PermissionCategory',
+        through='GroupPermissionCategoryAssignment',
         blank=True,
         related_name='groups',
     )

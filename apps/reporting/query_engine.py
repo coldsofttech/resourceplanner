@@ -109,6 +109,21 @@ def _value_label(v: Dict, field_map: Dict) -> str:
     return f'{agg}({field_map.get(field, field)})'
 
 
+def _build_order(sort_by: List[Dict], fk_map: Dict, default_keys: List[str]) -> List[str]:
+    """Return ORDER BY field list from sort_by config, falling back to default_keys."""
+    if not sort_by:
+        return list(default_keys)
+    exprs = []
+    for rule in sort_by:
+        field = rule.get('field', '')
+        direction = rule.get('direction', 'asc')
+        if not field:
+            continue
+        resolved = fk_map.get(field, field)
+        exprs.append(f'-{resolved}' if direction == 'desc' else resolved)
+    return exprs if exprs else list(default_keys)
+
+
 # ── Public entry point ────────────────────────────────────────────────────────
 
 def execute(config: Dict, data_source_key: str) -> Dict:
@@ -165,12 +180,15 @@ def _table(qs, config, field_map, ds) -> Dict:
     fields     = config.get('fields') or all_field_keys
     values_cfg = config.get('values') or []
 
+    sort_by = config.get('sort_by', [])
+
     # Grouped table: group by selected fields and compute aggregations
     if fields and values_cfg:
         qs, fk_map   = _annotate_fk_fields(qs, fields)
         group_keys   = [_resolve_key(fk, fk_map) for fk in fields]
         ann          = _value_annotations(values_cfg)
-        rows         = list(qs.values(*group_keys).annotate(**ann).order_by(*group_keys)[:MAX_ROWS])
+        order        = _build_order(sort_by, fk_map, group_keys)
+        rows         = list(qs.values(*group_keys).annotate(**ann).order_by(*order)[:MAX_ROWS])
         dim_cols     = [{'key': _resolve_key(fk, fk_map), 'label': field_map.get(fk, fk)} for fk in fields]
         val_cols     = [{'key': f'_val{i}', 'label': _value_label(v, field_map)} for i, v in enumerate(values_cfg)]
         return {'type': 'table', 'columns': dim_cols + val_cols, 'rows': rows, 'total': len(rows)}
@@ -178,7 +196,8 @@ def _table(qs, config, field_map, ds) -> Dict:
     # Raw table
     qs, fk_map = _annotate_fk_fields(qs, fields)
     val_keys   = [_resolve_key(fk, fk_map) for fk in fields]
-    rows       = list(qs.values(*val_keys)[:MAX_ROWS])
+    order      = _build_order(sort_by, fk_map, val_keys)
+    rows       = list(qs.values(*val_keys).order_by(*order)[:MAX_ROWS])
     columns    = [{'key': _resolve_key(fk, fk_map), 'label': field_map.get(fk, fk)} for fk in fields]
     return {'type': 'table', 'columns': columns, 'rows': rows, 'total': len(rows)}
 
@@ -198,7 +217,8 @@ def _chart(qs, config, field_map, viz) -> Dict:
     group_keys   = [axis_key] + ([legend_key] if legend_key and legend_key != axis_key else [])
 
     ann   = _value_annotations(values_cfg)
-    rows  = list(qs.values(*group_keys).annotate(**ann).order_by(*group_keys))
+    order = _build_order(config.get('sort_by', []), fk_map, group_keys)
+    rows  = list(qs.values(*group_keys).annotate(**ann).order_by(*order))
 
     v_labels = [_value_label(v, field_map) for v in values_cfg]
 
@@ -240,7 +260,8 @@ def _pie(qs, config, field_map) -> Dict:
     qs, fk_map = _annotate_fk_fields(qs, [axis])
     axis_key   = _resolve_key(axis, fk_map)
 
-    rows   = list(qs.values(axis_key).annotate(**ann).order_by(axis_key))
+    order  = _build_order(config.get('sort_by', []), fk_map, [axis_key])
+    rows   = list(qs.values(axis_key).annotate(**ann).order_by(*order))
     labels = [str(r.get(axis_key, '')) for r in rows]
     data   = [r.get('_val0', 0) for r in rows]
 
@@ -276,7 +297,8 @@ def _pivot(qs, config, field_map) -> Dict:
     rows_key   = _resolve_key(rows_f, fk_map)
     cols_key   = _resolve_key(cols_f, fk_map)
 
-    data = list(qs.values(rows_key, cols_key).annotate(**ann).order_by(rows_key, cols_key))
+    order = _build_order(config.get('sort_by', []), fk_map, [rows_key, cols_key])
+    data = list(qs.values(rows_key, cols_key).annotate(**ann).order_by(*order))
 
     all_rows = sorted({str(r[rows_key]) for r in data})
     all_cols = sorted({str(r[cols_key]) for r in data})

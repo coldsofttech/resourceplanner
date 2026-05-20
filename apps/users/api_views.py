@@ -197,16 +197,6 @@ class UserViewSet(ViewSet):
         if isinstance(user, Response):
             return user
 
-        # Protect the default admin user's identity fields
-        from apps.users.apps import DEFAULT_ADMIN_EMAIL
-        if user.email.lower() == DEFAULT_ADMIN_EMAIL.lower():
-            protected = ('first_name', 'last_name', 'email')
-            if any(f in request.data for f in protected):
-                return _err(
-                    'The default administrator account name and email cannot be changed.',
-                    status.HTTP_403_FORBIDDEN,
-                )
-
         ser = UserUpdateSerializer(data=request.data, instance=user)
         if not ser.is_valid():
             return Response({'error': 'Validation failed.', 'details': ser.errors},
@@ -231,9 +221,8 @@ class UserViewSet(ViewSet):
         if user == request.user:
             return _err('You cannot delete your own account.', status.HTTP_400_BAD_REQUEST)
 
-        from apps.users.apps import DEFAULT_ADMIN_EMAIL
-        if user.email.lower() == DEFAULT_ADMIN_EMAIL.lower():
-            return _err('The default administrator account cannot be deleted.', status.HTTP_403_FORBIDDEN)
+        if user.is_superuser and not User.objects.filter(is_superuser=True).exclude(pk=user.pk).exists():
+            return _err('Cannot delete the only remaining superuser account.', status.HTTP_403_FORBIDDEN)
 
         user.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -246,14 +235,6 @@ class UserViewSet(ViewSet):
     # ── /me/update ───────────────────────────────────────────────────────────
     @action(detail=False, methods=['patch'], url_path='me/update')
     def me_update(self, request):
-        from apps.users.apps import DEFAULT_ADMIN_EMAIL
-        if request.user.email.lower() == DEFAULT_ADMIN_EMAIL.lower():
-            if any(f in request.data for f in ('first_name', 'last_name', 'email')):
-                return _err(
-                    'The default administrator account name cannot be changed.',
-                    status.HTTP_403_FORBIDDEN,
-                )
-
         ser = UserUpdateSerializer(data=request.data, instance=request.user)
         if not ser.is_valid():
             return Response({'error': 'Validation failed.', 'details': ser.errors},
@@ -403,9 +384,8 @@ class UserViewSet(ViewSet):
             return _err('User not found.', status.HTTP_404_NOT_FOUND)
         if user == request.user:
             return _err('You cannot deactivate your own account.')
-        from apps.users.apps import DEFAULT_ADMIN_EMAIL
-        if user.email.lower() == DEFAULT_ADMIN_EMAIL.lower():
-            return _err('The default administrator account cannot be deactivated.', status.HTTP_403_FORBIDDEN)
+        if user.is_superuser and not User.objects.filter(is_superuser=True, is_active=True).exclude(pk=user.pk).exists():
+            return _err('Cannot deactivate the only remaining active superuser account.', status.HTTP_403_FORBIDDEN)
         user.is_active = False
         user.save(update_fields=['is_active'])
         return Response(UserSerializer(user, context={'request': request}).data)
@@ -683,13 +663,13 @@ class UserGroupViewSet(ViewSet):
 
         # Update permission categories (blocked for system groups); permissions derived from categories only
         categories_changed = False
-        if 'category_ids' in request.data and not is_system:
-            from apps.permissions.models import PermissionCategory
-            cat_ids = request.data.get('category_ids', [])
-            if isinstance(cat_ids, list):
-                cats = PermissionCategory.objects.filter(id__in=cat_ids)
-                profile.permission_categories.set(cats)
-                _sync_group_perms_from_categories(group, profile)
+        has_cat_data = 'category_ids' in request.data or 'category_assignments' in request.data
+        if has_cat_data and not is_system:
+            from apps.users.serializers import _apply_category_assignments
+            cat_ids     = request.data.get('category_ids', [])
+            assignments = request.data.get('category_assignments', [])
+            if isinstance(cat_ids, list) or isinstance(assignments, list):
+                _apply_category_assignments(profile, group, cat_ids, assignments)
                 categories_changed = True
 
         # Auto-compute is_admin_group from permission coverage (skip for system groups)

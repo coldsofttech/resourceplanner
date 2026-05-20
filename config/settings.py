@@ -88,6 +88,8 @@ INSTALLED_APPS = [
     "apps.orgchart",
     "apps.howto",
     "apps.jobs_admin",
+    "apps.setup",
+    "rest_framework.authtoken",
 ]
 
 # ── Jobs API ──────────────────────────────────────────────────────────────────
@@ -97,6 +99,7 @@ JOB_SERVICE_TOKEN = os.environ.get('JOB_SERVICE_TOKEN', '')
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "apps.setup.middleware.SetupMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -338,6 +341,7 @@ LOGGING = {
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
+        "rest_framework.authentication.TokenAuthentication",
         "rest_framework.authentication.BasicAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [

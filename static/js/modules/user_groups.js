@@ -189,6 +189,13 @@ async function loadCategoriesAccordion() {
     });
     if (noModule.length) sections.push({ key: '__other__', label: 'Other', cats: noModule });
 
+    const SCOPE_OPTS = [
+        { value: '',     label: 'Default scope' },
+        { value: 'all',  label: 'All' },
+        { value: 'team', label: 'Team' },
+        { value: 'self', label: 'Self' },
+    ];
+
     accordionEl.innerHTML = sections.map((sec, i) => `
         <div class="accordion-item border-0 border-bottom">
             <h2 class="accordion-header">
@@ -204,16 +211,25 @@ async function loadCategoriesAccordion() {
             <div id="cat-mod-${i}" class="accordion-collapse collapse">
                 <div class="accordion-body px-0 pb-2 pt-1">
                     ${sec.cats.map(cat => `
-                        <div class="form-check mb-1">
-                            <input class="form-check-input cat-check" type="checkbox"
-                                   value="${cat.id}" id="cat-${cat.id}"
-                                   data-mod-idx="${i}"
-                                   onchange="updateCatModCount(${i})">
-                            <label class="form-check-label small" for="cat-${cat.id}">
-                                <span class="fw-500">${escHtml(cat.name)}</span>
-                                ${cat.description ? `<span class="text-secondary ms-1">— ${escHtml(cat.description)}</span>` : ''}
-                                <span class="rp-badge rp-badge--muted ms-1">${cat.permission_count} perms</span>
-                            </label>
+                        <div class="mb-2">
+                            <div class="form-check">
+                                <input class="form-check-input cat-check" type="checkbox"
+                                       value="${cat.id}" id="cat-${cat.id}"
+                                       data-mod-idx="${i}"
+                                       onchange="toggleCatScope(${cat.id},${i})">
+                                <label class="form-check-label small" for="cat-${cat.id}">
+                                    <span class="fw-500">${escHtml(cat.name)}</span>
+                                    ${cat.description ? `<span class="text-secondary ms-1">— ${escHtml(cat.description)}</span>` : ''}
+                                    <span class="rp-badge rp-badge--muted ms-1">${cat.permission_count} perms</span>
+                                    <span class="rp-badge rp-badge--info ms-1" title="Category default scope">${escHtml(cat.scope_label || cat.scope || 'all')}</span>
+                                </label>
+                            </div>
+                            <div id="scope-row-${cat.id}" class="d-none ps-4 mt-1">
+                                <label class="small text-secondary me-1">Scope override:</label>
+                                <select id="scope-sel-${cat.id}" class="form-select form-select-sm d-inline-block" style="width:auto">
+                                    ${SCOPE_OPTS.map(o => `<option value="${o.value}">${escHtml(o.label)}</option>`).join('')}
+                                </select>
+                            </div>
                         </div>`).join('')}
                 </div>
             </div>
@@ -222,6 +238,13 @@ async function loadCategoriesAccordion() {
     // Store section cat counts for counter updates
     window._catModSections = sections;
 }
+
+window.toggleCatScope = (catId, modIdx) => {
+    const cb  = document.getElementById(`cat-${catId}`);
+    const row = document.getElementById(`scope-row-${catId}`);
+    if (row) row.classList.toggle('d-none', !cb?.checked);
+    updateCatModCount(modIdx);
+};
 
 window.updateCatModCount = (idx) => {
     const sec = window._catModSections?.[idx];
@@ -234,21 +257,35 @@ window.updateCatModCount = (idx) => {
     if (el) el.textContent = `(${checked} / ${sec.cats.length})`;
 };
 
-function _getSelectedCategoryIds() {
-    return [...document.querySelectorAll('.cat-check:checked')].map(cb => Number(cb.value));
+function _getSelectedCategoryAssignments() {
+    return [...document.querySelectorAll('.cat-check:checked')].map(cb => ({
+        id:             Number(cb.value),
+        scope_override: document.getElementById(`scope-sel-${cb.value}`)?.value || '',
+    }));
 }
 
-function _applyGroupCategories(catIds) {
+function _applyGroupCategories(catIds, assignments) {
+    const assignMap = {};
+    (assignments || []).forEach(a => { assignMap[a.id] = a.scope_override || ''; });
     const idSet = new Set(catIds);
     document.querySelectorAll('.cat-check').forEach(cb => {
-        cb.checked = idSet.has(Number(cb.value));
+        const id = Number(cb.value);
+        cb.checked = idSet.has(id);
+        const row = document.getElementById(`scope-row-${id}`);
+        if (cb.checked) {
+            if (row) row.classList.remove('d-none');
+            const sel = document.getElementById(`scope-sel-${id}`);
+            if (sel) sel.value = assignMap[id] ?? '';
+        } else {
+            if (row) row.classList.add('d-none');
+        }
     });
-    // Refresh all module counts
     (window._catModSections || []).forEach((_, i) => updateCatModCount(i));
 }
 
 function _disableCategories() {
     document.querySelectorAll('.cat-check').forEach(cb => { cb.disabled = true; });
+    document.querySelectorAll('[id^="scope-sel-"]').forEach(sel => { sel.disabled = true; });
     const badge = document.getElementById('categories-system-badge');
     const hint  = document.getElementById('categories-hint');
     if (badge) badge.classList.remove('d-none');
@@ -276,7 +313,7 @@ async function loadGroupForEdit(pk) {
         }
 
         if (g.category_ids && g.category_ids.length) {
-            _applyGroupCategories(g.category_ids);
+            _applyGroupCategories(g.category_ids, g.category_assignments || []);
         }
         if (g.is_system) {
             _disableCategories();
@@ -295,11 +332,11 @@ async function submitGroupForm(groupPk) {
     errorBanner.classList.add('d-none');
 
     const payload = {
-        name:         document.getElementById('id_name').value.trim(),
-        description:  document.getElementById('id_description').value.trim(),
-        category_ids: _groupIsSystem ? undefined : _getSelectedCategoryIds(),
+        name:                 document.getElementById('id_name').value.trim(),
+        description:          document.getElementById('id_description').value.trim(),
+        category_assignments: _groupIsSystem ? undefined : _getSelectedCategoryAssignments(),
     };
-    if (payload.category_ids === undefined) delete payload.category_ids;
+    if (payload.category_assignments === undefined) delete payload.category_assignments;
 
     const origLabel = submitBtn.dataset.originalLabel || submitLabel.textContent;
     submitBtn.disabled      = true;
